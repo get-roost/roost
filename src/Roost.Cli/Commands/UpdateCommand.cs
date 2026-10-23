@@ -77,7 +77,7 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
             AnsiConsole.MarkupLineInterpolated($"[red]La release {latest.Name} no trae el instalador de Windows:[/] mira que ha pasado en {latest.Page}");
             return 1;
         }
-        if (Process.GetProcessesByName("roost-desktop").Length > 0)
+        if (AppIsOpen())
         {
             AnsiConsole.MarkupLine("[yellow]La app de Roost esta abierta.[/] Actualiza desde ella (el aviso de la barra lateral: Actualizar ahora), "
                 + "o cierrala del todo (clic derecho en el icono de la bandeja > Salir de Roost) y repite.");
@@ -101,13 +101,7 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
                     download = await installer.DownloadAsync(setup, expected, new Progress<long>(b => task.Value = Math.Min(b, task.MaxValue)), cancellation);
                     task.Value = task.MaxValue;
                 });
-            var signature = download.Signature switch
-            {
-                SignatureStatus.Valid => "firma digital valida",
-                SignatureStatus.Unsigned => "sin firma digital (Roost aun no tiene certificado)",
-                _ => "firma no comprobada",
-            };
-            AnsiConsole.MarkupLineInterpolated($"[green]Verificado[/] {setup.Name}: SHA-256 el de SHA256SUMS.txt, {signature}.");
+            AnsiConsole.MarkupLineInterpolated($"[green]Verificado[/] {setup.Name}: SHA-256 el de SHA256SUMS.txt, {UpdateInstaller.DescribeSignature(download.Signature)}.");
 
             Directory.CreateDirectory(paths.Logs);
             UpdateMarker.Write(paths, new UpdateMarker(check.Installed, latest.Version.ToString(), running, DateTimeOffset.Now, installer.SetupLogFile));
@@ -123,6 +117,31 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
             AnsiConsole.MarkupLineInterpolated($"[red]{ex.Message}[/]");
             return 1;
         }
+    }
+
+    /// <summary>
+    /// Si la app de ESTA instalacion esta abierta (un roost-desktop.exe de la misma carpeta que este
+    /// roost.exe): el instalador la cerraria y no volveria. Otra Roost (otra carpeta) no cuenta.
+    /// </summary>
+    private static bool AppIsOpen()
+    {
+        var here = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+        foreach (var process in Process.GetProcessesByName("roost-desktop"))
+        {
+            using (process)
+            {
+                try
+                {
+                    var dir = Path.GetDirectoryName(process.MainModule?.FileName);
+                    if (dir is not null && string.Equals(Path.TrimEndingDirectorySeparator(dir), here, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+                {
+                    // De otro usuario o ya cerrado: no es la nuestra.
+                }
+            }
+        }
+        return false;
     }
 
     private static void Write(UpdateCheck check, UpdateAdvice advice)

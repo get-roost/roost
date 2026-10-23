@@ -166,7 +166,8 @@ public sealed class UpdateInstaller
     /// intento. Un hash que no cuadra o una firma inválida borran el fichero y lanzan: <b>no se
     /// ejecuta nada</b>.
     /// </summary>
-    public async Task<VerifiedDownload> DownloadAsync(ReleaseAsset asset, string expectedSha256, IProgress<long>? progress = null, CancellationToken cancellation = default)
+    /// <param name="verifying">Se llama al acabar de bajar, justo antes de calcular el SHA-256 (el diálogo cambia de paso).</param>
+    public async Task<VerifiedDownload> DownloadAsync(ReleaseAsset asset, string expectedSha256, IProgress<long>? progress = null, CancellationToken cancellation = default, Action? verifying = null)
     {
         var expected = expectedSha256.Trim().ToLowerInvariant();
         if (expected.Length != 64 || !expected.All(char.IsAsciiHexDigit))
@@ -177,11 +178,10 @@ public sealed class UpdateInstaller
         var final = Path.Combine(DownloadsDir, Path.GetFileName(asset.Name));
         if (File.Exists(final))
         {
+            progress?.Report(new FileInfo(final).Length);
+            verifying?.Invoke();
             if (await Sha256OfAsync(final, cancellation) == expected)
-            {
-                progress?.Report(new FileInfo(final).Length);
                 return Verified(asset, final, expected);
-            }
             TryDelete(final);
         }
 
@@ -201,6 +201,7 @@ public sealed class UpdateInstaller
             }
         }
 
+        verifying?.Invoke();
         var actual = await Sha256OfAsync(part, cancellation);
         if (actual != expected)
         {
@@ -213,11 +214,19 @@ public sealed class UpdateInstaller
     }
 
     /// <summary><see cref="ExpectedSha256Async"/> y <see cref="DownloadAsync"/> de una vez.</summary>
-    public async Task<VerifiedDownload> DownloadVerifiedAsync(ReleaseInfo release, ReleaseAsset asset, IProgress<long>? progress = null, CancellationToken cancellation = default)
+    public async Task<VerifiedDownload> DownloadVerifiedAsync(ReleaseInfo release, ReleaseAsset asset, IProgress<long>? progress = null, CancellationToken cancellation = default, Action? verifying = null)
     {
         var expected = await ExpectedSha256Async(release, asset, cancellation);
-        return await DownloadAsync(asset, expected, progress, cancellation);
+        return await DownloadAsync(asset, expected, progress, cancellation, verifying);
     }
+
+    /// <summary>PURO: lo que se le cuenta al usuario de la firma (sin tildes: lo enseña también la CLI).</summary>
+    public static string DescribeSignature(SignatureStatus signature) => signature switch
+    {
+        SignatureStatus.Valid => "firma digital valida",
+        SignatureStatus.Unsigned => "sin firma digital (Roost aun no tiene certificado)",
+        _ => "firma no comprobada",
+    };
 
     /// <summary>La firma Authenticode de un fichero (la de los tests la inyecta el constructor).</summary>
     public SignatureStatus CheckSignature(string file) => _signature(file);
@@ -234,7 +243,7 @@ public sealed class UpdateInstaller
     }
 
     // Una petición: si hay un .part, pide lo que falta (Range). 206 → se añade; 200 → el servidor no
-    // reanuda y se empieza de cero; 416 → el .part no vale y se repite sin Range.
+    // reanuda y se empieza de cero; 416 → el .part no vale y se repite una vez sin Range.
     private async Task FetchAsync(Uri url, string part, IProgress<long>? progress, CancellationToken cancellation)
     {
         var have = File.Exists(part) ? new FileInfo(part).Length : 0;
@@ -242,7 +251,7 @@ public sealed class UpdateInstaller
         if (have > 0) request.Headers.Range = new RangeHeaderValue(have, null);
 
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation);
-        if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable)
+        if (response.StatusCode == HttpStatusCode.RequestedRangeNotSatisfiable && have > 0)
         {
             TryDelete(part);
             await FetchAsync(url, part, progress, cancellation);

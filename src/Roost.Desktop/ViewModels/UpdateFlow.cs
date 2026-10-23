@@ -1,6 +1,7 @@
 using System.Globalization;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Threading;
 using Roost.Core;
 using Roost.Core.Updates;
 using Roost.Desktop.Controls;
@@ -75,8 +76,15 @@ public sealed class UpdateFlow(MainViewModel main)
             {
                 d.Step(0, "Descargando");
                 var expected = await installer.ExpectedSha256Async(latest, setup, cancel);
-                var download = await installer.DownloadAsync(setup, expected, new Progress<long>(d.Downloaded), cancel);
-                d.Step(2, "Firma comprobada");
+                var download = await installer.DownloadAsync(setup, expected, new Progress<long>(d.Downloaded), cancel,
+                    verifying: () => Dispatcher.UIThread.Invoke(() => d.Step(1, "Comprobando el SHA-256")));
+                d.Step(2, "Comprobando la firma");
+                d.Detail(2, download.Signature switch
+                {
+                    SignatureStatus.Valid => "· firma válida",
+                    SignatureStatus.Unsigned => "· sin firma: Roost aún no tiene certificado; vale el SHA-256",
+                    _ => "· no se ha podido comprobar; vale el SHA-256",
+                });
                 d.Step(3, "Lanzando el instalador");
 
                 // Lo que cuenta el sondeo (cada 3 s): si estaba en marcha, el instalador lo vuelve a arrancar.
@@ -103,20 +111,31 @@ public sealed class UpdateFlow(MainViewModel main)
             var running = main.Stack.IsRunning;
             if (running) await main.Stack.StopAsync();
             UpdateMarker.Write(App.Paths, new UpdateMarker(Updates.Installed, latest.Version.ToString(), running, DateTimeOffset.Now));
-            Updates.Launcher.StartTerminal(TerminalScript(command, RelaunchExe, running));
+            Updates.Launcher.StartTerminal(TerminalScript(command, RelaunchExe, running, PackageDirectory));
             Exit();
         });
     }
 
     /// <summary>
-    /// PURO: lo que ejecuta la terminal. Si el gestor de paquetes acaba bien, vuelve a abrir Roost
-    /// (con <c>--start</c> si el stack estaba en marcha); si no, lo dice y deja la ventana para leer el error.
+    /// PURO: lo que ejecuta la terminal. Primero espera (hasta un minuto) a que no quede ningún
+    /// <c>roost.exe</c> ni <c>roost-desktop.exe</c> de <paramref name="waitDirectory"/>: Scoop no
+    /// actualiza una app con procesos en marcha, y la app y el daemon tardan un momento en salir.
+    /// Si el gestor de paquetes acaba bien, vuelve a abrir Roost (con <c>--start</c> si el stack
+    /// estaba en marcha); si no, lo dice y deja la ventana para leer el error. Si dijo que bien y no
+    /// actualizó, la app lo nota al abrirse (el marcador y la versión que corre).
     /// </summary>
-    public static string TerminalScript(string command, string appExe, bool startStack)
+    public static string TerminalScript(string command, string appExe, bool startStack, string waitDirectory)
     {
+        static string Quote(string s) => "'" + s.Replace("'", "''") + "'";
         var args = startStack ? "'--updated','--start'" : "'--updated'";
-        return $"{command}; if ($?) {{ Start-Process -FilePath '{appExe.Replace("'", "''")}' -ArgumentList {args} }} "
-            + "else { Write-Host ''; Write-Host 'No se ha actualizado Roost. Cuando lo arregles, vuelve a abrir Roost.' -ForegroundColor Yellow }";
+        var dir = Path.TrimEndingDirectorySeparator(waitDirectory) + Path.DirectorySeparatorChar;
+        return string.Join('\n',
+            $"$dir = {Quote(dir)}; $hasta = (Get-Date).AddSeconds(60)",
+            "Write-Host 'Esperando a que Roost se cierre...'",
+            "while ((Get-Process roost, roost-desktop -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path.StartsWith($dir, [StringComparison]::OrdinalIgnoreCase) }) -and (Get-Date) -lt $hasta) { Start-Sleep -Milliseconds 300 }",
+            command,
+            $"if ($?) {{ Start-Process -FilePath {Quote(appExe)} -ArgumentList {args} }}",
+            "else { Write-Host ''; Write-Host 'No se ha actualizado Roost. Cuando lo arregles, vuelve a abrir Roost.' -ForegroundColor Yellow }");
     }
 
     /// <summary>El zip: descargarlo verificado y decir qué hacer con él.</summary>
@@ -137,7 +156,8 @@ public sealed class UpdateFlow(MainViewModel main)
             {
                 d.Step(0, "Descargando");
                 var expected = await installer.ExpectedSha256Async(latest, zip, cancel);
-                downloaded = await installer.DownloadAsync(zip, expected, new Progress<long>(d.Downloaded), cancel);
+                downloaded = await installer.DownloadAsync(zip, expected, new Progress<long>(d.Downloaded), cancel,
+                    verifying: () => Dispatcher.UIThread.Invoke(() => d.Step(1, "Comprobando el SHA-256")));
                 d.Step(1, "Verificado");
             });
         var run = dialog.RunAsync();
@@ -167,18 +187,27 @@ public sealed class UpdateFlow(MainViewModel main)
         UpdateMarker.Delete(App.Paths);
         var current = Updates.Installed;
 
-        var failed = args.UpdateFailedCode is not null
-            || (!args.Updated && marker is not null && marker.Outcome(current) == UpdateOutcome.NotUpdated);
+        // Manda la versión que corre: con el marcador, se actualizó si corre la nueva. Así no se
+        // cree a un gestor de paquetes que dice que bien sin haber actualizado (Scoop, con la app
+        // aún abierta), ni a un instalador que sale con error después de copiar los ficheros.
+        var failed = marker is not null
+            ? marker.Outcome(current) == UpdateOutcome.NotUpdated
+            : args.UpdateFailedCode is not null;
+        var wasRunning = args.StartStack || marker?.StackWasRunning == true;
         if (failed)
         {
-            var why = args.UpdateFailedCode is { } code ? UpdateLauncher.DescribeSetupExit(code) : "el instalador no llegó a ejecutarse";
+            // Si el instalador llegó a parar el stack (roost down) antes de fallar, se vuelve a arrancar.
+            var restart = wasRunning && !main.Stack.IsRunning;
+            var restarting = restart ? main.StartStackAsync() : Task.CompletedTask;
+            var why = args.UpdateFailedCode is { } code ? UpdateLauncher.DescribeSetupExit(code) : "la actualización no llegó a terminar";
             var log = marker?.SetupLog ?? Updates.Installer.SetupLogFile;
-            var hasLog = File.Exists(log);
+            var hasLog = args.UpdateFailedCode is not null && File.Exists(log);
             var choice = await main.ShowDialogAsync(new MessageDialogViewModel
             {
                 Title = "No se ha actualizado",
                 Subtitle = $"Sigues en la {current}" + (marker is not null ? $"; la {marker.To} queda pendiente" : ""),
-                Text = char.ToUpperInvariant(why[0]) + why[1..] + ". Nada ha cambiado: tus sitios y tu stack están como estaban. "
+                Text = char.ToUpperInvariant(why[0]) + why[1..] + ". Tus sitios, tus PHP y tus datos están como estaban"
+                       + (restart ? ", y el stack se vuelve a arrancar. " : ". ")
                        + "Puedes volver a intentarlo desde el aviso de la barra lateral o desde Ajustes.",
                 Detail = hasLog ? $"Registro del instalador: {log}" : null,
                 Tone = Tone.Warn,
@@ -187,18 +216,20 @@ public sealed class UpdateFlow(MainViewModel main)
                     : [new DialogButton("Cerrar", null, "primary")],
             });
             if (choice is "log") await main.OpenLogAsync(Path.GetFileName(log));
+            await restarting;
             return;
         }
 
         main.Flash($"Roost actualizado a {current}");
-        var start = (args.StartStack || marker?.StackWasRunning == true) && !main.Stack.IsRunning ? main.StartStackAsync() : Task.CompletedTask;
+        var startStack = wasRunning && !main.Stack.IsRunning;
+        var start = startStack ? main.StartStackAsync() : Task.CompletedTask;
         var page = Updates.Latest is { } latest && latest.Version.ToString() == current ? latest.Page : null;
         var seen = await main.ShowDialogAsync(new MessageDialogViewModel
         {
             Title = $"Roost actualizado a la {current}",
             Subtitle = marker is not null ? $"Venías de la {marker.From}" : null,
             Text = "Tus sitios, tus PHP, tus bases de datos y tus datos siguen como estaban"
-                   + (start != Task.CompletedTask ? ", y el stack se está arrancando como lo tenías." : "."),
+                   + (startStack ? ", y el stack se está arrancando como lo tenías." : "."),
             Tone = Tone.Ok,
             Buttons = page is not null
                 ? [new DialogButton("Ver las novedades", "notes", Left: true), new DialogButton("Cerrar", null, "primary")]
@@ -231,6 +262,25 @@ public sealed class UpdateFlow(MainViewModel main)
                 }
             }
             return exe;
+        }
+    }
+
+    /// <summary>
+    /// La carpeta cuyos procesos tienen que haber salido antes de que actúe el gestor de paquetes:
+    /// con Scoop, toda la de la app (<c>…\apps\roost\</c>, que es lo que mira Scoop); si no, la de la app.
+    /// </summary>
+    private static string PackageDirectory
+    {
+        get
+        {
+            var dir = AppServices.AppDirectory;
+            var parts = Path.TrimEndingDirectorySeparator(dir).Split(Path.DirectorySeparatorChar);
+            for (var i = 0; i + 1 < parts.Length; i++)
+            {
+                if (parts[i].Equals("apps", StringComparison.OrdinalIgnoreCase) && parts[i + 1].Equals("roost", StringComparison.OrdinalIgnoreCase))
+                    return string.Join(Path.DirectorySeparatorChar, parts[..(i + 2)]);
+            }
+            return dir;
         }
     }
 

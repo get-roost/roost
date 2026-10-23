@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -24,7 +25,7 @@ public sealed partial class UpdateProgressDialogViewModel : DialogViewModel
         Title = title;
         Subtitle = subtitle;
         TotalBytes = totalBytes;
-        Steps = steps;
+        Steps = new ObservableCollection<InstallStep>(steps);
         Note = note;
         _work = work;
     }
@@ -35,7 +36,8 @@ public sealed partial class UpdateProgressDialogViewModel : DialogViewModel
 
     public long? TotalBytes { get; }
 
-    public IReadOnlyList<InstallStep> Steps { get; }
+    /// <summary>Los pasos; <see cref="Detail"/> cambia la pista de uno (lo que dijo la firma).</summary>
+    public ObservableCollection<InstallStep> Steps { get; }
 
     /// <summary>El aviso de abajo mientras trabaja («Roost se cerrará un momento; Windows te pedirá permiso»).</summary>
     public string Note { get; }
@@ -114,6 +116,13 @@ public sealed partial class UpdateProgressDialogViewModel : DialogViewModel
             Steps[i].State = i < index ? StepState.Done : i == index ? StepState.Active : StepState.Pending;
         if (phase is not null) Phase = phase;
         if (index > 0) Indeterminate = TotalBytes is null;
+    }
+
+    /// <summary>Cambia la pista del paso <paramref name="index"/> («· sin firma: …»), conservando su estado.</summary>
+    public void Detail(int index, string hint)
+    {
+        var old = Steps[index];
+        Steps[index] = new InstallStep(old.Label, hint) { State = old.State };
     }
 
     /// <summary>Bytes descargados hasta ahora.</summary>

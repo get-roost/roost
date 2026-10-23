@@ -17,10 +17,15 @@ public sealed record NotesBlock(NotesBlockKind Kind, string Text, int Level = 0)
 /// Las notas de una release (Markdown de GitHub) convertidas a bloques para enseñarlas con
 /// formato en la app, sin un motor de Markdown: títulos, párrafos (las líneas seguidas se juntan),
 /// viñetas con su sangría, y los bloques de código tal cual. La sintaxis en línea (negritas,
-/// código, enlaces) se quita y queda el texto. PURO.
+/// código, enlaces) se quita y queda el texto; las tablas se saltan. Si las notas traen
+/// <see cref="EndMarker"/> (lo pone el workflow Release tras la sección del CHANGELOG), lo de
+/// después (descargas, firma, lo que añade GitHub) no son novedades y no se enseña. PURO.
 /// </summary>
 public static class ReleaseNotes
 {
+    /// <summary>Hasta aquí, las novedades: lo escribe <c>.github/workflows/release.yml</c> en las notas.</summary>
+    public const string EndMarker = "<!-- roost:fin-novedades -->";
+
     public static IReadOnlyList<NotesBlock> Parse(string? markdown)
     {
         var blocks = new List<NotesBlock>();
@@ -60,7 +65,14 @@ public static class ReleaseNotes
                 continue;
             }
 
+            if (trimmed.StartsWith(EndMarker, StringComparison.Ordinal)) break;
             if (trimmed.Length == 0)
+            {
+                FlushParagraph();
+                continue;
+            }
+            // Las tablas (la de descargas) no se leen bien sin rejilla: fuera.
+            if (trimmed.StartsWith('|'))
             {
                 FlushParagraph();
                 continue;

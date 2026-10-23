@@ -38,7 +38,11 @@ public sealed partial class UpdateDialogViewModel : DialogViewModel
         Installed = updates.Installed;
         Channel = updates.Channel;
         Asset = UpdateInstaller.AssetFor(_latest, Channel, OperatingSystem.IsWindows());
-        Notes = ReleaseNotes.Parse(_latest.Notes).Select(b => new NotesLine(b.Text, b.Kind, b.Level)).ToList();
+        var blocks = ReleaseNotes.Parse(_latest.Notes).ToList();
+        // El modal ya pone «Novedades» encima: el «## Novedades» con el que empiezan las notas sobra.
+        if (blocks.Count > 0 && blocks[0].Kind == NotesBlockKind.Heading && blocks[0].Text.StartsWith("Novedades", StringComparison.OrdinalIgnoreCase))
+            blocks.RemoveAt(0);
+        Notes = blocks.Select(b => new NotesLine(b.Text, b.Kind, b.Level)).ToList();
     }
 
     public string Installed { get; }
@@ -52,15 +56,24 @@ public sealed partial class UpdateDialogViewModel : DialogViewModel
 
     public string Title => $"Roost {Version} disponible";
 
-    public string Subtitle => $"Tienes la {Installed}" + (_latest.PublishedAt is { } at ? $" · publicada el {at.ToLocalTime().ToString("d-MMM-yyyy", Es)}" : "");
+    public string Subtitle => _latest.PublishedAt is { } at
+        ? $"Publicada el {at.ToLocalTime().ToString("d-MMM-yyyy", Es)} · tienes la {Installed}"
+        : $"Tienes la {Installed}";
+
+    /// <summary>«61,2 MB»: lo que se descarga en este canal; null si no se baja nada o la release no dice el tamaño.</summary>
+    public string? SizeText => Asset is { Size: > 0 } a && Channel is InstallChannel.Installer or InstallChannel.Manual
+        ? string.Format(Es, "{0:0.0} MB", a.Size / 1048576.0)
+        : null;
+
+    public bool HasSize => SizeText is not null;
 
     public IReadOnlyList<NotesLine> Notes { get; }
 
     public bool HasNotes => Notes.Count > 0;
 
-    /// <summary>«roost-0.2.0-win-x64-setup.exe · 61,2 MB · se verifica con el SHA-256 de la release».</summary>
+    /// <summary>«roost-0.2.0-win-x64-setup.exe · se verifica con el SHA-256 de la release».</summary>
     public string? DownloadText => Asset is { } a && Channel is InstallChannel.Installer or InstallChannel.Manual
-        ? $"{a.Name}{(a.Size > 0 ? string.Format(Es, " · {0:0.0} MB", a.Size / 1048576.0) : "")} · se verifica con el SHA-256 de la release"
+        ? $"{a.Name} · se verifica con el SHA-256 de la release antes de ejecutar nada"
         : null;
 
     public bool HasDownloadText => DownloadText is not null;

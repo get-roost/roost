@@ -589,12 +589,13 @@ public class ViewSnapshotTests
         var flow = main.OpenUpdatesCommand.ExecuteAsync(null);
         var modal = Assert.IsType<UpdateDialogViewModel>(main.Dialog);
         Assert.Equal("Roost 0.2.0 disponible", modal.Title);
-        Assert.StartsWith("Tienes la 0.1.0 · publicada el ", modal.Subtitle);
+        Assert.StartsWith("Publicada el 2-nov-2026 · tienes la 0.1.0", modal.Subtitle);
+        Assert.Equal(("0.1.0", "0.2.0"), (modal.Installed, modal.Version));
+        Assert.True(modal.HasSize);
         Assert.Equal(
-            ["Novedades", "nginx 1.30.7, con el arreglo de CVE-2026-1234.", "MySQL 8.4.12 y el dataset de avisos de noviembre.", "roost update y el aviso de versiones nuevas en la app."],
+            ["nginx 1.30.7, con el arreglo de CVE-2026-1234.", "MySQL 8.4.12 y el dataset de avisos de noviembre.", "roost update y el aviso de versiones nuevas en la app."],
             modal.Notes.Select(n => n.Text));
-        Assert.True(modal.Notes[0].IsHeading);
-        Assert.True(modal.Notes[1].IsBullet);
+        Assert.All(modal.Notes, n => Assert.True(n.IsBullet));   // el «## Novedades» de las notas sobra: el modal ya lo pone
         Assert.StartsWith("roost-0.2.0-win-x64-setup.exe · ", modal.DownloadText);
         Assert.Equal("Actualizar ahora", modal.PrimaryLabel);
         Assert.Contains("Windows pedirá permiso una vez", modal.Explanation);
@@ -608,6 +609,8 @@ public class ViewSnapshotTests
         Assert.True(progress.Succeeded);
         Assert.All(progress.Steps, s => Assert.Equal(StepState.Done, s.State));
         Assert.StartsWith("Instalador en marcha", progress.Phase);
+        // El setup de mentira no va firmado (como las releases de hoy): se dice, y vale el SHA-256.
+        Assert.Contains("vale el SHA-256", progress.Steps[2].Hint);
         Snapshot(window, "actualizar-pasos");
 
         Assert.Equal(Path.Combine(fake.Paths.Downloads, "roost-0.2.0-win-x64-setup.exe"), launcher.Setup);
@@ -639,7 +642,8 @@ public class ViewSnapshotTests
         Assert.Contains("SHA-256", progress.Error);
         Assert.Contains("No se ejecuta nada", progress.Error);
         Assert.Equal("No se ha actualizado", progress.Phase);
-        Assert.Equal(StepState.Failed, progress.Steps[0].State);
+        Assert.Equal(StepState.Done, progress.Steps[0].State);     // se bajó entero...
+        Assert.Equal(StepState.Failed, progress.Steps[1].State);   // ...y falla al verificarlo
         Snapshot(window, "actualizar-fallo");
 
         Assert.Null(launcher.Setup);
@@ -666,10 +670,19 @@ public class ViewSnapshotTests
         modal.PrimaryCommand.Execute(null);
         await flow;
         Assert.True(exited());
-        Assert.StartsWith("scoop update roost; if ($?) { Start-Process -FilePath '", launcher.Terminal);
-        Assert.Contains("-ArgumentList '--updated' }", launcher.Terminal);
+        // Espera a que la app y el daemon hayan salido (Scoop no actualiza una app en marcha), actualiza y la relanza.
+        var lines = launcher.Terminal!.Split('\n');
+        Assert.StartsWith("$dir = '", lines[0]);
+        Assert.StartsWith("while ((Get-Process roost, roost-desktop", lines[2]);
+        Assert.Equal("scoop update roost", lines[3]);
+        Assert.StartsWith("if ($?) { Start-Process -FilePath '", lines[4]);
+        Assert.EndsWith("-ArgumentList '--updated' }", lines[4]);
         Assert.Equal(("0.1.0", "0.2.0", false), Roost.Core.Updates.UpdateMarker.TryRead(fake.Paths) is { } m ? (m.From, m.To, m.StackWasRunning) : default);
-        Assert.Contains("'--updated','--start'", UpdateFlow.TerminalScript("scoop update roost", @"C:\x\roost-desktop.exe", startStack: true));
+        var script = UpdateFlow.TerminalScript("scoop update roost", @"C:\Users\Ana\scoop\apps\roost\current\roost-desktop.exe", startStack: true, @"C:\Users\Ana\scoop\apps\roost");
+        Assert.Contains("'--updated','--start'", script);
+        Assert.StartsWith(@"$dir = 'C:\Users\Ana\scoop\apps\roost\'", script);
+        Assert.Contains("-FilePath 'C:\\Users\\Ana\\scoop\\apps\\roost\\current\\roost-desktop.exe'", script);
+        Assert.Contains(@"'C:\O''Brien\'", UpdateFlow.TerminalScript("x", @"C:\a.exe", false, @"C:\O'Brien"));
 
         // Compilada desde el código no hay nada que la app pueda hacer: solo explicarlo.
         main.Updates.Channel = Roost.Core.Updates.InstallChannel.Source;
@@ -711,7 +724,7 @@ public class ViewSnapshotTests
         handling = main.Updates.HandleStartupAsync(main, StartupArgs.None);
         dialog = Assert.IsType<MessageDialogViewModel>(main.Dialog);
         Assert.Equal("No se ha actualizado", dialog.Title);
-        Assert.StartsWith("El instalador no llegó a ejecutarse", dialog.Text);
+        Assert.StartsWith("La actualización no llegó a terminar", dialog.Text);
         dialog.Close();
         await handling;
 

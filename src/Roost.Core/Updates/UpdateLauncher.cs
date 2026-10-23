@@ -28,7 +28,9 @@ public class UpdateLauncher
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(setupPath, arguments) { UseShellExecute = true })
+            // La carpeta de trabajo, la del propio setup: ni la de Roost (que el instalador va a sustituir) ni la de quien lo lanza.
+            var start = new ProcessStartInfo(setupPath, arguments) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(setupPath)) };
+            using var process = Process.Start(start)
                 ?? throw new RoostException($"Windows no ha arrancado {Path.GetFileName(setupPath)}.");
             return process.Id;
         }
@@ -55,6 +57,8 @@ public class UpdateLauncher
             {
                 UseShellExecute = false,
                 CreateNoWindow = true,
+                // Nada abierto en la carpeta de Roost: ni siquiera como carpeta de trabajo.
+                WorkingDirectory = Environment.SystemDirectory,
             };
             foreach (var arg in new[] { "-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded })
                 start.ArgumentList.Add(arg);

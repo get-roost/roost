@@ -185,8 +185,9 @@ public static class GitHubReleases
     }
 
     /// <summary>
-    /// Las notas en corto, para la terminal o la app: las primeras líneas con texto, sin títulos
-    /// ni la sintaxis de Markdown que estorba al leerlas tal cual (negritas, código, enlaces). PURO.
+    /// Las notas en corto, para la terminal o la app: las primeras líneas con texto, sin títulos,
+    /// tablas ni la sintaxis de Markdown que estorba al leerlas tal cual (negritas, código,
+    /// enlaces), y solo hasta <see cref="ReleaseNotes.EndMarker"/> si lo traen. PURO.
     /// </summary>
     public static IReadOnlyList<string> Summarize(string? notes, int maxLines = 6, int maxLineLength = 110)
     {
@@ -196,8 +197,10 @@ public static class GitHubReleases
         foreach (var raw in notes.Replace("\r\n", "\n").Split('\n'))
         {
             var line = raw.Trim();
+            if (line.StartsWith(ReleaseNotes.EndMarker, StringComparison.Ordinal)) break;   // lo de después no son novedades
             if (line.StartsWith("```", StringComparison.Ordinal)) { fence = !fence; continue; }
             if (fence || line.Length == 0 || line.StartsWith("<!--", StringComparison.Ordinal)) continue;
+            if (line.StartsWith('|')) continue;   // las tablas (la de descargas)
             if (line.All(c => c is '-' or '=' or '*' or '_')) continue;   // separadores
             if (line.StartsWith('#')) continue;   // los títulos («## Novedades»): quien enseña las notas ya pone el suyo
 
