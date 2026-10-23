@@ -225,11 +225,22 @@ app.Configure(config =>
     });
 
     config.AddCommand<RestartCommand>("restart")
-        .WithDescription("Reinicia un servicio sin tocar el resto: el servidor web (nginx o apache), el pool de un PHP, la base de datos o el DNS local (dns).")
+        .WithDescription("Reinicia un servicio sin tocar el resto: el servidor web (nginx o apache), el pool de un PHP, la base de datos o el DNS local (dns). Sin servicio, reinicia todo el stack.")
         .WithExample("restart", "nginx")
         .WithExample("restart", "apache")
         .WithExample("restart", "php-8.4")
-        .WithExample("restart", "mariadb-11.4");
+        .WithExample("restart", "mariadb-11.4")
+        .WithExample("restart");
+
+    config.AddCommand<StopServiceCommand>("stop")
+        .WithDescription("Para un servicio sin tocar el resto (la base de datos, limpia); queda parado hasta roost start o el siguiente up.")
+        .WithExample("stop", "mariadb-11.4")
+        .WithExample("stop", "php-8.4");
+
+    config.AddCommand<StartServiceCommand>("start")
+        .WithDescription("Vuelve a arrancar un servicio parado con roost stop.")
+        .WithExample("start", "mariadb-11.4")
+        .WithExample("start", "php-8.4");
 
     config.AddCommand<StatusCommand>("status")
         .WithDescription("Estado de los servicios: en marcha, puertos, reinicios.")

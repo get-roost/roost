@@ -95,6 +95,17 @@ public sealed class DaemonClient : IDisposable
     public Task<CommandResponse> RestartAsync(string service, CancellationToken cancellation = default) =>
         PostAsync("restart/" + Uri.EscapeDataString(service), cancellation);
 
+    /// <summary>Reinicia todo el stack con el mismo plan: para en orden inverso y arranca en orden, sin regenerar nada.</summary>
+    public Task<CommandResponse> RestartAllAsync(CancellationToken cancellation = default) => PostAsync("restart", cancellation);
+
+    /// <summary>Para un servicio o grupo sin tocar el resto; queda parado hasta <see cref="StartServiceAsync"/> o un <c>up</c>.</summary>
+    public Task<CommandResponse> StopServiceAsync(string service, CancellationToken cancellation = default) =>
+        PostAsync("stop/" + Uri.EscapeDataString(service), cancellation);
+
+    /// <summary>Vuelve a arrancar un servicio o grupo parado (o que dejó de relanzarse).</summary>
+    public Task<CommandResponse> StartServiceAsync(string service, CancellationToken cancellation = default) =>
+        PostAsync("start/" + Uri.EscapeDataString(service), cancellation);
+
     private async Task<CommandResponse> PostAsync(string path, CancellationToken cancellation)
     {
         using var response = await _http.PostAsync(path, content: null, cancellation);

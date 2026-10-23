@@ -30,4 +30,9 @@
     <ProjectReference Include="..\Roost.Extensibility\Roost.Extensibility.csproj" />
   </ItemGroup>
 
+  <!-- StackService es internal (no es parte del contrato de las extensiones); los tests lo prueban con un lanzador falso. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Roost.Daemon.Tests" />
+  </ItemGroup>
+
 </Project>
