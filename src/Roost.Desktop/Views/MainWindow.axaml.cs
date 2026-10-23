@@ -24,14 +24,11 @@ public partial class MainWindow : Window
         // Pulsar fuera del diálogo lo cierra, como Escape (salvo los que no se pueden dejar a medias).
         Shade.PointerPressed += (_, _) => (DataContext as MainViewModel)?.Dialog?.DismissCommand.Execute(null);
 
-        // En Windows los roles de los botones (HTMINBUTTON, HTMAXBUTTON, HTCLOSE) ya hacen lo
-        // nativo, Snap incluido; en el resto de SO los botones son normales.
-        if (!OperatingSystem.IsWindows())
-        {
-            MinimizeButton.Click += (_, _) => WindowState = WindowState.Minimized;
-            MaximizeButton.Click += (_, _) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-            CloseButton.Click += (_, _) => Close();
-        }
+        // Botones normales en todos los SO (ver la barra de título en MainWindow.axaml). Cerrar
+        // pasa por Closing: con la preferencia, la ventana se queda en la bandeja.
+        MinimizeButton.Click += (_, _) => WindowState = WindowState.Minimized;
+        MaximizeButton.Click += (_, _) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        CloseButton.Click += (_, _) => Close();
         PropertyChanged += (_, e) =>
         {
             if (e.Property != WindowStateProperty) return;
