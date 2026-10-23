@@ -93,16 +93,16 @@ public sealed class MariaDbScanner : DatabaseScannerBase
 
     private static IEnumerable<Candidate> PosixCandidates()
     {
-        foreach (var p in Globber.Expand("/usr/sbin/mariadbd"))
-            yield return new Candidate(p, "system");
-        foreach (var p in Globber.Expand("/usr/sbin/mysqld")) // puede ser MariaDB; el parser confirma
-            yield return new Candidate(p, "system");
+        // /usr/sbin, de la distro (mysqld puede ser MariaDB; el parser confirma); /usr/local/mysql,
+        // donde instala el tarball oficial.
+        foreach (var pattern in new[] { "/usr/sbin/mariadbd", "/usr/sbin/mysqld", "/usr/local/mysql/bin/mariadbd", "/usr/local/mysql/bin/mysqld" })
+            foreach (var p in Globber.Expand(pattern))
+                yield return new Candidate(p, PosixOrigin.Of(p));
 
-        // PATH al final.
+        // PATH al final, y solo el servidor: `mariadb` es el cliente, que no es una instalación.
         foreach (var dir in PathProbe.Directories())
         {
             yield return new Candidate(Path.Combine(dir, "mariadbd"), "PATH");
-            yield return new Candidate(Path.Combine(dir, "mariadb"), "PATH");
             yield return new Candidate(Path.Combine(dir, "mysqld"), "PATH"); // MariaDB antigua
         }
     }

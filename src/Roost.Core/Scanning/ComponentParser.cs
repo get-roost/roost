@@ -20,6 +20,35 @@ public static partial class ComponentParser
     [GeneratedRegex(@"(?:^|[-_.])(nts|zts|ts)(?:[-_.]|$)", RegexOptions.IgnoreCase)]
     private static partial Regex ThreadSafetyInName();
 
+    // «/usr/sbin/mysqld  Ver 8.0.39 …»: lo de antes de «Ver» es el programa que habla.
+    [GeneratedRegex(@"^(?<program>.+?)\s+Ver\s", RegexOptions.IgnoreCase)]
+    private static partial Regex ProgramBeforeVer();
+
+    // El cliente de MariaDB 11: «mariadb from 11.4.2-MariaDB, client 15.2 for Linux».
+    [GeneratedRegex(@",\s*client\s+\d", RegexOptions.IgnoreCase)]
+    private static partial Regex ClientMarker();
+
+    private static readonly HashSet<string> ClientPrograms = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "mysql", "mariadb", "mysqladmin", "mariadb-admin", "mysqldump", "mariadb-dump",
+    };
+
+    /// <summary>
+    /// true si la versión la ha dado un cliente o una herramienta (<c>mysql</c>, <c>mariadb</c>…)
+    /// y no un servidor: el cliente no es una instalación, y su versión («Ver 15.1 Distrib
+    /// 10.6.18») ni siquiera es la del servidor.
+    /// </summary>
+    public static bool IsClient(string versionLine)
+    {
+        if (ClientMarker().IsMatch(versionLine)) return true;
+        var m = ProgramBeforeVer().Match(versionLine);
+        if (!m.Success) return false;
+        var program = m.Groups["program"].Value.Trim().Replace('\\', '/');
+        var name = program[(program.LastIndexOf('/') + 1)..];
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+        return ClientPrograms.Contains(name);
+    }
+
     /// <summary>
     /// Parsea la salida de <c>php -v</c>. Devuelve <c>null</c> si no hay versión legible.
     /// <paramref name="folderHint"/> es el nombre de la carpeta contenedora (p.ej.
@@ -81,6 +110,7 @@ public static partial class ComponentParser
         if (expectedKind == ComponentKind.MySql && announcesMariaDb) return null;
 
         var firstLine = FirstLine(output);
+        if (IsClient(firstLine)) return null;
         if (!ComponentVersion.TryParse(firstLine, out var version)) return null;
 
         var architecture = ParseArchitecture(output) ?? ParseArchitecture(folderHint);

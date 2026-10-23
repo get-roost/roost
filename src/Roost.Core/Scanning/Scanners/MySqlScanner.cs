@@ -51,16 +51,13 @@ public sealed class MySqlScanner : DatabaseScannerBase
 
     private static IEnumerable<Candidate> PosixCandidates()
     {
-        foreach (var p in Globber.Expand("/usr/sbin/mysqld"))
-            yield return new Candidate(p, "system");
-        foreach (var p in Globber.Expand("/usr/local/mysql/bin/mysqld"))
-            yield return new Candidate(p, "system");
+        // /usr/sbin, de la distro; /usr/local/mysql, el tarball oficial.
+        foreach (var pattern in new[] { "/usr/sbin/mysqld", "/usr/local/mysql/bin/mysqld" })
+            foreach (var p in Globber.Expand(pattern))
+                yield return new Candidate(p, PosixOrigin.Of(p));
 
-        // PATH al final: servidor y cliente (mysql suele ser enlace al cliente).
+        // PATH al final, y solo el servidor: `mysql` es el cliente, que no es una instalación.
         foreach (var dir in PathProbe.Directories())
-        {
             yield return new Candidate(Path.Combine(dir, "mysqld"), "PATH");
-            yield return new Candidate(Path.Combine(dir, "mysql"), "PATH");
-        }
     }
 }

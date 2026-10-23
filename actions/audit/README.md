@@ -75,7 +75,7 @@ Usa una etiqueta (`@v0.1.0`) o un commit, no `@main`. La versión de la acción 
 
 Audita **el runner entero**, no el proyecto: el PHP que haya puesto `setup-php` y todo lo que traiga la imagen. Las imágenes de GitHub traen su propio MySQL 8.0, que para Roost está en EOL desde abril de 2026; sin `only`, ese MySQL que tu proyecto no usa haría fallar el job.
 
-En **Linux**, lo que hay en `/usr/bin`, `/usr/local/bin` y `/opt` sale con origen `system` y en ámbar, como cualquier paquete de distro: puede llevar el parche por backport aunque su número de versión parezca viejo, y Roost no lo puede asegurar. `setup-php` instala en Ubuntu paquetes de distro, así que en Linux la acción enseña el semáforo, pero no falla por el PHP. En **Windows**, `setup-php` pone los zips oficiales de windows.php.net en `C:\tools\php`, que sí se evalúan por número: ahí la acción puede ponerse en rojo.
+En **Linux**, lo que pone el gestor de paquetes (`/usr/bin`, `/usr/sbin`) sale con origen `system` y en ámbar: puede llevar el parche por backport aunque su número de versión parezca viejo, y Roost no lo puede asegurar. `setup-php` instala en Ubuntu paquetes de distro, así que en Linux la acción enseña el semáforo, pero no falla por el PHP. Lo de `/usr/local` y `/opt` (las imágenes Docker `php:*`, lo compilado a mano) es la versión de upstream y sí se evalúa por número. En **Windows**, `setup-php` pone los zips oficiales de windows.php.net en `C:\tools\php`, que sí se evalúan por número: ahí la acción puede ponerse en rojo.
 
 macOS todavía no tiene build de Roost: la acción falla con un error claro. Hace falta `bash` y Python 3.8 o posterior, que ya traen los runners de GitHub en Linux y en Windows.
 

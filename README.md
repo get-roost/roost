@@ -66,7 +66,7 @@ Dónde busca:
 | SO | Fuentes |
 |---|---|
 | Windows | Lo instalado por Roost (`C:\roost\bin\php`), Laragon, XAMPP, WAMP, chocolatey (`C:\tools\php*`), PHP suelto (`C:\php*`), scoop, Herd, `Program Files` (MySQL y MariaDB) y `PATH`. Barre las unidades C:, D: y E:, y la del perfil del usuario. |
-| Linux y macOS | Rutas de sistema (`/usr/bin`, `/usr/sbin`, `/usr/local/bin`, `/usr/local/mysql`, `/opt`, remi), Homebrew (PHP) y `PATH`. |
+| Linux y macOS | Rutas de la distro (`/usr/bin`, `/usr/sbin`, remi), `/usr/local/bin`, `/usr/local/mysql` y `/opt` (compilados a mano, tarballs oficiales, imágenes Docker `php:*`), Homebrew (PHP) y `PATH` (solo servidores: `mysqld` y `mariadbd`, no los clientes `mysql` ni `mariadb`). Un binario visto por dos enlaces (con usrmerge, `/bin` es `/usr/bin`) sale una vez. |
 
 La versión se obtiene ejecutando el binario (`php -v`, `mysqld --version`), con un límite de 15 s. Si un binario no responde, se salta y el escaneo sigue.
 

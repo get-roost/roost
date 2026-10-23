@@ -20,7 +20,7 @@ public sealed class EnvironmentScanner
 
     public ScanResult ScanAll()
     {
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(Platform.CanonicalPath.Comparer);
         var found = new List<DetectedComponent>();
 
         foreach (var scanner in _scanners)
@@ -46,9 +46,6 @@ public sealed class EnvironmentScanner
         };
     }
 
-    private static string NormalizePath(string path)
-    {
-        try { return Path.GetFullPath(path); }
-        catch { return path; }
-    }
+    // La ruta real (enlaces resueltos): dos scanners pueden ver el mismo binario por rutas distintas.
+    private static string NormalizePath(string path) => Platform.CanonicalPath.Of(path);
 }

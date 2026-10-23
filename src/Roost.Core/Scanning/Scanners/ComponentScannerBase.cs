@@ -44,6 +44,9 @@ public abstract class ComponentScannerBase : IComponentScanner
     /// <summary>Construye el componente a partir de la salida de versión. <c>null</c> si no vale.</summary>
     protected abstract DetectedComponent? Build(Candidate candidate, string? versionOutput, bool isOnPath);
 
+    /// <summary>La ruta real con la que se quitan duplicados (los tests la sustituyen para simular enlaces).</summary>
+    protected virtual string RealPath(string path) => CanonicalPath.Of(path);
+
     /// <summary>
     /// Lo instalado por el propio Roost en <c>bin/&lt;carpeta&gt;/*/&lt;ejecutable&gt;</c>, con origen
     /// "Roost". Se saltan sus carpetas de trabajo (<c>.tmp-…</c>, <c>.trash-…</c>), que pueden
@@ -73,7 +76,13 @@ public abstract class ComponentScannerBase : IComponentScanner
         try { candidates = EnumerateCandidates().ToList(); }
         catch { return results; }
 
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string? activeReal = null;
+        try { activeReal = active is null ? null : RealPath(active); }
+        catch { /* sin ruta real, no se marca ninguno como activo */ }
+
+        // Por la ruta real: el mismo binario visto por otra fuente, o por otro enlace
+        // (/bin/php y /usr/bin/php con usrmerge), cuenta una vez, con el origen del primero.
+        var seen = new HashSet<string>(CanonicalPath.Comparer);
         foreach (var candidate in candidates)
         {
             try
@@ -82,11 +91,11 @@ public abstract class ComponentScannerBase : IComponentScanner
                     continue;
 
                 var resolved = Path.GetFullPath(candidate.Path);
-                if (!seen.Add(resolved)) continue; // ya lo vimos por otra fuente
+                var real = RealPath(resolved);
+                if (!seen.Add(real)) continue; // ya lo vimos por otra fuente
 
                 var output = Runner.Run(resolved, VersionArguments, VersionTimeout);
-                var onPath = active is not null
-                    && string.Equals(active, resolved, StringComparison.OrdinalIgnoreCase);
+                var onPath = activeReal is not null && CanonicalPath.Comparer.Equals(activeReal, real);
 
                 var component = Build(candidate with { Path = resolved }, output, onPath);
                 if (component is not null) results.Add(component);

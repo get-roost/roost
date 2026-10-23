@@ -68,23 +68,20 @@ public sealed partial class PhpScanner : ComponentScannerBase
 
     private static IEnumerable<Candidate> PosixCandidates()
     {
-        // Rutas típicas primero: Debian/Ondřej, remi, compilados a mano, Homebrew.
-        var system = new[]
+        // Rutas típicas primero: Debian/Ondřej y remi (de la distro), Homebrew, y lo compilado a
+        // mano o las imágenes Docker php:* (/usr/local, /opt). Homebrew va antes que /opt/*/bin
+        // para que /opt/homebrew/bin/php conserve su origen. Cada una con el suyo (PosixOrigin).
+        var patterns = new[]
         {
-            "/usr/bin/php", "/usr/bin/php8.*",
+            "/usr/bin/php", "/usr/bin/php8.*", "/opt/remi/*/root/usr/bin/php",
+            "/opt/homebrew/bin/php*", "/opt/homebrew/opt/php*/bin/php",
             "/usr/local/bin/php", "/usr/local/bin/php8.*",
-            "/opt/*/bin/php", "/opt/remi/*/root/usr/bin/php",
+            "/opt/*/bin/php",
         };
-        foreach (var pattern in system)
+        foreach (var pattern in patterns)
             foreach (var p in Globber.Expand(pattern))
                 if (PhpNameOk(p))
-                    yield return new Candidate(p, "system");
-
-        var homebrew = new[] { "/opt/homebrew/bin/php*", "/opt/homebrew/opt/php*/bin/php" };
-        foreach (var pattern in homebrew)
-            foreach (var p in Globber.Expand(pattern))
-                if (PhpNameOk(p))
-                    yield return new Candidate(p, "Homebrew");
+                    yield return new Candidate(p, PosixOrigin.Of(p));
 
         // PATH al final: php y php8.0 … php8.9 que no estén ya en una ruta típica.
         foreach (var dir in PathProbe.Directories())
