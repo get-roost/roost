@@ -117,7 +117,7 @@ Instala PHP oficiales de windows.php.net, cada uno en su propia carpeta, sin toc
 
 ```sh
 roost php list                    # instalados por Roost y disponibles, con su veredicto de seguridad
-roost php install 8.4             # la última de la rama 8.4, NTS x64 (el que usa nginx)
+roost php install 8.4             # la última de la rama 8.4, NTS x64 (la que usa Roost, con nginx o Apache)
 roost php install 8.3.36 --ts     # build thread-safe (para un mod_php tuyo; el Apache de Roost usa NTS)
 roost php install 7.4 --arch x86  # también ramas EOL, con aviso, para proyectos viejos
 roost php remove 8.4.27-nts-x64   # también vale la versión (8.4.27) o la rama (8.4) si no es ambigua
@@ -126,7 +126,7 @@ roost php use 8.3                 # PHP global: el que sirve http://localhost/ (
 
 - **Solo la última de cada rama.** Es lo único que publica el catálogo (`releases.json`); si pides otra, Roost te dice cuál hay.
 - **Verificado antes de extraer.** El SHA-256 del zip se compara con el del catálogo; si no coincide, no se instala nada.
-- **Sin instalaciones a medias.** Se extrae a una carpeta temporal que se renombra al final. Una instalación existente nunca se pisa, y `remove` solo quita lo que instaló Roost.
+- **Sin instalaciones a medias.** Se extrae a una carpeta temporal que se renombra al final. Una instalación existente nunca se pisa, y `remove` solo quita lo que instaló Roost. Tampoco quita el PHP global ni uno que necesite un sitio sin otro de su rama: primero dice qué cambiar.
 - Al terminar arranca `php -v`. Si no responde, avisa de que suele faltar el Visual C++ Redistributable y da el enlace.
 - Lo instalado aparece en `scan` y `audit` con origen `Roost`.
 

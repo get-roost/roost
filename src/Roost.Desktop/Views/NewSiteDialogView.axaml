@@ -90,7 +90,7 @@
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
                 <TextBlock Grid.Column="1" Classes="small" TextWrapping="Wrap">
-                  <Run Text="Escribe el vhost de nginx y emite el certificado de " />
+                  <Run Text="Escribe el vhost del servidor web y emite el certificado de " />
                   <Run Text="{Binding Host, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
                   <Run Text=" y " />
                   <Run Text="{Binding Host, StringFormat='*.{0}', Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />

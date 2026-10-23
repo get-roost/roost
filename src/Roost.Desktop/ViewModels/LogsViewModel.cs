@@ -141,6 +141,9 @@ public sealed partial class LogsViewModel : PageViewModel
         if (stem == "nginx-access") return "nginx: accesos";
         if (stem == "nginx-stdout") return "nginx: salida";
         if (stem == "error") return "nginx: arranque";
+        if (stem == "apache-error") return "Apache: errores";
+        if (stem == "apache-access") return "Apache: accesos";
+        if (stem == "apache-stdout") return "Apache: salida";
         if (Regex.Match(stem, @"^php-(\d+\.\d+)-error$") is { Success: true } e) return $"PHP {e.Groups[1].Value}: errores";
         if (Regex.Match(stem, @"^php-(\d+\.\d+)-(\d+)$") is { Success: true } p) return $"PHP {p.Groups[1].Value}: php-cgi {p.Groups[2].Value}";
         if (Regex.Match(stem, @"^mariadb-(.+)$") is { Success: true } m) return $"MariaDB {m.Groups[1].Value}";
@@ -151,8 +154,8 @@ public sealed partial class LogsViewModel : PageViewModel
     private static int Order(string name) => name switch
     {
         "roostd.log" => 0,
-        "nginx-error.log" => 1,
-        "nginx-access.log" => 2,
+        "nginx-error.log" or "apache-error.log" => 1,
+        "nginx-access.log" or "apache-access.log" => 2,
         _ when Regex.IsMatch(name, @"^php-\d+\.\d+-error\.log$") => 3,
         _ when name.StartsWith("mariadb-", StringComparison.Ordinal) || name.StartsWith("mysql-", StringComparison.Ordinal) => 4,
         _ when name.StartsWith('%') => 5,

@@ -139,7 +139,7 @@ public class ViewSnapshotTests
         Assert.False(db.CanApplyPort);
         Assert.Equal("Puerto no válido", db.PortTitle);
         db.PortText = "80";
-        Assert.Equal("El 80 es de nginx", db.PortTitle);
+        Assert.Equal("El 80 es del servidor web", db.PortTitle);
     }
 
     [AvaloniaFact]
@@ -378,7 +378,7 @@ public class ViewSnapshotTests
 
         settings.DbPortText = "80";
         await settings.ApplyPortsCommand.ExecuteAsync(null);
-        Assert.Equal("La base de datos no puede usar el puerto de nginx.", settings.PortsError);
+        Assert.Equal("La base de datos no puede usar un puerto del servidor web.", settings.PortsError);
 
         // El tema oscuro repinta todo y se guarda en state/desktop.json.
         settings.ThemeDark = true;

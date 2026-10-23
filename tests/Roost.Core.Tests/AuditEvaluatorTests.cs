@@ -155,7 +155,7 @@ public class AuditEvaluatorTests
         var finding = CreateEvaluator().Evaluate(component);
 
         Assert.Equal(AuditVerdict.Eol, finding.Verdict);
-        Assert.Contains(finding.Notes, n => n.Contains("best-effort", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(finding.Notes, n => n.Contains("Solo se comprueba el fin de vida", StringComparison.Ordinal));
     }
 
     [Fact]

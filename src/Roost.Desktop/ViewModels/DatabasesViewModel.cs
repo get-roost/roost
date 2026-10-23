@@ -197,7 +197,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
 
         if (port == _config.HttpPort || port == _config.HttpsPort)
         {
-            (PortTitle, PortDetail, PortTone) = ($"El {port} es de nginx", "Lo usa el servidor web de Roost.", Tone.Bad);
+            (PortTitle, PortDetail, PortTone) = ($"El {port} es del servidor web", "Lo usa el servidor web de Roost (HTTP o HTTPS).", Tone.Bad);
             return;
         }
 

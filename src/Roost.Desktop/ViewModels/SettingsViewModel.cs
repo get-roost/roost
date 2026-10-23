@@ -300,9 +300,20 @@ public sealed partial class SettingsViewModel : PageViewModel
             PortsError = "Todos tienen que ser números.";
             return;
         }
+        // Lo mismo que comprueba Servidor web, antes de escribir nada.
+        if (http is < 1 or > 65535 || https is < 1 or > 65535 || db is < 1 or > 65535)
+        {
+            PortsError = "Los puertos van del 1 al 65535.";
+            return;
+        }
+        if (http == https)
+        {
+            PortsError = "El puerto HTTP y el HTTPS tienen que ser distintos.";
+            return;
+        }
         if (db == http || db == https)
         {
-            PortsError = "La base de datos no puede usar el puerto de nginx.";
+            PortsError = "La base de datos no puede usar un puerto del servidor web.";
             return;
         }
         try

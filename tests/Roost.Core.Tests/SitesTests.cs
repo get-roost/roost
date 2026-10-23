@@ -198,6 +198,23 @@ public class SitesTests : IDisposable
     }
 
     [Fact]
+    public void QuitarPhp_NiElGlobal_NiElQueNecesitaUnSitio_SalvoQueQuedeOtroDeSuRama()
+    {
+        var php84 = FakePhp("8.4.27-nts-x64");
+        var php74 = FakePhp("7.4.33-nts-x64");
+        var planner = new StackPlanner(Paths, new NginxTestOk());
+        var config = new RoostConfig { PhpVersion = "8.4" };
+        Site[] sites = [new() { Name = "legacy", Folder = @"C:\www\legacy", Php = "7.4" }, new() { Name = "blog", Folder = @"C:\www\blog" }];
+
+        Assert.Contains("PHP global", planner.WhyNotRemove(php84, config, [php84, php74], sites));
+        Assert.Contains("legacy", planner.WhyNotRemove(php74, config, [php84, php74], sites));
+
+        // Con otro 7.4 instalado, legacy pasa a ese y se puede quitar.
+        var php7430 = FakePhp("7.4.30-nts-x64");
+        Assert.Null(planner.WhyNotRemove(php74, config, [php84, php74, php7430], sites));
+    }
+
+    [Fact]
     public void Prepare_ConSitios_UnPoolPorRama_UnConfPorSitio_YElPuertoHttps()
     {
         var php84 = FakePhp("8.4.27-nts-x64");

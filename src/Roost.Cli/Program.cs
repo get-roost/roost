@@ -127,7 +127,7 @@ app.Configure(config =>
         site.SetDescription("Sitios https://<nombre>.test/ con su propio vhost, certificado y, si quieres, su propio PHP.");
 
         site.AddCommand<SiteAddCommand>("add")
-            .WithDescription("Registra un sitio (o lo actualiza): vhost de nginx, entrada en el hosts y certificado.")
+            .WithDescription("Registra un sitio (o lo actualiza): vhost del servidor web, entrada en el hosts y certificado.")
             .WithExample("site", "add", "tienda")
             .WithExample("site", "add", "legacy", "--path", "C:\\proyectos\\legacy", "--php", "7.4");
 
@@ -189,7 +189,7 @@ app.Configure(config =>
     });
 
     config.AddCommand<RestartCommand>("restart")
-        .WithDescription("Reinicia un servicio sin tocar el resto: nginx, el pool de un PHP o la base de datos.")
+        .WithDescription("Reinicia un servicio sin tocar el resto: el servidor web (nginx o apache), el pool de un PHP, la base de datos o el DNS local (dns).")
         .WithExample("restart", "nginx")
         .WithExample("restart", "apache")
         .WithExample("restart", "php-8.4")

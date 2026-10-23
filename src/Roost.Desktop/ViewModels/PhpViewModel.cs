@@ -100,8 +100,8 @@ public sealed partial class PhpViewModel : PageViewModel
     public bool X64 { get => !X86; set => X86 = !value; }
 
     public string VariantHint => ThreadSafe
-        ? "TS (thread-safe): para Apache con mod_php. nginx usa la NTS."
-        : "NTS: la que usan nginx y php-cgi. Recomendada.";
+        ? "TS (thread-safe): solo para un mod_php tuyo. Roost sirve siempre con la NTS, con nginx y con Apache."
+        : "NTS: la que usa Roost (php-cgi, con nginx o Apache). Recomendada.";
 
     public bool HasInstalled => Installed.Count > 0;
     public bool HasSelection => Selected is not null;

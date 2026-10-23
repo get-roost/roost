@@ -1,8 +1,12 @@
 using System.ComponentModel;
 using Roost.Cli.Net;
 using Roost.Core;
+using Roost.Core.Config;
 using Roost.Core.Install;
 using Roost.Core.Platform;
+using Roost.Core.Scanning;
+using Roost.Core.Sites;
+using Roost.Core.Stack;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -43,6 +47,15 @@ public sealed class PhpRemoveCommand : Command<PhpRemoveCommand.Settings>
 
         try
         {
+            // Lo mismo que impide la app: ni el global, ni uno que un sitio necesite.
+            var sites = new SiteRegistry(paths).Load();
+            var config = RoostConfig.Load(paths.ConfigFile);
+            if (new StackPlanner(paths, ProcessRunner.Default).WhyNotRemove(matches[0], config, installer.ListInstalled(), sites) is { } why)
+            {
+                AnsiConsole.MarkupLineInterpolated($"[yellow]No se quita PHP {matches[0].Name}.[/] {why}");
+                return 1;
+            }
+
             installer.Remove(matches[0]);
             AnsiConsole.MarkupLineInterpolated($"[green]Quitado[/] PHP {matches[0].Name}.");
             return 0;

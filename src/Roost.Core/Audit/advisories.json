@@ -1,7 +1,7 @@
 {
   "schemaVersion": "0.1.0",
   "generated": "2026-10-22T07:10:00Z",
-  "source": "Semilla manual PHP2Shell (fase 0 de Roost) — evaluacion EN LOCAL, sin red. Futuro: feed firmado 'roost-catalog' (advisories.json con ed25519) descrito en ROOST.md seccion 7.",
+  "source": "Dataset empaquetado en Roost (semilla manual PHP2Shell) — evaluacion EN LOCAL, sin red. Se usa hasta que se descarga el feed firmado 'roost-catalog' (ECDSA P-256), que lo sustituye.",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
     "realFix": "Actualiza a 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).",

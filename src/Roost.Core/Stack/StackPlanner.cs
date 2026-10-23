@@ -83,6 +83,29 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         return Best(candidates);
     }
 
+    /// <summary>
+    /// Por qué no se puede quitar <paramref name="target"/>, o null si se puede: no se quita el
+    /// PHP global, ni uno que pida un sitio si no queda otro que case con lo que pide (el siguiente
+    /// <c>up</c> fallaría). Lo usa <c>roost php remove</c>; la app hace lo mismo y además ofrece mover los sitios.
+    /// </summary>
+    public string? WhyNotRemove(InstalledPhp target, RoostConfig config, IReadOnlyList<InstalledPhp> installed, IReadOnlyList<Site> sites)
+    {
+        InstalledPhp? global = null;
+        try { global = ResolvePhp(config, installed); } catch (RoostException) { }
+        if (global?.Name == target.Name)
+            return $"PHP {target.Name} es el PHP global: sirve localhost y los sitios sin PHP propio. Elige otro antes (roost php use <version>) y luego quitalo.";
+
+        var remaining = installed.Where(p => p.Name != target.Name).ToList();
+        var stranded = sites
+            .Where(s => s.Php is { } spec && PhpInstaller.Match(installed, spec).Any(p => p.Name == target.Name)
+                        && PhpInstaller.Match(remaining, spec).Count == 0)
+            .Select(s => s.Name)
+            .ToList();
+        return stranded.Count == 0 ? null
+            : $"Lo usa{(stranded.Count == 1 ? "" : "n")} {string.Join(", ", stranded)} y no queda otro PHP que case con lo que pide{(stranded.Count == 1 ? "" : "n")}. "
+              + $"Cambialo{(stranded.Count == 1 ? "" : "s")} antes (roost site add <sitio> --php <version>) o instala otro de esa rama.";
+    }
+
     private static InstalledPhp Best(IEnumerable<InstalledPhp> candidates) => PhpInstaller.Best(candidates);
 
     /// <summary>

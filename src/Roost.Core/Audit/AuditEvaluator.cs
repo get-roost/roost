@@ -108,9 +108,9 @@ public sealed partial class AuditEvaluator
                 notes.Add("Rama solo con soporte de SEGURIDAD; planifica migrar a una rama con soporte activo.");
         }
 
-        // Nota best-effort para bases de datos: no hay feed de CVE en esta fase.
+        // Las bases de datos solo se miran por fecha de fin de vida: el feed aún no trae sus CVE.
         if (component.Kind is ComponentKind.MySql or ComponentKind.MariaDb)
-            notes.Add("Nota EOL best-effort por fecha de rama; en fase 0 no se evaluan CVE de MySQL/MariaDB.");
+            notes.Add("Solo se comprueba el fin de vida de la rama: el feed de Roost aun no trae CVE de MySQL ni de MariaDB.");
 
         // "Ambar honesto": si es un backport de distro, la comparacion por numero
         // no es fiable. No lo damos por rojo: lo marcamos incierto y lo pintamos ambar.
