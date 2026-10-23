@@ -15,6 +15,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>roost</AssemblyName>
+    <ApplicationIcon>../../assets/branding/icons/roost.ico</ApplicationIcon>
     <RootNamespace>Roost.Cli</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>

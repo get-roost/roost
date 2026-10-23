@@ -12,6 +12,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>roost-shim</AssemblyName>
+    <ApplicationIcon>../../assets/branding/icons/roost.ico</ApplicationIcon>
     <RootNamespace>Roost.Shim</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
     <PublishAot>true</PublishAot>

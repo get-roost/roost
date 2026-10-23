@@ -12,6 +12,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>roost-helper</AssemblyName>
+    <ApplicationIcon>../../assets/branding/icons/roost.ico</ApplicationIcon>
     <RootNamespace>Roost.Helper</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>

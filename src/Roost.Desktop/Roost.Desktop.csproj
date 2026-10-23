@@ -10,6 +10,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>roost-desktop</AssemblyName>
+    <ApplicationIcon>../../assets/branding/icons/roost.ico</ApplicationIcon>
     <RootNamespace>Roost.Desktop</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationManifest>app.manifest</ApplicationManifest>
