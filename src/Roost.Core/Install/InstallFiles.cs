@@ -123,7 +123,7 @@ internal static class InstallFiles
                 throw new RoostException($"El zip {label} no trae {requiredFile}; no se instala.");
 
             // Renombrar es atómico dentro del mismo volumen: o queda instalado entero o no queda.
-            Directory.Move(source, target);
+            MoveDirectory(source, target);
         }
         catch (Exception ex)
         {
@@ -133,6 +133,27 @@ internal static class InstallFiles
         finally
         {
             TryDeleteDirectory(temp);
+        }
+    }
+
+    /// <summary>
+    /// <c>Directory.Move</c> con reintentos. Justo después de extraer, el antivirus (o el indexador)
+    /// puede tener abierto un fichero recién escrito, y Windows deniega el renombrado unos instantes
+    /// («Access to the path … is denied»). Se reintenta hasta ~4,5 s; si el destino ya existe, no.
+    /// </summary>
+    internal static void MoveDirectory(string source, string target)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                Directory.Move(source, target);
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 10 && !Directory.Exists(target))
+            {
+                Thread.Sleep(100 * attempt);
+            }
         }
     }
 
@@ -147,7 +168,7 @@ internal static class InstallFiles
         var trash = Path.Combine(parent, TrashPrefix + Guid.NewGuid().ToString("N"));
         try
         {
-            Directory.Move(dir, trash);
+            MoveDirectory(dir, trash);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
