@@ -9,7 +9,8 @@ public sealed record BusyPortView(BusyPort Port, string Headline, string Owner, 
 
 /// <summary>
 /// «No se pudo arrancar…»: qué ha fallado, el final de los logs y lo que se puede hacer
-/// (usar un puerto libre, ir a Ajustes, reintentar). Tras un up fallido no queda nada a medias.
+/// (usar un puerto libre, ir a Ajustes, reintentar). Tras un up fallido no queda nada a medias:
+/// o se rechazó el cambio con lo de antes en marcha, o no se ha arrancado nada.
 /// </summary>
 public sealed partial class StartErrorDialogViewModel : DialogViewModel
 {
@@ -19,7 +20,9 @@ public sealed partial class StartErrorDialogViewModel : DialogViewModel
     {
         _main = main;
         Title = failure.Title;
-        Subtitle = failure.WasRunning
+        Subtitle = failure.StillRunning
+            ? "Roost ha comprobado la configuración nueva antes de parar nada y no vale: lo que estaba en marcha sigue en marcha, con la configuración de antes."
+            : failure.WasRunning
             ? "Para aplicar el cambio, Roost ha parado lo que estaba en marcha y no ha podido volver a arrancarlo: ahora está parado."
             : "No se ha arrancado nada: Roost no deja el stack a medias.";
         // El mensaje del daemon trae el final de los logs detrás de la primera línea.
