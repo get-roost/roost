@@ -146,7 +146,15 @@ Ocho proyectos: `Roost.Cli` → `Roost.Daemon` → `Roost.Extensibility` → `Ro
   - `ApacheSiteConf` es el `etc/apache/sites/<sitio>.conf`, con dos VirtualHost (HTTP y HTTPS) entre las mismas marcas que `SiteConf` y el mismo `RenderNew`/`Merge`.
   - Se valida con `httpd -t -f <conf>` (`TestApache`, busca "Syntax OK"). El servicio se llama `apache` y se para matando su árbol, así que `Prepare` borra el `run/apache.pid` viejo; si no, el log avisaría de un «Unclean shutdown».
 
-  `DbAdmin` (crear y listar bases de datos con el cliente de la instalación y su my.ini) lo usan `roost db create` y la app.
+  - `DbIni.Write` genera `etc/<motor>/<rama>/my.ini` con la contraseña de root que guarda `DbPasswords` en `[client]`. `DbPasswords` vive en `state/db-passwords.json`, por instancia `motor-rama`, con JSON source-gen. El `my.ini` acaba con `!include …/usuario.cnf`, que se crea la primera vez con ejemplos y en el que manda el usuario.
+  - `DbAdmin` hace todo lo que va dentro del servidor en marcha:
+    - crear, listar y borrar bases de datos (`Drop`, nunca las `SystemSchemas`);
+    - la contraseña de root (`ChangeRootPassword`): `ALTER USER` en todas las cuentas root de `mysql.user`, guardar, reescribir el `my.ini` y comprobar con un `SELECT`. Si root no entra, lo deja como estaba; `saveOnly` es para cuando se cambió por fuera;
+    - los usuarios: `ListUsers` (con su acceso por `mysql.db`), `CreateUser` como `'u'@'%'`, `SetUserPassword` y `DropUser`.
+  - Todo lo que entra en el SQL pasa por un patrón cerrado (`IsValidName`, `IsValidUserName`, `IsValidHost`, `IsValidPassword`: ASCII imprimible sin espacio, `'`, `"`, `\` ni `` ` ``), así que nunca hace falta escapar nada.
+  - `SmokeTest` dice qué Visual C++ Redistributable falta si `--version` no contesta; lo usan la CLI y la app.
+  - En la CLI, `roost db` añade `drop`, `password` y la rama `user` (`DbAdminCommands.cs`). `DbSession.ReadPassword` pide sin eco o, si no hay terminal, lee una línea de stdin (tolera el BOM de PowerShell); `Confirm` exige `--yes` sin terminal.
+  - En la app, el puerto de la BD se edita **solo** en la tarjeta de conexión de Bases de datos (Ajustes remite). Están los diálogos de contraseña y de usuario, y `Services/DbClients` detecta HeidiSQL, TablePlus y DBeaver (rutas y registro, solo lectura) y los abre con la conexión.
   `ResolvePhp` elige el PHP global, prefiriendo NTS. `WritePhpIni` genera el php.ini de una instalación con las extensiones que ha elegido el usuario (`PhpExtensionChoice`); lo usan `Prepare` y la app. `ResolveDb` elige la base de datos global: null con `none` o si no hay ninguna; sin `[db]`, la primera de `ListInstalled` (MariaDB más nueva). `BusyPorts` y `AcceptsConnectionsAsync` son las sondas de puertos.
 - **Sitios** (`Sites/`):
   - `Site` (nombre = etiqueta DNS, carpeta, `Root` relativo, `Php` opcional) y `SiteRegistry` (`state/sites.json`, escritura atómica; `Upsert` hace idempotente el `site add`).

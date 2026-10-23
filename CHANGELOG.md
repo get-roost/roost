@@ -4,7 +4,12 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 
 ## 0.1.3 — en preparación
 
-- **Bases de datos:** el puerto, en un solo sitio; contraseña de root; borrar bases de datos; usuarios.
+- **Bases de datos:** pantalla rehecha. El puerto se cambia en un solo sitio (junto a la conexión), con quién ocupa cada puerto.
+- **Contraseña de root:** ponla o cámbiala desde la app o con `roost db password`; Roost la recuerda para sus propios comandos y la añade a la línea del `.env`.
+- **Usuarios y bases de datos:** crea usuarios con acceso a una base de datos o a todas, cámbiales la contraseña o bórralos; borra bases de datos (nunca las del propio servidor). En la CLI, `roost db user` y `roost db drop`.
+- **Tus ajustes de MariaDB o MySQL** (`sql_mode` para proyectos viejos, `max_allowed_packet`…) en un fichero tuyo que Roost no toca, con «Editar mis ajustes».
+- **HeidiSQL y DBeaver:** si los tienes, la app los abre ya conectados.
+- **Después de instalar una base de datos,** Roost comprueba que arranca y, si falta el Visual C++ Redistributable, lo dice con su enlace.
 - **Sitios:** botón para cambiar la raíz web (docroot), con accesos rápidos a `public`, `web` o `dist`, y campo «Raíz web» al crear un sitio. También `roost site root`.
 - **Sitios con Apache:** quitar un sitio ya no impide el siguiente arranque, y «Editar vhost» abre el fichero que de verdad usa Apache.
 - **Sitios:** si cancelas el permiso de Windows, el mensaje dice la verdad (el sitio está creado o quitado; falta el hosts) y cómo arreglarlo; cambiar el PHP de un sitio pide confirmación; botones para copiar la URL y la ruta, y aviso si la carpeta ya no existe.

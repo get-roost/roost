@@ -58,7 +58,18 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             if (status.Db is null)
                 AnsiConsole.MarkupLine("  [grey]Sin base de datos (instala una con: roost db install mariadb@11.4)[/]");
             else
-                AnsiConsole.MarkupLineInterpolated($"  {status.Db} en 127.0.0.1:{status.DbPort} [grey](usuario root, sin contrasena)[/]");
+            {
+                // Si root tiene contraseña, la guarda Roost (roost db password): no se enseña aquí.
+                var root = "usuario root, sin contrasena";
+                try
+                {
+                    if (new StackPlanner(paths, ProcessRunner.Default).ResolveDb(RoostConfig.Load(paths.ConfigFile), new DbInstaller(paths).ListInstalled()) is { } db
+                        && new DbPasswords(paths).For(db) is not null)
+                        root = "usuario root, con la contrasena que guarda Roost";
+                }
+                catch (RoostException) { /* se queda el texto de siempre */ }
+                AnsiConsole.MarkupLineInterpolated($"  {status.Db} en 127.0.0.1:{status.DbPort} [grey]({root})[/]");
+            }
             foreach (var site in status.Sites)
                 AnsiConsole.MarkupLineInterpolated($"  [bold]{site.Url}[/] [grey](PHP {site.Php})[/]");
             AnsiConsole.MarkupLineInterpolated($"  [grey]www: {paths.Www}   logs: {paths.Logs}[/]");

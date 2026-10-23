@@ -142,15 +142,22 @@ roost db install mysql@5.7       # ramas EOL también (8.0, 5.7), con aviso, par
 roost db use mysql@8.4           # la que arranca roost up (si está en marcha, cambia en caliente)
 roost db use none                # roost up sin base de datos
 roost db create tienda           # CREATE DATABASE tienda, utf8mb4
+roost db drop tienda             # la borra (pide confirmar; nunca las del propio servidor)
+roost db password               # la contraseña de root (vacía = sin contraseña); --save-only si ya la cambiaste por fuera
+roost db user add tienda --db tienda   # un usuario con acceso a esa base de datos (imprime su .env)
+roost db user list | password <usuario> | remove <usuario>
 roost db remove mysql@5.7        # quita los binarios; los datos se quedan
 ```
 
 - **De dónde salen.** El catálogo de MariaDB se lee de la API oficial de descargas (`downloads.mariadb.org`), que da la última versión de cada rama estable con su SHA-256. Oracle no tiene API para MySQL, así que sus tres versiones van fijadas en Roost: el SHA-256 de cada zip se fijó después de verificar su firma PGP con las claves de MySQL Release Engineering. Como en PHP, el SHA-256 se comprueba antes de extraer nada.
 - **Un motor a la vez.** `roost up` arranca solo la base de datos global, la que fija `roost db use`. Sin elegir ninguna, arranca la más nueva que haya instalado Roost (MariaDB antes que MySQL).
 - **Datos por motor y rama** en `C:\roost\data\<motor>\<rama>` (por ejemplo `data\mariadb\11.4`, `data\mysql\8.4`). Nunca se comparten entre motores, y una actualización dentro de la rama (11.4.12 → 11.4.13) usa los mismos datos. La primera vez se crean con `root` **sin contraseña**, como en Laragon. Roost nunca borra datos.
+- **Contraseña de root y usuarios.** `roost db password` (o Bases de datos › Contraseña › Cambiar…) la pone con `ALTER USER` en todas las cuentas de root. Roost la guarda en `C:\roost\state\db-passwords.json` y la escribe en el `[client]` del `my.ini` que genera, para que la parada limpia, la consola y `db create` sigan funcionando. Vale cualquier texto ASCII sin espacios, comillas, barras invertidas ni acentos graves, de hasta 64 caracteres; las contraseñas se piden sin eco, y en un script van por stdin (`echo pw | roost db password`). Los usuarios se crean como `'usuario'@'%'`, que es seguro porque el servidor solo escucha en 127.0.0.1.
+- **Tus ajustes del servidor** (`sql_mode` para proyectos viejos, `max_allowed_packet`…) van en `C:\roost\etc\<motor>\<rama>\usuario.cnf`, que el `my.ini` incluye al final y Roost no toca. Se aplican al reiniciar la base de datos.
+- **Clientes gráficos.** Si tienes HeidiSQL o DBeaver, la app los abre ya conectados; TablePlus se abre con la URL de conexión copiada.
 - **Solo local.** Escucha en `127.0.0.1` (puerto 3306 por defecto), en utf8mb4. Con MySQL 8 se desactiva el protocolo X (puerto 33060).
 - **Parada limpia.** Arranca la primera y se para la última. Al pararla, Roost le pide `shutdown` (`mariadb-admin` / `mysqladmin`) y espera a que cierre sus ficheros; solo si no responde en 30 s, la mata.
-- **Si el puerto 3306 está ocupado** (por ejemplo, por el MySQL de Laragon o un servicio de Windows), `roost up` lo dice y no arranca nada. Cambia `[db] port` en `roost.toml`.
+- **Si el puerto 3306 está ocupado** (por ejemplo, por el MySQL de Laragon o un servicio de Windows), `roost up` lo dice y no arranca nada. Cámbialo en Bases de datos (junto a la conexión) o en `[db] port` de `roost.toml`.
 
 ### `roost up / down / status` (solo Windows, por ahora)
 
