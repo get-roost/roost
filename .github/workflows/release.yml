@@ -26,6 +26,11 @@
 # exactamente igual que antes.
 # El instalador lleva dentro el Visual C++ Redistributable x64 (descargado de Microsoft y con su firma
 # comprobada aquí), que instala en silencio solo si falta o es anterior al 14.50.
+# Las notas empiezan por la sección de CHANGELOG.md de la versión (build/changelog-notes.py): sin ella,
+# el job «Versión» falla antes de compilar nada. Tras la sección va la marca <!-- roost:fin-novedades -->,
+# hasta donde la app enseña las notas.
+# Antes de publicar, el job de Windows instala la última publicada (0.1.2) y actualiza encima con la
+# misma línea que usa la app: tiene que quedar la nueva, los datos de C:\roost intactos y la app de vuelta.
 name: Release
 
 on:
@@ -75,6 +80,15 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
           echo "Roost $version (prerelease: $prerelease)"
+
+      # Las notas de la release salen de la sección de CHANGELOG.md de esta versión (las mismas
+      # novedades que enseña la app): sin ella no se publica. Se mira aquí, antes de compilar nada.
+      - name: Novedades en CHANGELOG.md
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 build/changelog-notes.py "$VERSION" > "$RUNNER_TEMP/novedades.md"
+          cat "$RUNNER_TEMP/novedades.md"
 
   test:
     name: Build y tests
@@ -284,19 +298,20 @@ jobs:
           $numeric = $env:VERSION -replace '-.*$', ''
           $source = (Resolve-Path $env:STAGE).Path
           $out = (Resolve-Path artifacts/dist).Path
-          $args = @('/Q', "/DAppVersion=$env:VERSION", "/DNumericVersion=$numeric", "/DSourceDir=$source", "/DOutputDir=$out", "/DVcRedist=$env:VCREDIST")
+          # (No $args: es una variable automática de PowerShell.)
+          $isccArgs = @('/Q', "/DAppVersion=$env:VERSION", "/DNumericVersion=$numeric", "/DSourceDir=$source", "/DOutputDir=$out", "/DVcRedist=$env:VCREDIST")
           if ($env:METODO -ne 'no') {
             # ISCC ejecuta la orden por cada fichero que firma: $f es el fichero (entre comillas) y $q una comilla.
             $script = (Resolve-Path build/sign.ps1).Path
             $work = (Resolve-Path artifacts/signing).Path
-            $args += "/Ssign=pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `$q$script`$q -Method $env:METODO -Work `$q$work`$q -File `$f"
-            $args += '/DSignTool=sign'
+            $isccArgs += "/Ssign=pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `$q$script`$q -Method $env:METODO -Work `$q$work`$q -File `$f"
+            $isccArgs += '/DSignTool=sign'
           }
-          & $iscc @args build/roost.iss
+          & $iscc @isccArgs build/roost.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC ha fallado (codigo $LASTEXITCODE)" }
           Get-Item artifacts/dist/*-setup.exe | Format-Table Name, Length
 
-      - name: Comprobar la firma del instalador
+      - name: Comprobar las firmas del instalador
         if: steps.firma.outputs.metodo != 'no'
         shell: pwsh
         run: |
@@ -363,9 +378,18 @@ jobs:
           if (-not $linea) { throw "El SHA256SUMS.txt de la $env:ANTERIOR no trae su setup" }
           if ((Get-FileHash $old -Algorithm SHA256).Hash.ToLower() -ne $linea.Matches[0].Groups[1].Value.ToLower()) { throw "El setup de la $env:ANTERIOR no cuadra con su SHA256SUMS.txt" }
 
+          # Espera solo al setup: Start-Process -Wait espera también a sus descendientes, y la app
+          # que relanza el instalador nuevo no termina nunca.
+          function Invoke-Setup([string]$exe, [string[]]$arguments) {
+            $p = Start-Process $exe -ArgumentList $arguments -PassThru
+            $null = $p.Handle   # sin el handle, ExitCode puede salir vacío
+            if (-not $p.WaitForExit(15 * 60 * 1000)) { Stop-Process -Id $p.Id -Force; throw "$exe no ha terminado en 15 minutos" }
+            return $p.ExitCode
+          }
+
           # 1. La anterior, instalada como la instalaria un usuario.
-          $p = Start-Process $old -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$dir`"" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "El instalador de la $env:ANTERIOR ha salido con $($p.ExitCode)" }
+          $code = Invoke-Setup $old @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$dir`"")
+          if ($code -ne 0) { throw "El instalador de la $env:ANTERIOR ha salido con $code" }
           $v = & (Join-Path $dir 'roost.exe') --version
           if ($v -ne $env:ANTERIOR) { throw "Tras instalar la anterior, roost --version da '$v'" }
 
@@ -379,8 +403,8 @@ jobs:
           # 3. La nueva encima, con la misma linea que usa la app (UpdateInstaller.SetupArguments).
           $setup = (Get-Item "artifacts/dist/roost-$env:VERSION-win-x64-setup.exe").FullName
           $log = Join-Path $env:RUNNER_TEMP 'actualizar.log'
-          $p = Start-Process $setup -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/ROOSTRELAUNCH=1', "/LOG=`"$log`"" -Wait -PassThru
-          if ($p.ExitCode -ne 0) { Get-Content $log -Tail 40; throw "Actualizar encima ha salido con $($p.ExitCode)" }
+          $code = Invoke-Setup $setup @('/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/ROOSTRELAUNCH=1', "/LOG=`"$log`"")
+          if ($code -ne 0) { Get-Content $log -Tail 40; throw "Actualizar encima ha salido con $code" }
           $v = & (Join-Path $dir 'roost.exe') --version
           if ($v -ne $env:VERSION) { throw "Tras actualizar, roost --version da '$v' y la version es $env:VERSION" }
           foreach ($f in 'roost.exe', 'roost-desktop.exe', 'roost-helper.exe', 'roost-shim.exe', 'unins000.exe') {
@@ -389,19 +413,21 @@ jobs:
           if ((Get-FileHash 'C:\roost\www\marcador\index.php').Hash -ne $antesWww) { throw 'Actualizar ha tocado C:\roost\www' }
           if ((Get-FileHash 'C:\roost\state\marcador.json').Hash -ne $antesState) { throw 'Actualizar ha tocado C:\roost\state' }
 
-          # 4. Con /ROOSTRELAUNCH=1, el instalador vuelve a abrir la app con --updated como el usuario original.
+          # 4. Con /ROOSTRELAUNCH=1, el instalador vuelve a abrir la app con --updated como el usuario
+          #    original. Lo dice su registro (la entrada de [Run]) y se ve el proceso; basta con uno de
+          #    los dos, por si la app no aguanta abierta en el runner.
+          $run = Select-String -Path $log -Pattern 'Parameters: --updated' -SimpleMatch | Select-Object -First 1
           $app = $null
           for ($i = 0; $i -lt 30 -and -not $app; $i++) { Start-Sleep -Seconds 1; $app = Get-Process roost-desktop -ErrorAction SilentlyContinue }
-          if (-not $app) { Get-Content $log -Tail 40; throw 'El instalador no ha vuelto a abrir roost-desktop.exe tras actualizar en silencio' }
-          $cmd = (Get-CimInstance Win32_Process -Filter "name = 'roost-desktop.exe'" | Select-Object -First 1).CommandLine
-          Write-Host "La app ha vuelto: $cmd"
-          if ($cmd -notmatch '--updated') { throw "La app no ha vuelto con --updated: $cmd" }
-          Stop-Process -Name roost-desktop -Force
-          Start-Sleep -Seconds 3
+          $cmd = if ($app) { (Get-CimInstance Win32_Process -Filter "name = 'roost-desktop.exe'" | Select-Object -First 1).CommandLine }
+          Write-Host "Registro: $(if ($run) { $run.Line } else { '(sin la entrada de [Run])' }) · proceso: $(if ($cmd) { $cmd } else { '(no está)' })"
+          if (-not $run -and -not $app) { Get-Content $log -Tail 60; throw 'El instalador no ha vuelto a abrir roost-desktop.exe tras actualizar en silencio' }
+          if ($cmd -and $cmd -notmatch '--updated') { throw "La app ha vuelto sin --updated: $cmd" }
+          if ($app) { Stop-Process -Name roost-desktop -Force; Start-Sleep -Seconds 3 }
 
           # 5. Desinstalar tampoco toca los datos.
-          $u = Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
-          if ($u.ExitCode -ne 0) { throw "El desinstalador ha salido con $($u.ExitCode)" }
+          $code = Invoke-Setup (Join-Path $dir 'unins000.exe') @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART')
+          if ($code -ne 0) { throw "El desinstalador ha salido con $code" }
           for ($i = 0; $i -lt 30 -and (Test-Path (Join-Path $dir 'roost.exe')); $i++) { Start-Sleep -Seconds 1 }
           if (Test-Path (Join-Path $dir 'roost.exe')) { throw 'El desinstalador ha dejado roost.exe' }
           if (-not (Test-Path 'C:\roost\www\marcador\index.php')) { throw 'Desinstalar ha borrado C:\roost\www' }
@@ -476,6 +502,9 @@ jobs:
       PRERELEASE: ${{ needs.version.outputs.prerelease }}
       FIRMA: ${{ needs.windows.outputs.firma }}
     steps:
+      # Solo para CHANGELOG.md y build/changelog-notes.py (las novedades de las notas).
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
         with:
           pattern: release-*
@@ -489,14 +518,25 @@ jobs:
           sha256sum --text roost-* > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      # Las notas: primero las novedades de esta versión, tal cual están en CHANGELOG.md (lo mismo que
+      # enseña la app en Novedades y en el modal «Roost X disponible»); si faltan, el job falla. La
+      # marca roost:fin-novedades dice a la app hasta dónde son novedades (ReleaseNotes.EndMarker):
+      # lo de después (descargas, firma y lo que añade --generate-notes) no lo enseña.
       - name: Notas
         run: |
+          novedades="$(python3 build/changelog-notes.py "$VERSION")"
           case "$FIRMA" in
             azure) firma="El instalador, el desinstalador y los ejecutables y las dll de Roost van firmados con Azure Artifact Signing." ;;
             signpath) firma="El instalador, el desinstalador y los ejecutables y las dll de Roost van firmados. Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)." ;;
             *) firma="**Esta versión no va firmada.** Al abrirla, Windows SmartScreen puede avisar de que es de un editor desconocido («Más información» y «Ejecutar de todas formas»). Comprueba la descarga con SHA256SUMS.txt: la app y \`roost update --install\` lo hacen solos." ;;
           esac
           {
+            echo "## Novedades"
+            echo
+            echo "$novedades"
+            echo
+            echo "<!-- roost:fin-novedades -->"
+            echo
             echo "## Descargas"
             echo
             echo "| Fichero | Qué lleva |"
