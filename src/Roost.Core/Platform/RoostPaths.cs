@@ -19,11 +19,31 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     public static string InstanceTag(Func<string, string?>? env = null)
     {
         var home = (env ?? Environment.GetEnvironmentVariable)(HomeVariable);
-        if (string.IsNullOrWhiteSpace(home)) return "";
-        var root = Path.GetFullPath(home).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (OperatingSystem.IsWindows()) root = root.ToUpperInvariant();
-        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(root));
+        return string.IsNullOrWhiteSpace(home) ? "" : HashTag(home);
+    }
+
+    /// <summary>
+    /// La misma etiqueta, para unas rutas concretas: vacía con las de siempre (<see cref="Default"/> sin
+    /// <c>ROOST_HOME</c>) y el hash de su raíz con cualquier otra. Así un cliente sobre una raíz de
+    /// pruebas (la de un test, aunque no ponga <c>ROOST_HOME</c>) nunca habla con el daemon de verdad.
+    /// </summary>
+    public static string InstanceTag(RoostPaths paths)
+    {
+        var home = Environment.GetEnvironmentVariable(HomeVariable);
+        if (string.IsNullOrWhiteSpace(home) && Normalize(paths.Root) == Normalize(Default().Root)) return "";
+        return HashTag(paths.Root);
+    }
+
+    private static string HashTag(string root)
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Normalize(root)));
         return "-" + Convert.ToHexStringLower(hash)[..8];
+    }
+
+    private static string Normalize(string root)
+    {
+        var full = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return OperatingSystem.IsWindows() ? full.ToUpperInvariant() : full;
     }
 
     /// <summary>Una subcarpeta por cada PHP instalado: <c>bin/php/8.3.36-nts-x64</c>.</summary>

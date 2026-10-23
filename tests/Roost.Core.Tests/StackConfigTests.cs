@@ -61,6 +61,12 @@ public class StackConfigTests : IDisposable
         Assert.Matches("^-[0-9a-f]{8}$", a);
         Assert.Equal(a, RoostPaths.InstanceTag(_ => Path.Combine(_dir, "a") + Path.DirectorySeparatorChar));
         Assert.NotEqual(a, RoostPaths.InstanceTag(_ => Path.Combine(_dir, "b")));
+
+        // Con unas rutas: las de siempre, sin etiqueta; otra raíz (la de un test), con la suya, aunque
+        // no haya ROOST_HOME. Así el cliente de un test nunca habla con el daemon de verdad.
+        if (Environment.GetEnvironmentVariable(RoostPaths.HomeVariable) is null)
+            Assert.Equal("", RoostPaths.InstanceTag(RoostPaths.Default()));
+        Assert.Equal(a, RoostPaths.InstanceTag(new RoostPaths(Path.Combine(_dir, "a"), Path.Combine(_dir, "cache"))));
     }
 
     [Fact]

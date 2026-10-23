@@ -17,8 +17,11 @@ namespace Roost.Daemon;
 /// </summary>
 public static class DaemonHost
 {
-    /// <summary>Uno por usuario y raíz: una Roost con <c>ROOST_HOME</c> tiene su propio daemon.</summary>
-    public static string PipeName => "roost-" + Environment.UserName + RoostPaths.InstanceTag();
+    /// <summary>
+    /// Uno por usuario y raíz: una Roost con <c>ROOST_HOME</c>, o un cliente sobre otra raíz (los tests de la
+    /// app), tiene su propia tubería y nunca habla con el daemon de la Roost de siempre.
+    /// </summary>
+    public static string PipeName(RoostPaths paths) => "roost-" + Environment.UserName + RoostPaths.InstanceTag(paths);
 
     public static string SocketPath(RoostPaths paths) => Path.Combine(paths.Run, "roost.sock");
 
@@ -28,13 +31,13 @@ public static class DaemonHost
     public static async Task<int> RunAsync(CancellationToken cancellation, ExtensionSet? extensions = null)
     {
         // Uno por usuario (y raíz, con ROOST_HOME): si ya hay otro, este sobra.
-        using var single = new Mutex(true, $"roost-daemon-{Environment.UserName}{RoostPaths.InstanceTag()}", out var first);
+        var paths = RoostPaths.Default();
+        using var single = new Mutex(true, $"roost-daemon-{Environment.UserName}{RoostPaths.InstanceTag(paths)}", out var first);
         if (!first) return 0;
 
         if (OperatingSystem.IsWindows())
             WindowsJob.TryKillChildrenOnExit();
 
-        var paths = RoostPaths.Default();
         Directory.CreateDirectory(paths.Logs);
         var log = new FileLog(LogFile(paths));
 
@@ -46,7 +49,7 @@ public static class DaemonHost
             if (OperatingSystem.IsWindows())
             {
                 // Kestrel crea la pipe solo accesible para el usuario actual (CurrentUserOnly).
-                kestrel.ListenNamedPipe(PipeName);
+                kestrel.ListenNamedPipe(PipeName(paths));
             }
             else
             {

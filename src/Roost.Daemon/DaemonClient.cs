@@ -31,7 +31,7 @@ public sealed class DaemonClient : IDisposable
         {
             // CurrentUserOnly: solo se habla con una pipe cuyo dueño es este mismo usuario.
             var pipe = new NamedPipeClientStream(
-                ".", DaemonHost.PipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                ".", DaemonHost.PipeName(paths), PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             try
             {
                 await pipe.ConnectAsync(1000, cancellation);
