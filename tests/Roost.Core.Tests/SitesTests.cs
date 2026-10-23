@@ -307,20 +307,159 @@ public class SitesTests : IDisposable
     }
 
     [Fact]
-    public void SiteManager_Remove_ApartaElConf_YNoTocaLaCarpeta()
+    public void SiteManager_Remove_ApartaLosDosConf_YNoTocaLaCarpeta()
     {
         var sites = new SiteManager(Paths);
         var site = sites.Add("blog").Site;
         Directory.CreateDirectory(Paths.NginxSites);
-        File.WriteAllText(sites.ConfFile(site), "# mi regla\n");
+        Directory.CreateDirectory(Paths.ApacheSites);
+        var nginxConf = Path.Combine(Paths.NginxSites, "blog.conf");
+        var apacheConf = Path.Combine(Paths.ApacheSites, "blog.conf");
+        File.WriteAllText(nginxConf, "# mi regla\n");
+        File.WriteAllText(apacheConf, "# mi otra regla\n");
 
         var removed = sites.Remove("blog.test");
 
         Assert.Equal("blog", removed?.Name);
         Assert.Empty(sites.Registry.Load());
-        Assert.True(File.Exists(sites.ConfFile(site) + ".removed"));
+        // Los dos, no solo el del servidor activo: el otro cargaría un vhost con un certificado ya borrado.
+        Assert.False(File.Exists(nginxConf));
+        Assert.False(File.Exists(apacheConf));
+        Assert.True(File.Exists(nginxConf + ".removed"));
+        Assert.True(File.Exists(apacheConf + ".removed"));
         Assert.True(Directory.Exists(site.Folder));
         Assert.Null(sites.Remove("blog"));
+    }
+
+    [Fact]
+    public void SiteManager_ConfFile_EsElDelServidorActivo()
+    {
+        var sites = new SiteManager(Paths);
+        var site = sites.Add("blog").Site;
+
+        Assert.Equal(Path.Combine(Paths.NginxSites, "blog.conf"), sites.ConfFile(site));   // por defecto, nginx
+        RoostConfig.SetWebServer(Paths.ConfigFile, RoostConfig.WebApache);
+        Assert.Equal(Path.Combine(Paths.ApacheSites, "blog.conf"), sites.ConfFile(site));
+        Assert.Equal(Path.Combine(Paths.NginxSites, "blog.conf"), sites.ConfFile(site, new RoostConfig()));
+    }
+
+    [Fact]
+    public void SiteManager_Add_ConOtraCarpeta_VuelveADetectarLaRaiz()
+    {
+        var sites = new SiteManager(Paths);
+        var tienda = sites.Add("tienda").Site;
+        Directory.CreateDirectory(Path.Combine(tienda.Folder, "public"));
+        Assert.Equal("public", sites.Add("tienda", root: "public").Site.Root);
+
+        // La misma carpeta sin decir raíz: se queda la de antes.
+        Assert.Equal("public", sites.Add("tienda", php: "global").Site.Root);
+
+        // Otra carpeta sin public/: la raíz de antes no vale para ella.
+        var plain = Path.Combine(_root, "proyectos", "tienda-v2");
+        Directory.CreateDirectory(plain);
+        var moved = sites.Add("tienda", plain).Site;
+        Assert.Equal(plain, moved.Folder);
+        Assert.Null(moved.Root);
+
+        // Y otra con public/: se detecta.
+        var laravel = Path.Combine(_root, "proyectos", "tienda-v3");
+        Directory.CreateDirectory(Path.Combine(laravel, "public"));
+        Assert.Equal("public", sites.Add("tienda", laravel).Site.Root);
+    }
+
+    [Fact]
+    public void SiteManager_Add_UnaCarpetaRelativa_CuelgaDeLaWww()
+    {
+        var sites = new SiteManager(Paths);
+
+        var site = sites.Add("blog", "blog-src").Site;
+
+        // No del directorio desde el que se ejecute el comando.
+        Assert.Equal(Path.Combine(Paths.Www, "blog-src"), site.Folder);
+        Assert.True(File.Exists(Path.Combine(site.Folder, "index.php")));
+    }
+
+    [Fact]
+    public void SiteManager_Add_ConUnaRaizQueNoVale_NoCreaNiRegistraNada()
+    {
+        var sites = new SiteManager(Paths);
+
+        var ex = Assert.Throws<RoostException>(() => sites.Add("nueva", root: "public"));
+
+        Assert.Contains("No existe", ex.Message);
+        Assert.Empty(sites.Registry.Load());
+        Assert.False(Directory.Exists(Path.Combine(Paths.Www, "nueva")));   // --root se valida antes de crear la carpeta
+    }
+
+    [Fact]
+    public void SiteManager_SetRoot_SubcarpetaValida_YVolverALaCarpeta()
+    {
+        var sites = new SiteManager(Paths);
+        var tienda = sites.Add("tienda").Site;
+        Directory.CreateDirectory(Path.Combine(tienda.Folder, "public"));
+
+        var changed = sites.SetRoot("tienda.test", "public");
+        Assert.Equal("public", changed.Root);
+        Assert.Equal(Path.Combine(tienda.Folder, "public"), changed.DocumentRoot);
+        Assert.Equal("public", sites.Find("tienda")!.Root);   // guardada
+
+        Assert.Null(sites.SetRoot("tienda", null).Root);
+        Assert.Equal("public", sites.SetRoot("tienda", "public/").Root);   // la barra final no cuenta
+        Assert.Null(sites.SetRoot("tienda", ".").Root);
+        Assert.Equal("public", sites.SetRoot("tienda", "./public").Root);
+        Assert.Null(sites.SetRoot("tienda", "").Root);
+        Assert.Equal(tienda.Folder, sites.Find("tienda")!.DocumentRoot);
+    }
+
+    [Fact]
+    public void SiteManager_SetRoot_RechazaLoQueQuedaFuera_YLoQueNoExiste()
+    {
+        var sites = new SiteManager(Paths);
+        var tienda = sites.Add("tienda").Site;
+        var otra = Path.Combine(_root, "otra");
+        Directory.CreateDirectory(otra);
+
+        Assert.Contains("fuera", Assert.Throws<RoostException>(() => sites.SetRoot("tienda", "..")).Message);
+        Assert.Contains("fuera", Assert.Throws<RoostException>(() => sites.SetRoot("tienda", "../otra")).Message);
+        Assert.Contains("fuera", Assert.Throws<RoostException>(() => sites.SetRoot("tienda", otra)).Message);   // absoluta, de otro sitio
+        Assert.Contains("No existe", Assert.Throws<RoostException>(() => sites.SetRoot("tienda", "dist")).Message);
+        Assert.Contains("No existe", Assert.Throws<RoostException>(() => sites.SetRoot("tienda", "public/../dist")).Message);
+        Assert.Throws<RoostException>(() => sites.SetRoot("nadie", "public"));
+
+        Assert.Null(sites.Find("tienda")!.Root);   // nada de eso se guardó
+        Assert.False(Directory.Exists(Path.Combine(tienda.Folder, "dist")));
+    }
+
+    [Fact]
+    public void SiteManager_SetRoot_UnaRutaAbsolutaDentro_SeGuardaRelativa()
+    {
+        var sites = new SiteManager(Paths);
+        var tienda = sites.Add("tienda").Site;
+        var build = Path.Combine(tienda.Folder, "public", "build");
+        Directory.CreateDirectory(build);
+
+        var changed = sites.SetRoot("tienda", build);
+
+        Assert.Equal("public/build", changed.Root);   // relativa y con barras, también en el sites.json
+        Assert.Contains("\"root\": \"public/build\"", File.ReadAllText(sites.Registry.FilePath));
+        Assert.Equal(build, changed.DocumentRoot);
+    }
+
+    [Fact]
+    public void Prepare_ApartaLosConfDeSitiosQueYaNoExisten()
+    {
+        var php84 = FakePhp("8.4.27-nts-x64");
+        var nginx = new InstalledNginx("1.30.6", Path.Combine(_root, "bin", "nginx", "1.30.6"));
+        Site[] sites = [new() { Name = "blog", Folder = Path.Combine(_root, "www", "blog") }];
+        Directory.CreateDirectory(Paths.NginxSites);
+        var orphan = Path.Combine(Paths.NginxSites, "viejo.conf");   // lo dejó una versión anterior al quitar el sitio
+        File.WriteAllText(orphan, "server { ssl_certificate \"ya-no-existe.crt\"; }\n");
+
+        new StackPlanner(Paths, new NginxTestOk()).Prepare(new RoostConfig { HttpPort = 8765, PhpPool = 1 }, php84, nginx, null, sites, [php84], new LocalCa(Paths));
+
+        Assert.False(File.Exists(orphan));
+        Assert.True(File.Exists(orphan + ".removed"));
+        Assert.True(File.Exists(Path.Combine(Paths.NginxSites, "blog.conf")));
     }
 
     public void Dispose()

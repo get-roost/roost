@@ -204,11 +204,30 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         return new StackPlan(php, web.Name, webVersion, config.HttpPort, config.HttpsPort, db, config.DbPort, sitePlans, all);
     }
 
+    /// <summary>
+    /// Aparta como <c>.conf.removed</c> los <c>.conf</c> de <paramref name="sitesDir"/> cuyo sitio ya
+    /// no está registrado: los que dejó una versión anterior al quitar un sitio con el otro
+    /// servidor activo. Con <c>include sites/*.conf</c>, uno huérfano apunta a un certificado ya
+    /// borrado y el <c>-t</c> fallaría por un sitio que no existe.
+    /// </summary>
+    private static void RetireOrphanConfs(string sitesDir, List<SitePlan> sitePlans)
+    {
+        foreach (var file in Directory.EnumerateFiles(sitesDir, "*.conf"))
+        {
+            // El patrón de Windows también casa con nombres más largos: se filtra a mano.
+            if (!file.EndsWith(".conf", StringComparison.OrdinalIgnoreCase)) continue;
+            var name = Path.GetFileNameWithoutExtension(file);
+            if (sitePlans.Any(p => string.Equals(p.Site.Name, name, StringComparison.OrdinalIgnoreCase))) continue;
+            File.Move(file, file + ".removed", overwrite: true);
+        }
+    }
+
     /// <summary>nginx.conf, un .conf por sitio, <c>nginx -t</c> y su servicio.</summary>
     private ServiceDefinition PrepareNginx(RoostConfig config, InstalledNginx nginx, List<NginxUpstream> upstreams, List<SitePlan> sitePlans, LocalCa? ca)
     {
         foreach (var dir in new[] { Path.Combine(paths.Etc, "nginx"), paths.NginxSites, Path.Combine(paths.Run, "nginx-temp") })
             Directory.CreateDirectory(dir);
+        RetireOrphanConfs(paths.NginxSites, sitePlans);
 
         // Un .conf por sitio: nuevo la primera vez; después solo se regenera el bloque de Roost.
         foreach (var plan in sitePlans)
@@ -256,6 +275,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
     {
         foreach (var dir in new[] { Path.Combine(paths.Etc, "apache"), paths.ApacheSites })
             Directory.CreateDirectory(dir);
+        RetireOrphanConfs(paths.ApacheSites, sitePlans);
 
         foreach (var plan in sitePlans)
         {

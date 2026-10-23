@@ -188,6 +188,42 @@ public class ApacheTests : IDisposable
     }
 
     [Fact]
+    public void QuitarUnSitioConApache_ElSiguientePrepareNoLoIncluye()
+    {
+        var php84 = FakePhp("8.4.27-nts-x64");
+        var apache = new InstalledApache("2.4.69", Path.Combine(Paths.ApacheBin, "2.4.69"));
+        var config = new RoostConfig { HttpPort = 8765, HttpsPort = 8443, PhpPool = 1, WebServer = RoostConfig.WebApache };
+        RoostConfig.SetWebServer(Paths.ConfigFile, RoostConfig.WebApache);
+        var sites = new SiteManager(Paths);
+        sites.Add("blog", Path.Combine(_root, "www", "blog"));
+        sites.Add("legacy", Path.Combine(_root, "www", "legacy"));
+        var ca = new LocalCa(Paths);
+        var planner = new StackPlanner(Paths, new ApacheTestOk());
+        planner.Prepare(config, php84, nginx: null, null, sites.Registry.Load(), [php84], ca, apache: apache);
+        var legacyConf = Path.Combine(Paths.ApacheSites, "legacy.conf");
+        Assert.True(File.Exists(legacyConf));
+        Assert.Equal(legacyConf, sites.ConfFile(sites.Find("legacy")!));   // «Editar vhost» abre el de Apache
+
+        sites.Remove("legacy");
+
+        // El .conf de Apache se aparta con el sitio (antes se quedaba apuntando a un certificado borrado).
+        Assert.False(File.Exists(legacyConf));
+        Assert.True(File.Exists(legacyConf + ".removed"));
+        Assert.False(File.Exists(ca.SiteCertFile("legacy")));
+
+        // Y un huérfano de una versión anterior lo aparta el siguiente Prepare.
+        var orphan = Path.Combine(Paths.ApacheSites, "viejo.conf");
+        File.WriteAllText(orphan, "<VirtualHost 127.0.0.1:8443>\nSSLCertificateFile \"ya-no-existe.crt\"\n</VirtualHost>\n");
+        var plan = planner.Prepare(config, php84, nginx: null, null, sites.Registry.Load(), [php84], ca, apache: apache);
+
+        Assert.Equal(["blog"], plan.Sites.Select(s => s.Site.Name));
+        Assert.False(File.Exists(legacyConf));
+        Assert.False(File.Exists(orphan));
+        Assert.True(File.Exists(orphan + ".removed"));
+        Assert.Equal(["blog.conf"], Directory.GetFiles(Paths.ApacheSites, "*.conf").Select(Path.GetFileName).Where(f => f!.EndsWith(".conf", StringComparison.Ordinal)));
+    }
+
+    [Fact]
     public void Prepare_ConApacheSinInstalar_LoDiceSinArrancarNada()
     {
         var php84 = FakePhp("8.4.27-nts-x64");
