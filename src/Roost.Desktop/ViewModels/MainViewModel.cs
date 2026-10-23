@@ -6,7 +6,10 @@ using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Roost.Core;
+using Roost.Core.Config;
+using Roost.Core.Scanning;
 using Roost.Core.Sites;
+using Roost.Core.Stack;
 using Roost.Desktop.Controls;
 using Roost.Desktop.Services;
 
@@ -250,11 +253,16 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Aplica un cambio de configuración si el stack está en marcha; si falla, el mismo diálogo.</summary>
-    public async Task ApplyAsync()
+    /// <returns>
+    /// false si el cambio no se pudo aplicar (ya se ha enseñado el diálogo de arranque fallido):
+    /// quien llama no debe seguir como si hubiera ido bien. true si se aplicó o si no está en marcha.
+    /// </returns>
+    public async Task<bool> ApplyAsync()
     {
         var failure = await Stack.ApplyIfRunningAsync();
-        if (failure is not null)
-            await ShowDialogAsync(new StartErrorDialogViewModel(this, failure));
+        if (failure is null) return true;
+        await ShowDialogAsync(new StartErrorDialogViewModel(this, failure));
+        return false;
     }
 
     /// <summary>
@@ -281,6 +289,12 @@ public sealed partial class MainViewModel : ObservableObject
         await ApplyAsync();
         NotifyConfigChanged();
     });
+
+    /// <summary>El tooltip de la X de la barra de título: lo que hará, según «Cerrar deja Roost en la bandeja».</summary>
+    public string CloseTip => App.Prefs.CloseToTray ? "Cerrar (Roost sigue en la bandeja)" : "Salir de Roost";
+
+    /// <summary>Lo llama Ajustes al guardar las preferencias de la app.</summary>
+    public void NotifyPrefsChanged() => OnPropertyChanged(nameof(CloseTip));
 
     /// <summary>
     /// Algo ha cambiado en disco (roost.toml, una instalación, un sitio): las pantallas y la
@@ -386,7 +400,11 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task RunWelcomeAsync(WelcomePlan plan)
     {
         foreach (var build in plan.Php) await Php.InstallBuildAsync(build);
-        if (plan.GlobalBranch is { } branch) await UsePhpAsync(branch);
+        // Solo si de verdad se instaló: si se canceló o falló, ya lo ha dicho su diálogo y no se
+        // encadena otro error («no hay ningún PHP que case») encima.
+        var installedPhp = new Roost.Core.Install.PhpInstaller(App.Paths).ListInstalled();
+        if (plan.GlobalBranch is { } branch && Roost.Core.Install.PhpInstaller.Match(installedPhp, branch).Count > 0)
+            await UsePhpAsync(branch);
 
         if (plan.Db is { } db && await Databases.InstallBuildAsync(db))
         {
@@ -402,8 +420,20 @@ public sealed partial class MainViewModel : ObservableObject
         {
             await RunAsync("No se pudieron registrar los sitios", async () =>
             {
+                // Cada carpeta con el PHP que pide su composer.json, si es otra rama que la global:
+                // un proyecto en 7.4 no se sirve con la 8.4 nada más importarlo.
+                var installed = new Roost.Core.Install.PhpInstaller(App.Paths).ListInstalled();
+                string? global = null;
+                try { global = HomeViewModel.Branch(new StackPlanner(App.Paths, ProcessRunner.Default).ResolvePhp(RoostConfig.Load(App.Paths.ConfigFile), installed).Name); }
+                catch (RoostException) { }
                 var sites = new SiteManager(App.Paths);
-                foreach (var folder in plan.Sites) sites.Add(folder.Name, folder.Path);
+                foreach (var folder in plan.Sites)
+                {
+                    var wanted = ComposerJson.PhpConstraint(folder.Path) is { } constraint && ComposerJson.Recommended(constraint, installed) is { } php
+                        ? HomeViewModel.Branch(php.Name)
+                        : null;
+                    sites.Add(folder.Name, folder.Path, php: wanted == global ? null : wanted);
+                }
                 NotifyConfigChanged();
                 await SyncHostsAsync();
             });

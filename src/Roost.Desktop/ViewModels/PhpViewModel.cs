@@ -493,7 +493,8 @@ public sealed partial class PhpViewModel : PageViewModel
                 var registry = new SiteRegistry(Main.App.Paths);
                 foreach (var site in dialog.Sites) registry.Upsert(site with { Php = dialog.TargetSpec });
                 // Primero se aplica (para que ningún php-cgi tenga abierta la carpeta) y luego se quita.
-                await Main.ApplyAsync();
+                // Si no se pudo aplicar, no se borra: los sitios ya están movidos y basta con reintentar.
+                if (!await Main.ApplyAsync()) return;
                 new PhpInstaller(Main.App.Paths).Remove(card.Php);
             });
         }

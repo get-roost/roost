@@ -1,4 +1,3 @@
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -140,31 +139,10 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
     /// El PHP que pide el composer.json de la carpeta (<c>require.php</c>): el más nuevo de los
     /// instalados que cumple la versión mínima (y, con <c>^</c>, su misma versión mayor).
     /// </summary>
-    private (InstalledPhp, string)? Recommended(string folder)
-    {
-        try
-        {
-            var file = Path.Combine(folder, "composer.json");
-            if (!File.Exists(file)) return null;
-            using var doc = JsonDocument.Parse(File.ReadAllText(file));
-            if (!doc.RootElement.TryGetProperty("require", out var require) || !require.TryGetProperty("php", out var php)) return null;
-            var constraint = php.GetString() ?? "";
-            var min = Regex.Match(constraint, @"(\d+)\.(\d+)");
-            if (!min.Success) return null;
-            var major = int.Parse(min.Groups[1].Value);
-            var minor = int.Parse(min.Groups[2].Value);
-            var caret = constraint.TrimStart().StartsWith('^');
-            var best = _installed
-                .Where(p => !p.ThreadSafe && p.Version is { } v && (v.Major > major || v.Major == major && v.Minor >= minor) && (!caret || v.Major == major))
-                .OrderByDescending(p => p.Version)
-                .FirstOrDefault();
-            return best is null ? null : (best, constraint);
-        }
-        catch (Exception ex) when (ex is IOException or JsonException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            return null;
-        }
-    }
+    private (InstalledPhp, string)? Recommended(string folder) =>
+        ComposerJson.PhpConstraint(folder) is { } constraint && ComposerJson.Recommended(constraint, _installed) is { } best
+            ? (best, constraint)
+            : null;
 
     [RelayCommand]
     private void PickTemplate(SiteTemplate template)

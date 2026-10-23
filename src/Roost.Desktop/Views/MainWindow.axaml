@@ -78,7 +78,7 @@
             <ctl:Icon Data="{StaticResource IcMaximize}" Size="13" />
           </Button>
           <Button Classes="winbtn close" Name="CloseButton"
-                  AutomationProperties.Name="Cerrar (Roost sigue en la bandeja)" ToolTip.Tip="Cerrar (Roost sigue en la bandeja)">
+                  AutomationProperties.Name="{Binding CloseTip}" ToolTip.Tip="{Binding CloseTip}">
             <ctl:Icon Data="{StaticResource IcClose}" Size="14" />
           </Button>
         </StackPanel>

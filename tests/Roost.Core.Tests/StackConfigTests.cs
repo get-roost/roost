@@ -25,6 +25,18 @@ public class StackConfigTests : IDisposable
     }
 
     [Fact]
+    public void InstanceTag_VacioSinRoostHome_YUnoPorRaizConEl()
+    {
+        // Sin ROOST_HOME, los nombres de la tubería y los mutex no cambian (la Roost de verdad).
+        Assert.Equal("", RoostPaths.InstanceTag(_ => null));
+
+        var a = RoostPaths.InstanceTag(_ => Path.Combine(_dir, "a"));
+        Assert.Matches("^-[0-9a-f]{8}$", a);
+        Assert.Equal(a, RoostPaths.InstanceTag(_ => Path.Combine(_dir, "a") + Path.DirectorySeparatorChar));
+        Assert.NotEqual(a, RoostPaths.InstanceTag(_ => Path.Combine(_dir, "b")));
+    }
+
+    [Fact]
     public void PhpPool_PuertosSeparadosPorRama_ComoEnRoostMd()
     {
         Assert.Equal([9830, 9831, 9832, 9833], PhpPool.Ports(new ComponentVersion(8, 3, 36, "8.3.36"), 4));

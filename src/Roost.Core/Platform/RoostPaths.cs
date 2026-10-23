@@ -11,6 +11,21 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
 {
     public const string HomeVariable = "ROOST_HOME";
 
+    /// <summary>
+    /// Lo que se añade a los nombres que son por usuario (la tubería y el mutex de roostd, los de
+    /// la app): vacío con la raíz de siempre y <c>-&lt;8 hex&gt;</c> de la raíz con <c>ROOST_HOME</c>.
+    /// Así una Roost de pruebas no habla con el daemon de la de verdad ni le quita la ventana.
+    /// </summary>
+    public static string InstanceTag(Func<string, string?>? env = null)
+    {
+        var home = (env ?? Environment.GetEnvironmentVariable)(HomeVariable);
+        if (string.IsNullOrWhiteSpace(home)) return "";
+        var root = Path.GetFullPath(home).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (OperatingSystem.IsWindows()) root = root.ToUpperInvariant();
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(root));
+        return "-" + Convert.ToHexStringLower(hash)[..8];
+    }
+
     /// <summary>Una subcarpeta por cada PHP instalado: <c>bin/php/8.3.36-nts-x64</c>.</summary>
     public string PhpBin => Path.Combine(Root, "bin", "php");
 

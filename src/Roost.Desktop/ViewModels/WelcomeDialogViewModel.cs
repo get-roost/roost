@@ -156,20 +156,28 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
         {
             var catalog = await WindowsPhpCatalog.FetchAsync(_main.App.Http);
             var nts = catalog.Where(b => !b.ThreadSafe && b.Architecture == "x64").GroupBy(b => b.Branch).ToDictionary(g => g.Key, g => g.First());
-            var used = _main.Audit.Findings
-                .Where(f => f.Component.Kind == ComponentKind.Php && f.Component.Source != "Roost" && f.Verdict != AuditVerdict.Eol)
-                .Select(f => $"{f.Component.Version.Major}.{f.Component.Version.Minor}")
-                .Where(nts.ContainsKey)
-                .Distinct()
+            // También las ramas EOL que se usan: los proyectos viejos de Laragon las necesitan, y si no
+            // se traen se servirían con la global y se romperían. Se marcan, y nunca son la global.
+            var phpFound = _main.Audit.Findings
+                .Where(f => f.Component.Kind == ComponentKind.Php && f.Component.Source != "Roost")
+                .Select(f => (Branch: $"{f.Component.Version.Major}.{f.Component.Version.Minor}", Eol: f.Verdict == AuditVerdict.Eol))
+                .Where(x => nts.ContainsKey(x.Branch))
                 .ToList();
-            if (used.Count == 0 && nts.ContainsKey("8.4")) used.Add("8.4");
+            var used = phpFound.Select(x => x.Branch).Distinct().ToList();
+            var eol = phpFound.Where(x => x.Eol).Select(x => x.Branch).ToHashSet();
+            if (used.All(eol.Contains) && nts.ContainsKey("8.4")) used.Add("8.4");
             var installed = new PhpInstaller(_main.App.Paths).ListInstalled().Select(p => p.Name).ToHashSet();
             _php = used.Select(b => nts[b]).Where(b => !installed.Contains(b.InstallName)).OrderByDescending(b => b.Version).ToList();
-            _globalBranch = used.Contains("8.4") ? "8.4" : used.OrderByDescending(b => Version.Parse(b)).FirstOrDefault();
+            var current = used.Where(b => !eol.Contains(b)).ToList();
+            _globalBranch = current.Contains("8.4") ? "8.4" : current.OrderByDescending(b => Version.Parse(b)).FirstOrDefault();
             PhpText = _php.Count == 0
                 ? "Los PHP que usas ya están en Roost"
-                : $"Instalar en Roost la última de cada rama de PHP que usas ({string.Join(", ", _php.Select(b => b.Version))})";
-            PhpHint = _globalBranch is null ? "" : $"Y hacer global la {_globalBranch}.{(HasLaragon ? " Las de Laragon siguen donde están." : "")}";
+                : $"Instalar en Roost la última de cada rama de PHP que usas ({string.Join(", ", _php.Select(b => eol.Contains(b.Branch) ? $"{b.Version} (EOL)" : b.Version.ToString()))})";
+            var eolNote = _php.Any(b => eol.Contains(b.Branch))
+                ? " Las EOL ya no reciben parches: son para tus proyectos viejos, que las seguirán usando."
+                : "";
+            PhpHint = _globalBranch is null ? eolNote.Trim()
+                : $"Y hacer global la {_globalBranch}.{eolNote}{(HasLaragon ? " Las de Laragon siguen donde están." : "")}";
             InstallPhp = PhpAvailable = _php.Count > 0;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or RoostException or System.Text.Json.JsonException)

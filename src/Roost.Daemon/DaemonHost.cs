@@ -17,7 +17,8 @@ namespace Roost.Daemon;
 /// </summary>
 public static class DaemonHost
 {
-    public static string PipeName => "roost-" + Environment.UserName;
+    /// <summary>Uno por usuario y raíz: una Roost con <c>ROOST_HOME</c> tiene su propio daemon.</summary>
+    public static string PipeName => "roost-" + Environment.UserName + RoostPaths.InstanceTag();
 
     public static string SocketPath(RoostPaths paths) => Path.Combine(paths.Run, "roost.sock");
 
@@ -26,8 +27,8 @@ public static class DaemonHost
     /// <param name="extensions">Las ya cargadas por quien lanza el daemon (la CLI); si no, se cargan aquí.</param>
     public static async Task<int> RunAsync(CancellationToken cancellation, ExtensionSet? extensions = null)
     {
-        // Uno por usuario: si ya hay otro, este sobra.
-        using var single = new Mutex(true, $"roost-daemon-{Environment.UserName}", out var first);
+        // Uno por usuario (y raíz, con ROOST_HOME): si ya hay otro, este sobra.
+        using var single = new Mutex(true, $"roost-daemon-{Environment.UserName}{RoostPaths.InstanceTag()}", out var first);
         if (!first) return 0;
 
         if (OperatingSystem.IsWindows())

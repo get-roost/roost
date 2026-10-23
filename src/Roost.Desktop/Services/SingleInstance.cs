@@ -6,7 +6,8 @@ namespace Roost.Desktop.Services;
 /// </summary>
 public sealed class SingleInstance : IDisposable
 {
-    private static string Name(string what) => $"roost-desktop-{what}-{Environment.UserName}";
+    // Por usuario y raíz: una Roost con ROOST_HOME (de pruebas) no se cruza con la de siempre.
+    private static string Name(string what) => $"roost-desktop-{what}-{Environment.UserName}{Roost.Core.Platform.RoostPaths.InstanceTag()}";
 
     private readonly Mutex _mutex;
     private readonly EventWaitHandle _show;

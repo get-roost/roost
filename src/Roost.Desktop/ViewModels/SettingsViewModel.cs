@@ -2,6 +2,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Roost.Core;
+using Roost.Core.Audit;
 using Roost.Core.Config;
 using Roost.Core.Install;
 using Roost.Core.Platform;
@@ -95,11 +96,20 @@ public sealed partial class SettingsViewModel : PageViewModel
     partial void OnStartWithWindowsChanged(bool value)
     {
         if (_loading) return;
-        _ = Main.RunAsync("No se pudo cambiar el inicio con Windows", () =>
-        {
-            Autostart.Set(value);
-            return Task.CompletedTask;
-        });
+        _ = ToggleAsync("No se pudo cambiar el inicio con Windows", () => Autostart.Set(value),
+            () => StartWithWindows = Autostart.IsEnabled());
+    }
+
+    /// <summary>
+    /// Una casilla que hace algo en el sistema: tras intentarlo, enseña lo que de verdad ha
+    /// quedado. Si falla, vuelve atrás en vez de quedarse marcada sin haber hecho nada.
+    /// </summary>
+    private async Task ToggleAsync(string error, Action action, Action showReal)
+    {
+        await Main.RunAsync(error, () => Task.Run(action));
+        _loading = true;
+        try { showReal(); }
+        finally { _loading = false; }
     }
 
     partial void OnShimsWarningChanged(string? value) => OnPropertyChanged(nameof(HasShimsWarning));
@@ -108,9 +118,9 @@ public sealed partial class SettingsViewModel : PageViewModel
     partial void OnShimsEnabledChanged(bool value)
     {
         if (_loading) return;
-        _ = Main.RunAsync(value ? "No se pudieron poner los shims" : "No se pudieron quitar los shims", () =>
+        var shims = new ShimInstaller(Paths);
+        _ = ToggleAsync(value ? "No se pudieron poner los shims" : "No se pudieron quitar los shims", () =>
         {
-            var shims = new ShimInstaller(Paths);
             if (value)
             {
                 shims.Install(AppServices.AppDirectory);
@@ -118,15 +128,17 @@ public sealed partial class SettingsViewModel : PageViewModel
                 planner.EnsureUserIni();
                 foreach (var php in new PhpInstaller(Paths).ListInstalled()) planner.WritePhpIni(php);
                 UserPath.AddFirst(shims.Directory);
-                Main.Flash("php ya sigue la carpeta en las terminales nuevas");
             }
             else
             {
                 UserPath.Remove(shims.Directory);
                 shims.Remove();
             }
-            ShimsWarning = value ? Shadowing() : null;
-            return Task.CompletedTask;
+        }, () =>
+        {
+            ShimsEnabled = shims.IsInstalled && UserPath.Contains(UserPath.Read(), shims.Directory);
+            ShimsWarning = ShimsEnabled ? Shadowing() : null;
+            if (value && ShimsEnabled) Main.Flash("php ya sigue la carpeta en las terminales nuevas");
         });
     }
 
@@ -180,6 +192,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         if (_loading) return;
         var theme = ThemeLight ? "light" : ThemeDark ? "dark" : "system";
         Main.App.SavePrefs(Main.App.Prefs with { Theme = theme, CloseToTray = CloseToTray, StartStackOnLaunch = StartStackOnLaunch });
+        Main.NotifyPrefsChanged();
     }
 
     public override Task ShownAsync()
@@ -283,8 +296,12 @@ public sealed partial class SettingsViewModel : PageViewModel
             return;
         await Main.RunAsync("No se pudo vaciar la caché", () =>
         {
+            // Todo, también las carpetas y los .part- de una descarga cortada: el tamaño los cuenta.
             if (Directory.Exists(Paths.Downloads))
+            {
                 foreach (var file in Directory.EnumerateFiles(Paths.Downloads)) File.Delete(file);
+                foreach (var dir in Directory.EnumerateDirectories(Paths.Downloads)) Directory.Delete(dir, recursive: true);
+            }
             CacheSize = FolderSize(Paths.Downloads);
             return Task.CompletedTask;
         });
@@ -316,6 +333,19 @@ public sealed partial class SettingsViewModel : PageViewModel
             PortsError = "La base de datos no puede usar un puerto del servidor web.";
             return;
         }
+
+        // Un puerto nuevo que ya tiene otro proceso: se dice aquí, antes de guardar, y no como un
+        // arranque fallido con la configuración ya cambiada. Los que no cambian son de Roost.
+        RoostConfig current;
+        try { current = RoostConfig.Load(Paths.ConfigFile); } catch (RoostException) { current = new RoostConfig(); }
+        foreach (var (port, now, role) in new[] { (http, current.HttpPort, "HTTP"), (https, current.HttpsPort, "HTTPS"), (db, current.DbPort, "de la base de datos") })
+        {
+            if (port == now || StackPlanner.BusyPorts([port]).Count == 0) continue;
+            var owner = PortOwners.Find(port);
+            PortsError = $"El puerto {role} {port} está ocupado por {owner?.ProcessName ?? "otro proceso"}{(owner is null ? "" : $" (PID {owner.Pid})")}. Elige otro o para ese programa.";
+            return;
+        }
+
         try
         {
             RoostConfig.SetWebPorts(Paths.ConfigFile, http, https);
@@ -327,9 +357,9 @@ public sealed partial class SettingsViewModel : PageViewModel
             PortsError = ex.Message;
             return;
         }
-        await Main.ApplyAsync();
+        var applied = await Main.ApplyAsync();
         Main.NotifyConfigChanged();
-        Main.Flash("Puertos guardados");
+        if (applied) Main.Flash("Puertos guardados");
     });
 
     [RelayCommand]
@@ -394,8 +424,26 @@ public sealed partial class SettingsViewModel : PageViewModel
     [RelayCommand]
     private Task OpenHelperLogAsync() => Main.OpenLogAsync(@"%ProgramData%\Roost\roost-helper.log");
 
+    /// <summary>«Comprobar ahora»: pide el feed sin mirar la caché, vuelve a evaluar y dice qué ha pasado.</summary>
     [RelayCommand]
-    private Task CheckNowAsync() => Main.Audit.ScanAsync(forceFeed: true);
+    private async Task CheckNowAsync()
+    {
+        var update = await Main.Audit.UpdateFeedAsync(force: true);
+        await Main.Audit.ScanAsync();
+        switch (update?.Status)
+        {
+            case FeedUpdateStatus.Updated:
+                Main.Flash("Avisos actualizados: hay un feed nuevo");
+                break;
+            case FeedUpdateStatus.NotModified or FeedUpdateStatus.Fresh:
+                Main.Flash("Los avisos ya estaban al día");
+                break;
+            case FeedUpdateStatus.Failed:
+                await Main.InfoAsync("No se pudo comprobar el feed de avisos",
+                    $"{update.Detail ?? "Sin detalle."} Sigue valiendo el último que había: {Main.Audit.OriginShort}.", Tone.Warn);
+                break;
+        }
+    }
 
     [RelayCommand]
     private Task GoAuditAsync() => Main.NavigateToAsync(Main.AuditPage);
