@@ -70,6 +70,10 @@ public static class NginxConf
                 sendfile on;
                 keepalive_timeout 65;
                 client_max_body_size 128m;
+                # Lo que se espera a php-cgi (60 s por defecto): parado en un breakpoint de Xdebug o
+                # con una migración larga, el navegador no recibe un 504. Lo heredan todos los sitios.
+                fastcgi_read_timeout 600s;
+                fastcgi_send_timeout 600s;
                 access_log "{{logs}}/nginx-access.log";
 
                 client_body_temp_path "{{run}}/nginx-temp/client_body";

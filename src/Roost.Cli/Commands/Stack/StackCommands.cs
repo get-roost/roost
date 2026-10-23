@@ -24,11 +24,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            AnsiConsole.MarkupLine("[red]roost up solo funciona en Windows por ahora[/] (ROOST.md: fase 1, Windows primero).");
-            return 1;
-        }
+        if (!WindowsOnly.Check("up")) return 1;
 
         var paths = RoostPaths.Default();
         try
@@ -83,6 +79,7 @@ public sealed class DownCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
+        if (!WindowsOnly.Check(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is null)
         {
@@ -108,6 +105,7 @@ public sealed class RestartCommand : AsyncCommand<RestartCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
+        if (!WindowsOnly.Check(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is not { Running: true })
         {
@@ -138,6 +136,7 @@ public sealed class StatusCommand : AsyncCommand<StatusCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
+        if (!WindowsOnly.Check(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         var status = await client.TryStatusAsync(cancellation);
 

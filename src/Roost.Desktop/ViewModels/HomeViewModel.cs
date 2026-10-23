@@ -131,8 +131,11 @@ public sealed partial class HomeViewModel : PageViewModel
         SiteLines = lines;
 
         Services = running ? RunningRows(status!, config, sites) : PlannedRows(config, globalPhp, globalDb, sites, installedPhp, planner);
+        // «Todo en marcha» solo si de verdad todo está Running; si algo se ha caído, se dice qué.
+        var down = running ? status!.Services.Where(s => s.State != "Running").Select(s => s.Name).ToList() : [];
         Subtitle = running
-            ? $"Todo en marcha{(status!.Since is { } since ? $" desde las {since.LocalDateTime:HH:mm}" : "")} · "
+            ? (down.Count == 0 ? "Todo en marcha" : $"En marcha, pero con problemas en {Join(down)}")
+              + $"{(status!.Since is { } since ? $" desde las {since.LocalDateTime:HH:mm}" : "")} · "
               + $"{Count(sites.Count, "sitio", "sitios")}, PHP {Branch(status.Php)} global, {(status.Db is null ? "sin base de datos" : Short(status.Db))}"
             : "Parado. Iniciar todo arranca la base de datos, los PHP en uso y el servidor web.";
         BuildAudit();

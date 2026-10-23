@@ -70,8 +70,8 @@ public static class ApacheConf
             MaxConnectionsPerChild 0
             AcceptFilter http none
             AcceptFilter https none
-            Timeout 300
-            ProxyTimeout 300
+            Timeout 600
+            ProxyTimeout 600
             PidFile "{{run}}/apache.pid"
             DefaultRuntimeDir "{{run}}"
             ErrorLog "{{logs}}/apache-error.log"

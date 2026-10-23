@@ -19,6 +19,9 @@ public sealed partial class StartErrorDialogViewModel : DialogViewModel
     {
         _main = main;
         Title = failure.Title;
+        Subtitle = failure.WasRunning
+            ? "Para aplicar el cambio, Roost ha parado lo que estaba en marcha y no ha podido volver a arrancarlo: ahora está parado."
+            : "No se ha arrancado nada: Roost no deja el stack a medias.";
         // El mensaje del daemon trae el final de los logs detrás de la primera línea.
         var newline = failure.Message.IndexOf('\n');
         Message = newline < 0 ? failure.Message : failure.Message[..newline];
@@ -30,7 +33,7 @@ public sealed partial class StartErrorDialogViewModel : DialogViewModel
 
     public string Title { get; }
 
-    public string Subtitle => "No se ha arrancado nada: Roost no deja el stack a medias.";
+    public string Subtitle { get; }
 
     public string Message { get; }
 

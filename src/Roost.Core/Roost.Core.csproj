@@ -27,6 +27,8 @@
   <!-- Dataset de auditoría empaquetado en el ensamblado: se evalúa sin red (ROOST.md §7.3). -->
   <ItemGroup>
     <EmbeddedResource Include="Audit\advisories.json" />
+    <!-- Las CA de Mozilla (curl.se) para el curl.cainfo de PHP: ver Stack/CaBundle.cs. -->
+    <EmbeddedResource Include="Stack\cacert.pem" />
   </ItemGroup>
 
   <!-- HostsBlock es internal (también se compila dentro de roost-helper); los tests lo prueban. -->

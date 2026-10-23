@@ -14,7 +14,8 @@ namespace Roost.Desktop.Services;
 public sealed record BusyPort(int Port, string Role, PortOwner? Owner, int? Suggestion, string ConfigKey);
 
 /// <summary>Por qué no arrancó el stack: el mensaje del daemon y, si los hay, los puertos ocupados.</summary>
-public sealed record StartFailure(string Title, string Message, IReadOnlyList<BusyPort> BusyPorts);
+/// <param name="WasRunning">El stack estaba en marcha (se aplicaba un cambio) y ha quedado parado.</param>
+public sealed record StartFailure(string Title, string Message, IReadOnlyList<BusyPort> BusyPorts, bool WasRunning = false);
 
 /// <summary>
 /// Estado del stack tal como lo cuenta roostd, y las órdenes de arrancar, parar y aplicar
@@ -47,7 +48,10 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         if (Interlocked.Exchange(ref _refreshing, 1) == 1) return;
         try
         {
-            Status = await app.Daemon.TryStatusAsync();
+            // Cada sondeo (3 s) trae un objeto nuevo aunque no cambie nada: solo se asigna si cambia
+            // el contenido. Si no, la bandeja y las pantallas releerían el disco cada vez.
+            var status = await app.Daemon.TryStatusAsync();
+            if (!SameContent(Status, status)) Status = status;
         }
         finally
         {
@@ -58,6 +62,10 @@ public sealed partial class StackController(AppServices app) : ObservableObject
     /// <summary>Para los tests de vistas: un estado del daemon sin daemon.</summary>
     internal void Show(StatusResponse? status) => Status = status;
 
+    private static bool SameContent(StatusResponse? a, StatusResponse? b) =>
+        a is null || b is null ? a is null && b is null
+            : System.Text.Json.JsonSerializer.Serialize(a) == System.Text.Json.JsonSerializer.Serialize(b);
+
     /// <summary>Arranca (o rearranca con la configuración actual) el stack. null si ha ido bien.</summary>
     public Task<StartFailure?> StartAsync(IProgress<string>? progress = null) =>
         RunBusyAsync("Arrancando...", () => StartCoreAsync(progress));
@@ -66,7 +74,9 @@ public sealed partial class StackController(AppServices app) : ObservableObject
     public async Task<StartFailure?> ApplyIfRunningAsync()
     {
         await RefreshAsync();
-        return IsRunning ? await RunBusyAsync("Aplicando cambios...", () => StartCoreAsync(null)) : null;
+        if (!IsRunning) return null;
+        var failure = await RunBusyAsync("Aplicando cambios...", () => StartCoreAsync(null));
+        return failure is null ? null : failure with { WasRunning = true };
     }
 
     public Task StopAsync() => RunBusyAsync<object?>("Parando...", async () =>

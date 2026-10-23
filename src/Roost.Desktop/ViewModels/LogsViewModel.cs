@@ -55,7 +55,13 @@ public sealed partial class LogsViewModel : PageViewModel
     public LogsViewModel(MainViewModel main) : base(main)
     {
         Subtitle = $"Lo que escriben Roost y cada servicio. Están en {main.App.Paths.Logs}.";
-        _follow.Tick += (_, _) => Reload(onlyIfChanged: true);
+        _follow.Tick += (_, _) =>
+        {
+            Reload(onlyIfChanged: true);
+            // Cada 5 s, la lista: un log nuevo (apache-error.log al cambiar de servidor, el de un
+            // PHP nuevo) aparece, y los contadores suben. Solo se rehace si cambia algún tamaño.
+            if (++_ticks % 5 == 0 && FilesSignature() != _filesSignature) BuildFiles();
+        };
     }
 
     public override string Title => "Registros";
@@ -98,8 +104,27 @@ public sealed partial class LogsViewModel : PageViewModel
     /// <summary>Al salir de la pantalla deja de leer el fichero.</summary>
     public override void Hidden() => _follow.Stop();
 
+    private int _ticks;
+    private string _filesSignature = "";
+
+    /// <summary>Los ficheros de logs y sus tamaños: si no cambia, la lista tampoco.</summary>
+    private string FilesSignature()
+    {
+        try
+        {
+            var logs = Main.App.Paths.Logs;
+            return !Directory.Exists(logs) ? ""
+                : string.Join("|", new DirectoryInfo(logs).EnumerateFiles("*.log").OrderBy(f => f.Name, StringComparer.Ordinal).Select(f => $"{f.Name}:{f.Length}"));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return _filesSignature;
+        }
+    }
+
     private void BuildFiles()
     {
+        _filesSignature = FilesSignature();
         var logs = Main.App.Paths.Logs;
         var files = new List<LogFile>();
         if (Directory.Exists(logs))
@@ -116,6 +141,8 @@ public sealed partial class LogsViewModel : PageViewModel
         files = files.OrderBy(f => Order(f.Display)).ThenBy(f => f.Display, StringComparer.Ordinal).ToList();
         foreach (var file in files)
         {
+            // En un log de accesos cada línea es una petición: una URL /ERROR no es un error.
+            if (file.Display.Contains("-access", StringComparison.OrdinalIgnoreCase)) continue;
             var (errors, warnings) = Count(ReadTail(file.Path, 64 * 1024));
             (file.Badge, file.BadgeTone) = errors > 0 ? ($"{errors} error{(errors == 1 ? "" : "es")}", Tone.Bad)
                 : warnings > 0 ? ($"{warnings} aviso{(warnings == 1 ? "" : "s")}", Tone.Warn)

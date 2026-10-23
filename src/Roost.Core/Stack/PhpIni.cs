@@ -114,7 +114,8 @@ public static class PhpIni
         IReadOnlySet<string> availableExtensions,
         string confD,
         string errorLog,
-        PhpExtensionChoice? choice = null)
+        PhpExtensionChoice? choice = null,
+        string? caBundle = null)
     {
         choice ??= PhpExtensionChoice.None;
         var enabled = Enabled(availableExtensions, choice);
@@ -136,6 +137,11 @@ public static class PhpIni
             extension_dir = "{Path.Combine(installDirectory, "ext")}"
 
             """);
+        // Sin esto, la extensión curl (Guzzle, Laravel, WordPress) no confía en nada (ver CaBundle).
+        // openssl.cafile no se pone: sin él, los streams (file_get_contents) usan el almacén de
+        // Windows, que también tiene la CA de Roost si se confía en ella y las de una empresa.
+        if (caBundle is not null)
+            sb.Append($"curl.cainfo = \"{caBundle}\"\n");
         sb.Append('\n');
 
         // Primero las de serie, en su orden; luego las que ha activado el usuario.

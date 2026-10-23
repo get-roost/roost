@@ -67,7 +67,9 @@ public sealed partial class AuditState : ObservableObject
     public async Task<FeedUpdate?> UpdateFeedAsync(bool force = false)
     {
         if (_feed is not { } feed) return null;
-        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        // Sin red, el escaneo no se queda callado 20 s esperando: 8 s y se sigue con el último feed
+        // bueno. «Comprobar ahora» (force) sí espera más, porque el usuario lo ha pedido.
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(force ? 20 : 8));
         var update = await Task.Run(() => feed.UpdateAsync(force, timeout.Token));
         var (dataset, origin) = feed.LoadBest();
         if (dataset.Generated != Dataset.Generated || origin.Kind != Origin.Kind)

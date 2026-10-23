@@ -25,6 +25,33 @@ public class StackConfigTests : IDisposable
     }
 
     [Fact]
+    public void PhpIni_ConElBundleDeCa_ParaCurl_YOpensslConElAlmacenDeWindows()
+    {
+        var available = new HashSet<string>(["curl", "openssl"], StringComparer.OrdinalIgnoreCase);
+        var ini = PhpIni.Render("8.4.27-nts-x64", @"C:\roost\bin\php\8.4.27-nts-x64", available, @"C:\roost\etc\php\conf.d",
+            @"C:\roost\logs\php-8.4-error.log", caBundle: @"C:\roost\etc\php\cacert.pem");
+        Assert.Contains("curl.cainfo = \"C:\\roost\\etc\\php\\cacert.pem\"", ini);
+        Assert.DoesNotContain("openssl.cafile", ini);   // los streams siguen con el almacén de Windows
+
+        Assert.DoesNotContain("curl.cainfo", PhpIni.Render("8.4.27-nts-x64", @"C:\x", available, @"C:\x", @"C:\x.log"));
+    }
+
+    [Fact]
+    public void CaBundle_LasDeMozilla_YLaDeRoostAlFinalSiExiste()
+    {
+        var mozilla = CaBundle.Mozilla();
+        Assert.True(mozilla.Split("BEGIN CERTIFICATE").Length > 100);   // la lista de curl.se, empaquetada
+
+        Directory.CreateDirectory(_dir);
+        var ca = Path.Combine(_dir, "roost-ca.crt");
+        Assert.DoesNotContain("Roost Local CA", CaBundle.Compose(mozilla, ca));
+
+        File.WriteAllText(ca, "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n");
+        var bundle = CaBundle.Compose(mozilla, ca);
+        Assert.EndsWith("Roost Local CA\n==============\n-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----\n", bundle);
+    }
+
+    [Fact]
     public void InstanceTag_VacioSinRoostHome_YUnoPorRaizConEl()
     {
         // Sin ROOST_HOME, los nombres de la tubería y los mutex no cambian (la Roost de verdad).
@@ -148,6 +175,7 @@ public class StackConfigTests : IDisposable
 
         Assert.Contains("upstream php-8.4 {\n        server 127.0.0.1:9840;\n        server 127.0.0.1:9841;\n    }", conf);
         Assert.Contains("listen 127.0.0.1:8765;", conf);   // solo loopback
+        Assert.Contains("fastcgi_read_timeout 600s;", conf);   // Xdebug y tareas largas, sin 504 a los 60 s
         Assert.Contains("fastcgi_pass php-8.4;", conf);
         Assert.Contains("root \"C:/www\";", conf);
         Assert.Contains("include \"C:/roost/bin/nginx/1.30.6/conf/fastcgi_params\";", conf);

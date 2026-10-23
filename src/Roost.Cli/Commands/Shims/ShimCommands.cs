@@ -18,11 +18,7 @@ public sealed class ShimsInstallCommand : Command<EmptyCommandSettings>
 {
     public override int Execute(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            AnsiConsole.MarkupLine("[red]roost shims solo funciona en Windows por ahora[/] (ROOST.md: fase 1, Windows primero).");
-            return 1;
-        }
+        if (!WindowsOnly.Check("shims install")) return 1;
 
         var paths = RoostPaths.Default();
         try

@@ -356,7 +356,8 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             PhpIni.AvailableExtensions(php.Directory),
             PhpConfD,
             Path.Combine(paths.Logs, $"php-{Branch(php)}-error.log"),
-            PhpExtensionChoice.Load(PhpExtensionChoicePath(php))));
+            PhpExtensionChoice.Load(PhpExtensionChoicePath(php)),
+            CaBundle.Write(paths)));
         return ini;
     }
 
