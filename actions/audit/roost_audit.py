@@ -2,15 +2,16 @@
 """La parte de la acción «Roost Audit» que no es shell.
 
     python3 roost_audit.py install [--version latest|0.1.0] [--repository dueño/repo]
-    python3 roost_audit.py summary --json audit.json --exit-code 1 [--fail-on-blocking true] [--only php]
+    python3 roost_audit.py summary --json audit.json --exit-code 1 [--fail-on-blocking true]
 
 - `install` baja de las releases de Roost la build del runner (Linux x64 o Windows x64), verifica
   su SHA-256 contra el SHA256SUMS.txt de la misma release, la descomprime y pone su carpeta en el
   PATH del job.
 - `summary` convierte el JSON de `roost audit --json` en el resumen del job (Markdown) y en
   anotaciones, y deja en las salidas del paso los contadores del semáforo y si hay algo bloqueante.
-  Con `--only`, solo cuentan esos tipos: las imágenes de los runners traen su propio MySQL, y sin
-  filtro un MySQL 8.0 (EOL) de la imagen haría fallar la CI de cualquier proyecto PHP.
+  El filtro de la entrada `only` lo hace `roost audit --only` (las imágenes de los runners traen
+  su propio MySQL, y sin filtro un MySQL 8.0, EOL, de la imagen haría fallar la CI de cualquier
+  proyecto PHP): aquí solo se cuenta lo que dice el JSON.
 
 Usa lo de siempre de GitHub Actions (RUNNER_OS, RUNNER_ARCH, RUNNER_TEMP, GITHUB_OUTPUT,
 GITHUB_PATH, GITHUB_STEP_SUMMARY), y sin ello también funciona en local. Solo biblioteca estándar
@@ -268,14 +269,14 @@ def parse_only(text):
     return names or None
 
 
-def render_summary(report, exit_code, fail_on_blocking, roost_version, platform_label, only=None):
-    all_findings = report.get("findings") or []
-    findings = [f for f in all_findings if not only or str((f.get("component") or {}).get("kind", "")).lower() in only]
+def render_summary(report, exit_code, fail_on_blocking, roost_version, platform_label):
+    findings = report.get("findings") or []
+    # Con --only, roost audit ya ha filtrado: lo que trae el JSON es lo que cuenta.
+    only = [k for k in (report.get("only") or []) if k in ONLY_KINDS]
     red = sum(1 for f in findings if f.get("color") == "red")
     amber = sum(1 for f in findings if f.get("color") == "amber")
     green = sum(1 for f in findings if f.get("color") == "green")
-    # Sin filtro, bloquea lo mismo que el código de salida de roost audit; con filtro, lo que quede.
-    blocking = any(f.get("blocking") for f in findings) if only else bool(report.get("blocking", exit_code == 1))
+    blocking = bool(report.get("blocking", exit_code == 1))
     worst = "red" if red else "amber" if amber else "green"
 
     md = [f"### {DOTS[worst]} {TITLE}: {red} en rojo, {amber} en ambar, {green} en verde", ""]
@@ -288,10 +289,9 @@ def render_summary(report, exit_code, fail_on_blocking, roost_version, platform_
                   "(por ejemplo, un paquete de distro, que puede llevar el parche por backport aunque su numero parezca viejo).")
     else:
         md.append("Nada bloqueante.")
-    if only and len(findings) < len(all_findings):
-        hidden = len(all_findings) - len(findings)
+    if only:
         names = ", ".join(ONLY_KINDS[k] for k in ONLY_KINDS if k in only)
-        md.append(f"Solo cuentan {names} (`only`): {hidden} componente(s) mas del runner quedan fuera.")
+        md.append(f"Solo cuentan {names} (`only`): {report.get('skipped') or 0} componente(s) mas del runner quedan fuera.")
     md.append("")
 
     if not findings:
@@ -353,7 +353,6 @@ def render_failure(exit_code, raw):
 
 
 def cmd_summary(args):
-    only = parse_only(args.only)
     path = pathlib.Path(args.json)
     raw = path.read_text(encoding="utf-8-sig", errors="replace") if path.exists() else ""
     fail = args.fail_on_blocking.strip().lower() != "false"
@@ -365,7 +364,7 @@ def cmd_summary(args):
     except ValueError:
         markdown, stats = render_failure(args.exit_code, raw), None
     else:
-        markdown, stats = render_summary(report, args.exit_code, fail, args.roost_version, label, only)
+        markdown, stats = render_summary(report, args.exit_code, fail, args.roost_version, label)
 
     target = args.out or os.environ.get("GITHUB_STEP_SUMMARY")
     if target:
@@ -423,7 +422,6 @@ def main(argv=None):
     p.add_argument("--roost-version", default="", help="Version de Roost usada, para el pie.")
     p.add_argument("--platform", help="Plataforma, para el pie (por defecto, RUNNER_OS y RUNNER_ARCH).")
     p.add_argument("--out", help="Fichero Markdown (por defecto, GITHUB_STEP_SUMMARY; si no, la salida).")
-    p.add_argument("--only", default="", help="Tipos que cuentan, separados por comas (php, mysql, mariadb). Vacio: todos.")
     p.set_defaults(func=cmd_summary)
 
     args = parser.parse_args(argv)

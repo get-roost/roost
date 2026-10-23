@@ -32,7 +32,8 @@ app.Configure(config =>
         .WithDescription("Audita cada componente contra los avisos (el feed firmado de roost-catalog): PARCHEADA / SOPORTADA / VULNERABLE / EOL / DESCONOCIDA.")
         .WithExample("audit")
         .WithExample("audit", "--json")
-        .WithExample("audit", "--offline");
+        .WithExample("audit", "--offline")
+        .WithExample("audit", "--only", "php");
 
     config.AddBranch("catalog", catalog =>
     {

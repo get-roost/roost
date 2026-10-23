@@ -56,7 +56,7 @@ Usa una etiqueta (`@v0.1.0`) o un commit, no `@main`. La versión de la acción 
 |---|---|---|
 | `version` | `latest` | Versión de Roost: `latest` (la última release estable), `0.1.0` o `v0.1.0`. |
 | `fail-on-blocking` | `true` | `true`: el paso falla si hay algo VULNERABLE o EOL con certeza (el código `1` de `roost audit`). `false`: lo deja en un aviso. Lo ámbar no hace fallar nunca. |
-| `only` | *(vacío: todo)* | Qué tipos cuentan para el resumen y para fallar, separados por comas: `php`, `mysql`, `mariadb`. |
+| `only` | *(vacío: todo)* | Qué tipos cuentan para el resumen y para fallar, separados por comas: `php`, `mysql`, `mariadb`. Se pasa a `roost audit --only`, así que el código de salida ya sale de lo filtrado. |
 | `args` | *(vacío)* | Argumentos extra para `roost audit`, separados por espacios; por ejemplo, `--dataset ruta/advisories.json`. `--json` ya lo pone la acción. |
 | `repository` | `get-roost/roost` | Repositorio del que se bajan las releases. |
 

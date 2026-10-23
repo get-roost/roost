@@ -93,8 +93,9 @@ Lo rojo y lo ámbar se detallan debajo de la tabla, con los avisos (CVSS, si est
 | `0` | Nada bloqueante (puede haber ámbar). |
 | `1` | Al menos una instalación VULNERABLE o EOL *con certeza*. |
 | `2` | No se pudo cargar el dataset. |
+| `3` | Las opciones no valen (por ejemplo, `--only` con un tipo que no existe). |
 
-En la salida `--json`, el campo `blocking` dice lo mismo que el código de salida, y `dataset.origin` dice con qué se ha evaluado: `feed` (firmado), `embedded` o `file`. Con `--offline` no pregunta por un feed nuevo.
+En la salida `--json`, el campo `blocking` dice lo mismo que el código de salida, y `dataset.origin` dice con qué se ha evaluado: `feed` (firmado), `embedded` o `file`. `--only php` (o `mysql`, `mariadb`, varios separados por comas) audita solo esos tipos: el resumen, `blocking` y el código de salida salen de lo filtrado, y el JSON lo dice en `only` y `skipped`. Sirve en CI, donde la imagen del runner trae su propio MySQL; `roost scan` también lo acepta. Con `--offline` no pregunta por un feed nuevo.
 
 ### `roost audit` en la CI (GitHub Actions)
 

@@ -65,7 +65,7 @@ dotnet test tests/Roost.Desktop.Tests                       # vistas en headless
 - **La clave privada del feed no está en el repo** (es el secreto `ROOST_CATALOG_KEY` del workflow). Para probar el generador, `--unsigned`; para probar el cliente contra un feed, sírvelo en local y apunta `ROOST_CATALOG_URL` a él. Las pruebas del cliente usan su propia clave (`AdvisoryFeedTests`). Si cambias la clave, cambia `FeedSignature.TrustedKeys` en una versión de Roost *antes* que el secreto.
 - **Antes de recompilar, `roost down`.** Con el stack en marcha, el daemon (`roost.exe daemon`) tiene bloqueados `roost.dll` y compañía en `bin/`, y el build falla al copiarlos.
 
-Códigos de salida de `audit`: `0` nada bloqueante, `1` al menos un componente VULNERABLE o EOL *con certeza*, `2` no se pudo cargar el dataset. ROOST.md §4.5 describe otro esquema 0/1/2; manda el código.
+Códigos de salida de `audit`: `0` nada bloqueante, `1` al menos un componente VULNERABLE o EOL *con certeza*, `2` no se pudo cargar el dataset, `3` opciones que no valen (`--only` con un tipo que no existe; también en `scan`). Con `--only php,mysql` (`ComponentFilter`, en Core) solo se evalúa eso, y el resumen, `blocking` y el código salen de lo filtrado; el JSON lo dice en `only` y `skipped`. La Action de auditoría le pasa su entrada `only` y no filtra ella. ROOST.md §4.5 describe otro esquema 0/1/2; manda el código.
 
 ## Versión, releases y NuGet
 

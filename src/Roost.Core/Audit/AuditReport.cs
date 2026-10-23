@@ -32,10 +32,15 @@ public static class AuditReport
     };
 
     /// <param name="origin">De dónde salen los avisos (feed firmado, empaquetado o un fichero); null si no se sabe.</param>
-    public static string ToJson(AuditDataset dataset, IReadOnlyList<AuditFinding> findings, JsonSerializerOptions options, DatasetOrigin? origin = null)
+    /// <param name="only">El filtro de <c>--only</c>, si lo hay: entonces <c>findings</c> ya viene filtrado.</param>
+    /// <param name="skipped">Cuántos componentes encontrados ha dejado fuera el filtro.</param>
+    public static string ToJson(AuditDataset dataset, IReadOnlyList<AuditFinding> findings, JsonSerializerOptions options,
+        DatasetOrigin? origin = null, Scanning.ComponentFilter? only = null, int skipped = 0)
     {
         var payload = new
         {
+            only = only?.Keys,
+            skipped,
             dataset = new
             {
                 schemaVersion = dataset.SchemaVersion,

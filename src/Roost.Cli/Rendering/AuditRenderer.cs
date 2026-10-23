@@ -26,18 +26,22 @@ public static class AuditRenderer
         };
     }
 
-    public static void RenderTable(AuditDataset dataset, IReadOnlyList<AuditFinding> findings, DatasetOrigin origin)
+    public static void RenderTable(AuditDataset dataset, IReadOnlyList<AuditFinding> findings, DatasetOrigin origin,
+        Core.Scanning.ComponentFilter? only = null, int skipped = 0)
     {
         var console = AnsiConsole.Console;
         var color = origin.Kind == DatasetKind.Feed && origin.Note is null ? "grey" : "yellow";
         console.MarkupLine(
             $"[bold]Auditoria[/]  ·  [{color}]{Markup.Escape(origin.Describe(dataset, DateTimeOffset.UtcNow))}[/]  [grey](evaluado en local)[/]");
+        if (only is not null)
+            console.MarkupLine($"[grey]Solo {Markup.Escape(string.Join(", ", only.Keys))} (--only): {skipped} componente(s) mas quedan fuera.[/]");
         console.WriteLine();
 
         if (findings.Count == 0)
         {
-            console.MarkupLine("[yellow]Nada que auditar:[/] no se detecto ningun componente. "
-                + "El catalogo de scanners aun no esta conectado o no hay stacks instalados.");
+            console.MarkupLine(only is null
+                ? "[yellow]Nada que auditar:[/] no se detecto ningun componente. El catalogo de scanners aun no esta conectado o no hay stacks instalados."
+                : "[yellow]Nada que auditar:[/] no se detecto ningun componente de los que pide --only.");
             return;
         }
 
@@ -123,8 +127,9 @@ public static class AuditRenderer
             console.MarkupLine("[green]Todo verde frente a los avisos conocidos.[/]");
     }
 
-    public static void RenderJson(AuditDataset dataset, IReadOnlyList<AuditFinding> findings, DatasetOrigin origin) =>
-        Console.WriteLine(AuditReport.ToJson(dataset, findings, JsonOutput.Options, origin));
+    public static void RenderJson(AuditDataset dataset, IReadOnlyList<AuditFinding> findings, DatasetOrigin origin,
+        Core.Scanning.ComponentFilter? only = null, int skipped = 0) =>
+        Console.WriteLine(AuditReport.ToJson(dataset, findings, JsonOutput.Options, origin, only, skipped));
 
     private static IEnumerable<AuditFinding> Ordered(IEnumerable<AuditFinding> findings) => AuditReport.Ordered(findings);
 }

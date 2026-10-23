@@ -22,9 +22,9 @@ inputs:
     default: 'true'
   only:
     description: >-
-      Qué tipos cuentan para el resumen y para fallar, separados por comas: php, mysql, mariadb.
-      Vacío, todos (lo mismo que el código de salida de roost audit). Las imágenes de GitHub traen
-      su propio MySQL; con only php, un MySQL de la imagen fuera de soporte no hace fallar el job.
+      Qué tipos cuentan para el resumen y para fallar, separados por comas: php, mysql, mariadb
+      (se pasa a roost audit --only). Vacío, todos. Las imágenes de GitHub traen su propio MySQL;
+      con only php, un MySQL de la imagen fuera de soporte no hace fallar el job.
     required: false
     default: ''
   args:
@@ -116,18 +116,22 @@ runs:
         # Los argumentos extra se parten por espacios (por eso van sin comillas), sin expandir comodines.
         set -f
 
+        # El filtro lo hace roost audit: el resumen y el código salen de lo filtrado.
+        only_args=()
+        if [ -n "$INPUT_ONLY" ]; then only_args=(--only "$INPUT_ONLY"); fi
+
         # La tabla del semáforo, para el log.
         # shellcheck disable=SC2086
-        "$AUDIT_EXE" audit $INPUT_ARGS
+        "$AUDIT_EXE" audit "${only_args[@]}" $INPUT_ARGS
 
         # El JSON, del que salen el código, el resumen y las salidas.
         # shellcheck disable=SC2086
-        "$AUDIT_EXE" audit --json $INPUT_ARGS > "$AUDIT_JSON"
+        "$AUDIT_EXE" audit --json "${only_args[@]}" $INPUT_ARGS > "$AUDIT_JSON"
         code=$?
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
 
         "$AUDIT_PYTHON" "$GITHUB_ACTION_PATH/roost_audit.py" summary --json "$AUDIT_JSON" --exit-code "$code" \
-          --fail-on-blocking "$INPUT_FAIL_ON_BLOCKING" --roost-version "$AUDIT_VERSION" --only "$INPUT_ONLY"
+          --fail-on-blocking "$INPUT_FAIL_ON_BLOCKING" --roost-version "$AUDIT_VERSION"
         exit 0
 
     - name: Resultado
@@ -142,12 +146,15 @@ runs:
           2)
             echo "::error title=Roost Audit::roost audit no pudo cargar el dataset de avisos (codigo 2)."
             exit 1 ;;
+          3)
+            echo "::error title=Roost Audit::roost audit no acepta las opciones (codigo 3): revisa only y args."
+            exit 1 ;;
           *)
             echo "::error title=Roost Audit::roost audit termino con un codigo inesperado: $EXIT_CODE."
             exit 1 ;;
         esac
 
-        # Sin only, blocking es lo mismo que el código 1 de roost audit; con only, lo que quede tras el filtro.
+        # blocking es lo mismo que el código 1 de roost audit (con only, ya sobre lo filtrado).
         blocking="$AUDIT_BLOCKING"
         if [ -z "$blocking" ]; then
           if [ "$EXIT_CODE" = "1" ]; then blocking=true; else blocking=false; fi
