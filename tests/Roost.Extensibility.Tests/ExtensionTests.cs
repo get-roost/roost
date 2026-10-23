@@ -48,7 +48,7 @@ public class ExtensionTests : IDisposable
         Assert.Equal("muestra", sample.Id);
         Assert.Equal("1.2.3", sample.Version);
         var error = Assert.Single(set.Errors);
-        Assert.Contains("pide la version 2 del contrato", error.Message);
+        Assert.Contains($"pide la version {ExtensionApi.Current + 1} del contrato y este Roost tiene la {ExtensionApi.Current}", error.Message);
         // Los contratos son los de Roost (contexto compartido), no una copia: si no, el cast fallaría.
         Assert.IsAssignableFrom<IStackExtension>(sample);
     }
