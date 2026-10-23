@@ -5,7 +5,10 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 ## 0.1.3 — en preparación
 
 - **Bases de datos:** el puerto, en un solo sitio; contraseña de root; borrar bases de datos; usuarios.
-- **Sitios:** botón para cambiar la raíz web (docroot) y campo «Raíz web» al crear un sitio.
+- **Sitios:** botón para cambiar la raíz web (docroot), con accesos rápidos a `public`, `web` o `dist`, y campo «Raíz web» al crear un sitio. También `roost site root`.
+- **Sitios con Apache:** quitar un sitio ya no impide el siguiente arranque, y «Editar vhost» abre el fichero que de verdad usa Apache.
+- **Sitios:** si cancelas el permiso de Windows, el mensaje dice la verdad (el sitio está creado o quitado; falta el hosts) y cómo arreglarlo; cambiar el PHP de un sitio pide confirmación; botones para copiar la URL y la ruta, y aviso si la carpeta ya no existe.
+- **Certificados:** al crear un sitio, Roost ofrece confiar en su CA antes de abrir el navegador, así que lo primero que ves ya no es un error de certificado.
 - **Actualizar Roost desde la app:** «Roost X disponible → Actualizar ahora» descarga la versión nueva, la verifica y Roost vuelve a abrirse solo.
 - **Novedades:** esta pestaña, debajo de Ajustes, con lo que cambia cada versión.
 - **Proyectos en `C:\roost\www`:** la carpeta de proyectos por defecto pasa a estar dentro de la raíz de Roost. Los sitios que ya tenías siguen donde están.

@@ -242,6 +242,7 @@ roost site add tienda                                    # carpeta C:\roost\www\
 roost site add legacy --path C:\proyectos\legacy --php 7.4
 roost site add legacy --php global                       # vuelve al PHP global
 roost site add api --root web                            # raíz web distinta (por defecto, public si existe)
+roost site root tienda public                            # cambia la raíz web (con «.» vuelve a la carpeta del proyecto)
 roost site list                                          # carpeta, PHP, caducidad del certificado, si está en el hosts (o DNS)
 roost site remove legacy                                 # la carpeta del proyecto no se toca
 roost cert trust                                         # que Chrome y Edge confíen en la CA de Roost (una vez)
@@ -251,7 +252,8 @@ roost cert renew                                         # vuelve a emitir los c
 - **Repetir `site add` actualiza el sitio,** sin romper nada. Si el stack está en marcha, el cambio se aplica en el acto.
 - **Nombres y certificado.** Se sirven `tienda.test` y cualquier subdominio (`api.tienda.test`), en HTTP y HTTPS. Escucha solo en 127.0.0.1, por los puertos de `[web]` (80 y 443 por defecto). La raíz web es `public/` si existe (Laravel, Symfony); si no, la carpeta.
 - **PHP por sitio.** Cada rama de PHP en uso tiene su propio pool de php-cgi.
-- **Tu vhost.** Cada sitio tiene su `C:\roost\etc\nginx\sites\<nombre>.conf`. Puedes editarlo **fuera** de las marcas `# roost:begin` / `# roost:end`, por ejemplo el `location /` del controlador frontal o reglas tuyas: Roost solo regenera lo de dentro. Al quitar el sitio, el fichero se aparta como `.conf.removed`. Con Apache es `C:\roost\etc\apache\sites\<nombre>.conf`, con las mismas marcas, aunque lo propio del proyecto va mejor en su `.htaccess`.
+- **La raíz web** es la subcarpeta del proyecto que se sirve (`public`, `web`, `dist`…). Se guarda relativa a la carpeta, tiene que existir dentro de ella y, si el stack está en marcha, se aplica al momento. En la app, el panel del sitio tiene «Cambiar…», «Usar la carpeta del proyecto» y accesos rápidos a las subcarpetas típicas que haya; Nuevo sitio trae el campo «Raíz web».
+- **Tu vhost.** Cada sitio tiene su `C:\roost\etc\nginx\sites\<nombre>.conf`. Puedes editarlo **fuera** de las marcas `# roost:begin` / `# roost:end`, por ejemplo el `location /` del controlador frontal o reglas tuyas: Roost solo regenera lo de dentro. Al quitar el sitio, el fichero se aparta como `.conf.removed` (el de nginx y el de Apache). Con Apache es `C:\roost\etc\apache\sites\<nombre>.conf`, con las mismas marcas, aunque lo propio del proyecto va mejor en su `.htaccess`.
 - **El `hosts`.** Roost escribe en el `hosts` de Windows un bloque `# roost:begin` / `# roost:end` con una línea `127.0.0.1 <nombre>.test` por sitio. Lo hace `roost-helper.exe`, lo único de Roost que se ejecuta como administrador:
   - solo sabe hacer eso;
   - rechaza cualquier nombre que no sea `<algo>.test`;
