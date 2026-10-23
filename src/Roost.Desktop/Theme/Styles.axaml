@@ -629,4 +629,15 @@
     <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
     <Setter Property="Background" Value="{DynamicResource NeutralBgBrush}" />
   </Style>
+
+  <!-- Sitios-1: los accesos rápidos a las subcarpetas típicas (public/, web/, dist/…) del panel del sitio -->
+  <Style Selector="Button.chip">
+    <Setter Property="Height" Value="24" />
+    <Setter Property="Padding" Value="9,0" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="FontSize" Value="11.5" />
+    <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="Background" Value="{DynamicResource NeutralBgBrush}" />
+  </Style>
 </Styles>

@@ -524,4 +524,129 @@ public class ViewSnapshotTests
         Snapshot(window, "extension");
         Assert.Contains("Redis de prueba 0.1.0", main.Settings.ExtensionsText);
     }
+
+    // Sitios-1: la raíz web, los avisos de carpetas que faltan y la confirmación del PHP.
+    // Nada de aquí llega a ApplyAsync: con el estado falso hablaría con el daemon de verdad.
+
+    [AvaloniaFact]
+    public async Task Sitios_RaizWeb_AccesosRapidos_YAvisoDeCarpetaQueFalta()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        var tienda = sites.Rows.Single(r => r.Host == "tienda.test");
+        sites.ChooseCommand.Execute(tienda);
+        Assert.Equal("public/", sites.RootText);
+        Assert.True(sites.HasSubRoot);
+        Assert.True(sites.FolderExists);
+        Assert.False(sites.HasPathWarning);
+        Assert.Empty(sites.RootChoices);   // public/ ya es la raíz: no se ofrece
+
+        // Aparecen web/ y dist/ en el proyecto: se ofrecen como accesos rápidos, en el orden de siempre.
+        Directory.CreateDirectory(Path.Combine(tienda.Site.Folder, "dist"));
+        Directory.CreateDirectory(Path.Combine(tienda.Site.Folder, "web"));
+        main.NotifyConfigChanged();
+        Assert.Equal(["web", "dist"], sites.RootChoices.Select(c => c.Root));
+        Assert.Equal("web/", sites.RootChoices[0].Label);
+        Assert.Equal("tienda.test", sites.Selected?.Host);
+        Snapshot(window, "sitios-raiz-web");
+
+        // La carpeta de legacy no existe: se avisa y no hay nada que elegir.
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "legacy.test"));
+        Assert.Contains("ya no existe", sites.PathWarning);
+        Assert.False(sites.FolderExists);
+        Assert.False(sites.HasSubRoot);
+        Assert.Empty(sites.RootChoices);
+        Snapshot(window, "sitios-carpeta-que-falta");
+
+        // La raíz web de tienda desaparece: otro aviso, con el botón de volver a la carpeta.
+        Directory.Delete(Path.Combine(tienda.Site.Folder, "public"), recursive: true);
+        main.NotifyConfigChanged();
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "tienda.test"));
+        Assert.Contains("raíz web public/ ya no existe", sites.PathWarning);
+        Assert.True(sites.HasSubRoot);
+        Assert.Equal(["web", "dist"], sites.RootChoices.Select(c => c.Root));
+    }
+
+    [AvaloniaFact]
+    public async Task Sitios_CambiarElPhp_PideConfirmacion_YSiSeCancelaVuelveAlDeAntes()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "blog.test"));
+        Assert.Null(sites.SelectedPhp?.Spec);   // el global
+
+        sites.SelectedPhp = sites.PhpOptions.Single(o => o.Spec == "7.4");
+        await UntilAsync(() => main.Dialog is MessageDialogViewModel);
+        var dialog = Assert.IsType<MessageDialogViewModel>(main.Dialog);
+        Assert.Equal("Cambiar el PHP de blog.test", dialog.Title);
+        Assert.Contains("rearranca Roost", dialog.Text);
+        Snapshot(window, "sitios-confirmar-php");
+
+        dialog.Close(false);   // Cancelar
+        await UntilAsync(() => main.Dialog is null && sites.SelectedPhp?.Spec is null);
+        Assert.Null(new Roost.Core.Sites.SiteRegistry(fake.Paths).Find("blog")!.Php);   // el registro no se tocó
+    }
+
+    [AvaloniaFact]
+    public async Task NuevoSitio_RaizWeb_SeRellenaConPublic_YSoloAdmiteSubcarpetasQueExisten()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Sites);
+        var opening = main.Sites.NewSiteCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<NewSiteDialogViewModel>(main.Dialog);
+
+        dialog.Name = "tienda";   // www\tienda existe y tiene public/
+        Assert.True(dialog.FolderExists);
+        Assert.Equal("public", dialog.Root);
+        Assert.True(dialog.RootValid);
+        Assert.StartsWith("Se sirve public/", dialog.RootHint);
+        Assert.EndsWith("(raíz web: public/)", dialog.StepFolder);
+        Assert.True(dialog.CanCreate);
+        Snapshot(window, "nuevo-sitio-raiz-web");
+
+        dialog.Root = "dist";
+        Assert.False(dialog.RootValid);
+        Assert.False(dialog.CanCreate);
+        Assert.Contains("No existe dist/", dialog.RootHint);
+        dialog.Root = "..";
+        Assert.Contains("subcarpeta", dialog.RootHint);
+        dialog.Root = "";
+        Assert.True(dialog.CanCreate);
+        Assert.DoesNotContain("raíz web", dialog.StepFolder);
+
+        // Otra carpeta, que no existe: la raíz vuelve a proponerse (vacía) y una tecleada no vale.
+        dialog.Name = "mi-blog";
+        Assert.Equal("", dialog.Root);
+        Assert.True(dialog.CanCreate);
+        dialog.Root = "public";
+        Assert.False(dialog.CanCreate);
+        Assert.Contains("no existe aún", dialog.RootHint);
+
+        // Y de vuelta a una carpeta con public/, se vuelve a rellenar sola.
+        dialog.Folder = Path.Combine(fake.Paths.Www, "tienda");
+        Assert.Equal("public", dialog.Root);
+        Assert.True(dialog.CanCreate);
+
+        dialog.Close();   // sin crear: crear aplicaría al stack
+        await opening;
+    }
+
+    /// <summary>Espera, dejando correr el hilo de UI, a que se cumpla <paramref name="condition"/> (como mucho 5 s).</summary>
+    private static async Task UntilAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 100 && !condition(); i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(50);
+        }
+        Assert.True(condition());
+    }
 }

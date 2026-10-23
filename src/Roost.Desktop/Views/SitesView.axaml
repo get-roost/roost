@@ -82,19 +82,55 @@
                   <Button Classes="sm" Content="Añadir al hosts" HorizontalAlignment="Left" Command="{Binding SyncHostsCommand}" />
                 </StackPanel>
               </ctl:Note>
+              <ctl:Note Tone="Warn" IsVisible="{Binding HasPathWarning}">
+                <TextBlock TextWrapping="Wrap" Text="{Binding PathWarning}" />
+              </ctl:Note>
               <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
-                <TextBlock Classes="muted" Text="Direcciones" />
-                <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Urls}" TextWrapping="Wrap" />
-                <TextBlock Grid.Row="1" Classes="muted" Text="Carpeta" />
-                <TextBlock Grid.Row="1" Grid.Column="1" Classes="mono" Text="{Binding Selected.Site.Folder, FallbackValue=''}" TextTrimming="LeadingCharacterEllipsis"
-                           ToolTip.Tip="{Binding Selected.Site.Folder, FallbackValue=''}" />
-                <TextBlock Grid.Row="2" Classes="muted" Text="Raíz web" />
-                <TextBlock Grid.Row="2" Grid.Column="1" Classes="mono" Text="{Binding RootText}" />
+                <TextBlock Classes="muted" Text="Direcciones" Margin="0,2,0,0" />
+                <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                  <TextBlock Classes="mono" Text="{Binding Urls}" TextWrapping="Wrap" />
+                  <Button Grid.Column="1" Classes="sm icon ghost" VerticalAlignment="Top" Command="{Binding CopyUrlCommand}"
+                          ToolTip.Tip="Copiar la URL" AutomationProperties.Name="Copiar la URL">
+                    <ctl:Icon Data="{StaticResource IcCopy}" Size="14" />
+                  </Button>
+                </Grid>
+                <TextBlock Grid.Row="1" Classes="muted" Text="Carpeta" VerticalAlignment="Center" />
+                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                  <TextBlock Classes="mono" Text="{Binding Selected.Site.Folder, FallbackValue=''}" TextTrimming="LeadingCharacterEllipsis" VerticalAlignment="Center"
+                             ToolTip.Tip="{Binding Selected.Site.Folder, FallbackValue=''}" />
+                  <Button Grid.Column="1" Classes="sm icon ghost" Command="{Binding CopyPathCommand}"
+                          ToolTip.Tip="Copiar la ruta" AutomationProperties.Name="Copiar la ruta">
+                    <ctl:Icon Data="{StaticResource IcCopy}" Size="14" />
+                  </Button>
+                </Grid>
+                <TextBlock Grid.Row="2" Classes="muted" Text="Raíz web" Margin="0,2,0,0" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="8">
+                  <TextBlock Classes="mono" Text="{Binding RootText}" />
+                  <WrapPanel ItemSpacing="6" LineSpacing="6">
+                    <Button Classes="sm" Content="Cambiar…" Command="{Binding ChangeRootCommand}" IsEnabled="{Binding FolderExists}"
+                            ToolTip.Tip="Elegir la subcarpeta del proyecto que se sirve" />
+                    <Button Classes="sm" Content="Usar la carpeta del proyecto" Command="{Binding UseProjectRootCommand}" IsVisible="{Binding HasSubRoot}" />
+                  </WrapPanel>
+                  <StackPanel Spacing="4" IsVisible="{Binding HasRootChoices}">
+                    <TextBlock Classes="faint" Text="También en el proyecto:" />
+                    <ItemsControl ItemsSource="{Binding RootChoices}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:RootChoice">
+                          <Button Classes="chip" Content="{Binding Label}" ToolTip.Tip="Servir esta subcarpeta"
+                                  Command="{Binding $parent[ItemsControl].((vm:SitesViewModel)DataContext).SetRootCommand}" CommandParameter="{Binding Root}" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </StackPanel>
               </Grid>
               <StackPanel Spacing="6">
                 <TextBlock Classes="lbl" Text="PHP del sitio" />
                 <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding SelectedPhp}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
-                <TextBlock Classes="faint" TextWrapping="Wrap" Text="Cambiarlo rearranca el stack. Cada rama en uso tiene su propio pool de php-cgi." />
+                <TextBlock Classes="faint" TextWrapping="Wrap" Text="Cambiarlo rearranca el stack (se pide confirmación). Cada rama en uso tiene su propio pool de php-cgi." />
               </StackPanel>
               <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
                 <TextBlock Classes="muted" Text="Certificado" />

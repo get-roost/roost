@@ -12,15 +12,19 @@ using Roost.Core.Stack;
 
 namespace Roost.Desktop.ViewModels;
 
-/// <summary>Lo que pide el diálogo Nuevo sitio. <c>Php</c> null = el global; <c>Database</c> null = no crearla.</summary>
-public sealed record NewSiteRequest(string Name, string Folder, string? Php, string? Database);
+/// <summary>
+/// Lo que pide el diálogo Nuevo sitio. <c>Root</c> es la raíz web relativa a la carpeta
+/// (<c>.</c> = la carpeta misma); <c>Php</c> null = el global; <c>Database</c> null = no crearla.
+/// </summary>
+public sealed record NewSiteRequest(string Name, string Folder, string Root, string? Php, string? Database);
 
 /// <summary>Una plantilla de proyecto (de momento solo «Vacía»; el resto llega con <c>roost new</c>).</summary>
 public sealed record SiteTemplate(string Label, bool Available, string Hint);
 
 /// <summary>
-/// «Nuevo sitio»: nombre, carpeta, PHP (recomendado por el composer.json si lo hay), base de
-/// datos y plantilla, con lo que hará Roost al crearlo. Devuelve un <see cref="NewSiteRequest"/>.
+/// «Nuevo sitio»: nombre, carpeta, raíz web (public/ si la carpeta la tiene), PHP (recomendado
+/// por el composer.json si lo hay), base de datos y plantilla, con lo que hará Roost al crearlo.
+/// Devuelve un <see cref="NewSiteRequest"/>.
 /// </summary>
 public sealed partial class NewSiteDialogViewModel : DialogViewModel
 {
@@ -30,6 +34,8 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
     private readonly InstalledPhp? _global;
     private readonly InstalledDb? _db;
     private bool _folderTouched;
+    private bool _rootTouched;
+    private string _suggestedRoot = "";
 
     public NewSiteDialogViewModel(MainViewModel main)
     {
@@ -64,6 +70,12 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
     [ObservableProperty] public partial string NameHint { get; private set; } = "";
     [ObservableProperty] public partial bool NameValid { get; private set; }
     [ObservableProperty] public partial string FolderHint { get; private set; } = "";
+    [ObservableProperty] public partial bool FolderExists { get; private set; }
+
+    /// <summary>La raíz web, relativa a la carpeta; vacía = la carpeta misma. Se rellena sola con <c>public</c> si existe.</summary>
+    [ObservableProperty] public partial string Root { get; set; } = "";
+    [ObservableProperty] public partial string RootHint { get; private set; } = "";
+    [ObservableProperty] public partial bool RootValid { get; private set; } = true;
     [ObservableProperty] public partial IReadOnlyList<PhpOption> PhpOptions { get; private set; } = [];
     [ObservableProperty] public partial PhpOption? Php { get; set; }
     [ObservableProperty] public partial bool CreateDatabase { get; set; }
@@ -71,6 +83,9 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
     [ObservableProperty] public partial string StepFolder { get; private set; } = "";
 
     public string Host => NameValid ? $"{Name.Trim().ToLowerInvariant()}.test" : "<nombre>.test";
+
+    /// <summary>«Crear y abrir» solo con un nombre que vale y una raíz web que existe.</summary>
+    public bool CanCreate => NameValid && RootValid;
 
     /// <summary>Con el DNS local, el nombre ya resuelve: no hay que tocar el hosts ni pedir permiso.</summary>
     public bool UsesLocalDns { get; private set; }
@@ -84,10 +99,33 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
     partial void OnFolderChanged(string value)
     {
         if (value != DefaultFolder) _folderTouched = true;
+        // Una raíz tecleada para otra carpeta no se arrastra: se vuelve a proponer.
+        _rootTouched = false;
         Update();
     }
 
+    partial void OnRootChanged(string value)
+    {
+        if (value != _suggestedRoot) _rootTouched = true;
+        Update();
+    }
+
+    partial void OnNameValidChanged(bool value) => OnPropertyChanged(nameof(CanCreate));
+    partial void OnRootValidChanged(bool value) => OnPropertyChanged(nameof(CanCreate));
+
     private string DefaultFolder => Path.Combine(_main.App.Paths.Www, Name.Trim().ToLowerInvariant());
+
+    /// <summary>La carpeta como la verá Roost: en relativo cuelga de la www. null si está vacía.</summary>
+    private string? FolderPath
+    {
+        get
+        {
+            var folder = Folder.Trim();
+            if (folder.Length == 0) return null;
+            try { return Path.GetFullPath(folder, _main.App.Paths.Www); }
+            catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException) { return null; }
+        }
+    }
 
     private void Update()
     {
@@ -105,17 +143,62 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
             if (Folder != folder) Folder = folder;
         }
 
-        var exists = Directory.Exists(Folder);
-        var hasPublic = exists && Directory.Exists(Path.Combine(Folder, "public"));
+        var path = FolderPath;
+        var exists = path is not null && Directory.Exists(path);
+        var hasPublic = exists && Directory.Exists(Path.Combine(path!, "public"));
+        FolderExists = exists;
         FolderHint = !exists ? "No existe: Roost la crea con un index.php."
             : hasPublic ? "Existe y tiene public/: será la raíz web."
             : "Existe: se sirve tal cual.";
-        StepFolder = !exists ? $"Crea {Folder} con un index.php" : $"Usa {Folder}{(hasPublic ? " (raíz web: public/)" : "")}";
 
-        BuildPhpOptions(exists ? Recommended(Folder) : null);
+        // La raíz web sigue a la carpeta (public/ si la tiene) hasta que se toca.
+        _suggestedRoot = hasPublic ? "public" : "";
+        if (!_rootTouched && Root != _suggestedRoot) Root = _suggestedRoot;
+        var root = CheckRoot(path, exists);
+
+        StepFolder = !exists ? $"Crea {Folder} con un index.php" : $"Usa {Folder}{(root is null ? "" : $" (raíz web: {root}/)")}";
+
+        BuildPhpOptions(exists ? Recommended(path!) : null);
         OnPropertyChanged(nameof(Host));
         OnPropertyChanged(nameof(DbName));
         CreateDatabase = CreateDatabase && HasDb;
+    }
+
+    /// <summary>Valida la raíz tecleada y escribe su pista. Devuelve la raíz relativa que se servirá, o null si es la carpeta.</summary>
+    private string? CheckRoot(string? folder, bool folderExists)
+    {
+        var root = Root.Trim().Replace('\\', '/').Trim('/');
+        if (root.Length == 0 || root == ".")
+        {
+            RootValid = true;
+            RootHint = "Vacía: se sirve la carpeta del proyecto tal cual.";
+            return null;
+        }
+        if (!folderExists || folder is null)
+        {
+            RootValid = false;
+            RootHint = "La carpeta no existe aún (Roost la crea vacía): déjala vacía o elige una carpeta que ya tenga esa subcarpeta.";
+            return null;
+        }
+
+        var full = Path.GetFullPath(root, folder);
+        var relative = Path.GetRelativePath(folder, full);
+        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative))
+        {
+            RootValid = false;
+            RootHint = "Tiene que ser una subcarpeta de la carpeta del proyecto.";
+            return null;
+        }
+        if (!Directory.Exists(full))
+        {
+            RootValid = false;
+            RootHint = $"No existe {relative.Replace('\\', '/')}/ dentro de la carpeta.";
+            return null;
+        }
+        RootValid = true;
+        var shown = relative.Replace('\\', '/');
+        RootHint = $"Se sirve {shown}/; el resto del proyecto queda fuera de la web.";
+        return shown;
     }
 
     private void BuildPhpOptions((InstalledPhp Php, string Constraint)? recommended)
@@ -156,6 +239,16 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
         if (await _main.PickFolderAsync("Carpeta del sitio") is { } folder) Folder = folder;
     }
 
+    /// <summary>El selector de carpetas, abierto en la del proyecto; lo elegido se guarda relativo (y se avisa si queda fuera).</summary>
+    [RelayCommand]
+    private async Task BrowseRootAsync()
+    {
+        if (FolderPath is not { } folder || !Directory.Exists(folder)) return;
+        if (await SitesViewModel.PickFolderAsync(_main, "Raíz web (una subcarpeta del proyecto)", folder) is not { } picked) return;
+        var relative = Path.GetRelativePath(folder, picked);
+        Root = relative == "." ? "" : relative.Replace('\\', '/');
+    }
+
     [RelayCommand]
     private void InstallOther()
     {
@@ -166,7 +259,10 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
     [RelayCommand]
     private void Create()
     {
-        if (!NameValid) return;
-        Close(new NewSiteRequest(Name.Trim().ToLowerInvariant(), Folder, Php?.Spec, CreateDatabase && HasDb ? DbName : null));
+        if (!CanCreate) return;
+        // Con la raíz vacía se pasa «.» y no null: null dejaría a Add detectar public/, y si el
+        // usuario la ha borrado a propósito es porque quiere la carpeta.
+        var root = Root.Trim();
+        Close(new NewSiteRequest(Name.Trim().ToLowerInvariant(), Folder, root.Length == 0 ? "." : root, Php?.Spec, CreateDatabase && HasDb ? DbName : null));
     }
 }
