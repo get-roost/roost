@@ -15,6 +15,9 @@ public sealed record DesktopPrefs
     /// <summary>Cerrar la ventana la oculta en la bandeja; el stack sigue en marcha.</summary>
     public bool CloseToTray { get; init; } = true;
 
+    /// <summary>Ya se ha dicho, la primera vez que la X dejó Roost en la bandeja, dónde está y cómo salir.</summary>
+    public bool TrayHintShown { get; init; }
+
     /// <summary>Al abrir la app, arrancar el stack.</summary>
     public bool StartStackOnLaunch { get; init; }
 

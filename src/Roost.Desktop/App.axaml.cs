@@ -92,10 +92,37 @@ public partial class App : Application
     {
         if (_main is null || _main.ExitRequested) return;
         e.Cancel = true;
-        if (_main.App.Prefs.CloseToTray)
+        if (!_main.App.Prefs.CloseToTray)
+            _ = ExitAsync();
+        else if (_main.App.Prefs.TrayHintShown)
             _window?.Hide();
         else
-            _ = ExitAsync();
+            _ = FirstHideToTrayAsync();
+    }
+
+    /// <summary>
+    /// La primera vez que la X deja Roost en la bandeja, se dice dónde está: Windows 11 esconde los
+    /// iconos nuevos tras la flecha ^ de la bandeja, y sin aviso parece que la app se ha cerrado.
+    /// </summary>
+    private async Task FirstHideToTrayAsync()
+    {
+        if (_main is null) return;
+        var choice = await _main.ShowDialogAsync(new MessageDialogViewModel
+        {
+            Title = "Roost sigue en la bandeja",
+            Subtitle = "Cerrar la ventana no cierra Roost: tus sitios se siguen sirviendo.",
+            Text = "Está en la bandeja del sistema, junto al reloj. Si no ves el icono, está tras la flecha ^: "
+                   + "arrástralo a la barra de tareas para tenerlo siempre a la vista. Para salir del todo, clic derecho "
+                   + "en el icono → «Salir de Roost». En Ajustes puedes hacer que la X cierre la app.",
+            Buttons =
+            [
+                new DialogButton("Salir de Roost", "exit", Left: true),
+                new DialogButton("Entendido", "ok", "primary"),
+            ],
+        });
+        _main.App.SavePrefs(_main.App.Prefs with { TrayHintShown = true });
+        if (choice is "exit") await ExitAsync();
+        else if (choice is "ok") _window?.Hide();
     }
 
     /// <summary>
