@@ -517,11 +517,27 @@ public class ViewSnapshotTests
         window.Show();
 
         Assert.Equal(["PHP", "Servidor web", "Bases de datos", "Redis"], main.ComponentNav.Select(n => n.Label));
-        Assert.Equal("Ajustes", main.RoostNav[^1].Label);
+        Assert.Equal(["Ajustes", "Novedades"], main.RoostNav.TakeLast(2).Select(n => n.Label));
         Assert.NotNull(main.ComponentNav[^1].Icon);
 
         await main.NavigateToAsync(main.ComponentNav[^1].Page);
         Snapshot(window, "extension");
         Assert.Contains("Redis de prueba 0.1.0", main.Settings.ExtensionsText);
+    }
+
+    [AvaloniaFact]
+    public async Task Novedades_DebajoDeAjustes_ConLaVersionQueTienes()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        Assert.Equal(["Ajustes", "Novedades"], main.RoostNav.TakeLast(2).Select(n => n.Label));
+        await main.NavigateToAsync(main.News);
+        var news = main.News;
+        Assert.NotEmpty(news.Releases);
+        Assert.Single(news.Releases, r => r.IsCurrent);
+        Assert.All(news.Releases, r => Assert.NotEmpty(r.Items));
+        Assert.Contains(news.Releases.SelectMany(r => r.Items), i => i.Title == "Apache, además de nginx: ");
+        Snapshot(window, "novedades");
     }
 }

@@ -1,0 +1,42 @@
+# Novedades de Roost
+
+Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
+
+## 0.1.3 — en preparación
+
+- **Bases de datos:** el puerto, en un solo sitio; contraseña de root; borrar bases de datos; usuarios.
+- **Sitios:** botón para cambiar la raíz web (docroot) y campo «Raíz web» al crear un sitio.
+- **Actualizar Roost desde la app:** «Roost X disponible → Actualizar ahora» descarga la versión nueva, la verifica y Roost vuelve a abrirse solo.
+- **Novedades:** esta pestaña, debajo de Ajustes, con lo que cambia cada versión.
+- **Proyectos en `C:\roost\www`:** la carpeta de proyectos por defecto pasa a estar dentro de la raíz de Roost. Los sitios que ya tenías siguen donde están.
+- **PHP y HTTPS:** la extensión curl de PHP (Guzzle, Laravel, WordPress) ya confía en los certificados de internet y en los de tus sitios `.test`.
+- **Xdebug y tareas largas:** nginx y Apache esperan a PHP hasta 10 minutos; parado en un breakpoint ya no sale un 504 al minuto.
+- **Bienvenida:** también propone las versiones antiguas de PHP que usas (marcadas como fin de vida), y cada proyecto de Laragon se registra con el PHP que pide su `composer.json`.
+- **Ajustes:** las casillas vuelven atrás si algo falla; avisa de un puerto ocupado antes de guardar; «Vaciar» la caché la vacía entera; «Comprobar ahora» dice si había avisos nuevos.
+- **`roost php remove`:** ya no quita el PHP global ni uno que necesite un sitio.
+- **Textos:** donde decía «nginx» y también vale Apache, ahora dice «servidor web»; Inicio ya no dice «Todo en marcha» si hay algo caído.
+- **Registros:** con «Seguir», los ficheros nuevos y los contadores aparecen solos.
+- **Linux y macOS:** los comandos del stack explican lo mismo: de momento, en esos sistemas Roost es `roost scan` y `roost audit`.
+
+## 0.1.2 — 23-oct-2026
+
+- **Apache, además de nginx:** `roost web use apache` o Servidor web en la app. Lee los `.htaccess` (WordPress, Laravel…), con HTTPS, HTTP/2 y el mismo PHP por sitio.
+- **Barra de título:** minimizar, maximizar y cerrar vuelven a funcionar.
+
+## 0.1.1 — 23-oct-2026
+
+- **Instalador de Windows:** `roost-X-win-x64-setup.exe`, en Program Files, con accesos directos y, si quieres, `roost` en el PATH. Para Roost antes de actualizar o desinstalar y nunca toca tus datos.
+- **La X deja Roost en la bandeja** y, la primera vez, dice dónde se ha quedado.
+- **Aviso de versión nueva** también para quien usa solo la CLI.
+- **Iconos** en los cuatro ejecutables.
+- **`roost audit --only`** para auditar solo PHP, MySQL o MariaDB; la GitHub Action de auditoría lo usa.
+- **Linux:** el inventario reconoce bien el origen de cada PHP y no repite los que llegan por enlaces.
+
+## 0.1.0 — 23-oct-2026
+
+- **Primera versión pública.** CLI (`roost`) y app de escritorio con bandeja para Windows; en Linux, `scan` y `audit`.
+- **PHP, nginx, MariaDB y MySQL** oficiales, verificados antes de instalar, con un PHP global y uno propio por sitio.
+- **Sitios `https://<nombre>.test`** con certificados de una CA local, por el `hosts` o por el DNS local.
+- **`php` en la terminal según la carpeta** (shims y `.php-version`).
+- **Auditoría** de lo que tienes instalado (Roost, Laragon, XAMPP…) frente a avisos de seguridad y fin de vida, con un feed firmado que se actualiza cada día.
+- **Extensiones** para añadir servicios, comprobaciones, comandos y pantallas.

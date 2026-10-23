@@ -29,6 +29,7 @@
     <DataTemplate DataType="vm:SitesViewModel"><v:SitesView /></DataTemplate>
     <DataTemplate DataType="vm:AuditViewModel"><v:AuditView /></DataTemplate>
     <DataTemplate DataType="vm:SettingsViewModel"><v:SettingsView /></DataTemplate>
+    <DataTemplate DataType="vm:NewsViewModel"><v:NewsView /></DataTemplate>
     <DataTemplate DataType="vm:WelcomeDialogViewModel"><v:WelcomeDialogView /></DataTemplate>
     <DataTemplate DataType="vm:NewSiteDialogViewModel"><v:NewSiteDialogView /></DataTemplate>
     <DataTemplate DataType="vm:TrustCaDialogViewModel"><v:TrustCaDialogView /></DataTemplate>

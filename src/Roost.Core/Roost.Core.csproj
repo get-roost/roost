@@ -29,6 +29,8 @@
     <EmbeddedResource Include="Audit\advisories.json" />
     <!-- Las CA de Mozilla (curl.se) para el curl.cainfo de PHP: ver Stack/CaBundle.cs. -->
     <EmbeddedResource Include="Stack\cacert.pem" />
+    <!-- Las novedades de cada versión (CHANGELOG.md de la raíz): la pantalla Novedades y las notas de las releases. -->
+    <EmbeddedResource Include="..\..\CHANGELOG.md" Link="CHANGELOG.md" LogicalName="Roost.Core.CHANGELOG.md" />
   </ItemGroup>
 
   <!-- HostsBlock es internal (también se compila dentro de roost-helper); los tests lo prueban. -->

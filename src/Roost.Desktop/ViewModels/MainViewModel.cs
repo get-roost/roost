@@ -65,6 +65,7 @@ public sealed partial class MainViewModel : ObservableObject
         AuditPage = new AuditViewModel(this);
         Logs = new LogsViewModel(this);
         Settings = new SettingsViewModel(this);
+        News = new NewsViewModel(this);
 
         NavItem Nav(string label, string icon, PageViewModel page) =>
             new(label, Application.Current?.FindResource(icon) as Geometry, page, NavigateCommand);
@@ -84,6 +85,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         ExtensionPages = pages;
         roost.Add(Nav("Ajustes", "IcSliders", Settings));
+        roost.Add(Nav("Novedades", "IcGift", News));
         ComponentNav = components;
         RoostNav = roost;
 
@@ -116,6 +118,9 @@ public sealed partial class MainViewModel : ObservableObject
     public AuditViewModel AuditPage { get; }
     public LogsViewModel Logs { get; }
     public SettingsViewModel Settings { get; }
+
+    /// <summary>Novedades: lo que cambia en cada versión (CHANGELOG.md), debajo de Ajustes.</summary>
+    public NewsViewModel News { get; }
 
     public IReadOnlyList<NavItem> MainNav { get; }
 

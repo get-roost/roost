@@ -36,4 +36,6 @@
   <StreamGeometry x:Key="IcTrash">M4 7 H20 M9 7 V4 H15 V7 M6 7 L7 20 H17 L18 7</StreamGeometry>
   <StreamGeometry x:Key="IcSearch">M17 11 A6 6 0 1 1 5 11 A6 6 0 1 1 17 11 Z M15.5 15.5 L20 20</StreamGeometry>
   <StreamGeometry x:Key="IcChevronRight">M9 6 L15 12 L9 18</StreamGeometry>
+  <!-- Novedades -->
+  <StreamGeometry x:Key="IcGift">M20 12 V21 H4 V12 M2 7 H22 V12 H2 Z M12 21 V7 M12 7 H7.5 A2.5 2.5 0 0 1 7.5 2 C11 2 12 7 12 7 Z M12 7 H16.5 A2.5 2.5 0 0 0 16.5 2 C13 2 12 7 12 7 Z</StreamGeometry>
 </ResourceDictionary>

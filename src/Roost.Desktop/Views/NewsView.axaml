@@ -1,0 +1,66 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.NewsView"
+             x:DataType="vm:NewsViewModel">
+  <ScrollViewer>
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto" Margin="24,18,24,14">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Classes="h1" Text="Novedades" />
+          <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="Todas las versiones en GitHub" Command="{Binding OpenReleasesCommand}" />
+      </Grid>
+
+      <StackPanel Margin="24,0,24,24" Spacing="16" MaxWidth="900" HorizontalAlignment="Left">
+        <ctl:Note Tone="Accent" IsVisible="{Binding HasUpdate}">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+            <TextBlock Text="{Binding UpdateText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+            <Button Grid.Column="1" Classes="sm primary" Content="Ver cómo actualizar" Command="{Binding OpenUpdatesCommand}" />
+          </Grid>
+        </ctl:Note>
+
+        <TextBlock Classes="muted" Text="No hay novedades empaquetadas en esta versión." IsVisible="{Binding !HasReleases}" />
+
+        <ItemsControl ItemsSource="{Binding Releases}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="16" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:NewsRelease">
+              <Border Classes="card">
+                <StackPanel>
+                  <Border Classes="card-h">
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                      <TextBlock Classes="h2" FontFamily="{StaticResource MonoFont}" Text="{Binding Version}" VerticalAlignment="Center" />
+                      <ctl:Chip Text="la tuya" Tone="Accent" IsVisible="{Binding IsCurrent}" />
+                      <TextBlock Classes="hint" Text="{Binding Date}" IsVisible="{Binding HasDate}" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Border>
+                  <ItemsControl ItemsSource="{Binding Items}" Margin="16,12,16,14">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:NewsItem">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                          <ctl:Dot Tone="Accent" VerticalAlignment="Top" Margin="0,6,0,0" />
+                          <TextBlock Grid.Column="1" TextWrapping="Wrap">
+                            <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text="{Binding Body, Mode=OneWay}" />
+                          </TextBlock>
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
