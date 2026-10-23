@@ -41,6 +41,10 @@ public sealed partial class SettingsViewModel
         else if (result.Status == UpdateStatus.NoReleases) Main.Flash("Aún no hay versiones publicadas");
     }
 
+    /// <summary>«Actualizar ahora…»: el modal «Roost X disponible», el mismo que abren la barra lateral y la bandeja.</summary>
+    [RelayCommand]
+    private Task UpdateNowAsync() => Updates.OpenAsync(Main);
+
     [RelayCommand]
     private Task OpenReleaseAsync() => Main.RunAsync("No se pudo abrir el navegador", () =>
     {

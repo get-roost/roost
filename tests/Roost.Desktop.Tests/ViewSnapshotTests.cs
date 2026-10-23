@@ -432,8 +432,8 @@ public class ViewSnapshotTests
         Assert.True(File.Exists(Path.Combine(fake.Paths.Cache, "update-check.json")));
         Snapshot(window, "aviso-actualizacion");
 
-        // El aviso de la barra lateral lleva a Ajustes, con las novedades y cómo actualizar.
-        await main.OpenUpdatesCommand.ExecuteAsync(null);
+        // El aviso de la barra lateral abre el modal (Actualizar_*); en Ajustes siguen las novedades y cómo actualizar.
+        await main.NavigateToAsync(main.Settings);
         var settings = Assert.IsType<SettingsViewModel>(main.Current);
         Assert.Equal("0.1.0", settings.Version);
         Assert.Equal(
@@ -523,5 +523,203 @@ public class ViewSnapshotTests
         await main.NavigateToAsync(main.ComponentNav[^1].Page);
         Snapshot(window, "extension");
         Assert.Contains("Redis de prueba 0.1.0", main.Settings.ExtensionsText);
+    }
+
+    // ---- Actualizador ----
+
+    /// <summary>Un lanzador que no lanza nada: apunta el setup y sus argumentos, el vigilante y la terminal.</summary>
+    private sealed class FakeLauncher : Roost.Core.Updates.UpdateLauncher
+    {
+        public string? Setup { get; private set; }
+        public string? Arguments { get; private set; }
+        public int? WatchedPid { get; private set; }
+        public string? WatchedApp { get; private set; }
+        public string? Terminal { get; private set; }
+
+        public override int StartSetup(string setupPath, string arguments)
+        {
+            Setup = setupPath;
+            Arguments = arguments;
+            return 4321;
+        }
+
+        public override void StartWatchdog(int setupPid, string appExe)
+        {
+            WatchedPid = setupPid;
+            WatchedApp = appExe;
+        }
+
+        public override void StartTerminal(string script) => Terminal = script;
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, string what)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(20);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline) Assert.Fail($"Se ha esperado demasiado a: {what}");
+            await Task.Delay(25);
+            Dispatcher.UIThread.RunJobs();
+        }
+    }
+
+    /// <summary>La app con una 0.2.0 disponible, un lanzador de mentira y una salida que no sale.</summary>
+    private static async Task<(MainViewModel Main, MainWindow Window, FakeRoost Fake, FakeLauncher Launcher, Func<bool> Exited)> OpenWithUpdateAsync(
+        bool running, Roost.Core.Updates.InstallChannel channel)
+    {
+        Environment.SetEnvironmentVariable(Roost.Core.Updates.UpdateChecker.DisableVariable, null);
+        var (main, window, fake) = await OpenAsync(running);
+        await main.Updates.AutoCheckAsync();
+        Assert.True(main.Updates.HasUpdate);
+        main.Updates.Channel = channel;
+        var launcher = new FakeLauncher();
+        main.Updates.Launcher = launcher;
+        var exited = false;
+        main.Updates.ExitApp = () => exited = true;
+        return (main, window, fake, launcher, () => exited);
+    }
+
+    [AvaloniaFact]
+    public async Task Actualizar_ElModalYLosPasos_HastaLanzarElInstalador()
+    {
+        var (main, window, fake, launcher, exited) = await OpenWithUpdateAsync(running: true, Roost.Core.Updates.InstallChannel.Installer);
+        using var _ = fake;
+
+        // El aviso de la barra lateral (también la bandeja y Ajustes) abre el modal «Roost 0.2.0 disponible».
+        var flow = main.OpenUpdatesCommand.ExecuteAsync(null);
+        var modal = Assert.IsType<UpdateDialogViewModel>(main.Dialog);
+        Assert.Equal("Roost 0.2.0 disponible", modal.Title);
+        Assert.StartsWith("Tienes la 0.1.0 · publicada el ", modal.Subtitle);
+        Assert.Equal(
+            ["Novedades", "nginx 1.30.7, con el arreglo de CVE-2026-1234.", "MySQL 8.4.12 y el dataset de avisos de noviembre.", "roost update y el aviso de versiones nuevas en la app."],
+            modal.Notes.Select(n => n.Text));
+        Assert.True(modal.Notes[0].IsHeading);
+        Assert.True(modal.Notes[1].IsBullet);
+        Assert.StartsWith("roost-0.2.0-win-x64-setup.exe · ", modal.DownloadText);
+        Assert.Equal("Actualizar ahora", modal.PrimaryLabel);
+        Assert.Contains("Windows pedirá permiso una vez", modal.Explanation);
+        Snapshot(window, "actualizar-modal");
+
+        // «Actualizar ahora»: descarga el setup de mentira, verifica su SHA-256 con el SHA256SUMS.txt
+        // de la release, mira la firma (no lleva), lo «lanza» con el vigilante detrás y sale.
+        modal.PrimaryCommand.Execute(null);
+        await WaitUntilAsync(exited, "que la app salga tras lanzar el instalador");
+        var progress = Assert.IsType<UpdateProgressDialogViewModel>(main.Dialog);
+        Assert.True(progress.Succeeded);
+        Assert.All(progress.Steps, s => Assert.Equal(StepState.Done, s.State));
+        Assert.StartsWith("Instalador en marcha", progress.Phase);
+        Snapshot(window, "actualizar-pasos");
+
+        Assert.Equal(Path.Combine(fake.Paths.Downloads, "roost-0.2.0-win-x64-setup.exe"), launcher.Setup);
+        Assert.Equal(FakeUpstream.RoostSetup, await File.ReadAllTextAsync(launcher.Setup!));
+        var log = Path.Combine(fake.Paths.Logs, "roost-setup.log");
+        Assert.Equal($"/SILENT /SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /ROOSTRELAUNCH=1 /ROOSTSTART=1 /LOG=\"{log}\"", launcher.Arguments);
+        Assert.Equal(4321, launcher.WatchedPid);
+        Assert.EndsWith("roost-desktop.exe", launcher.WatchedApp);
+        var marker = Roost.Core.Updates.UpdateMarker.TryRead(fake.Paths);
+        Assert.NotNull(marker);
+        Assert.Equal(("0.1.0", "0.2.0", true), (marker.From, marker.To, marker.StackWasRunning));
+        progress.Close();
+        await flow;
+    }
+
+    [AvaloniaFact]
+    public async Task Actualizar_ConUnShaQueNoCuadra_NoLanzaNada()
+    {
+        var (main, window, fake, launcher, exited) = await OpenWithUpdateAsync(running: false, Roost.Core.Updates.InstallChannel.Installer);
+        using var _ = fake;
+        fake.Upstream.CorruptSums = true;
+
+        var flow = main.OpenUpdatesCommand.ExecuteAsync(null);
+        Assert.IsType<UpdateDialogViewModel>(main.Dialog).PrimaryCommand.Execute(null);
+        await WaitUntilAsync(() => main.Dialog is UpdateProgressDialogViewModel { Done: true }, "que la actualización falle");
+
+        var progress = (UpdateProgressDialogViewModel)main.Dialog!;
+        Assert.True(progress.Failed);
+        Assert.Contains("SHA-256", progress.Error);
+        Assert.Contains("No se ejecuta nada", progress.Error);
+        Assert.Equal("No se ha actualizado", progress.Phase);
+        Assert.Equal(StepState.Failed, progress.Steps[0].State);
+        Snapshot(window, "actualizar-fallo");
+
+        Assert.Null(launcher.Setup);
+        Assert.False(exited());
+        Assert.Null(Roost.Core.Updates.UpdateMarker.TryRead(fake.Paths));
+        Assert.False(File.Exists(Path.Combine(fake.Paths.Downloads, "roost-0.2.0-win-x64-setup.exe")));
+        progress.CancelCommand.Execute(null);   // «Cerrar»
+        await flow;
+    }
+
+    [AvaloniaFact]
+    public async Task Actualizar_ConScoop_SaleYAbreUnaTerminalQueActualizaYRelanza()
+    {
+        var (main, window, fake, launcher, exited) = await OpenWithUpdateAsync(running: false, Roost.Core.Updates.InstallChannel.Scoop);
+        using var _ = fake;
+
+        var flow = main.OpenUpdatesCommand.ExecuteAsync(null);
+        var modal = Assert.IsType<UpdateDialogViewModel>(main.Dialog);
+        Assert.Equal("Actualizar ahora", modal.PrimaryLabel);
+        Assert.Contains("scoop update roost", modal.Explanation);
+        Assert.Null(modal.DownloadText);
+        Snapshot(window, "actualizar-modal-scoop");
+
+        modal.PrimaryCommand.Execute(null);
+        await flow;
+        Assert.True(exited());
+        Assert.StartsWith("scoop update roost; if ($?) { Start-Process -FilePath '", launcher.Terminal);
+        Assert.Contains("-ArgumentList '--updated' }", launcher.Terminal);
+        Assert.Equal(("0.1.0", "0.2.0", false), Roost.Core.Updates.UpdateMarker.TryRead(fake.Paths) is { } m ? (m.From, m.To, m.StackWasRunning) : default);
+        Assert.Contains("'--updated','--start'", UpdateFlow.TerminalScript("scoop update roost", @"C:\x\roost-desktop.exe", startStack: true));
+
+        // Compilada desde el código no hay nada que la app pueda hacer: solo explicarlo.
+        main.Updates.Channel = Roost.Core.Updates.InstallChannel.Source;
+        Assert.Null(new UpdateDialogViewModel(main.Updates).PrimaryLabel);
+        Assert.Equal("Ver cómo actualizar", main.Updates.UpdateLabel);
+    }
+
+    [AvaloniaFact]
+    public async Task AlVolverDeActualizar_LoDice_YSiNoSeActualizoTambien()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        // Vuelve con --updated y el marcador: «Roost actualizado a la 0.1.0» (el stack ya está en marcha: no se arranca nada).
+        Roost.Core.Updates.UpdateMarker.Write(fake.Paths, new("0.0.9", "0.1.0", StackWasRunning: true, DateTimeOffset.Now));
+        var handling = main.Updates.HandleStartupAsync(main, StartupArgs.Parse(["--updated", "--start"]));
+        var dialog = Assert.IsType<MessageDialogViewModel>(main.Dialog);
+        Assert.Equal("Roost actualizado a la 0.1.0", dialog.Title);
+        Assert.Equal("Venías de la 0.0.9", dialog.Subtitle);
+        Assert.Equal("Roost actualizado a 0.1.0", main.FlashText);
+        Snapshot(window, "actualizado");
+        dialog.Close();
+        await handling;
+        Assert.Null(Roost.Core.Updates.UpdateMarker.TryRead(fake.Paths));
+
+        // El vigilante la relanza con --update-failed=2 (UAC rechazado): «No se ha actualizado».
+        Roost.Core.Updates.UpdateMarker.Write(fake.Paths, new("0.1.0", "0.2.0", StackWasRunning: false, DateTimeOffset.Now));
+        handling = main.Updates.HandleStartupAsync(main, StartupArgs.Parse(["--update-failed=2"]));
+        dialog = Assert.IsType<MessageDialogViewModel>(main.Dialog);
+        Assert.Equal("No se ha actualizado", dialog.Title);
+        Assert.Equal("Sigues en la 0.1.0; la 0.2.0 queda pendiente", dialog.Subtitle);
+        Assert.StartsWith("Windows no dio permiso", dialog.Text);
+        Snapshot(window, "no-actualizado");
+        dialog.Close();
+        await handling;
+
+        // Se abre a mano con el marcador de una actualización que no llegó: también lo dice.
+        Roost.Core.Updates.UpdateMarker.Write(fake.Paths, new("0.1.0", "0.2.0", StackWasRunning: false, DateTimeOffset.Now));
+        handling = main.Updates.HandleStartupAsync(main, StartupArgs.None);
+        dialog = Assert.IsType<MessageDialogViewModel>(main.Dialog);
+        Assert.Equal("No se ha actualizado", dialog.Title);
+        Assert.StartsWith("El instalador no llegó a ejecutarse", dialog.Text);
+        dialog.Close();
+        await handling;
+
+        // Sin nada pendiente, nada que decir.
+        await main.Updates.HandleStartupAsync(main, StartupArgs.None);
+        Assert.Null(main.Dialog);
+
+        Assert.Equal(new StartupArgs(true, true, true, 5), StartupArgs.Parse(["--minimized", "--updated", "--start", "--update-failed=5"]));
+        Assert.Equal(StartupArgs.None, StartupArgs.Parse(null));
     }
 }

@@ -55,17 +55,59 @@ public partial class App : Application
             _main.Audit.PropertyChanged += (_, _) => UpdateTray();
             _main.Updates.PropertyChanged += (_, _) => UpdateTray();
 
-            if (!desktop.Args?.Contains("--minimized") ?? true) _window.Show();
+            var args = StartupArgs.Parse(desktop.Args);
+            if (!args.Minimized) _window.Show();
             Instance?.Listen(() => Dispatcher.UIThread.Post(ShowWindow));
             desktop.Exit += (_, _) =>
             {
                 _tray?.Dispose();
                 services.Dispose();
             };
-            _ = _main.InitializeAsync();
+            _ = StartupAsync(_main.InitializeAsync(), args);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// Tras la primera carga: si la app vuelve de una actualización (<c>--updated</c>, el
+    /// marcador de <c>state/</c> o <c>--update-failed</c>), contarlo y arrancar el stack si tocaba;
+    /// y renovar el php de la terminal si es de otra versión.
+    /// </summary>
+    private async Task StartupAsync(Task initialize, StartupArgs args)
+    {
+        try { await initialize; }
+        catch (Exception) { /* la primera carga ya enseña sus propios errores */ }
+        if (_main is null) return;
+        try { await _main.Updates.HandleStartupAsync(_main, args); }
+        catch (Exception ex) when (ex is RoostException or IOException or UnauthorizedAccessException) { /* no impide usar la app */ }
+        await RenewShimsAsync();
+    }
+
+    /// <summary>
+    /// Si los shims están puestos y su <c>php.exe</c> no es el <c>roost-shim.exe</c> de esta
+    /// versión (la app acaba de actualizarse), se vuelven a poner. Si una terminal lo tiene en
+    /// uso, falla sin tocar nada y se repite la próxima vez.
+    /// </summary>
+    private async Task RenewShimsAsync()
+    {
+        if (_main is null) return;
+        var paths = _main.App.Paths;
+        var renewed = await Task.Run(() =>
+        {
+            var shims = new Roost.Core.Shims.ShimInstaller(paths);
+            if (!shims.IsInstalled || !shims.IsOutdated(AppServices.AppDirectory)) return false;
+            try
+            {
+                shims.Install(AppServices.AppDirectory);
+                return true;
+            }
+            catch (RoostException)
+            {
+                return false;
+            }
+        });
+        if (renewed) _main.Flash("El php de la terminal ya es el de esta versión");
     }
 
     /// <summary>"system", "light" o "dark".</summary>
@@ -238,11 +280,12 @@ public partial class App : Application
             ShowWindow();
             await main.NavigateToAsync(main.AuditPage);
         }));
+        // Abre el modal «Roost X disponible», el mismo que la barra lateral y Ajustes.
         if (main.Updates.HasUpdate)
             menu.Add(Item($"Hay una Roost nueva: {main.Updates.LatestVersion}", async () =>
             {
                 ShowWindow();
-                await main.NavigateToAsync(main.Settings);
+                await main.OpenUpdatesCommand.ExecuteAsync(null);
             }));
         menu.Add(Item("Salir de Roost", ExitAsync));
         return menu;

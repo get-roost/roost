@@ -23,16 +23,25 @@ internal static class WebServerSetup
             var installer = new ApacheInstaller(paths, RoostHttp.Client);
             var build = ApacheCatalog.Windows;
             if (installer.Find(build) is not null) return;
+            // Apache de Apache Lounge no arranca sin el VC++ 14.50 o posterior: avisar antes, con el enlace.
+            WarnVcRedist(forApache: true);
             await InstallAsync($"Apache {build.Version}", build.Url.Host, (progress, ct) => installer.InstallAsync(build, progress, ct), cancellation);
-            AnsiConsole.MarkupLineInterpolated($"[grey]Apache de Apache Lounge necesita el {build.Redistributable}: si no arranca, instalalo con winget install Microsoft.VCRedist.2015+.x64[/]");
         }
         else
         {
             var installer = new NginxInstaller(paths, RoostHttp.Client);
             var build = NginxCatalog.Windows;
             if (installer.Find(build) is not null) return;
+            // nginx no lo necesita, pero el PHP que va a servir si.
+            WarnVcRedist(forApache: false);
             await InstallAsync($"nginx {build.Version}", build.Url.Host, (progress, ct) => installer.InstallAsync(build, progress, ct), cancellation);
         }
+    }
+
+    private static void WarnVcRedist(bool forApache)
+    {
+        if (VcRedist.Warning(VcRedist.Detect(), forApache) is { } warning)
+            AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {warning}");
     }
 
     private static async Task InstallAsync(string what, string host, Func<IProgress<long>, CancellationToken, Task> install, CancellationToken cancellation)

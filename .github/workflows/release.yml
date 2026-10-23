@@ -19,6 +19,13 @@
 #     SIGNPATH_SIGNING_POLICY_SLUG y SIGNPATH_ARTIFACT_CONFIGURATION_SLUG) y secreto
 #     SIGNPATH_API_TOKEN. La configuración de artefacto está en .github/signpath/.
 # Si están las dos, se usa Azure. Ver «Publicar una versión» en el README.
+# El instalador y su desinstalador (unins000.exe) se compilan DESPUÉS de firmar los exe de dentro, así
+# que los firma el propio ISCC con build/sign.ps1 (mismo método: signtool + la dlib de Azure, o una
+# solicitud de SignPath por fichero, que con SignPath necesita además una configuración de artefacto de
+# un solo PE, SIGNPATH_PE_ARTIFACT_CONFIGURATION_SLUG). Sin firma configurada, el instalador compila
+# exactamente igual que antes.
+# El instalador lleva dentro el Visual C++ Redistributable x64 (descargado de Microsoft y con su firma
+# comprobada aquí), que instala en silencio solo si falta o es anterior al 14.50.
 name: Release
 
 on:
@@ -224,9 +231,50 @@ jobs:
           [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path $env:STAGE).Path, $zip, 'Optimal', $false)
           Get-Item $zip | Format-Table Name, Length
 
-      # El instalador (Inno Setup, build/roost.iss), con lo mismo que lleva el zip.
+      # El VC++ Redistributable que el instalador pone si falta (PHP, MariaDB, MySQL y Apache lo
+      # necesitan): de Microsoft, y con su firma comprobada antes de meterlo en el setup.
+      - name: Visual C++ Redistributable
+        id: vcredist
+        shell: pwsh
+        run: |
+          $dir = Join-Path $PWD 'artifacts/vcredist'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          $exe = Join-Path $dir 'vc_redist.x64.exe'
+          Invoke-WebRequest 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $exe -MaximumRetryCount 3 -RetryIntervalSec 5
+          $sig = Get-AuthenticodeSignature $exe
+          if ($sig.Status -ne 'Valid') { throw "vc_redist.x64.exe no lleva una firma valida ($($sig.Status))" }
+          if ($sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw "vc_redist.x64.exe no lo firma Microsoft: $($sig.SignerCertificate.Subject)" }
+          Write-Host "vc_redist.x64.exe $((Get-Item $exe).VersionInfo.ProductVersion), firmado por $($sig.SignerCertificate.Subject)"
+          "path=$exe" >> $env:GITHUB_OUTPUT
+
+      # Lo que necesita build/sign.ps1 para firmar el setup y el desinstalador desde ISCC.
+      - name: Preparar la firma del instalador
+        if: steps.firma.outputs.metodo != 'no'
+        shell: pwsh
+        env:
+          METODO: ${{ steps.firma.outputs.metodo }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+        run: ./build/sign.ps1 -Method $env:METODO -Work artifacts/signing -Prepare
+
+      # El instalador (Inno Setup, build/roost.iss), con lo mismo que lleva el zip, el VC++ dentro y,
+      # si hay firma, el setup y el desinstalador firmados por ISCC (/S + SignTool=).
       - name: Instalador
         shell: pwsh
+        env:
+          METODO: ${{ steps.firma.outputs.metodo }}
+          VCREDIST: ${{ steps.vcredist.outputs.path }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_PROJECT_SLUG: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          SIGNPATH_SIGNING_POLICY_SLUG: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          SIGNPATH_PE_ARTIFACT_CONFIGURATION_SLUG: ${{ vars.SIGNPATH_PE_ARTIFACT_CONFIGURATION_SLUG }}
         run: |
           $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
           if (-not (Test-Path $iscc)) {
@@ -236,13 +284,32 @@ jobs:
           $numeric = $env:VERSION -replace '-.*$', ''
           $source = (Resolve-Path $env:STAGE).Path
           $out = (Resolve-Path artifacts/dist).Path
-          & $iscc /Q "/DAppVersion=$env:VERSION" "/DNumericVersion=$numeric" "/DSourceDir=$source" "/DOutputDir=$out" build/roost.iss
+          $args = @('/Q', "/DAppVersion=$env:VERSION", "/DNumericVersion=$numeric", "/DSourceDir=$source", "/DOutputDir=$out", "/DVcRedist=$env:VCREDIST")
+          if ($env:METODO -ne 'no') {
+            # ISCC ejecuta la orden por cada fichero que firma: $f es el fichero (entre comillas) y $q una comilla.
+            $script = (Resolve-Path build/sign.ps1).Path
+            $work = (Resolve-Path artifacts/signing).Path
+            $args += "/Ssign=pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `$q$script`$q -Method $env:METODO -Work `$q$work`$q -File `$f"
+            $args += '/DSignTool=sign'
+          }
+          & $iscc @args build/roost.iss
           if ($LASTEXITCODE -ne 0) { throw "ISCC ha fallado (codigo $LASTEXITCODE)" }
           Get-Item artifacts/dist/*-setup.exe | Format-Table Name, Length
+
+      - name: Comprobar la firma del instalador
+        if: steps.firma.outputs.metodo != 'no'
+        shell: pwsh
+        run: |
+          $setup = (Get-Item "artifacts/dist/roost-$env:VERSION-win-x64-setup.exe").FullName
+          $sig = Get-AuthenticodeSignature $setup
+          if ($sig.Status -ne 'Valid') { throw "El instalador no lleva una firma valida ($($sig.Status))" }
+          Write-Host "Instalador firmado por $($sig.SignerCertificate.Subject)"
 
       # Se instala en silencio en el runner, se prueba y se desinstala: que no salga un instalador roto.
       - name: Probar el instalador
         shell: pwsh
+        env:
+          METODO: ${{ steps.firma.outputs.metodo }}
         run: |
           $setup = (Get-Item "artifacts/dist/roost-$env:VERSION-win-x64-setup.exe").FullName
           $dir = Join-Path $env:RUNNER_TEMP 'RoostInstalado'
@@ -257,6 +324,15 @@ jobs:
           if (-not ([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';' -contains $dir)) {
             throw "El instalador no ha puesto $dir en el PATH del sistema"
           }
+          # El VC++ lo trae el runner: el instalador lo ha visto y no lo ha vuelto a instalar.
+          $vc = Select-String -Path $log -Pattern 'vc_redist' | ForEach-Object Line
+          if ($vc) { Write-Host "vc_redist en el log: $vc" } else { Write-Host 'vc_redist: no hacia falta (ya estaba)' }
+          if ($env:METODO -ne 'no') {
+            $sig = Get-AuthenticodeSignature (Join-Path $dir 'unins000.exe')
+            if ($sig.Status -ne 'Valid') { throw "El desinstalador unins000.exe no lleva una firma valida ($($sig.Status))" }
+            Write-Host "Desinstalador firmado por $($sig.SignerCertificate.Subject)"
+          }
+          if (Get-Process roost-desktop -ErrorAction SilentlyContinue) { throw 'Un /VERYSILENT sin /ROOSTRELAUNCH no deberia abrir la app' }
           $u = Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($u.ExitCode -ne 0) { throw "El desinstalador ha salido con $($u.ExitCode)" }
           # El desinstalador se copia a %TEMP% y termina de borrar desde ahi: se espera a que acabe.
@@ -266,6 +342,70 @@ jobs:
             throw "El desinstalador no ha quitado $dir del PATH"
           }
           Write-Host "Instalador probado: instala, roost --version $v, PATH del sistema, desinstala y lo quita."
+
+      # Actualizar encima de la última publicada, como lo hace la app: se instala la 0.1.2 desde su
+      # release, se dejan datos en C:\roost, se instala encima la nueva en silencio y se comprueba que
+      # queda la nueva, que los datos siguen y que la app vuelve (/ROOSTRELAUNCH=1). La 0.1.2 no
+      # relanzaba nada en silencioso (skipifsilent): el relanzamiento que se prueba es el de ESTE setup.
+      - name: Probar actualizar encima de la 0.1.2
+        shell: pwsh
+        env:
+          ANTERIOR: '0.1.2'
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'RoostActualizado'
+          $tmp = Join-Path $env:RUNNER_TEMP 'anterior'
+          New-Item -ItemType Directory -Force $tmp | Out-Null
+          $base = "https://github.com/$env:GITHUB_REPOSITORY/releases/download/v$env:ANTERIOR"
+          $old = Join-Path $tmp "roost-$env:ANTERIOR-win-x64-setup.exe"
+          Invoke-WebRequest "$base/roost-$env:ANTERIOR-win-x64-setup.exe" -OutFile $old -MaximumRetryCount 3 -RetryIntervalSec 5
+          Invoke-WebRequest "$base/SHA256SUMS.txt" -OutFile (Join-Path $tmp 'SHA256SUMS.txt') -MaximumRetryCount 3 -RetryIntervalSec 5
+          $linea = Select-String -Path (Join-Path $tmp 'SHA256SUMS.txt') -Pattern "^([0-9a-fA-F]{64})\s+\*?roost-$env:ANTERIOR-win-x64-setup\.exe\s*$"
+          if (-not $linea) { throw "El SHA256SUMS.txt de la $env:ANTERIOR no trae su setup" }
+          if ((Get-FileHash $old -Algorithm SHA256).Hash.ToLower() -ne $linea.Matches[0].Groups[1].Value.ToLower()) { throw "El setup de la $env:ANTERIOR no cuadra con su SHA256SUMS.txt" }
+
+          # 1. La anterior, instalada como la instalaria un usuario.
+          $p = Start-Process $old -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$dir`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "El instalador de la $env:ANTERIOR ha salido con $($p.ExitCode)" }
+          $v = & (Join-Path $dir 'roost.exe') --version
+          if ($v -ne $env:ANTERIOR) { throw "Tras instalar la anterior, roost --version da '$v'" }
+
+          # 2. Datos del usuario que no se pueden perder: en C:\roost, la raiz de verdad.
+          New-Item -ItemType Directory -Force 'C:\roost\www\marcador', 'C:\roost\state' | Out-Null
+          '<?php echo "esto estaba antes de actualizar";' | Set-Content 'C:\roost\www\marcador\index.php' -Encoding ascii
+          '{ "marcador": true }' | Set-Content 'C:\roost\state\marcador.json' -Encoding ascii
+          $antesWww = (Get-FileHash 'C:\roost\www\marcador\index.php').Hash
+          $antesState = (Get-FileHash 'C:\roost\state\marcador.json').Hash
+
+          # 3. La nueva encima, con la misma linea que usa la app (UpdateInstaller.SetupArguments).
+          $setup = (Get-Item "artifacts/dist/roost-$env:VERSION-win-x64-setup.exe").FullName
+          $log = Join-Path $env:RUNNER_TEMP 'actualizar.log'
+          $p = Start-Process $setup -ArgumentList '/SILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/CLOSEAPPLICATIONS', '/ROOSTRELAUNCH=1', "/LOG=`"$log`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content $log -Tail 40; throw "Actualizar encima ha salido con $($p.ExitCode)" }
+          $v = & (Join-Path $dir 'roost.exe') --version
+          if ($v -ne $env:VERSION) { throw "Tras actualizar, roost --version da '$v' y la version es $env:VERSION" }
+          foreach ($f in 'roost.exe', 'roost-desktop.exe', 'roost-helper.exe', 'roost-shim.exe', 'unins000.exe') {
+            if (-not (Test-Path (Join-Path $dir $f))) { throw "Falta $f tras actualizar" }
+          }
+          if ((Get-FileHash 'C:\roost\www\marcador\index.php').Hash -ne $antesWww) { throw 'Actualizar ha tocado C:\roost\www' }
+          if ((Get-FileHash 'C:\roost\state\marcador.json').Hash -ne $antesState) { throw 'Actualizar ha tocado C:\roost\state' }
+
+          # 4. Con /ROOSTRELAUNCH=1, el instalador vuelve a abrir la app con --updated como el usuario original.
+          $app = $null
+          for ($i = 0; $i -lt 30 -and -not $app; $i++) { Start-Sleep -Seconds 1; $app = Get-Process roost-desktop -ErrorAction SilentlyContinue }
+          if (-not $app) { Get-Content $log -Tail 40; throw 'El instalador no ha vuelto a abrir roost-desktop.exe tras actualizar en silencio' }
+          $cmd = (Get-CimInstance Win32_Process -Filter "name = 'roost-desktop.exe'" | Select-Object -First 1).CommandLine
+          Write-Host "La app ha vuelto: $cmd"
+          if ($cmd -notmatch '--updated') { throw "La app no ha vuelto con --updated: $cmd" }
+          Stop-Process -Name roost-desktop -Force
+          Start-Sleep -Seconds 3
+
+          # 5. Desinstalar tampoco toca los datos.
+          $u = Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "El desinstalador ha salido con $($u.ExitCode)" }
+          for ($i = 0; $i -lt 30 -and (Test-Path (Join-Path $dir 'roost.exe')); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path (Join-Path $dir 'roost.exe')) { throw 'El desinstalador ha dejado roost.exe' }
+          if (-not (Test-Path 'C:\roost\www\marcador\index.php')) { throw 'Desinstalar ha borrado C:\roost\www' }
+          Write-Host "Actualizar encima probado: $env:ANTERIOR -> $env:VERSION, datos de C:\roost intactos, la app vuelve con --updated."
 
       - uses: actions/upload-artifact@v7
         with:
@@ -352,16 +492,16 @@ jobs:
       - name: Notas
         run: |
           case "$FIRMA" in
-            azure) firma="Los ejecutables y las dll de Roost van firmados con Azure Artifact Signing." ;;
-            signpath) firma="Los ejecutables y las dll de Roost van firmados. Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)." ;;
-            *) firma="**Esta versión no va firmada.** Al abrirla, Windows SmartScreen puede avisar de que es de un editor desconocido («Más información» y «Ejecutar de todas formas»). Comprueba la descarga con SHA256SUMS.txt." ;;
+            azure) firma="El instalador, el desinstalador y los ejecutables y las dll de Roost van firmados con Azure Artifact Signing." ;;
+            signpath) firma="El instalador, el desinstalador y los ejecutables y las dll de Roost van firmados. Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)." ;;
+            *) firma="**Esta versión no va firmada.** Al abrirla, Windows SmartScreen puede avisar de que es de un editor desconocido («Más información» y «Ejecutar de todas formas»). Comprueba la descarga con SHA256SUMS.txt: la app y \`roost update --install\` lo hacen solos." ;;
           esac
           {
             echo "## Descargas"
             echo
             echo "| Fichero | Qué lleva |"
             echo "|---|---|"
-            echo "| **roost-$VERSION-win-x64-setup.exe** | **Windows 10/11 x64, el instalador (recomendado).** Instala Roost en Program Files con su acceso directo y, si lo eliges, añade roost a la línea de comandos. Para actualizar, ejecuta el de la versión nueva: tus datos y tus sitios no se tocan. |"
+            echo "| **roost-$VERSION-win-x64-setup.exe** | **Windows 10/11 x64, el instalador (recomendado).** Instala Roost en Program Files con su acceso directo, el Visual C++ Redistributable si falta y, si lo eliges, añade roost a la línea de comandos. Para actualizar, la app lo hace sola (el aviso de versión nueva → «Actualizar ahora», o \`roost update --install\`); también puedes ejecutar el nuevo a mano. Tus datos y tus sitios no se tocan. |"
             echo "| roost-$VERSION-win-x64.zip | Windows 10/11 x64, sin instalar: la app (roost-desktop.exe), la CLI (roost.exe), roost-helper.exe y el shim de php. No necesita .NET: descomprime y abre roost-desktop.exe. Es lo que usa Scoop (\`scoop bucket add roost https://github.com/$GITHUB_REPOSITORY\` y \`scoop install roost\`). |"
             echo "| roost-$VERSION-linux-x64.tar.gz | Linux x64: la CLI (roost), un solo ejecutable. De momento, roost scan y roost audit. |"
             echo "| SHA256SUMS.txt | Las sumas SHA-256 de lo anterior (\`sha256sum -c SHA256SUMS.txt\`). |"

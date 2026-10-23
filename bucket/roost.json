@@ -5,9 +5,9 @@
     "homepage": "https://github.com/get-roost/roost",
     "license": "MIT",
     "notes": [
-        "Roost guarda sus datos fuera de la carpeta de Scoop: PHP, bases de datos y certificados en C:\\roost, la configuracion en %APPDATA%\\Roost y los proyectos en C:\\www. Actualizar o desinstalar con Scoop no los borra.",
-        "Antes de 'scoop update roost' o 'scoop uninstall roost', ejecuta 'roost down' y cierra la app: Scoop no actualiza una app que esta en marcha.",
-        "roost-helper.exe se ejecuta como administrador (UAC) para editar el hosts y la regla DNS de .test, y aqui vive en una carpeta que puede escribir cualquier programa de tu usuario. Mientras no haya instalador, acepta su UAC solo cuando lo hayas pedido tu.",
+        "Roost guarda sus datos fuera de la carpeta de Scoop: PHP, bases de datos, certificados y los proyectos (C:\\roost\\www) en C:\\roost, y la configuracion en %APPDATA%\\Roost. Actualizar o desinstalar con Scoop no los borra.",
+        "Actualizar y desinstalar paran el stack solos (roost down). Cierra antes la app de Roost, o mejor: actualiza desde ella (el aviso de version nueva lo hace todo, incluido relanzarla).",
+        "roost-helper.exe se ejecuta como administrador (UAC) para editar el hosts y la regla DNS de .test, y aqui vive en una carpeta que puede escribir cualquier programa de tu usuario. Si prefieres que viva en Program Files, usa el instalador de la release.",
         "Los PHP y las MariaDB/MySQL oficiales de Windows necesitan el Visual C++ Redistributable 2015-2022 (scoop install extras/vcredist2022)."
     ],
     "suggest": {
@@ -26,6 +26,8 @@
             "Roost"
         ]
     ],
+    "pre_install": "$anterior = Join-Path (Split-Path $dir) 'current\\roost.exe'; if (Test-Path $anterior) { Write-Host 'Parando el stack de Roost (roost down)...'; & $anterior down }",
+    "pre_uninstall": "if (Test-Path \"$dir\\roost.exe\") { Write-Host 'Parando el stack de Roost (roost down)...'; & \"$dir\\roost.exe\" down }",
     "checkver": {
         "github": "https://github.com/get-roost/roost"
     },

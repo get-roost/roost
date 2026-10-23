@@ -1,0 +1,72 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.UpdateDialogView"
+             x:DataType="vm:UpdateDialogViewModel">
+  <!-- «Roost X disponible»: la versión que tienes y la nueva, las novedades, el fichero y qué hará Actualizar ahora -->
+  <Border Classes="modal" Width="560">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <Button DockPanel.Dock="Left" Command="{Binding OpenPageCommand}" ToolTip.Tip="{Binding Page}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <ctl:Icon Data="{StaticResource IcExternal}" Size="14" VerticalAlignment="Center" />
+              <TextBlock Text="Ver en GitHub" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Más tarde" Command="{Binding LaterCommand}" />
+            <Button Classes="primary" Content="{Binding PrimaryLabel}" Command="{Binding PrimaryCommand}" IsVisible="{Binding HasPrimary}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <StackPanel Spacing="14" Margin="20,18,20,18">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+          <Border Classes="badge-ic">
+            <ctl:Icon Data="{StaticResource IcDownload}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Classes="h3" Text="{Binding Title}" />
+            <TextBlock Classes="faint" Text="{Binding Subtitle}" TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
+
+        <!-- Las novedades: el cuerpo de la release, con sus títulos, viñetas y código -->
+        <StackPanel Spacing="6" IsVisible="{Binding HasNotes}">
+          <TextBlock Classes="lbl" Text="Novedades" />
+          <Border Classes="card" Padding="14,10" MaxHeight="260">
+            <ScrollViewer>
+              <ItemsControl ItemsSource="{Binding Notes}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Spacing="4" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:NotesLine">
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="6" Margin="{Binding Margin}">
+                      <TextBlock Text="•" IsVisible="{Binding IsBullet}" FontSize="12.5" Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Top" />
+                      <Border Grid.Column="1" Classes="log" Padding="10,8" IsVisible="{Binding IsCode}">
+                        <SelectableTextBlock Classes="notes code" Text="{Binding Text}" TextWrapping="Wrap" />
+                      </Border>
+                      <SelectableTextBlock Grid.Column="1" Classes="notes" Classes.heading="{Binding IsHeading}" IsVisible="{Binding !IsCode}"
+                                           Text="{Binding Text}" TextWrapping="Wrap" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+          </Border>
+        </StackPanel>
+
+        <!-- Qué se baja y cuánto pesa -->
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding HasDownloadText}">
+          <ctl:Icon Data="{StaticResource IcLock}" Size="14" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+          <SelectableTextBlock Grid.Column="1" Classes="small" Text="{Binding DownloadText}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" />
+        </Grid>
+
+        <!-- Qué hará el botón principal en este canal -->
+        <ctl:Note Content="{Binding Explanation}" />
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>
