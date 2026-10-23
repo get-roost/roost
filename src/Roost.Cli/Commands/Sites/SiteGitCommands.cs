@@ -111,7 +111,8 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
             var branch = plan.Branch ?? probe.DefaultBranch;
             if (!settings.Json)
             {
-                AnsiConsole.MarkupLineInterpolated($"[green]{url.ProviderName} - {url.Label} - {(url.IsLocal ? "local" : "publico")}[/] [grey](rama por defecto: {probe.DefaultBranch ?? "ninguna"}; {probe.Branches.Count} rama(s))[/]");
+                var what = url.IsLocal ? $"Repositorio local {url.Label}" : $"{url.ProviderName} - {url.Label} - publico";
+                AnsiConsole.MarkupLineInterpolated($"[green]{what}[/] [grey](rama por defecto: {probe.DefaultBranch ?? "ninguna"}; {probe.Branches.Count} rama(s))[/]");
                 AnsiConsole.MarkupLineInterpolated($"Se clonara [bold]{branch ?? "?"}[/] de {url.Label} en {plan.Folder} y se servira en [bold]https://{plan.Name}.test/[/] [grey](PHP {settings.Php ?? "global"})[/]");
                 if (!settings.Yes && SiteGitSupport.Interactive && !AnsiConsole.Confirm("Seguir?"))
                 {
@@ -396,7 +397,7 @@ public sealed class SiteGitCommand : AsyncCommand<SiteGitCommand.Settings>
                     state,
                     head = SiteGitSupport.Json(status.Head),
                     lastPullUtc = status.Git.LastPullUtc,
-                    history = status.History.Take(10),
+                    history = status.History.Take(10).Select(h => new { when = h.When, kind = h.Kind, branch = h.Branch, from = h.From, to = h.To, ok = h.Ok, seconds = Math.Round(h.Seconds, 1), error = h.Error }),
                     log = sites.Log.FilePath(status.Site.Name),
                 }, JsonOutput.Options));
                 return 0;

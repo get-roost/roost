@@ -74,7 +74,7 @@ public class GitClientTests : IDisposable
         await Client.CloneAsync(Url, "master", @"C:\roost\www\.tmp-1", new SyncProgress<CloneProgress>(progress.Add), new SyncProgress<string>(lines.Add), CancellationToken.None);
 
         var call = Assert.Single(_runner.Calls);
-        Assert.Equal(["clone", "--progress", "--branch", "master", "--", "https://github.com/octocat/Hello-World.git", @"C:\roost\www\.tmp-1"], call.Arguments);
+        Assert.Equal(["clone", "--progress", "--config", "core.autocrlf=false", "--branch", "master", "--", "https://github.com/octocat/Hello-World.git", @"C:\roost\www\.tmp-1"], call.Arguments);
         Assert.Null(call.Timeout);
         Assert.Equal([3, 37, 85, 95], progress.Select(p => p.Overall));
         Assert.Equal(5, lines.Count);

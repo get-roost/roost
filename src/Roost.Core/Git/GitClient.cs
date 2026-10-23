@@ -57,10 +57,13 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
     /// Clona en <paramref name="targetDir"/> (que no debe existir, o estar vacío) la rama
     /// <paramref name="branch"/>, o la por defecto. Trae todas las ramas, para poder cambiar después.
     /// Sin límite de tiempo: se corta con el token. El progreso de <c>--progress</c> sale en porcentaje.
+    /// Deja <c>core.autocrlf=false</c> en el <c>.git/config</c> del clon: así el git del usuario (que
+    /// suele llevar <c>autocrlf=true</c> en Windows) escribe los mismos bytes que el de Roost y un
+    /// <c>git checkout</c> suyo no deja el árbol «con cambios» para Roost.
     /// </summary>
     public async Task CloneAsync(GitUrl url, string? branch, string targetDir, IProgress<CloneProgress>? progress, IProgress<string>? lines, CancellationToken cancellation)
     {
-        var args = new List<string> { "clone", "--progress" };
+        var args = new List<string> { "clone", "--progress", "--config", "core.autocrlf=false" };
         if (branch is not null)
         {
             ValidateBranchName(branch);
