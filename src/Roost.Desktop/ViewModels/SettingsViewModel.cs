@@ -1,0 +1,401 @@
+using System.Globalization;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using Roost.Core;
+using Roost.Core.Config;
+using Roost.Core.Install;
+using Roost.Core.Platform;
+using Roost.Core.Scanning;
+using Roost.Core.Shims;
+using Roost.Core.Sites;
+using Roost.Core.Stack;
+using Roost.Desktop.Controls;
+using Roost.Desktop.Services;
+
+namespace Roost.Desktop.ViewModels;
+
+/// <summary>
+/// Ajustes: lo de la app (inicio, bandeja, tema) en state/desktop.json y lo del stack (puertos,
+/// pool) en roost.toml, más rutas, la CA local, cómo se resuelven los .test y los avisos.
+/// </summary>
+public sealed partial class SettingsViewModel : PageViewModel
+{
+    private bool _loading;
+
+    public SettingsViewModel(MainViewModel main) : base(main)
+    {
+        Subtitle = $"Se guardan en {main.App.Paths.ConfigFile}, que también puedes editar a mano.";
+        main.Audit.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(AuditState.Dataset) or nameof(AuditState.Origin))
+            {
+                OnPropertyChanged(nameof(DatasetText));
+                OnPropertyChanged(nameof(DatasetSource));
+            }
+        };
+        Version = main.App.Version;
+    }
+
+    public override string Title => "Ajustes";
+
+    public string DatasetText => $"Datos de {Main.Audit.DatasetDateText} · se evalúan en local";
+
+    /// <summary>De dónde salen los avisos (el feed firmado o los que van dentro de Roost).</summary>
+    public string DatasetSource => Main.Audit.OriginText;
+
+    /// <summary>Las extensiones cargadas y las que no, para «Acerca de».</summary>
+    public string ExtensionsText
+    {
+        get
+        {
+            var set = Main.App.Extensions;
+            if (set.Loaded.Count == 0 && set.Errors.Count == 0) return $"Extensiones: ninguna (se buscan en {Paths.Extensions})";
+            var loaded = set.Loaded.Select(e => $"{e.Name} {e.Version}");
+            var failed = set.Errors.Select(e => $"{e.Source} no carga ({e.Message})");
+            return "Extensiones: " + string.Join(" · ", loaded.Concat(failed));
+        }
+    }
+
+    public string Version { get; }
+
+    public RoostPaths Paths => Main.App.Paths;
+
+    [ObservableProperty] public partial bool StartWithWindows { get; set; }
+    [ObservableProperty] public partial bool ShimsEnabled { get; set; }
+    [ObservableProperty] public partial string? ShimsWarning { get; private set; }
+    [ObservableProperty] public partial bool StartStackOnLaunch { get; set; }
+    [ObservableProperty] public partial bool CloseToTray { get; set; } = true;
+    [ObservableProperty] public partial bool ThemeSystem { get; set; } = true;
+    [ObservableProperty] public partial bool ThemeLight { get; set; }
+    [ObservableProperty] public partial bool ThemeDark { get; set; }
+
+    [ObservableProperty] public partial string HttpText { get; set; } = "";
+    [ObservableProperty] public partial string HttpsText { get; set; } = "";
+    [ObservableProperty] public partial string DbPortText { get; set; } = "";
+    [ObservableProperty] public partial string PoolText { get; set; } = "";
+    [ObservableProperty] public partial string? PortsError { get; private set; }
+
+    [ObservableProperty] public partial string CacheSize { get; private set; } = "";
+    [ObservableProperty] public partial string CaText { get; private set; } = "";
+    [ObservableProperty] public partial bool CaTrusted { get; private set; }
+    [ObservableProperty] public partial bool CaExists { get; private set; }
+    [ObservableProperty] public partial string HostsFileText { get; private set; } = "";
+    [ObservableProperty] public partial bool ResolverHosts { get; set; } = true;
+    [ObservableProperty] public partial bool ResolverDns { get; set; }
+    [ObservableProperty] public partial string DnsStateText { get; private set; } = "";
+
+    public bool HasPortsError => PortsError is not null;
+    public bool HasShimsWarning => ShimsWarning is not null;
+    public string ShimsText => $"php en la terminal según la carpeta del proyecto (pone {Paths.Shims} en tu PATH)";
+    public bool CaNotTrusted => !CaTrusted;
+
+    partial void OnPortsErrorChanged(string? value) => OnPropertyChanged(nameof(HasPortsError));
+    partial void OnCaTrustedChanged(bool value) => OnPropertyChanged(nameof(CaNotTrusted));
+
+    partial void OnStartWithWindowsChanged(bool value)
+    {
+        if (_loading) return;
+        _ = Main.RunAsync("No se pudo cambiar el inicio con Windows", () =>
+        {
+            Autostart.Set(value);
+            return Task.CompletedTask;
+        });
+    }
+
+    partial void OnShimsWarningChanged(string? value) => OnPropertyChanged(nameof(HasShimsWarning));
+
+    // Lo mismo que roost shims install / remove: el shim de php y su carpeta en el PATH del usuario.
+    partial void OnShimsEnabledChanged(bool value)
+    {
+        if (_loading) return;
+        _ = Main.RunAsync(value ? "No se pudieron poner los shims" : "No se pudieron quitar los shims", () =>
+        {
+            var shims = new ShimInstaller(Paths);
+            if (value)
+            {
+                shims.Install(AppServices.AppDirectory);
+                var planner = new StackPlanner(Paths, ProcessRunner.Default);
+                planner.EnsureUserIni();
+                foreach (var php in new PhpInstaller(Paths).ListInstalled()) planner.WritePhpIni(php);
+                UserPath.AddFirst(shims.Directory);
+                Main.Flash("php ya sigue la carpeta en las terminales nuevas");
+            }
+            else
+            {
+                UserPath.Remove(shims.Directory);
+                shims.Remove();
+            }
+            ShimsWarning = value ? Shadowing() : null;
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>Un php.exe en el PATH del sistema gana al shim (Windows mira ese PATH antes que el del usuario).</summary>
+    private static string? Shadowing()
+    {
+        var machine = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.Machine) ?? "";
+        var dir = machine.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(Environment.ExpandEnvironmentVariables)
+            .FirstOrDefault(d => File.Exists(Path.Combine(d, "php.exe")));
+        return dir is null ? null
+            : $"{Path.Combine(dir, "php.exe")} está en el PATH del sistema, que Windows mira antes que el tuyo: ese php ganará al de Roost. Quítalo de ahí (hace falta ser administrador).";
+    }
+
+    partial void OnResolverDnsChanged(bool value)
+    {
+        if (_loading) return;
+        _ = ChangeResolverAsync(value);
+    }
+
+    private async Task ChangeResolverAsync(bool dns)
+    {
+        var ask = dns
+            ? Main.ConfirmAsync("Usar el DNS local para los .test",
+                $"Windows pedirá permiso de administrador una sola vez, para una regla que manda las preguntas de .test a {Roost.Core.Dns.LocalDns.Address}. "
+                + "Desde entonces, crear o quitar un sitio ya no lo pide. Los nombres los responde Roost mientras el stack está en marcha.", "Continuar")
+            : Main.ConfirmAsync("Volver al fichero hosts",
+                "Windows pedirá permiso para quitar la regla de DNS y, después, para escribir los sitios en el hosts.", "Continuar");
+        var ok = await ask;
+        if (ok)
+            await Main.RunAsync("No se pudo cambiar cómo se resuelven los .test", () => Main.SetResolverAsync(dns));
+        // Lo que de verdad ha quedado (si se canceló un permiso, sigue como estaba).
+        await ShownAsync();
+    }
+
+    partial void OnStartStackOnLaunchChanged(bool value) => SavePrefs();
+    partial void OnCloseToTrayChanged(bool value) => SavePrefs();
+    partial void OnThemeSystemChanged(bool value) => Theme(value, "system");
+    partial void OnThemeLightChanged(bool value) => Theme(value, "light");
+    partial void OnThemeDarkChanged(bool value) => Theme(value, "dark");
+
+    private void Theme(bool on, string theme)
+    {
+        if (!on || _loading) return;
+        App.ApplyTheme(theme);
+        SavePrefs();
+    }
+
+    private void SavePrefs()
+    {
+        if (_loading) return;
+        var theme = ThemeLight ? "light" : ThemeDark ? "dark" : "system";
+        Main.App.SavePrefs(Main.App.Prefs with { Theme = theme, CloseToTray = CloseToTray, StartStackOnLaunch = StartStackOnLaunch });
+    }
+
+    public override Task ShownAsync()
+    {
+        _loading = true;
+        try
+        {
+            var prefs = Main.App.Prefs;
+            StartWithWindows = Autostart.IsEnabled();
+            var shims = new ShimInstaller(Paths);
+            ShimsEnabled = shims.IsInstalled && UserPath.Contains(UserPath.Read(), shims.Directory);
+            ShimsWarning = ShimsEnabled ? Shadowing() : null;
+            StartStackOnLaunch = prefs.StartStackOnLaunch;
+            CloseToTray = prefs.CloseToTray;
+            ThemeSystem = prefs.Theme is not ("light" or "dark");
+            ThemeLight = prefs.Theme == "light";
+            ThemeDark = prefs.Theme == "dark";
+            LoadUpdatePrefs();
+
+            RoostConfig config;
+            try { config = RoostConfig.Load(Paths.ConfigFile); } catch (RoostException) { config = new RoostConfig(); }
+            HttpText = config.HttpPort.ToString(CultureInfo.InvariantCulture);
+            HttpsText = config.HttpsPort.ToString(CultureInfo.InvariantCulture);
+            DbPortText = config.DbPort.ToString(CultureInfo.InvariantCulture);
+            PoolText = config.PhpPool.ToString(CultureInfo.InvariantCulture);
+            ResolverDns = config.UsesLocalDns;
+            ResolverHosts = !config.UsesLocalDns;
+            var rule = Roost.Core.Dns.LocalDns.IsRuleInstalled();
+            DnsStateText = config.UsesLocalDns
+                ? rule ? $"En uso: regla .test → {Roost.Core.Dns.LocalDns.Address} puesta." : "En uso, pero falta la regla de Windows: los .test no resolverán (vuelve a elegirlo)."
+                : rule ? "La regla de Windows sigue puesta, pero Roost usa el hosts." : "";
+            PortsError = null;
+        }
+        finally
+        {
+            _loading = false;
+        }
+
+        CacheSize = FolderSize(Paths.Downloads);
+        BuildCa();
+        try
+        {
+            var hosts = new HostsUpdater();
+            HostsFileText = hosts.IsSystemFile ? hosts.HostsFile : $"{hosts.HostsFile} (de pruebas, ROOST_HOSTS_FILE)";
+        }
+        catch (Exception ex) when (ex is IOException or RoostException) { HostsFileText = ""; }
+        return Task.CompletedTask;
+    }
+
+    private void BuildCa()
+    {
+        var ca = new LocalCa(Paths);
+        var info = ca.Describe();
+        CaExists = info is not null;
+        CaText = info is { } i ? $"{i.Subject} · ECDSA P-256 · hasta {i.NotAfter:yyyy}" : "Aún no creada: se crea con el primer sitio";
+        try { CaTrusted = ca.IsTrusted(); } catch (Exception) { CaTrusted = false; }
+    }
+
+    private static string FolderSize(string folder)
+    {
+        try
+        {
+            if (!Directory.Exists(folder)) return "vacía";
+            var bytes = new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length);
+            return bytes == 0 ? "vacía" : string.Format(CultureInfo.GetCultureInfo("es-ES"), "{0:0.0} MB", bytes / 1048576.0);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return "";
+        }
+    }
+
+    // Acciones
+
+    [RelayCommand]
+    private Task OpenConfigAsync() => Main.RunAsync("No se pudo abrir roost.toml", () =>
+    {
+        // Si aún no existe, se escribe la plantilla comentada (como al usar roost php use).
+        if (!File.Exists(Paths.ConfigFile))
+        {
+            var config = RoostConfig.Load(Paths.ConfigFile);
+            RoostConfig.SetPhpPool(Paths.ConfigFile, config.PhpPool);
+        }
+        Shell.OpenFile(Paths.ConfigFile);
+        return Task.CompletedTask;
+    });
+
+    [RelayCommand]
+    private Task OpenFolderAsync(string folder) => Main.RunAsync("No se pudo abrir la carpeta", () =>
+    {
+        Shell.OpenFolder(folder);
+        return Task.CompletedTask;
+    });
+
+    [RelayCommand]
+    private async Task ClearCacheAsync()
+    {
+        if (!await Main.ConfirmAsync("Vaciar la caché de descargas",
+                $"Se borran los zips descargados ({CacheSize}) de {Paths.Downloads}. Lo instalado no se toca; si reinstalas algo, se vuelve a descargar.",
+                "Vaciar", danger: true))
+            return;
+        await Main.RunAsync("No se pudo vaciar la caché", () =>
+        {
+            if (Directory.Exists(Paths.Downloads))
+                foreach (var file in Directory.EnumerateFiles(Paths.Downloads)) File.Delete(file);
+            CacheSize = FolderSize(Paths.Downloads);
+            return Task.CompletedTask;
+        });
+    }
+
+    [RelayCommand]
+    private Task ApplyPortsAsync() => Main.RunAsync("No se pudieron guardar los puertos", async () =>
+    {
+        PortsError = null;
+        if (!int.TryParse(HttpText, out var http) || !int.TryParse(HttpsText, out var https)
+            || !int.TryParse(DbPortText, out var db) || !int.TryParse(PoolText, out var pool))
+        {
+            PortsError = "Todos tienen que ser números.";
+            return;
+        }
+        if (db == http || db == https)
+        {
+            PortsError = "La base de datos no puede usar el puerto de nginx.";
+            return;
+        }
+        try
+        {
+            RoostConfig.SetWebPorts(Paths.ConfigFile, http, https);
+            RoostConfig.SetDbPort(Paths.ConfigFile, db);
+            RoostConfig.SetPhpPool(Paths.ConfigFile, pool);
+        }
+        catch (RoostException ex)
+        {
+            PortsError = ex.Message;
+            return;
+        }
+        await Main.ApplyAsync();
+        Main.NotifyConfigChanged();
+        Main.Flash("Puertos guardados");
+    });
+
+    [RelayCommand]
+    private Task ShowPortOwnersAsync()
+    {
+        int.TryParse(HttpText, out var http);
+        int.TryParse(HttpsText, out var https);
+        int.TryParse(DbPortText, out var db);
+        var lines = new[] { (http, "HTTP"), (https, "HTTPS"), (db, "base de datos") }
+            .Select(p =>
+            {
+                if (StackPlanner.BusyPorts([p.Item1]).Count == 0) return $"{p.Item1} ({p.Item2}): libre";
+                var owner = PortOwners.Find(p.Item1);
+                return $"{p.Item1} ({p.Item2}): {owner?.ProcessName ?? "otro proceso"}{(owner is null ? "" : $" (PID {owner.Pid})")}";
+            });
+        return Main.InfoAsync("Quién ocupa cada puerto", "Los puertos que tiene configurados Roost, en 127.0.0.1:", detail: string.Join(Environment.NewLine, lines));
+    }
+
+    [RelayCommand]
+    private Task RenewAllAsync() => Main.RunAsync("No se pudieron renovar los certificados", async () =>
+    {
+        var ca = new LocalCa(Paths);
+        var sites = new SiteRegistry(Paths).Load();
+        foreach (var site in sites) ca.EnsureSiteCert(site, force: true);
+        await Main.ApplyAsync();
+        Main.NotifyConfigChanged();
+        Main.Flash($"{sites.Count} certificado{(sites.Count == 1 ? "" : "s")} renovado{(sites.Count == 1 ? "" : "s")}");
+    });
+
+    [RelayCommand]
+    private async Task TrustAsync()
+    {
+        await Main.OfferTrustAsync(force: true);
+        BuildCa();
+    }
+
+    [RelayCommand]
+    private async Task UntrustAsync()
+    {
+        if (!await Main.ConfirmAsync("Dejar de confiar en la CA de Roost",
+                "Se quita de los certificados de confianza de tu usuario (Windows pedirá confirmarlo). El navegador volverá a avisar en tus sitios .test.",
+                "Dejar de confiar", danger: true))
+            return;
+        await Main.RunAsync("No se pudo quitar la CA", async () =>
+        {
+            await Task.Run(() => new LocalCa(Paths).Untrust());
+            Main.RefreshMachineState();
+        });
+        BuildCa();
+    }
+
+    [RelayCommand]
+    private Task ShowHostsBlockAsync() => Main.RunAsync("No se pudo leer el hosts", () =>
+    {
+        var hosts = new HostsUpdater();
+        var names = hosts.Current();
+        var block = names.Count == 0 ? "(vacío: aún no hay sitios en el hosts)"
+            : string.Join(Environment.NewLine, new[] { "# roost:begin" }.Concat(names.Select(n => $"127.0.0.1 {n}")).Append("# roost:end"));
+        return Main.InfoAsync("El bloque de Roost en el hosts", $"En {hosts.HostsFile}. roost-helper solo toca estas líneas.", detail: block);
+    });
+
+    [RelayCommand]
+    private Task OpenHelperLogAsync() => Main.OpenLogAsync(@"%ProgramData%\Roost\roost-helper.log");
+
+    [RelayCommand]
+    private Task CheckNowAsync() => Main.Audit.ScanAsync(forceFeed: true);
+
+    [RelayCommand]
+    private Task GoAuditAsync() => Main.NavigateToAsync(Main.AuditPage);
+
+    [RelayCommand]
+    private Task OpenRepoAsync() => Main.RunAsync("No se pudo abrir el navegador", () =>
+    {
+        Shell.OpenUrl("https://github.com/get-roost/roost");
+        return Task.CompletedTask;
+    });
+
+    [RelayCommand]
+    private Task ImportLaragonAsync() => Main.ShowWelcomeAsync(force: true);
+}

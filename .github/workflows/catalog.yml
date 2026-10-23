@@ -1,0 +1,81 @@
+# El feed firmado de avisos (roost-catalog, ROOST.md §7.3): cada día genera advisories.json desde
+# endoflife.date, php.net, los avisos de GitHub de php/php-src y el catálogo KEV de CISA, más lo
+# escrito a mano en catalog/, lo firma y lo publica en la rama `catalog`, de donde lo baja Roost.
+#
+# Necesita el secreto ROOST_CATALOG_KEY: la clave privada ECDSA P-256 (PEM) cuya pública está en
+# src/Roost.Core/Audit/FeedSignature.cs. Sin él, el job falla y no publica nada.
+# Si el generador encuentra errores (una fuente que responde a medias, un fichero de catalog/ mal
+# escrito), tampoco publica: los clientes siguen con el feed de ayer.
+name: Catalogo de avisos
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'catalog/**'
+      - 'src/Roost.Catalog/**'
+      - 'src/Roost.Core/Audit/**'
+      - '.github/workflows/catalog.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: catalog
+  cancel-in-progress: false
+
+jobs:
+  feed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Tests del generador
+        run: dotnet test tests/Roost.Catalog.Tests -c Release
+
+      - name: La rama del feed
+        run: |
+          if git ls-remote --exit-code --heads origin catalog > /dev/null; then
+            git fetch --depth=1 origin catalog:catalog
+            git worktree add feed catalog
+          else
+            git worktree add --orphan -b catalog feed
+          fi
+
+      - name: Generar y firmar
+        env:
+          ROOST_CATALOG_KEY: ${{ secrets.ROOST_CATALOG_KEY }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ -z "$ROOST_CATALOG_KEY" ]; then
+            echo "::error::Falta el secreto ROOST_CATALOG_KEY (la clave privada del catalogo): no se publica nada."
+            exit 1
+          fi
+          dotnet run --project src/Roost.Catalog -c Release -- generate \
+            --catalog catalog --out feed --previous feed/advisories.json --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Comprobar la firma (con Roost y con OpenSSL)
+        run: |
+          dotnet run --project src/Roost.Catalog -c Release --no-build -- verify feed
+          openssl dgst -sha256 -verify feed/roost-catalog.pub.pem -signature feed/advisories.json.sig feed/advisories.json
+
+      - name: Publicar en la rama catalog
+        working-directory: feed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Sin cambios."
+            exit 0
+          fi
+          git commit -q -m "Catalogo $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push origin HEAD:catalog

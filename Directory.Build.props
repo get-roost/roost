@@ -1,0 +1,46 @@
+<Project>
+
+  <!--
+    Lo común a todos los proyectos de Roost. La versión del producto vive SOLO aquí: la llevan los
+    ensamblados, los exe y los paquetes NuGet, y en tiempo de ejecución se lee de
+    AssemblyInformationalVersionAttribute (quitando el «+commit» que añade el SDK). Para publicar
+    una versión: se sube <Version>, se etiqueta v<Version> y el workflow Release comprueba que
+    coinciden (ver «Publicar una versión» en el README).
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+
+    <Product>Roost</Product>
+    <Authors>MYA Consulting</Authors>
+    <Company>MYA Consulting</Company>
+    <Copyright>Copyright (c) 2026 MYA Consulting</Copyright>
+
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/get-roost/roost</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/get-roost/roost</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+
+    <!--
+      Solo son paquetes NuGet Roost.Core, Roost.Daemon y Roost.Extensibility (ROOST.md §12.4), para
+      que las extensiones y Roost Pro compilen contra ellos: lo ponen ellos a true. Lo demás de
+      aquí abajo solo cuenta al empaquetar.
+    -->
+    <IsPackable>false</IsPackable>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageTags>roost;php;mysql;mariadb;nginx;laragon;desarrollo-local;extensiones</PackageTags>
+    <PackageReleaseNotes>https://github.com/get-roost/roost/releases/tag/v$(Version)</PackageReleaseNotes>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)assets\branding\icons\png\roost-128.png" Pack="true" PackagePath="icon.png" Visible="false" />
+  </ItemGroup>
+
+  <!-- En GitHub Actions, compilación determinista (rutas normalizadas para Source Link). -->
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+</Project>

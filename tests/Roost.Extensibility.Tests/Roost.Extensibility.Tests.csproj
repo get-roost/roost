@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Roost.Extensibility\Roost.Extensibility.csproj" />
+    <!-- La muestra se compila antes, pero NO se referencia: se carga desde una carpeta, como una de verdad. -->
+    <ProjectReference Include="..\Roost.Extensibility.Sample\Roost.Extensibility.Sample.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Target Name="CopySampleExtension" AfterTargets="Build">
+    <ItemGroup>
+      <SampleExtensionFiles Include="..\Roost.Extensibility.Sample\bin\$(Configuration)\$(TargetFramework)\Roost.Extensibility.Sample.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SampleExtensionFiles)" DestinationFolder="$(OutDir)sample-extension\Roost.Extensibility.Sample" SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

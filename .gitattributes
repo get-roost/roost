@@ -1,0 +1,2 @@
+# Los scripts de bash se ejecutan en el runner de Linux: con CRLF, bash falla.
+*.sh text eol=lf

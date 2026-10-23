@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Paquete NuGet (ROOST.md §12.4): contra él compilan las extensiones y Roost Pro. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>El núcleo de Roost: detección de PHP, MySQL y MariaDB, auditoría de EOL y CVE, instalación, roost.toml, supervisor de procesos y generación del stack (php.ini, nginx.conf, my.ini). Para compilar extensiones de Roost; no hace falta para usar Roost.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- No todo lo público lleva comentario XML, ni todos sus parámetros: que no avise de cada uno. -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Tomlyn" Version="2.10.1" />
+  </ItemGroup>
+
+  <!-- Dataset de auditoría empaquetado en el ensamblado: se evalúa sin red (ROOST.md §7.3). -->
+  <ItemGroup>
+    <EmbeddedResource Include="Audit\advisories.json" />
+  </ItemGroup>
+
+  <!-- HostsBlock es internal (también se compila dentro de roost-helper); los tests lo prueban. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Roost.Core.Tests" />
+  </ItemGroup>
+
+</Project>

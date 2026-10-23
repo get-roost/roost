@@ -1,0 +1,164 @@
+# Acción compuesta: audita con `roost audit` los PHP, MySQL y MariaDB del runner y deja el resultado
+# en el resumen del job. Está pensada para poder copiarse tal cual a un repositorio propio y
+# publicarse en el Marketplace (ver README.md): todo lo que usa está en esta carpeta y las rutas
+# salen de github.action_path.
+name: Roost Audit
+description: Audita los PHP, MySQL y MariaDB del runner con roost audit (fin de soporte y CVE) y deja el resultado en el resumen del job.
+author: Ángel Manso
+branding:
+  icon: shield
+  color: orange
+
+inputs:
+  version:
+    description: Versión de Roost (0.1.0 o v0.1.0). Por defecto, la última release estable.
+    required: false
+    default: latest
+  fail-on-blocking:
+    description: >-
+      true para que el paso falle si roost audit encuentra algo VULNERABLE o EOL con certeza (su
+      código de salida 1). Lo ámbar no hace fallar nunca.
+    required: false
+    default: 'true'
+  only:
+    description: >-
+      Qué tipos cuentan para el resumen y para fallar, separados por comas: php, mysql, mariadb.
+      Vacío, todos (lo mismo que el código de salida de roost audit). Las imágenes de GitHub traen
+      su propio MySQL; con only php, un MySQL de la imagen fuera de soporte no hace fallar el job.
+    required: false
+    default: ''
+  args:
+    description: Argumentos extra para roost audit, separados por espacios (por ejemplo, --dataset advisories.json). La acción ya pone --json donde hace falta.
+    required: false
+    default: ''
+  repository:
+    description: Repositorio de GitHub del que se bajan las releases de Roost.
+    required: false
+    default: get-roost/roost
+
+outputs:
+  exit-code:
+    description: Código de salida de roost audit (0 nada bloqueante, 1 algo VULNERABLE o EOL con certeza, 2 no se pudo cargar el dataset).
+    value: ${{ steps.audit.outputs.exit-code }}
+  blocking:
+    description: true si hay algo VULNERABLE o EOL con certeza (entre lo que cuenta, si se usa only).
+    value: ${{ steps.audit.outputs.blocking }}
+  red:
+    description: Cuántos componentes en rojo (de los que cuentan).
+    value: ${{ steps.audit.outputs.red }}
+  amber:
+    description: Cuántos componentes en ámbar (de los que cuentan).
+    value: ${{ steps.audit.outputs.amber }}
+  green:
+    description: Cuántos componentes en verde (de los que cuentan).
+    value: ${{ steps.audit.outputs.green }}
+  json:
+    description: Ruta del fichero con la salida de roost audit --json.
+    value: ${{ steps.install.outputs.json }}
+  version:
+    description: Versión de Roost usada.
+    value: ${{ steps.install.outputs.version }}
+  roost:
+    description: Ruta del ejecutable de roost (su carpeta queda además en el PATH del job).
+    value: ${{ steps.install.outputs.exe }}
+
+runs:
+  using: composite
+  steps:
+    - name: Instalar Roost
+      id: install
+      shell: bash
+      env:
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_REPOSITORY: ${{ inputs.repository }}
+        INPUT_FAIL_ON_BLOCKING: ${{ inputs.fail-on-blocking }}
+        INPUT_ONLY: ${{ inputs.only }}
+      run: |
+        case "$(printf '%s' "$INPUT_FAIL_ON_BLOCKING" | tr '[:upper:]' '[:lower:]')" in
+          true|false) ;;
+          *) echo "::error title=Roost Audit::fail-on-blocking tiene que ser true o false, no '$INPUT_FAIL_ON_BLOCKING'."; exit 1 ;;
+        esac
+
+        # Un Python 3.8+ del runner (los de GitHub lo traen en Linux y en Windows). En Windows,
+        # python3 puede ser el alias de la Microsoft Store, que no arranca: se prueba antes de usarlo.
+        py=""
+        for candidate in python3 python; do
+          if command -v "$candidate" >/dev/null 2>&1 \
+            && "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 8))' >/dev/null 2>&1; then
+            py="$candidate"
+            break
+          fi
+        done
+        if [ -z "$py" ]; then
+          echo "::error title=Roost Audit::Hace falta Python 3.8 o mas en el runner (los de GitHub ya lo traen)."
+          exit 1
+        fi
+        echo "python=$py" >> "$GITHUB_OUTPUT"
+
+        "$py" "$GITHUB_ACTION_PATH/roost_audit.py" install --version "$INPUT_VERSION" --repository "$INPUT_REPOSITORY" \
+          --only "$INPUT_ONLY"
+
+    - name: roost audit
+      id: audit
+      shell: bash
+      env:
+        # Sin el prefijo ROOST_, que es el de las variables que lee el propio Roost.
+        AUDIT_PYTHON: ${{ steps.install.outputs.python }}
+        AUDIT_EXE: ${{ steps.install.outputs.exe }}
+        AUDIT_JSON: ${{ steps.install.outputs.json }}
+        AUDIT_VERSION: ${{ steps.install.outputs.version }}
+        INPUT_ARGS: ${{ inputs.args }}
+        INPUT_FAIL_ON_BLOCKING: ${{ inputs.fail-on-blocking }}
+        INPUT_ONLY: ${{ inputs.only }}
+      run: |
+        # El código de salida lo decide el paso siguiente; aquí no se corta en ningún error.
+        set +e
+        # Los argumentos extra se parten por espacios (por eso van sin comillas), sin expandir comodines.
+        set -f
+
+        # La tabla del semáforo, para el log.
+        # shellcheck disable=SC2086
+        "$AUDIT_EXE" audit $INPUT_ARGS
+
+        # El JSON, del que salen el código, el resumen y las salidas.
+        # shellcheck disable=SC2086
+        "$AUDIT_EXE" audit --json $INPUT_ARGS > "$AUDIT_JSON"
+        code=$?
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+
+        "$AUDIT_PYTHON" "$GITHUB_ACTION_PATH/roost_audit.py" summary --json "$AUDIT_JSON" --exit-code "$code" \
+          --fail-on-blocking "$INPUT_FAIL_ON_BLOCKING" --roost-version "$AUDIT_VERSION" --only "$INPUT_ONLY"
+        exit 0
+
+    - name: Resultado
+      shell: bash
+      env:
+        EXIT_CODE: ${{ steps.audit.outputs.exit-code }}
+        AUDIT_BLOCKING: ${{ steps.audit.outputs.blocking }}
+        INPUT_FAIL_ON_BLOCKING: ${{ inputs.fail-on-blocking }}
+      run: |
+        case "$EXIT_CODE" in
+          0|1) ;;
+          2)
+            echo "::error title=Roost Audit::roost audit no pudo cargar el dataset de avisos (codigo 2)."
+            exit 1 ;;
+          *)
+            echo "::error title=Roost Audit::roost audit termino con un codigo inesperado: $EXIT_CODE."
+            exit 1 ;;
+        esac
+
+        # Sin only, blocking es lo mismo que el código 1 de roost audit; con only, lo que quede tras el filtro.
+        blocking="$AUDIT_BLOCKING"
+        if [ -z "$blocking" ]; then
+          if [ "$EXIT_CODE" = "1" ]; then blocking=true; else blocking=false; fi
+        fi
+        fail="$(printf '%s' "$INPUT_FAIL_ON_BLOCKING" | tr '[:upper:]' '[:lower:]')"
+
+        if [ "$blocking" != "true" ]; then
+          echo "roost audit: nada bloqueante."
+        elif [ "$fail" = "true" ]; then
+          echo "::error title=Roost Audit::Hay componentes VULNERABLE o EOL con certeza (roost audit sale con 1). El detalle, en el resumen del job."
+          exit 1
+        else
+          echo "::warning title=Roost Audit::Hay componentes VULNERABLE o EOL con certeza, pero fail-on-blocking es false."
+        fi

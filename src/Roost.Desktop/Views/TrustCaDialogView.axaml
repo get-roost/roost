@@ -1,0 +1,57 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.TrustCaDialogView"
+             x:DataType="vm:TrustCaDialogViewModel">
+  <Border Classes="modal" Width="560">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <Button DockPanel.Dock="Left" Content="Ahora no" Command="{Binding DismissCommand}" />
+          <Button HorizontalAlignment="Right" Classes="primary" Content="Continuar" Command="{Binding ContinueCommand}" />
+        </DockPanel>
+      </Border>
+      <StackPanel Spacing="14" Margin="20,18,20,18">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+          <Border Classes="badge-ic">
+            <ctl:Icon Data="{StaticResource IcLock}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Classes="h3" Text="Que el navegador confíe en tus sitios .test" TextWrapping="Wrap" />
+            <TextBlock Classes="faint" TextWrapping="Wrap"
+                       Text="Una sola vez. Sin esto, el navegador avisa de que tus sitios https://*.test no son seguros." />
+          </StackPanel>
+        </Grid>
+        <TextBlock TextWrapping="Wrap">
+          <Run Text="Roost firma los certificados de tus sitios con su propia autoridad (CA), que solo existe en este equipo. Para que Chrome y Edge se fíen, hay que añadirla a los certificados de confianza de " />
+          <Run Text="tu usuario" FontWeight="SemiBold" />
+          <Run Text="." />
+        </TextBlock>
+        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+          <TextBlock Classes="muted" Text="Autoridad" />
+          <TextBlock Grid.Column="1" Classes="small" Text="{Binding Subject}" TextWrapping="Wrap" />
+          <TextBlock Grid.Row="1" Classes="muted" Text="Huella" />
+          <TextBlock Grid.Row="1" Grid.Column="1" Classes="mono" Text="{Binding Thumbprint}" TextWrapping="Wrap" />
+          <TextBlock Grid.Row="2" Classes="muted" Text="Su clave" />
+          <TextBlock Grid.Row="2" Grid.Column="1" Classes="small" TextWrapping="Wrap">
+            <Run Text="{Binding KeyFile, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+            <Run Text=", legible solo por tu usuario" />
+          </TextBlock>
+        </Grid>
+        <ctl:Note Tone="Warn">
+          <TextBlock TextWrapping="Wrap">
+            <Run Text="Windows te enseñará a continuación un «Aviso de seguridad» preguntando si instalas este certificado. Comprueba que el nombre es " />
+            <Run Text="Roost Local CA" FontWeight="SemiBold" />
+            <Run Text=" y pulsa " />
+            <Run Text="Sí" FontWeight="SemiBold" />
+            <Run Text="." />
+          </TextBlock>
+        </ctl:Note>
+        <CheckBox IsEnabled="False" ToolTip.Tip="Próximamente" ToolTip.ShowOnDisabled="True">
+          <TextBlock Classes="small" Text="Configurar también Firefox (usa su propio almacén) · próximamente" />
+        </CheckBox>
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>

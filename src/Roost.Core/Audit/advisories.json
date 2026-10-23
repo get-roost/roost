@@ -1,0 +1,80 @@
+{
+  "schemaVersion": "0.1.0",
+  "generated": "2026-10-22T07:10:00Z",
+  "source": "Semilla manual PHP2Shell (fase 0 de Roost) — evaluacion EN LOCAL, sin red. Futuro: feed firmado 'roost-catalog' (advisories.json con ed25519) descrito en ROOST.md seccion 7.",
+  "remediation": {
+    "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
+    "realFix": "Actualiza a 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).",
+    "note": "El que te expone en web es el php-fpm/apache (el que sirva tu sitio), no necesariamente el CLI. Revisa cual sirve tu web."
+  },
+  "products": {
+    "php": {
+      "displayName": "PHP",
+      "branches": {
+        "5.6": { "latest": "5.6.40", "eol": "2018-12-31", "status": "eol" },
+        "7.0": { "latest": "7.0.33", "eol": "2019-01-10", "status": "eol" },
+        "7.1": { "latest": "7.1.33", "eol": "2019-12-01", "status": "eol" },
+        "7.2": { "latest": "7.2.34", "eol": "2020-11-30", "status": "eol" },
+        "7.3": { "latest": "7.3.33", "eol": "2021-12-06", "status": "eol" },
+        "7.4": { "latest": "7.4.33", "eol": "2022-11-28", "status": "eol" },
+        "8.0": { "latest": "8.0.30", "eol": "2023-11-26", "status": "eol" },
+        "8.1": { "latest": "8.1.34", "eol": "2025-12-31", "status": "eol" },
+        "8.2": { "latest": "8.2.35", "eol": "2026-12-31", "securityUntil": "2026-12-31", "status": "security" },
+        "8.3": { "latest": "8.3.36", "eol": "2027-12-31", "status": "active" },
+        "8.4": { "latest": "8.4.27", "eol": "2028-12-31", "status": "active" },
+        "8.5": { "latest": "8.5.12", "eol": "2029-12-31", "status": "active" }
+      }
+    },
+    "mysql": {
+      "displayName": "MySQL",
+      "branches": {
+        "5.7": { "latest": "5.7.44", "eol": "2023-10-31", "status": "eol" },
+        "8.0": { "latest": "8.0.46", "eol": "2026-04-30", "status": "eol" },
+        "8.4": { "latest": "8.4.11", "eol": "2032-04-30", "status": "active" }
+      }
+    },
+    "mariadb": {
+      "displayName": "MariaDB",
+      "branches": {
+        "10.4": { "latest": "10.4.34", "eol": "2024-06-18", "status": "eol" },
+        "10.5": { "latest": "10.5.27", "eol": "2025-06-24", "status": "eol" },
+        "10.6": { "latest": "10.6.28", "eol": "2026-07-06", "status": "eol" },
+        "10.11": { "latest": "10.11.19", "eol": "2028-02-16", "status": "active" },
+        "11.4": { "latest": "11.4.13", "eol": "2029-05-29", "status": "active" },
+        "11.8": { "latest": "11.8.9", "eol": "2030-02-13", "status": "active" },
+        "12.3": { "latest": "12.3.3", "eol": "2029-06-12", "status": "active" },
+        "13.0": { "latest": "13.0.2", "status": "active" }
+      }
+    }
+  },
+  "advisories": [
+    {
+      "id": "CVE-2026-109618",
+      "aliases": ["PHP2Shell"],
+      "product": "php",
+      "title": "PHP2Shell: RCE sin autenticacion por consumo de memoria en la gestion de peticiones",
+      "affected": [">=8.2.0 <8.2.35", ">=8.3.0 <8.3.36", ">=8.4.0 <8.4.27", ">=8.5.0 <8.5.12", "<8.2.0"],
+      "fixedIn": { "8.2": "8.2.35", "8.3": "8.3.36", "8.4": "8.4.27", "8.5": "8.5.12" },
+      "cvss": 9.2,
+      "kev": true,
+      "mitigations": [
+        { "ini": "memory_limit", "value": "128M (razonable)", "note": "y upload_max_filesize / post_max_size bajos" }
+      ],
+      "refs": ["https://www.php.net/releases/", "https://github.com/php/php-src/security/advisories/"]
+    },
+    {
+      "id": "CVE-2026-109619",
+      "aliases": ["PHP2Shell"],
+      "product": "php",
+      "title": "PHP2Shell: RCE sin autenticacion via session.upload_progress",
+      "affected": [">=8.2.0 <8.2.35", ">=8.3.0 <8.3.36", ">=8.4.0 <8.4.27", ">=8.5.0 <8.5.12", "<8.2.0"],
+      "fixedIn": { "8.2": "8.2.35", "8.3": "8.3.36", "8.4": "8.4.27", "8.5": "8.5.12" },
+      "cvss": 9.2,
+      "kev": true,
+      "mitigations": [
+        { "ini": "session.upload_progress.enabled", "value": "0", "note": "y reinicia TODOS los workers (php-fpm / apache)" }
+      ],
+      "refs": ["https://www.php.net/releases/", "https://github.com/php/php-src/security/advisories/"]
+    }
+  ]
+}

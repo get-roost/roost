@@ -1,0 +1,103 @@
+<!--
+  Tokens del sistema visual de Roost (los del mockup), en claro y oscuro. Los estilos los usan
+  como DynamicResource, así que cambiar de tema en Ajustes repinta todo al momento.
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <SolidColorBrush x:Key="WinBrush" Color="#F5F6F8" />
+      <SolidColorBrush x:Key="PanelBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="PanelAltBrush" Color="#FAFBFC" />
+      <SolidColorBrush x:Key="LineBrush" Color="#E0E4E9" />
+      <SolidColorBrush x:Key="Line2Brush" Color="#ECEEF1" />
+      <SolidColorBrush x:Key="TextBrush" Color="#15181C" />
+      <SolidColorBrush x:Key="MutedBrush" Color="#56606C" />
+      <SolidColorBrush x:Key="FaintBrush" Color="#646D79" />
+      <SolidColorBrush x:Key="HoverBrush" Color="#F1F3F6" />
+      <SolidColorBrush x:Key="SideBrush" Color="#1B2027" />
+      <SolidColorBrush x:Key="SideHoverBrush" Color="#232931" />
+      <SolidColorBrush x:Key="SideActiveBrush" Color="#2E3540" />
+      <SolidColorBrush x:Key="SideTextBrush" Color="#C5CDD6" />
+      <SolidColorBrush x:Key="SideMutedBrush" Color="#8E98A4" />
+      <SolidColorBrush x:Key="SideLineBrush" Color="#2B323B" />
+      <SolidColorBrush x:Key="AccentBrush" Color="#2E57CC" />
+      <SolidColorBrush x:Key="AccentHoverBrush" Color="#2447AB" />
+      <SolidColorBrush x:Key="AccentSoftBrush" Color="#E8EEFC" />
+      <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="OkBrush" Color="#17784A" />
+      <SolidColorBrush x:Key="OkBgBrush" Color="#E4F3EB" />
+      <SolidColorBrush x:Key="OkDotBrush" Color="#22A05B" />
+      <SolidColorBrush x:Key="WarnBrush" Color="#875000" />
+      <SolidColorBrush x:Key="WarnBgBrush" Color="#FFF0D2" />
+      <SolidColorBrush x:Key="WarnDotBrush" Color="#E29A00" />
+      <SolidColorBrush x:Key="BadBrush" Color="#B3261E" />
+      <SolidColorBrush x:Key="BadBgBrush" Color="#FCE9E7" />
+      <SolidColorBrush x:Key="BadDotBrush" Color="#D8352A" />
+      <SolidColorBrush x:Key="NeutralBrush" Color="#46505C" />
+      <SolidColorBrush x:Key="NeutralBgBrush" Color="#ECEFF3" />
+      <SolidColorBrush x:Key="OffDotBrush" Color="#A3ABB5" />
+      <SolidColorBrush x:Key="StopBgBrush" Color="#3A2326" />
+      <SolidColorBrush x:Key="StopHoverBrush" Color="#4A2A2E" />
+      <SolidColorBrush x:Key="StopTextBrush" Color="#FFD9D4" />
+      <SolidColorBrush x:Key="LogBgBrush" Color="#10141A" />
+      <SolidColorBrush x:Key="LogTextBrush" Color="#D3DAE2" />
+      <SolidColorBrush x:Key="ShadeBrush" Color="#750E131B" />
+      <SolidColorBrush x:Key="NoteOkTextBrush" Color="#0F5133" />
+      <SolidColorBrush x:Key="NoteWarnTextBrush" Color="#5E3A00" />
+      <SolidColorBrush x:Key="NoteBadTextBrush" Color="#7A1B15" />
+      <SolidColorBrush x:Key="NoteInfoTextBrush" Color="#1C3B8F" />
+      <SolidColorBrush x:Key="FieldLineBrush" Color="#CDD3DA" />
+      <SolidColorBrush x:Key="OkLineBrush" Color="#B8DEC9" />
+      <SolidColorBrush x:Key="TileHoverLineBrush" Color="#B9C3D0" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="WinBrush" Color="#15181D" />
+      <SolidColorBrush x:Key="PanelBrush" Color="#1D2128" />
+      <SolidColorBrush x:Key="PanelAltBrush" Color="#191D23" />
+      <SolidColorBrush x:Key="LineBrush" Color="#2E343D" />
+      <SolidColorBrush x:Key="Line2Brush" Color="#272C34" />
+      <SolidColorBrush x:Key="TextBrush" Color="#E6EAEF" />
+      <SolidColorBrush x:Key="MutedBrush" Color="#A3ACB7" />
+      <SolidColorBrush x:Key="FaintBrush" Color="#929CA8" />
+      <SolidColorBrush x:Key="HoverBrush" Color="#252A32" />
+      <SolidColorBrush x:Key="SideBrush" Color="#101318" />
+      <SolidColorBrush x:Key="SideHoverBrush" Color="#1A1E24" />
+      <SolidColorBrush x:Key="SideActiveBrush" Color="#262C35" />
+      <SolidColorBrush x:Key="SideTextBrush" Color="#C5CDD6" />
+      <SolidColorBrush x:Key="SideMutedBrush" Color="#8E98A4" />
+      <SolidColorBrush x:Key="SideLineBrush" Color="#222830" />
+      <SolidColorBrush x:Key="AccentBrush" Color="#3B65D9" />
+      <SolidColorBrush x:Key="AccentHoverBrush" Color="#4C74E2" />
+      <SolidColorBrush x:Key="AccentSoftBrush" Color="#23304F" />
+      <SolidColorBrush x:Key="OnAccentBrush" Color="#FFFFFF" />
+      <SolidColorBrush x:Key="OkBrush" Color="#7AD7A2" />
+      <SolidColorBrush x:Key="OkBgBrush" Color="#173A28" />
+      <SolidColorBrush x:Key="OkDotBrush" Color="#3DBB74" />
+      <SolidColorBrush x:Key="WarnBrush" Color="#F2C266" />
+      <SolidColorBrush x:Key="WarnBgBrush" Color="#3D2E10" />
+      <SolidColorBrush x:Key="WarnDotBrush" Color="#E9A825" />
+      <SolidColorBrush x:Key="BadBrush" Color="#FF948A" />
+      <SolidColorBrush x:Key="BadBgBrush" Color="#45211E" />
+      <SolidColorBrush x:Key="BadDotBrush" Color="#F0564B" />
+      <SolidColorBrush x:Key="NeutralBrush" Color="#B8C1CC" />
+      <SolidColorBrush x:Key="NeutralBgBrush" Color="#2A3038" />
+      <SolidColorBrush x:Key="OffDotBrush" Color="#6B7480" />
+      <SolidColorBrush x:Key="StopBgBrush" Color="#3A2326" />
+      <SolidColorBrush x:Key="StopHoverBrush" Color="#4A2A2E" />
+      <SolidColorBrush x:Key="StopTextBrush" Color="#FFD9D4" />
+      <SolidColorBrush x:Key="LogBgBrush" Color="#0B0E12" />
+      <SolidColorBrush x:Key="LogTextBrush" Color="#D3DAE2" />
+      <SolidColorBrush x:Key="ShadeBrush" Color="#99000000" />
+      <SolidColorBrush x:Key="NoteOkTextBrush" Color="#9FE3BC" />
+      <SolidColorBrush x:Key="NoteWarnTextBrush" Color="#F5D38E" />
+      <SolidColorBrush x:Key="NoteBadTextBrush" Color="#FFB4AC" />
+      <SolidColorBrush x:Key="NoteInfoTextBrush" Color="#AFC4FA" />
+      <SolidColorBrush x:Key="FieldLineBrush" Color="#3A414B" />
+      <SolidColorBrush x:Key="OkLineBrush" Color="#2B5A40" />
+      <SolidColorBrush x:Key="TileHoverLineBrush" Color="#4A5361" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+
+  <FontFamily x:Key="MonoFont">Cascadia Mono, Consolas, Menlo, DejaVu Sans Mono, monospace</FontFamily>
+</ResourceDictionary>

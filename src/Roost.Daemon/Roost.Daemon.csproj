@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Paquete NuGet (ROOST.md §12.4): contra él compilan las extensiones y Roost Pro. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>roostd, el daemon de Roost (Kestrel en una named pipe o un unix socket), su cliente y su lanzador. Para compilar extensiones de Roost; no hace falta para usar Roost.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- No todo lo público lleva comentario XML, ni todos sus parámetros: que no avise de cada uno. -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <!-- Kestrel para la API local (HTTP+JSON sobre named pipe / unix socket, ROOST.md §5.1). -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Roost.Core\Roost.Core.csproj" />
+    <ProjectReference Include="..\Roost.Extensibility\Roost.Extensibility.csproj" />
+  </ItemGroup>
+
+</Project>

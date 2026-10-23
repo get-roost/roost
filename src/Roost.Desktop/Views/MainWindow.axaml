@@ -1,0 +1,165 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:Roost.Desktop.ViewModels"
+        xmlns:v="using:Roost.Desktop.Views"
+        xmlns:ctl="using:Roost.Desktop.Controls"
+        xmlns:chrome="using:Avalonia.Controls.Chrome"
+        x:Class="Roost.Desktop.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Roost"
+        Width="1232" Height="752" MinWidth="980" MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource WinBrush}"
+        Foreground="{DynamicResource TextBrush}"
+        FontSize="13"
+        WindowDecorations="BorderOnly"
+        ExtendClientAreaToDecorationsHint="True"
+        ExtendClientAreaTitleBarHeightHint="40">
+
+  <Window.KeyBindings>
+    <KeyBinding Gesture="Escape" Command="{Binding Dialog.DismissCommand, FallbackValue={x:Null}}" />
+  </Window.KeyBindings>
+
+  <Window.DataTemplates>
+    <DataTemplate DataType="vm:HomeViewModel"><v:HomeView /></DataTemplate>
+    <DataTemplate DataType="vm:PhpViewModel"><v:PhpView /></DataTemplate>
+    <DataTemplate DataType="vm:DatabasesViewModel"><v:DatabasesView /></DataTemplate>
+    <DataTemplate DataType="vm:WebServerViewModel"><v:WebServerView /></DataTemplate>
+    <DataTemplate DataType="vm:LogsViewModel"><v:LogsView /></DataTemplate>
+    <DataTemplate DataType="vm:SitesViewModel"><v:SitesView /></DataTemplate>
+    <DataTemplate DataType="vm:AuditViewModel"><v:AuditView /></DataTemplate>
+    <DataTemplate DataType="vm:SettingsViewModel"><v:SettingsView /></DataTemplate>
+    <DataTemplate DataType="vm:WelcomeDialogViewModel"><v:WelcomeDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:NewSiteDialogViewModel"><v:NewSiteDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:TrustCaDialogViewModel"><v:TrustCaDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:InstallDialogViewModel"><v:InstallDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:RemovePhpDialogViewModel"><v:RemovePhpDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:MessageDialogViewModel"><v:MessageDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:StartErrorDialogViewModel"><v:StartErrorDialogView /></DataTemplate>
+
+    <DataTemplate DataType="vm:NavItem">
+      <Button Classes="nav" Classes.on="{Binding IsActive}" Command="{Binding Navigate}" CommandParameter="{Binding Page}"
+              AutomationProperties.Name="{Binding Label}">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+          <ctl:Icon Data="{Binding Icon}" VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1" Text="{Binding Label}" VerticalAlignment="Center" />
+          <Border Grid.Column="2" Classes="count" IsVisible="{Binding HasBadge}">
+            <TextBlock Text="{Binding Badge}" />
+          </Border>
+        </Grid>
+      </Button>
+    </DataTemplate>
+  </Window.DataTemplates>
+
+  <Grid RowDefinitions="40,*,28">
+    <!--
+      Barra de título propia (la del mockup). Los roles hacen que Windows la trate como la
+      nativa: se arrastra, el doble clic maximiza y el botón de maximizar abre los diseños de Snap.
+    -->
+    <Border Grid.Row="0" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,0,0,1"
+            chrome:WindowDecorationProperties.ElementRole="TitleBar">
+      <DockPanel>
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+        <Button Classes="winbtn" Name="MinimizeButton" chrome:WindowDecorationProperties.ElementRole="MinimizeButton"
+                AutomationProperties.Name="Minimizar" ToolTip.Tip="Minimizar">
+          <ctl:Icon Data="{StaticResource IcMinus}" Size="14" />
+        </Button>
+        <Button Classes="winbtn" Name="MaximizeButton" chrome:WindowDecorationProperties.ElementRole="MaximizeButton"
+                AutomationProperties.Name="Maximizar" ToolTip.Tip="Maximizar">
+          <ctl:Icon Data="{StaticResource IcMaximize}" Size="13" />
+        </Button>
+        <Button Classes="winbtn close" Name="CloseButton" chrome:WindowDecorationProperties.ElementRole="CloseButton"
+                AutomationProperties.Name="Cerrar (Roost sigue en la bandeja)" ToolTip.Tip="Cerrar (Roost sigue en la bandeja)">
+          <ctl:Icon Data="{StaticResource IcClose}" Size="14" />
+        </Button>
+      </StackPanel>
+      <StackPanel Orientation="Horizontal" Spacing="10" Margin="14,0" VerticalAlignment="Center">
+        <Border Width="22" Height="22" CornerRadius="6" Background="{DynamicResource AccentBrush}">
+          <ctl:Icon Data="{StaticResource IcBrand}" Size="14" StrokeThickness="2.2" Foreground="#FFFFFF"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+        <TextBlock Text="Roost" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <ctl:Chip Text="{Binding RunText}" Tone="{Binding RunTone}" ShowDot="True" />
+      </StackPanel>
+      </DockPanel>
+    </Border>
+
+    <Grid Grid.Row="1" ColumnDefinitions="212,*">
+      <!-- Barra lateral -->
+      <Border Background="{DynamicResource SideBrush}" Padding="10,12">
+        <DockPanel>
+          <Border DockPanel.Dock="Bottom" BorderBrush="{DynamicResource SideLineBrush}" BorderThickness="0,1,0,0" Padding="4,10,4,2">
+            <StackPanel Spacing="8">
+              <StackPanel Orientation="Horizontal" Spacing="8" Margin="6,0">
+                <ctl:Dot Tone="{Binding RunTone}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding RunDetail}" FontSize="12" Foreground="{DynamicResource SideTextBrush}" />
+              </StackPanel>
+              <Button Classes="bigtoggle" Classes.stop="{Binding Stack.IsRunning}" Classes.start="{Binding !Stack.IsRunning}"
+                      Command="{Binding ToggleStackCommand}" IsEnabled="{Binding !Stack.Busy}"
+                      AutomationProperties.Name="{Binding ToggleLabel}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <ctl:Icon Data="{StaticResource IcStop}" Filled="True" Size="14" IsVisible="{Binding Stack.IsRunning}" VerticalAlignment="Center" />
+                  <ctl:Icon Data="{StaticResource IcPlay}" Filled="True" Size="14" IsVisible="{Binding !Stack.IsRunning}" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding ToggleLabel}" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </StackPanel>
+          </Border>
+          <!-- Una Roost nueva: discreto, encima del estado del stack; lleva a Ajustes (novedades y cómo actualizar) -->
+          <Button DockPanel.Dock="Bottom" Classes="sideupdate" Margin="0,0,0,10" IsVisible="{Binding Updates.HasUpdate}"
+                  Command="{Binding OpenUpdatesCommand}" AutomationProperties.Name="{Binding Updates.SideText}"
+                  ToolTip.Tip="Ver las novedades y cómo actualizar">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+              <Border Width="26" Height="26" CornerRadius="7" Background="{DynamicResource AccentBrush}" VerticalAlignment="Center">
+                <ctl:Icon Data="{StaticResource IcDownload}" Size="14" StrokeThickness="2" Foreground="#FFFFFF"
+                          HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                <TextBlock Text="{Binding Updates.SideText}" FontSize="12.5" FontWeight="SemiBold" Foreground="#FFFFFF" TextTrimming="CharacterEllipsis" />
+                <TextBlock Text="Ver cómo actualizar" FontSize="11.5" Foreground="{DynamicResource SideMutedBrush}" />
+              </StackPanel>
+            </Grid>
+          </Button>
+          <StackPanel Spacing="2">
+            <ItemsControl ItemsSource="{Binding MainNav}" />
+            <TextBlock Classes="navlabel" Text="COMPONENTES" />
+            <ItemsControl ItemsSource="{Binding ComponentNav}" />
+            <TextBlock Classes="navlabel" Text="ROOST" />
+            <ItemsControl ItemsSource="{Binding RoostNav}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+
+      <!-- Pantalla actual -->
+      <ContentControl Grid.Column="1" Content="{Binding Current}" />
+    </Grid>
+
+    <!-- Barra de estado -->
+    <Border Grid.Row="2" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="0,1,0,0"
+            Padding="14,0" TextElement.FontSize="11.5" TextElement.Foreground="{DynamicResource MutedBrush}">
+      <Grid ColumnDefinitions="Auto,*" ColumnSpacing="18">
+        <Border Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" IsVisible="{Binding HasFlash}"
+                Background="{DynamicResource OkBgBrush}" CornerRadius="9" Padding="8,1" ZIndex="1">
+          <TextBlock Text="{Binding FlashText}" Foreground="{DynamicResource OkBrush}" FontWeight="SemiBold" />
+        </Border>
+        <TextBlock Grid.Column="1" Text="{Binding RootText}" IsVisible="{Binding !HasFlash}" VerticalAlignment="Center" HorizontalAlignment="Right"
+                   TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding RootText}" />
+        <StackPanel Orientation="Horizontal" Spacing="18" VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ctl:Dot Tone="{Binding RunTone}" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding RunText}" />
+          </StackPanel>
+          <TextBlock Text="{Binding DaemonText}" />
+          <TextBlock Text="{Binding CaText}" />
+          <TextBlock Text="{Binding HostsText}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Diálogos sobre la ventana -->
+    <Panel Grid.Row="1" Grid.RowSpan="2" IsVisible="{Binding HasDialog}">
+      <Border Name="Shade" Background="{DynamicResource ShadeBrush}" />
+      <ContentControl Content="{Binding Dialog}" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+    </Panel>
+  </Grid>
+</Window>

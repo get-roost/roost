@@ -1,0 +1,358 @@
+# Publica una versión de Roost en GitHub Releases.
+#
+# Se dispara al subir una etiqueta v<versión> (v0.1.0; con guion, como v0.2.0-beta.1, sale como
+# prerelease), que tiene que coincidir con <Version> de Directory.Build.props. A mano
+# (workflow_dispatch) hace todo menos publicar: deja lo que saldría en el artefacto
+# «release-preview».
+#
+# Assets: roost-<versión>-win-x64.zip (CLI, helper, shim y app, autocontenidos y en la raíz del
+# zip), roost-<versión>-linux-x64.tar.gz (solo la CLI, un ejecutable) y SHA256SUMS.txt.
+#
+# Firma (opcional; sin configurar, la release sale sin firmar y las notas lo dicen):
+#   - Azure Artifact Signing (antes Trusted Signing), con OIDC: variables AZURE_SIGNING_ENDPOINT,
+#     AZURE_SIGNING_ACCOUNT y AZURE_CERTIFICATE_PROFILE, y secretos AZURE_CLIENT_ID,
+#     AZURE_TENANT_ID y AZURE_SUBSCRIPTION_ID.
+#   - SignPath (gratis para open source con SignPath Foundation): variable
+#     SIGNPATH_ORGANIZATION_ID (y, si no valen los de por defecto, SIGNPATH_PROJECT_SLUG,
+#     SIGNPATH_SIGNING_POLICY_SLUG y SIGNPATH_ARTIFACT_CONFIGURATION_SLUG) y secreto
+#     SIGNPATH_API_TOKEN. La configuración de artefacto está en .github/signpath/.
+# Si están las dos, se usa Azure. Ver «Publicar una versión» en el README.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      firmar:
+        description: Firmar también en la prueba (gasta una firma; con SignPath, pide aprobarla)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  version:
+    name: Versión
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Leer la versión y compararla con la etiqueta
+        id: version
+        run: |
+          version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -n 1)"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error file=Directory.Build.props::<Version> no es una version semver valida: '$version'"
+            exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$version" ]; then
+            echo "::error::La etiqueta $GITHUB_REF_NAME no coincide con <Version>$version</Version> de Directory.Build.props: sube la version o borra la etiqueta"
+            exit 1
+          fi
+          case "$version" in *-*) prerelease=true ;; *) prerelease=false ;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "Roost $version (prerelease: $prerelease)"
+
+  test:
+    name: Build y tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Build
+        run: dotnet build Roost.slnx -c Release
+      - name: Tests
+        run: dotnet test Roost.slnx -c Release --no-build
+
+  windows:
+    name: Windows x64
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      id-token: write   # OIDC para Azure
+      actions: read     # SignPath lee el artefacto sin firmar
+    outputs:
+      firma: ${{ steps.firma.outputs.metodo }}
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      STAGE: artifacts/win-x64   # lo que va en el zip (firmado, si toca)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      # Los cuatro exe en una carpeta con un solo runtime; el shim, con NativeAOT. Ver el script.
+      - name: Publicar
+        shell: pwsh
+        run: ./build/publish-windows.ps1 -Output artifacts/win-x64
+
+      - name: Elegir la firma
+        id: firma
+        shell: pwsh
+        env:
+          QUIERE_FIRMAR: ${{ github.event_name == 'push' || inputs.firmar }}
+          AZURE_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          SIGNPATH_ORG: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+        run: |
+          $metodo = 'no'
+          if ($env:QUIERE_FIRMAR -eq 'true') {
+            if ($env:AZURE_ENDPOINT) { $metodo = 'azure' }
+            elseif ($env:SIGNPATH_ORG -and $env:SIGNPATH_TOKEN) { $metodo = 'signpath' }
+          }
+          "metodo=$metodo" >> $env:GITHUB_OUTPUT
+          $files = Get-Content artifacts/win-x64.firmar.txt
+          "files=$($files -join ',')" >> $env:GITHUB_OUTPUT
+          Write-Host "Firma: $metodo"
+
+      # --- Azure Artifact Signing: firma en el sitio los exe y dll propios (no los de terceros).
+      - name: Azure login (OIDC)
+        if: steps.firma.outputs.metodo == 'azure'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Firmar con Azure Artifact Signing
+        if: steps.firma.outputs.metodo == 'azure'
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files: ${{ steps.firma.outputs.files }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Roost
+          description-url: https://github.com/${{ github.repository }}
+
+      # --- SignPath: sube la carpeta como artefacto, SignPath firma lo que dice la configuración
+      # de artefacto (.github/signpath/artifact-configuration.xml) y devuelve la carpeta firmada.
+      - name: Subir sin firmar para SignPath
+        if: steps.firma.outputs.metodo == 'signpath'
+        id: sin-firmar
+        uses: actions/upload-artifact@v7
+        with:
+          name: roost-win-x64-sin-firmar
+          path: artifacts/win-x64/
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Firmar con SignPath
+        if: steps.firma.outputs.metodo == 'signpath'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'roost' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG }}
+          github-artifact-id: ${{ steps.sin-firmar.outputs.artifact-id }}
+          wait-for-completion: true
+          # Con SignPath Foundation, cada firma la aprueba una persona: hay que darle tiempo.
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: artifacts/win-x64-firmado
+
+      - name: Usar la carpeta firmada
+        if: steps.firma.outputs.metodo == 'signpath'
+        shell: pwsh
+        run: |
+          Remove-Item $env:STAGE -Recurse -Force
+          Move-Item artifacts/win-x64-firmado $env:STAGE
+
+      - name: Comprobar las firmas
+        if: steps.firma.outputs.metodo != 'no'
+        shell: pwsh
+        run: |
+          $mal = Get-Content artifacts/win-x64.firmar.txt | Where-Object { (Get-AuthenticodeSignature $_).Status -ne 'Valid' }
+          if ($mal) { throw "Sin firma valida: $($mal -join ', ')" }
+          Write-Host "Firmas validas en $env:STAGE"
+
+      - name: Probar lo publicado
+        shell: pwsh
+        run: |
+          $env:ROOST_HOME = Join-Path $env:RUNNER_TEMP 'roost-home'
+          New-Item -ItemType Directory -Force $env:ROOST_HOME | Out-Null
+          $roost = Join-Path $env:STAGE 'roost.exe'
+          $v = & $roost --version
+          if ($v -ne $env:VERSION) { throw "roost --version da '$v' y la version es $env:VERSION" }
+          & $roost scan
+          if ($LASTEXITCODE -ne 0) { throw "roost scan ha fallado (codigo $($LASTEXITCODE))" }
+          & $roost audit --json | Out-Null
+          # 0 = nada bloqueante, 1 = hay algo vulnerable en el runner; 2 = no carga el dataset.
+          if ($LASTEXITCODE -gt 1) { throw "roost audit ha salido con $($LASTEXITCODE): no carga el dataset" }
+          # El shim (NativeAOT) arranca y, sin ningun PHP de Roost, lo dice.
+          $shims = Join-Path $env:ROOST_HOME 'bin\shims'
+          New-Item -ItemType Directory -Force $shims | Out-Null
+          Copy-Item (Join-Path $env:STAGE 'roost-shim.exe') (Join-Path $shims 'php.exe')
+          $err = Join-Path $env:RUNNER_TEMP 'shim.err'
+          $p = Start-Process (Join-Path $shims 'php.exe') -ArgumentList '-v' -Wait -PassThru -NoNewWindow -RedirectStandardError $err
+          if ($p.ExitCode -ne 1 -or -not (Select-String -Path $err -Pattern 'roost php install' -Quiet)) {
+            throw "El shim no arranca bien (codigo $($p.ExitCode)): $(Get-Content $err -Raw)"
+          }
+          exit 0
+
+      - name: Empaquetar
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/dist | Out-Null
+          $zip = Join-Path $PWD "artifacts/dist/roost-$env:VERSION-win-x64.zip"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path $env:STAGE).Path, $zip, 'Optimal', $false)
+          Get-Item $zip | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-win-x64
+          path: artifacts/dist/*.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux x64
+    needs: version
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publicar
+        run: bash build/publish-linux.sh artifacts/linux-x64
+
+      - name: Probar lo publicado
+        run: |
+          export ROOST_HOME="$RUNNER_TEMP/roost-home"
+          mkdir -p "$ROOST_HOME"
+          roost=artifacts/linux-x64/roost
+          v="$("$roost" --version)"
+          if [ "$v" != "$VERSION" ]; then echo "::error::roost --version da '$v' y la version es $VERSION"; exit 1; fi
+          "$roost" scan
+          code=0
+          "$roost" audit --json > /dev/null || code=$?
+          # 0 = nada bloqueante, 1 = hay algo vulnerable en el runner; 2 = no carga el dataset.
+          if [ "$code" -gt 1 ]; then echo "::error::roost audit ha salido con $code: no carga el dataset"; exit 1; fi
+
+      - name: Empaquetar
+        run: |
+          mkdir -p artifacts/dist
+          tarball="artifacts/dist/roost-$VERSION-linux-x64.tar"
+          # Los permisos, explícitos: roost ejecutable aunque se empaquete desde otro sistema de ficheros.
+          common=(-C artifacts/linux-x64 --owner=0 --group=0 --numeric-owner)
+          tar "${common[@]}" --mode=0755 -cf "$tarball" roost
+          tar "${common[@]}" --mode=0644 -rf "$tarball" LICENSE.txt
+          gzip -9n "$tarball"
+          # A una variable: con pipefail, un grep -q en tubería corta a tar (SIGPIPE) y falla.
+          listing="$(tar -tvzf "$tarball.gz")"
+          echo "$listing"
+          grep -qE '^-rwxr-xr-x .* roost$' <<< "$listing" || { echo "::error::roost no es ejecutable en el tar.gz"; exit 1; }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-linux-x64
+          path: artifacts/dist/*.tar.gz
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: [version, test, windows, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # crear la release
+      id-token: write       # attestations
+      attestations: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+      FIRMA: ${{ needs.windows.outputs.firma }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: SHA256SUMS.txt
+        working-directory: dist
+        run: |
+          # --text: «<sha256>  <fichero>», con dos espacios (el formato de sha256sum -c).
+          sha256sum --text roost-* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Notas
+        run: |
+          case "$FIRMA" in
+            azure) firma="Los ejecutables y las dll de Roost van firmados con Azure Artifact Signing." ;;
+            signpath) firma="Los ejecutables y las dll de Roost van firmados. Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org)." ;;
+            *) firma="**Esta versión no va firmada.** Al abrirla, Windows SmartScreen puede avisar de que es de un editor desconocido («Más información» y «Ejecutar de todas formas»). Comprueba la descarga con SHA256SUMS.txt." ;;
+          esac
+          {
+            echo "## Descargas"
+            echo
+            echo "| Fichero | Qué lleva |"
+            echo "|---|---|"
+            echo "| roost-$VERSION-win-x64.zip | Windows 10/11 x64: la app (roost-desktop.exe), la CLI (roost.exe), roost-helper.exe y el shim de php. No necesita .NET instalado: descomprime y abre roost-desktop.exe. |"
+            echo "| roost-$VERSION-linux-x64.tar.gz | Linux x64: la CLI (roost), un solo ejecutable. De momento, roost scan y roost audit. |"
+            echo "| SHA256SUMS.txt | Las sumas SHA-256 de lo anterior (\`sha256sum -c SHA256SUMS.txt\`). |"
+            echo
+            echo "## Firma y procedencia"
+            echo
+            echo "$firma"
+            echo
+            echo "Cada fichero lleva una attestation de GitHub que dice de qué commit y de qué workflow ha salido: \`gh attestation verify roost-$VERSION-win-x64.zip -R $GITHUB_REPOSITORY\`."
+            echo
+          } > notes.md
+          cat notes.md
+
+      - name: Guardar lo que se publicaria (prueba)
+        if: github.event_name != 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-preview
+          path: |
+            dist/
+            notes.md
+
+      - name: Attestations de procedencia
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/roost-*
+
+      - name: Crear la release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Roost $VERSION" \
+            --notes-file notes.md \
+            --generate-notes \
+            --verify-tag \
+            "${flags[@]}"

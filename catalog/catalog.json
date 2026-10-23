@@ -1,0 +1,16 @@
+{
+  // Lo fijo del feed de avisos. Lo lee src/Roost.Catalog (ROOST.md §7.3).
+  // Cada producto: su nombre para la pantalla y su nombre en endoflife.date.
+  "products": {
+    "php": { "displayName": "PHP", "endOfLife": "php" },
+    "mysql": { "displayName": "MySQL", "endOfLife": "mysql" },
+    "mariadb": { "displayName": "MariaDB", "endOfLife": "mariadb" },
+    "nginx": { "displayName": "nginx", "endOfLife": "nginx" }
+  },
+  // "realFix" vacio: el generador pone la ultima de cada rama de PHP con soporte.
+  "remediation": {
+    "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
+    "realFix": "",
+    "note": "El que te expone en web es el php-fpm/apache (el que sirva tu sitio), no necesariamente el CLI. Revisa cual sirve tu web."
+  }
+}

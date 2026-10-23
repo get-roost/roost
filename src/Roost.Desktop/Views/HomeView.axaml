@@ -1,0 +1,205 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.HomeView"
+             x:DataType="vm:HomeViewModel">
+  <ScrollViewer>
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto" Margin="24,18,24,14">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Classes="h1" Text="Inicio" />
+          <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Command="{Binding OpenWebCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <ctl:Icon Data="{StaticResource IcExternal}" Size="15" VerticalAlignment="Center" />
+              <TextBlock Text="Abrir localhost" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+          <Button Classes="primary" Command="{Binding NewSiteCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <ctl:Icon Data="{StaticResource IcPlus}" Size="15" StrokeThickness="2" VerticalAlignment="Center" />
+              <TextBlock Text="Nuevo sitio" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </Grid>
+
+      <StackPanel Margin="24,0,24,24" Spacing="16">
+        <ctl:Note Tone="Bad" IsVisible="{Binding HasConfigError}" Content="{Binding ConfigError}" />
+
+        <!-- Accesos -->
+        <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="12">
+          <Button Classes="tile" Command="{Binding OpenWebCommand}">
+            <StackPanel Spacing="10">
+              <Border Classes="tile-ic"><ctl:Icon Data="{StaticResource IcGlobe}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+              <StackPanel>
+                <TextBlock Classes="strong" Text="Web" />
+                <TextBlock Classes="faint" Text="{Binding WebUrl}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="1" Classes="tile" Command="{Binding OpenTerminalCommand}">
+            <StackPanel Spacing="10">
+              <Border Classes="tile-ic"><ctl:Icon Data="{StaticResource IcTerminal}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+              <StackPanel>
+                <TextBlock Classes="strong" Text="Terminal" />
+                <TextBlock Classes="faint" Text="{Binding TerminalHint}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="2" Classes="tile" Command="{Binding OpenWwwCommand}">
+            <StackPanel Spacing="10">
+              <Border Classes="tile-ic"><ctl:Icon Data="{StaticResource IcFolder}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+              <StackPanel>
+                <TextBlock Classes="strong" Text="Carpeta www" />
+                <TextBlock Classes="faint mono" Text="{Binding WwwPath}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="3" Classes="tile" Command="{Binding GoDatabasesCommand}">
+            <StackPanel Spacing="10">
+              <Border Classes="tile-ic"><ctl:Icon Data="{StaticResource IcDatabase}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+              <StackPanel>
+                <TextBlock Classes="strong" Text="Base de datos" />
+                <TextBlock Classes="faint" Text="{Binding DbHint}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+          <Button Grid.Column="4" Classes="tile" Command="{Binding GoAuditCommand}">
+            <StackPanel Spacing="10">
+              <Border Classes="tile-ic" Classes.bad="{Binding AuditTone, Converter={x:Static ctl:ToneConverters.IsBad}}"
+                      Classes.warn="{Binding AuditTone, Converter={x:Static ctl:ToneConverters.IsWarn}}"
+                      Classes.ok="{Binding AuditTone, Converter={x:Static ctl:ToneConverters.IsOk}}">
+                <ctl:Icon Data="{StaticResource IcShieldAlert}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel>
+                <TextBlock Classes="strong" Text="Auditoría" />
+                <TextBlock Classes="faint" Text="{Binding AuditHint}" TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </StackPanel>
+          </Button>
+        </Grid>
+
+        <!-- Servicios -->
+        <Border Classes="card">
+          <StackPanel>
+            <Border Classes="card-h">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Classes="sm ghost" Content="Ver registros" Command="{Binding GoLogsCommand}" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Servicios" />
+                  <TextBlock Classes="hint" Text="Arrancan en este orden y se paran al revés: base de datos, PHP, nginx" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            <Border Classes="th">
+              <Grid ColumnDefinitions="*,150,130,150,80,56">
+                <TextBlock Text="Servicio" />
+                <TextBlock Grid.Column="1" Text="Versión" />
+                <TextBlock Grid.Column="2" Text="Escucha en" />
+                <TextBlock Grid.Column="3" Text="Estado" />
+                <TextBlock Grid.Column="4" Text="Reinicios" HorizontalAlignment="Right" />
+                <TextBlock Grid.Column="5" Text="Acciones" HorizontalAlignment="Right" />
+              </Grid>
+            </Border>
+            <ItemsControl ItemsSource="{Binding Services}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ServiceRow">
+                  <Border Classes="tr">
+                    <Grid ColumnDefinitions="*,150,130,150,80,56">
+                      <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                          <TextBlock Classes="strong" Text="{Binding Name}" VerticalAlignment="Center" />
+                          <ctl:Chip Text="{Binding Tag}" Tone="{Binding TagTone}" IsVisible="{Binding HasTag}" />
+                        </StackPanel>
+                        <TextBlock Classes="faint" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Version}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="2" Classes="mono" Text="{Binding Listen}" VerticalAlignment="Center" />
+                      <ctl:Chip Grid.Column="3" Text="{Binding State}" Tone="{Binding StateTone}" ShowDot="True" />
+                      <TextBlock Grid.Column="4" Classes="mono" Text="{Binding Restarts}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                      <Button Grid.Column="5" Classes="sm icon ghost" HorizontalAlignment="Right" IsEnabled="{Binding CanRestart}"
+                              Command="{Binding $parent[ItemsControl].((vm:HomeViewModel)DataContext).RestartCommand}" CommandParameter="{Binding}"
+                              ToolTip.Tip="Reiniciar" AutomationProperties.Name="{Binding Name, StringFormat='Reiniciar {0}'}">
+                        <ctl:Icon Data="{StaticResource IcRestart}" Size="15" />
+                      </Button>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+          <!-- Sitios -->
+          <Border Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h">
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Classes="sm ghost" Content="Gestionar" Command="{Binding GoSitesCommand}" />
+                  <TextBlock Classes="h2" Text="Sitios" />
+                </DockPanel>
+              </Border>
+              <ItemsControl ItemsSource="{Binding SiteLines}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SiteLine">
+                    <Border Classes="tr" MinHeight="40" Padding="16,8">
+                      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <ctl:Dot Tone="{Binding DotTone}" VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Classes="link mono" Content="{Binding Url}" HorizontalAlignment="Left" FontSize="12"
+                                Command="{Binding $parent[ItemsControl].((vm:HomeViewModel)DataContext).OpenSiteCommand}" CommandParameter="{Binding Url}" />
+                        <ctl:Chip Grid.Column="2" Text="{Binding Php}" Tone="{Binding PhpTone}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="card-b" IsVisible="{Binding !HasSites}">
+                <TextBlock Classes="muted" TextWrapping="Wrap"
+                           Text="Aún no hay sitios. Cada sitio es una carpeta servida en https://&lt;nombre&gt;.test con su propio certificado." />
+              </Border>
+            </StackPanel>
+          </Border>
+
+          <!-- Auditoría -->
+          <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h">
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Classes="sm ghost" Content="Ver todo" Command="{Binding GoAuditCommand}" />
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h2" Text="Auditoría" />
+                    <TextBlock Classes="hint" Text="{Binding AuditCardHint}" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+              <ItemsControl ItemsSource="{Binding Findings}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:FindingLine">
+                    <Border Classes="tr" MinHeight="40" Padding="16,8">
+                      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <ctl:Dot Tone="{Binding Tone}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Name}" />
+                          <TextBlock Classes="faint" Text="{Binding Source}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <ctl:Chip Grid.Column="2" Text="{Binding Chip}" Tone="{Binding Tone}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Classes="card-b" IsVisible="{Binding !HasFindings}">
+                <TextBlock Classes="muted" Text="{Binding AuditHint}" />
+              </Border>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

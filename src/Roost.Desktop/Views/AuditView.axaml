@@ -1,0 +1,173 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             xmlns:sys="using:System"
+             x:Class="Roost.Desktop.Views.AuditView"
+             x:DataType="vm:AuditViewModel">
+  <ScrollViewer>
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto" Margin="24,18,24,14">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Classes="h1" Text="Auditoría" />
+          <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <Button Content="Exportar (Markdown / JSON)" Command="{Binding ExportCommand}" />
+          <Button Content="Volver a escanear" Command="{Binding RescanCommand}" IsEnabled="{Binding !Scanning}" />
+        </StackPanel>
+      </Grid>
+
+      <StackPanel Margin="24,0,24,24" Spacing="16">
+        <!-- Resumen -->
+        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="12">
+          <Border Classes="card card-b">
+            <StackPanel Spacing="4">
+              <ctl:Chip Text="Rojo" Tone="Bad" ShowDot="True" />
+              <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding Red}" />
+              <TextBlock Classes="faint" Text="vulnerable o fin de vida" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="card card-b">
+            <StackPanel Spacing="4">
+              <ctl:Chip Text="Ámbar" Tone="Warn" ShowDot="True" />
+              <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding Amber}" />
+              <TextBlock Classes="faint" Text="sin verificar o conviene actualizar" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Classes="card card-b">
+            <StackPanel Spacing="4">
+              <ctl:Chip Text="Verde" Tone="Ok" ShowDot="True" />
+              <TextBlock FontSize="26" FontWeight="SemiBold" Text="{Binding Green}" />
+              <TextBlock Classes="faint" Text="al día" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="3" Classes="card card-b">
+            <StackPanel Spacing="4">
+              <ctl:Chip Text="Avisos" />
+              <TextBlock FontSize="15" FontWeight="SemiBold" Margin="0,6,0,0" Text="{Binding DatasetDate}" />
+              <TextBlock Classes="faint" Text="{Binding DatasetOrigin}" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <!-- Inventario -->
+        <Border Classes="card">
+          <StackPanel>
+            <Border Classes="card-h">
+              <DockPanel>
+                <CheckBox DockPanel.Dock="Right" IsChecked="{Binding IncludeOutside}">
+                  <TextBlock Classes="small" Text="Incluir lo de fuera de Roost" />
+                </CheckBox>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <TextBlock Classes="h2" Text="Inventario" />
+                  <Border Classes="seg">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                      <RadioButton Theme="{StaticResource SegButton}" GroupName="audit-filter" Content="Todo" IsChecked="{Binding ShowAll}" />
+                      <RadioButton Theme="{StaticResource SegButton}" GroupName="audit-filter" Content="Rojo" IsChecked="{Binding ShowRed}" />
+                      <RadioButton Theme="{StaticResource SegButton}" GroupName="audit-filter" Content="Ámbar" IsChecked="{Binding ShowAmber}" />
+                      <RadioButton Theme="{StaticResource SegButton}" GroupName="audit-filter" Content="Verde" IsChecked="{Binding ShowGreen}" />
+                    </StackPanel>
+                  </Border>
+                  <TextBlock Classes="hint" Text="{Binding ScanText}" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            <Border Classes="th">
+              <Grid ColumnDefinitions="16,1.5*,0.9*,*,2*" ColumnSpacing="12">
+                <TextBlock Grid.Column="1" Text="Componente" />
+                <TextBlock Grid.Column="2" Text="Origen" />
+                <TextBlock Grid.Column="3" Text="Veredicto" />
+                <TextBlock Grid.Column="4" Text="Detalle" />
+              </Grid>
+            </Border>
+            <TextBlock Classes="muted" Margin="16,12" IsVisible="{Binding !HasRows}"
+                       Text="{Binding Scanning, Converter={x:Static ctl:ValueConverters.ScanningText}}" />
+            <ItemsControl ItemsSource="{Binding Rows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AuditRow">
+                  <Button Classes="row" Classes.sel="{Binding IsSelected}"
+                          Command="{Binding $parent[ItemsControl].((vm:AuditViewModel)DataContext).ChooseCommand}" CommandParameter="{Binding}"
+                          AutomationProperties.Name="{Binding Version, StringFormat='Componente {0}'}">
+                    <Border Classes="tr" Padding="16,9">
+                      <Grid ColumnDefinitions="16,1.5*,0.9*,*,2*" ColumnSpacing="12">
+                        <ctl:Dot Tone="{Binding Tone}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock>
+                            <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                            <Run Text=" " />
+                            <Run Text="{Binding Version, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                          </TextBlock>
+                          <TextBlock Classes="faint" Text="{Binding Variant}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <TextBlock Grid.Column="2" Classes="small" Text="{Binding Source}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                        <ctl:Chip Grid.Column="3" Text="{Binding Verdict}" Tone="{Binding Tone}" />
+                        <TextBlock Grid.Column="4" Classes="small muted" Text="{Binding Detail}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                      </Grid>
+                    </Border>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- Detalle -->
+        <Border Classes="card" IsVisible="{Binding HasSelection}">
+          <StackPanel>
+            <Border Classes="card-h">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Classes="sm primary" Content="{Binding ActionLabel}" Command="{Binding ActCommand}" IsVisible="{Binding HasAction}" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <ctl:Dot Tone="{Binding Selected.Tone, FallbackValue=Off}" VerticalAlignment="Center" />
+                  <TextBlock Classes="h2" Text="{Binding SelectedTitle}" />
+                  <ctl:Chip Text="{Binding Selected.Verdict, FallbackValue=''}" Tone="{Binding Selected.Tone, FallbackValue=Neutral}" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            <StackPanel Margin="16,14" Spacing="12">
+              <SelectableTextBlock Classes="mono faint" Text="{Binding Selected.Finding.Component.ExecutablePath, FallbackValue=''}" />
+              <TextBlock Text="{Binding LongText}" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="16" IsVisible="{Binding HasAdvisories}">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="lbl" Text="Avisos" />
+                  <ItemsControl ItemsSource="{Binding Advisories}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:AdvisoryLine">
+                        <StackPanel>
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="mono strong" Text="{Binding Id}" VerticalAlignment="Center" />
+                            <TextBlock Classes="small" Text="{Binding Meta, StringFormat='· {0}'}" VerticalAlignment="Center" />
+                            <ctl:Chip Text="KEV" Tone="Bad" IsVisible="{Binding Kev}" />
+                          </StackPanel>
+                          <TextBlock Classes="faint" Text="{Binding Title}" TextWrapping="Wrap" />
+                        </StackPanel>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="6" IsVisible="{Binding HasMitigations}">
+                  <TextBlock Classes="lbl" Text="Mitigaciones (no sustituyen al parche)" />
+                  <ItemsControl ItemsSource="{Binding Mitigations}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="sys:String">
+                        <TextBlock Classes="mono" Text="{Binding}" TextWrapping="Wrap" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock Classes="faint" Text="{Binding RealFix}" TextWrapping="Wrap" />
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

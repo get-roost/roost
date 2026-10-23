@@ -1,0 +1,82 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.StartErrorDialogView"
+             x:DataType="vm:StartErrorDialogViewModel">
+  <Border Classes="modal wide" Width="720">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <Button DockPanel.Dock="Left" Content="Ver registros" Command="{Binding OpenLogsCommand}" />
+          <Button HorizontalAlignment="Right" Content="Cerrar" Command="{Binding DismissCommand}" />
+        </DockPanel>
+      </Border>
+      <ScrollViewer MaxHeight="560">
+        <StackPanel Spacing="14" Margin="20,18,20,18">
+          <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+            <Border Classes="badge-ic bad">
+              <ctl:Icon Data="{StaticResource IcError}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Classes="h3" Text="{Binding Title}" TextWrapping="Wrap" />
+              <TextBlock Classes="faint" Text="{Binding Subtitle}" />
+            </StackPanel>
+          </Grid>
+
+          <ItemsControl ItemsSource="{Binding Ports}" IsVisible="{Binding HasPorts}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:BusyPortView">
+                <ctl:Note Tone="Bad">
+                  <StackPanel>
+                    <TextBlock Classes="strong" Text="{Binding Headline}" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Owner}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </ctl:Note>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <ctl:Note Tone="Bad" IsVisible="{Binding !HasPorts}" Content="{Binding Message}" />
+
+          <StackPanel Spacing="6" IsVisible="{Binding HasLogTail}">
+            <TextBlock Classes="lbl" Text="Final de los registros" />
+            <Border Classes="log" MaxHeight="140">
+              <ScrollViewer HorizontalScrollBarVisibility="Auto">
+                <SelectableTextBlock Classes="mono" Text="{Binding LogTail}" Foreground="{DynamicResource LogTextBrush}" />
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+
+          <StackPanel Spacing="8">
+            <TextBlock Classes="lbl" Text="Qué puedes hacer" />
+            <ItemsControl ItemsSource="{Binding Ports}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:BusyPortView">
+                  <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding UseLabel, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <Button Classes="sm primary" Content="{Binding UseLabel}"
+                            Command="{Binding $parent[UserControl].((vm:StartErrorDialogViewModel)DataContext).UsePortCommand}" CommandParameter="{Binding}" />
+                    <TextBlock Classes="faint" Text="{Binding UseHint}" VerticalAlignment="Center" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button Classes="sm" Content="Elegir otro puerto…" Command="{Binding OpenSettingsCommand}" />
+              <TextBlock Classes="faint" Text="En Ajustes › Puertos y procesos" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Button Classes="sm" Content="Reintentar" Command="{Binding RetryCommand}" />
+              <TextBlock Classes="faint" Text="Después de parar el programa que lo ocupa" VerticalAlignment="Center" />
+            </StackPanel>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

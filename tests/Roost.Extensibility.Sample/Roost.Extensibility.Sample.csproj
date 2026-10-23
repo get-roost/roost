@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Una extensión de muestra para los tests de los puntos de enganche (ROOST.md §12.4): aporta un
+    servicio, avisos, un scanner y un comando, y trae a propósito otra que pide un contrato más
+    nuevo. Los tests la copian a una carpeta bin/extensions y la cargan como una de verdad.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Roost.Extensibility\Roost.Extensibility.csproj" Private="false" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,135 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.NewSiteDialogView"
+             x:DataType="vm:NewSiteDialogViewModel">
+  <Border Classes="modal wide" Width="720">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Cancelar" Command="{Binding DismissCommand}" />
+          <Button Classes="primary" Content="Crear y abrir" Command="{Binding CreateCommand}" IsEnabled="{Binding NameValid}" />
+        </StackPanel>
+      </Border>
+      <ScrollViewer MaxHeight="600">
+        <StackPanel Spacing="14" Margin="20,18,20,18">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Border Classes="badge-ic">
+              <ctl:Icon Data="{StaticResource IcPlus}" Size="18" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Classes="h3" Text="Nuevo sitio" />
+              <TextBlock Classes="faint" Text="Repetirlo sobre un sitio que ya existe solo lo actualiza." />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="icon ghost" VerticalAlignment="Top" Command="{Binding DismissCommand}" AutomationProperties.Name="Cerrar">
+              <ctl:Icon Data="{StaticResource IcClose}" Size="15" />
+            </Button>
+          </Grid>
+
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="14">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="lbl" Text="Nombre" />
+              <TextBox Classes="mono" Text="{Binding Name}" PlaceholderText="tienda" AutomationProperties.Name="Nombre del sitio" />
+              <TextBlock Classes="small" Text="{Binding NameHint}" TextWrapping="Wrap"
+                         Foreground="{DynamicResource MutedBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="6">
+              <TextBlock Classes="lbl" Text="Carpeta" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBox Classes="mono" Text="{Binding Folder}" AutomationProperties.Name="Carpeta del sitio" />
+                <Button Grid.Column="1" Classes="icon" Command="{Binding BrowseCommand}" ToolTip.Tip="Elegir carpeta" AutomationProperties.Name="Elegir carpeta">
+                  <ctl:Icon Data="{StaticResource IcFolder}" Size="15" />
+                </Button>
+              </Grid>
+              <TextBlock Classes="faint" Text="{Binding FolderHint}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Spacing="6">
+              <TextBlock Classes="lbl" Text="PHP" />
+              <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding Php}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
+              <Button Classes="link" Content="Instalar otra versión…" HorizontalAlignment="Left" FontSize="12" Command="{Binding InstallOtherCommand}" />
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+              <TextBlock Classes="lbl" Text="Base de datos" />
+              <CheckBox IsChecked="{Binding CreateDatabase}" IsEnabled="{Binding HasDb}" MinHeight="34">
+                <TextBlock>
+                  <Run Text="Crear " />
+                  <Run Text="{Binding DbName, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text="{Binding DbLabel, StringFormat=' en {0}', Mode=OneWay}" />
+                </TextBlock>
+              </CheckBox>
+            </StackPanel>
+          </Grid>
+
+          <StackPanel Spacing="6">
+            <TextBlock Classes="lbl" Text="Plantilla" />
+            <Border Classes="seg">
+              <ItemsControl ItemsSource="{Binding Templates}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SiteTemplate">
+                    <RadioButton Theme="{StaticResource SegButton}" GroupName="plantilla" Content="{Binding Label}" IsEnabled="{Binding Available}"
+                                 IsChecked="{Binding Available, Mode=OneTime}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
+                                 Command="{Binding $parent[ItemsControl].((vm:NewSiteDialogViewModel)DataContext).PickTemplateCommand}" CommandParameter="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Border>
+            <TextBlock Classes="faint" Text="{Binding Template.Hint}" TextWrapping="Wrap" />
+          </StackPanel>
+
+          <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="14,12">
+            <StackPanel Spacing="10">
+              <TextBlock Classes="lbl" Text="Al crear, Roost:" />
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" Classes="small" Text="{Binding StepFolder}" TextWrapping="Wrap" />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" Classes="small" TextWrapping="Wrap">
+                  <Run Text="Escribe el vhost de nginx y emite el certificado de " />
+                  <Run Text="{Binding Host, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text=" y " />
+                  <Run Text="{Binding Host, StringFormat='*.{0}', Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                </TextBlock>
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding UsesLocalDns}">
+                <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" Classes="small" TextWrapping="Wrap">
+                  <Run Text="{Binding Host, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text=" ya resuelve: lo responde el DNS local de Roost, sin permisos" />
+                </TextBlock>
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding UsesHosts}">
+                <ctl:Dot Tone="Warn" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" Classes="small" TextWrapping="Wrap">
+                  <Run Text="Añade " />
+                  <Run Text="{Binding Host, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text=" al hosts: Windows pedirá permiso de administrador" />
+                </TextBlock>
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding CreateDatabase}">
+                <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" TextWrapping="Wrap" Classes="small">
+                  <Run Text="Crea la base de datos " />
+                  <Run Text="{Binding DbName, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text=" (utf8mb4)" />
+                </TextBlock>
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" TextWrapping="Wrap" Classes="small">
+                  <Run Text="Recarga el stack y abre " />
+                  <Run Text="{Binding Host, StringFormat='https://{0}/', Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                </TextBlock>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

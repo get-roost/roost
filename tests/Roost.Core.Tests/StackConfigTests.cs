@@ -1,0 +1,175 @@
+using Roost.Core.Config;
+using Roost.Core.Install;
+using Roost.Core.Models;
+using Roost.Core.Platform;
+using Roost.Core.Scanning;
+using Roost.Core.Stack;
+
+namespace Roost.Core.Tests;
+
+/// <summary>
+/// Testea las piezas puras del stack: puertos del pool, php.ini, nginx.conf y la elección del
+/// PHP global. Nada arranca procesos ni toca la red.
+/// </summary>
+public class StackConfigTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "roost-stack-" + Guid.NewGuid().ToString("N"));
+
+    [Fact]
+    public void PhpPool_PuertosSeparadosPorRama_ComoEnRoostMd()
+    {
+        Assert.Equal([9830, 9831, 9832, 9833], PhpPool.Ports(new ComponentVersion(8, 3, 36, "8.3.36"), 4));
+        Assert.Equal([9740], PhpPool.Ports(new ComponentVersion(7, 4, 33, "7.4.33"), 1));
+        Assert.Equal("php-8.3", PhpPool.UpstreamName(new ComponentVersion(8, 3, 36, "8.3.36")));
+    }
+
+    [Fact]
+    public void PhpIni_SoloActivaLasExtensionesQueTraeElBuild()
+    {
+        var available = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "curl", "mbstring", "opcache", "xdebug" };
+
+        var ini = PhpIni.Render("8.4.27-nts-x64", @"C:\roost\bin\php\8.4.27-nts-x64", available, @"C:\roost\etc\php\conf.d", @"C:\roost\logs\php-8.4-error.log");
+
+        Assert.Contains("extension=curl\n", ini);
+        Assert.Contains("extension=mbstring\n", ini);
+        Assert.DoesNotContain("extension=intl", ini);   // el build no la trae
+        Assert.DoesNotContain("xdebug", ini);           // la trae, pero no se activa sola
+        Assert.Contains("zend_extension=opcache", ini);
+        Assert.Contains(@"extension_dir = ""C:\roost\bin\php\8.4.27-nts-x64\ext""", ini);
+        Assert.Contains(@"error_log = ""C:\roost\logs\php-8.4-error.log""", ini);
+    }
+
+    [Fact]
+    public void PhpIni_SinDllDeOpcache_NoLaCarga_PeroLaConfigura()
+    {
+        // PHP 8.5 trae OPcache dentro del binario: no hay php_opcache.dll.
+        var ini = PhpIni.Render("8.5.12-nts-x64", @"C:\php", new HashSet<string>(), @"C:\confd", @"C:\log");
+
+        Assert.DoesNotContain("zend_extension=opcache", ini);
+        Assert.Contains("opcache.enable = 1", ini);
+    }
+
+    [Fact]
+    public void PhpIni_ConEleccionDelUsuario_ActivaYQuitaSoloLoQueTraeElBuild()
+    {
+        var available = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "curl", "mbstring", "opcache", "soap", "xsl" };
+        var choice = PhpExtensionChoice.None
+            .With("soap", enabled: true)
+            .With("ldap", enabled: true)       // el build no la trae: no se carga
+            .With("mbstring", enabled: false);
+
+        var ini = PhpIni.Render("8.4.27-nts-x64", @"C:\php", available, @"C:\confd", @"C:\log", choice);
+
+        Assert.Contains("extension=curl\n", ini);
+        Assert.Contains("extension=soap\n", ini);
+        Assert.DoesNotContain("extension=mbstring", ini);
+        Assert.DoesNotContain("ldap", ini);
+        Assert.DoesNotContain("xsl", ini);
+        Assert.Contains("zend_extension=opcache", ini);
+    }
+
+    [Fact]
+    public void PhpIni_QuitarOpcache_LaDescargaYLaApaga()
+    {
+        var available = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "opcache" };
+
+        var ini = PhpIni.Render("8.4.27-nts-x64", @"C:\php", available, @"C:\confd", @"C:\log", PhpExtensionChoice.None.With("opcache", enabled: false));
+
+        Assert.DoesNotContain("zend_extension=opcache", ini);
+        Assert.Contains("opcache.enable = 0", ini);
+    }
+
+    [Fact]
+    public void PhpExtensionChoice_SoloGuardaLoQueSeApartaDeLoDeSerie_YSobreviveAlDisco()
+    {
+        var file = Path.Combine(_dir, "8.4.27-nts-x64", PhpExtensionChoice.FileName);
+        var choice = PhpExtensionChoice.None
+            .With("soap", enabled: true)
+            .With("curl", enabled: true)      // ya es de serie: no se apunta
+            .With("intl", enabled: false)
+            .With("soap", enabled: false);    // vuelve a lo de serie
+
+        choice.Save(file);
+        var loaded = PhpExtensionChoice.Load(file);
+
+        Assert.Empty(loaded.On);
+        Assert.Equal(["intl"], loaded.Off);
+        Assert.Same(PhpExtensionChoice.None, PhpExtensionChoice.Load(Path.Combine(_dir, "no-existe.json")));
+    }
+
+    [Fact]
+    public void PhpIni_AvailableExtensions_LeeLasDllDeExt()
+    {
+        Directory.CreateDirectory(Path.Combine(_dir, "ext"));
+        File.WriteAllText(Path.Combine(_dir, "ext", "php_curl.dll"), "");
+        File.WriteAllText(Path.Combine(_dir, "ext", "php_pdo_mysql.dll"), "");
+        File.WriteAllText(Path.Combine(_dir, "ext", "libsasl.dll"), ""); // no es una extension
+        File.WriteAllText(Path.Combine(_dir, "ext", "php_zend_test.dll"), ""); // solo para los tests de PHP
+
+        var available = PhpIni.AvailableExtensions(_dir);
+
+        Assert.Equal(["curl", "pdo_mysql"], available.Order());
+    }
+
+    [Fact]
+    public void NginxConf_UpstreamPuertoYRutasConBarrasNormales()
+    {
+        var conf = NginxConf.Render(new NginxConfInput(
+            @"C:\roost\bin\nginx\1.30.6\conf\mime.types",
+            @"C:\roost\bin\nginx\1.30.6\conf\fastcgi_params",
+            @"C:\roost\run",
+            @"C:\roost\logs",
+            @"C:\www",
+            8765,
+            [new NginxUpstream("php-8.4", [9840, 9841])],
+            "php-8.4",
+            @"C:\roost\etc\nginx\sites"));
+
+        Assert.Contains("upstream php-8.4 {\n        server 127.0.0.1:9840;\n        server 127.0.0.1:9841;\n    }", conf);
+        Assert.Contains("listen 127.0.0.1:8765;", conf);   // solo loopback
+        Assert.Contains("fastcgi_pass php-8.4;", conf);
+        Assert.Contains("root \"C:/www\";", conf);
+        Assert.Contains("include \"C:/roost/bin/nginx/1.30.6/conf/fastcgi_params\";", conf);
+        Assert.Contains("include \"C:/roost/etc/nginx/sites/*.conf\";", conf);
+        Assert.DoesNotContain("\\", conf.Replace(@"\.php$", ""));   // ninguna '\' en rutas
+    }
+
+    private static InstalledPhp Installed(string name) => new(name, @"C:\roost\bin\php\" + name, @"C:\roost\bin\php\" + name + @"\php.exe");
+
+    private StackPlanner Planner() => new(new RoostPaths(_dir, Path.Combine(_dir, "cache")), ProcessRunner.Default);
+
+    [Fact]
+    public void ResolvePhp_SinVersion_DaLaMasNueva_YPrefiereNts()
+    {
+        var installed = new[] { Installed("8.4.27-ts-x64"), Installed("8.4.27-nts-x64"), Installed("8.3.36-nts-x64") };
+
+        var php = Planner().ResolvePhp(new RoostConfig(), installed);
+
+        Assert.Equal("8.4.27-nts-x64", php.Name);
+    }
+
+    [Fact]
+    public void ResolvePhp_ConRama_DaLaDeEsaRama()
+    {
+        var installed = new[] { Installed("8.4.27-nts-x64"), Installed("8.3.36-nts-x64") };
+
+        var php = Planner().ResolvePhp(new RoostConfig { PhpVersion = "8.3" }, installed);
+
+        Assert.Equal("8.3.36-nts-x64", php.Name);
+    }
+
+    [Fact]
+    public void ResolvePhp_SinNadaQueCase_FallaDiciendoComoInstalarlo()
+    {
+        var ex = Assert.Throws<RoostException>(() =>
+            Planner().ResolvePhp(new RoostConfig { PhpVersion = "7.4" }, [Installed("8.4.27-nts-x64")]));
+
+        Assert.Contains("roost php install 7.4", ex.Message);
+        Assert.Throws<RoostException>(() => Planner().ResolvePhp(new RoostConfig(), []));
+    }
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_dir, recursive: true); } catch { /* best effort */ }
+    }
+}

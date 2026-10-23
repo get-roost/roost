@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.12.0.schema.json
+
+PackageIdentifier: Roost.Roost
+PackageVersion: {{version}}
+PackageLocale: en-US
+Publisher: Roost
+PublisherUrl: https://github.com/get-roost
+PublisherSupportUrl: https://github.com/get-roost/roost/issues
+Author: Ángel Manso
+PackageName: Roost
+PackageUrl: https://github.com/get-roost/roost
+License: MIT
+LicenseUrl: https://github.com/get-roost/roost/blob/HEAD/LICENSE
+Copyright: Copyright (c) 2026 MYA Consulting
+ShortDescription: Local PHP development environment (PHP, MariaDB/MySQL, nginx and https://*.test sites) that tells you when what you run is end-of-life or has known CVEs.
+Description: |-
+  Roost installs official PHP, MariaDB and MySQL builds side by side, serves every project at https://<name>.test with nginx and a local CA, and picks the right PHP for each folder in the terminal.
+  It also audits every PHP, MySQL and MariaDB on the machine (Roost, Laragon, XAMPP, WAMP, Herd, Scoop...) against a bundled dataset of advisories and end-of-life dates, with exit codes for CI.
+  The package includes the roost CLI and the Roost desktop app (roost-desktop), with a tray icon. Both are in Spanish.
+Moniker: roost
+Tags:
+- php
+- mysql
+- mariadb
+- nginx
+- local-development
+- development-environment
+- web-development
+- security
+- cve
+- eol
+ReleaseNotesUrl: https://github.com/get-roost/roost/releases/tag/v{{version}}
+InstallationNotes: |-
+  Roost keeps its data outside the package folder: PHP, nginx, databases and certificates in C:\roost, settings in %APPDATA%\Roost and projects in C:\www. Upgrading or uninstalling does not delete them.
+  Run "roost down" and close the app before upgrading or uninstalling: running files cannot be replaced.
+  roost-helper.exe runs elevated (UAC) to edit the hosts file and the .test DNS rule. With this portable install it lives in a folder that any program running as you can write to; installing with "--scope machine" (as administrator) puts it under Program Files instead.
+  Official PHP, MariaDB and MySQL builds for Windows need the Visual C++ 2015-2022 Redistributable: winget install Microsoft.VCRedist.2015+.x64
+Documentations:
+- DocumentLabel: README
+  DocumentUrl: https://github.com/get-roost/roost#readme
+ManifestType: defaultLocale
+ManifestVersion: 1.12.0

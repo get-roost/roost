@@ -1,0 +1,10 @@
+bin/
+obj/
+.vs/
+*.user
+TestResults/
+artifacts/
+
+# Worktrees de los agentes de Claude Code
+.claude/worktrees/
+__pycache__/

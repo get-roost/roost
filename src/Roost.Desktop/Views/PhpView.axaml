@@ -1,0 +1,207 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.PhpView"
+             x:DataType="vm:PhpViewModel">
+  <ScrollViewer>
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto" Margin="24,18,24,14">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Classes="h1" Text="PHP" />
+          <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="Comprobar catálogo" Command="{Binding RefreshCatalogCommand}" IsEnabled="{Binding !LoadingCatalog}" />
+      </Grid>
+
+      <StackPanel Margin="24,0,24,24" Spacing="16">
+        <ctl:Note Tone="Accent" IsVisible="{Binding IsInstalling}">
+          <TextBlock Text="{Binding Installing, StringFormat='Instalando en segundo plano: {0}'}" />
+        </ctl:Note>
+
+        <!-- Instaladas -->
+        <StackPanel Spacing="10">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <TextBlock Classes="h2" Text="Instaladas por Roost" />
+            <TextBlock Classes="faint" Text="Global: la que sirve localhost y los sitios sin PHP propio" VerticalAlignment="Center" />
+          </StackPanel>
+          <ctl:Note Tone="Warn" IsVisible="{Binding !HasInstalled}"
+                    Content="Aún no hay ningún PHP de Roost. Instala uno de la lista de disponibles: la 8.4 es una buena elección." />
+          <ItemsControl ItemsSource="{Binding Installed}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><UniformGrid Columns="4" ColumnSpacing="12" RowSpacing="12" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:PhpCard">
+                <Button Classes="vcard" Classes.sel="{Binding IsSelected}"
+                        Command="{Binding $parent[ItemsControl].((vm:PhpViewModel)DataContext).PickCommand}" CommandParameter="{Binding}"
+                        AutomationProperties.Name="{Binding Version, StringFormat='PHP {0}'}">
+                  <StackPanel Spacing="8">
+                    <Grid ColumnDefinitions="Auto,Auto,*">
+                      <TextBlock Classes="ver" Text="{Binding Version}" VerticalAlignment="Center" />
+                      <ctl:Chip Grid.Column="1" Text="global" Tone="Accent" Margin="8,0,0,0" IsVisible="{Binding IsGlobal}" />
+                      <ctl:Dot Grid.Column="2" Tone="{Binding DotTone}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                    </Grid>
+                    <TextBlock Classes="faint" Text="{Binding Variant}" />
+                    <ctl:Chip Text="{Binding Verdict}" Tone="{Binding VerdictTone}" />
+                    <TextBlock Classes="small muted" Text="{Binding Usage}" TextTrimming="CharacterEllipsis" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
+        <Grid ColumnDefinitions="*,340" ColumnSpacing="16">
+          <!-- Detalle -->
+          <Border Classes="card" VerticalAlignment="Top" IsVisible="{Binding HasSelection}">
+            <StackPanel>
+              <Border Classes="card-h">
+                <DockPanel>
+                  <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="sm" Content="Usar como global" Command="{Binding UseAsGlobalCommand}" IsEnabled="{Binding !Selected.IsGlobal, FallbackValue=False}" />
+                    <Button Classes="sm" Content="Terminal" Command="{Binding OpenTerminalCommand}" />
+                    <Button Classes="sm danger" Content="Quitar" Command="{Binding RemoveCommand}" />
+                  </StackPanel>
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h2">
+                      <Run Text="PHP " /><Run Text="{Binding Selected.Version, FallbackValue='', Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                    </TextBlock>
+                    <ctl:Chip Text="{Binding Selected.Verdict, FallbackValue=''}" Tone="{Binding Selected.VerdictTone, FallbackValue=Neutral}" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+              <StackPanel Margin="16,14" Spacing="14">
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+                  <TextBlock Classes="muted" Text="Carpeta" />
+                  <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,-6">
+                    <TextBlock Classes="mono" Text="{Binding Folder}" TextTrimming="LeadingCharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Folder}" />
+                    <Button Grid.Column="1" Classes="sm ghost icon" Margin="4,0,0,0" Command="{Binding OpenFolderCommand}" ToolTip.Tip="Abrir la carpeta" AutomationProperties.Name="Abrir la carpeta">
+                      <ctl:Icon Data="{StaticResource IcFolder}" Size="14" />
+                    </Button>
+                  </Grid>
+                  <TextBlock Grid.Row="1" Classes="muted" Text="php.ini" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding IniPath}">
+                    <Run Text="{Binding IniPath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                    <Run Text="  (generado, no se edita)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
+                  </TextBlock>
+                  <TextBlock Grid.Row="2" Classes="muted" Text="Tus ajustes" VerticalAlignment="Center" />
+                  <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="mono" Text="conf.d\99-usuario.ini" VerticalAlignment="Center" />
+                    <Button Classes="sm ghost" Content="Editar" Command="{Binding EditUserIniCommand}" />
+                    <TextBlock Classes="faint" Text="valen para todas las versiones" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="3" Classes="muted" Text="Pool php-cgi" />
+                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="mono" Text="{Binding PoolText}" />
+                </Grid>
+
+                <StackPanel Spacing="8">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="lbl" Text="Extensiones" />
+                    <TextBlock Classes="faint" Text="{Binding ExtensionSummary, StringFormat='{}{0}. Activar una la añade al php.ini de esta versión y reinicia su pool.'}" TextWrapping="Wrap" />
+                  </StackPanel>
+                  <ItemsControl ItemsSource="{Binding Extensions}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ExtensionToggle">
+                        <Button Classes="ext" Classes.on="{Binding IsOn}" Content="{Binding Name}"
+                                Command="{Binding $parent[ItemsControl].((vm:PhpViewModel)DataContext).ToggleExtensionCommand}" CommandParameter="{Binding}" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <Button Classes="ext dashed" Content="+ xdebug" HorizontalAlignment="Left" IsEnabled="False"
+                          ToolTip.Tip="Próximamente: Xdebug llega en la fase 2" ToolTip.ShowOnDisabled="True" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Catálogo -->
+          <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Disponibles" />
+                  <TextBlock Classes="hint" Text="{Binding CatalogHint}" />
+                </StackPanel>
+              </Border>
+              <StackPanel Orientation="Horizontal" Spacing="8" Margin="16,14,16,6">
+                <Border Classes="seg">
+                  <StackPanel Orientation="Horizontal" Spacing="2">
+                    <RadioButton Theme="{StaticResource SegButton}" GroupName="php-ts" Content="NTS" IsChecked="{Binding Nts}" />
+                    <RadioButton Theme="{StaticResource SegButton}" GroupName="php-ts" Content="TS" IsChecked="{Binding ThreadSafe}" />
+                  </StackPanel>
+                </Border>
+                <Border Classes="seg">
+                  <StackPanel Orientation="Horizontal" Spacing="2">
+                    <RadioButton Theme="{StaticResource SegButton}" GroupName="php-arch" Content="x64" IsChecked="{Binding X64}" />
+                    <RadioButton Theme="{StaticResource SegButton}" GroupName="php-arch" Content="x86" IsChecked="{Binding X86}" />
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+              <TextBlock Classes="faint" Text="{Binding VariantHint}" Margin="16,0,16,8" TextWrapping="Wrap" />
+              <ctl:Note Tone="Bad" Margin="16,0,16,12" IsVisible="{Binding HasCatalogError}" Content="{Binding CatalogError}" />
+              <TextBlock Classes="muted" Margin="16,4,16,14" Text="Leyendo el catálogo..." IsVisible="{Binding LoadingCatalog}" />
+              <ItemsControl ItemsSource="{Binding Catalog}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PhpCatalogRow">
+                    <Border Classes="tr" BorderThickness="0,1,0,0" MinHeight="50" Padding="16,8">
+                      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                        <ctl:Dot Tone="{Binding Tone}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                          <TextBlock Classes="mono strong" Text="{Binding Version}" />
+                          <TextBlock Classes="faint" Text="{Binding Support}" />
+                        </StackPanel>
+                        <ctl:Chip Grid.Column="2" Text="instalada" IsVisible="{Binding Installed}" />
+                        <Button Grid.Column="2" Classes="sm" Content="Instalar" IsVisible="{Binding Installable}"
+                                Command="{Binding $parent[ItemsControl].((vm:PhpViewModel)DataContext).InstallCommand}" CommandParameter="{Binding}"
+                                AutomationProperties.Name="{Binding Version, StringFormat='Instalar PHP {0}'}" />
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <!-- Fuera de Roost -->
+        <Border Classes="card" IsVisible="{Binding HasExternal}">
+          <StackPanel>
+            <Border Classes="card-h">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Classes="h2" Text="Fuera de Roost" />
+                <TextBlock Classes="hint" Text="Detectadas en la máquina. Roost no las modifica: puedes sustituirlas por una suya." TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </Border>
+            <Border Classes="th">
+              <Grid ColumnDefinitions="170,*,170,150">
+                <TextBlock Text="Versión" />
+                <TextBlock Grid.Column="1" Text="Dónde" />
+                <TextBlock Grid.Column="2" Text="Estado" />
+                <TextBlock Grid.Column="3" Text="Acciones" HorizontalAlignment="Right" />
+              </Grid>
+            </Border>
+            <ItemsControl ItemsSource="{Binding External}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ExternalPhpRow">
+                  <Border Classes="tr">
+                    <Grid ColumnDefinitions="170,*,170,150">
+                      <TextBlock Classes="mono" Text="{Binding Version}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Where}" FontSize="11.5" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="0,0,12,0" ToolTip.Tip="{Binding Where}" />
+                      <ctl:Chip Grid.Column="2" Text="{Binding Chip}" Tone="{Binding Tone}" />
+                      <Button Grid.Column="3" Classes="sm primary" HorizontalAlignment="Right" Content="{Binding InstallLabel}" IsVisible="{Binding CanInstall}"
+                              Command="{Binding $parent[ItemsControl].((vm:PhpViewModel)DataContext).InstallReplacementCommand}" CommandParameter="{Binding}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

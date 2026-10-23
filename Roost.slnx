@@ -1,0 +1,19 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Roost.Catalog/Roost.Catalog.csproj" />
+    <Project Path="src/Roost.Cli/Roost.Cli.csproj" />
+    <Project Path="src/Roost.Core/Roost.Core.csproj" />
+    <Project Path="src/Roost.Daemon/Roost.Daemon.csproj" />
+    <Project Path="src/Roost.Desktop/Roost.Desktop.csproj" />
+    <Project Path="src/Roost.Extensibility/Roost.Extensibility.csproj" />
+    <Project Path="src/Roost.Helper/Roost.Helper.csproj" />
+    <Project Path="src/Roost.Shim/Roost.Shim.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Roost.Catalog.Tests/Roost.Catalog.Tests.csproj" />
+    <Project Path="tests/Roost.Core.Tests/Roost.Core.Tests.csproj" />
+    <Project Path="tests/Roost.Desktop.Tests/Roost.Desktop.Tests.csproj" />
+    <Project Path="tests/Roost.Extensibility.Sample/Roost.Extensibility.Sample.csproj" />
+    <Project Path="tests/Roost.Extensibility.Tests/Roost.Extensibility.Tests.csproj" />
+  </Folder>
+</Solution>

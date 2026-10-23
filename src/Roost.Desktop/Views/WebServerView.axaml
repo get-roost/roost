@@ -1,0 +1,209 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.WebServerView"
+             x:DataType="vm:WebServerViewModel">
+  <ScrollViewer>
+    <StackPanel>
+      <StackPanel Margin="24,18,24,14">
+        <TextBlock Classes="h1" Text="Servidor web" />
+        <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+
+      <StackPanel Margin="24,0,24,24" Spacing="16">
+        <!-- Servidor activo y puertos -->
+        <Border Classes="card">
+          <StackPanel>
+            <Border Classes="card-h">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Classes="h2" Text="Servidor activo" />
+                <TextBlock Classes="hint" Text="Cambiarlo rearranca el stack" />
+              </StackPanel>
+            </Border>
+            <Grid Margin="16,14" ColumnDefinitions="*,Auto" ColumnSpacing="24">
+              <StackPanel Spacing="10">
+                <TextBlock Classes="lbl" Text="Arranca con Iniciar todo" />
+                <RadioButton GroupName="servidor" IsChecked="True">
+                  <StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Classes="strong" Text="{Binding NginxVersion, StringFormat='nginx {0}'}" />
+                      <ctl:Chip Text="{Binding NginxState}" Tone="{Binding NginxStateTone}" />
+                    </StackPanel>
+                    <TextBlock Classes="faint" Text="PHP NTS a través de los pools de php-cgi" />
+                  </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="servidor" IsEnabled="False" ToolTip.Tip="Próximamente" ToolTip.ShowOnDisabled="True">
+                  <StackPanel>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <TextBlock Classes="strong" Text="Apache 2.4" />
+                      <ctl:Chip Text="próximamente" />
+                    </StackPanel>
+                    <TextBlock Classes="faint" Text="Lee los .htaccess. Necesita PHP TS (thread-safe) para mod_php" />
+                  </StackPanel>
+                </RadioButton>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="12" VerticalAlignment="Bottom">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="lbl" Text="Puerto HTTP" />
+                  <TextBox Classes="mono" Width="96" Text="{Binding HttpText}" AutomationProperties.Name="Puerto HTTP" />
+                  <ctl:Chip Text="{Binding HttpChip}" Tone="{Binding HttpTone}" />
+                </StackPanel>
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="lbl" Text="Puerto HTTPS" />
+                  <TextBox Classes="mono" Width="96" Text="{Binding HttpsText}" AutomationProperties.Name="Puerto HTTPS" />
+                  <ctl:Chip Text="{Binding HttpsChip}" Tone="{Binding HttpsTone}" />
+                </StackPanel>
+                <Button Classes="primary" Content="Aplicar" Command="{Binding ApplyPortsCommand}" IsEnabled="{Binding CanApplyPorts}" Margin="0,0,0,28" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="seg">
+          <StackPanel Orientation="Horizontal" Spacing="2">
+            <RadioButton Theme="{StaticResource SegButton}" GroupName="web-tab" Content="nginx" IsChecked="{Binding ShowNginx}" />
+            <RadioButton Theme="{StaticResource SegButton}" GroupName="web-tab" Content="Apache 2" IsChecked="{Binding ShowApache}" />
+          </StackPanel>
+        </Border>
+
+        <!-- nginx -->
+        <Grid ColumnDefinitions="*,340" ColumnSpacing="16" IsVisible="{Binding ShowNginx}">
+          <Border Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="Instalado" /></Border>
+              <StackPanel Margin="16,14" Spacing="14">
+                <ctl:Note Tone="Accent" IsVisible="{Binding !NginxInstalled}"
+                          Content="nginx aún no está instalado: se instala solo la primera vez que pulsas Iniciar todo, o desde Disponibles." />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="22" FontWeight="Medium" Text="{Binding NginxVersion}" VerticalAlignment="Center" />
+                  <ctl:Chip Text="rama estable" Tone="Ok" />
+                  <ctl:Chip Text="SHA-256 y firma PGP verificados" />
+                </StackPanel>
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+                  <TextBlock Classes="muted" Text="Carpeta" VerticalAlignment="Center" />
+                  <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,-6">
+                    <TextBlock Classes="mono" Text="{Binding NginxFolder}" TextTrimming="LeadingCharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding NginxFolder}" />
+                    <Button Grid.Column="1" Classes="sm ghost icon" Margin="4,0,0,0" Command="{Binding OpenFolderCommand}" ToolTip.Tip="Abrir la carpeta"
+                            AutomationProperties.Name="Abrir la carpeta de nginx" IsEnabled="{Binding NginxInstalled}">
+                      <ctl:Icon Data="{StaticResource IcFolder}" Size="14" />
+                    </Button>
+                  </Grid>
+                  <TextBlock Grid.Row="1" Classes="muted" Text="Escucha en" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="mono" Text="{Binding Listen}" TextWrapping="Wrap" />
+                  <TextBlock Grid.Row="2" Classes="muted" Text="Módulos" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="small" Text="{Binding Modules}" />
+                </Grid>
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="lbl" Text="Configuración" />
+                  <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8">
+                    <StackPanel>
+                      <Border Classes="tr" MinHeight="42" Padding="14,6">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                          <TextBlock Classes="mono" Text="etc\nginx\nginx.conf" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="1" Classes="faint" Text="generado: no se edita" VerticalAlignment="Center" />
+                          <Button Grid.Column="2" Classes="sm ghost" Content="Ver" Command="{Binding OpenConfCommand}" AutomationProperties.Name="Ver nginx.conf" />
+                        </Grid>
+                      </Border>
+                      <Border Classes="tr" MinHeight="42" Padding="14,6">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                          <TextBlock Classes="mono" Text="etc\nginx\sites\*.conf" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="1" Classes="faint" Text="uno por sitio: editable fuera de las marcas" VerticalAlignment="Center" />
+                          <Button Grid.Column="2" Classes="sm ghost" Content="Sitios" Command="{Binding GoSitesCommand}" />
+                        </Grid>
+                      </Border>
+                      <Border Classes="tr" MinHeight="42" Padding="14,6" BorderThickness="0">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                          <TextBlock Classes="mono" Text="logs\nginx-error.log" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="1" Classes="faint" Text="errores y avisos" VerticalAlignment="Center" />
+                          <Button Grid.Column="2" Classes="sm ghost" Content="Abrir" Command="{Binding GoErrorLogCommand}" AutomationProperties.Name="Abrir el log de errores de nginx" />
+                        </Grid>
+                      </Border>
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm" Content="Validar configuración (nginx -t)" Command="{Binding TestConfigCommand}" IsEnabled="{Binding NginxInstalled}" />
+                  <Button Classes="sm" Content="Recargar" Command="{Binding ReloadCommand}" IsEnabled="{Binding NginxRunning}" />
+                </StackPanel>
+                <ctl:Note Tone="{Binding TestTone}" IsVisible="{Binding HasTestOutput}">
+                  <SelectableTextBlock Classes="mono" Text="{Binding TestOutput}" TextWrapping="Wrap" FontSize="11.5" />
+                </ctl:Note>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Disponibles" />
+                  <TextBlock Classes="hint" Text="nginx.org" />
+                </StackPanel>
+              </Border>
+              <Border Classes="tr" MinHeight="50" Padding="16,8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                  <ctl:Dot Tone="Ok" VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Classes="mono strong" Text="{Binding CatalogVersion}" />
+                    <TextBlock Classes="faint" Text="estable: la recomendada" />
+                  </StackPanel>
+                  <ctl:Chip Grid.Column="2" Text="instalada" IsVisible="{Binding NginxInstalled}" />
+                  <Button Grid.Column="2" Classes="sm" Content="Instalar" Command="{Binding InstallNginxCommand}" IsVisible="{Binding !NginxInstalled}"
+                          AutomationProperties.Name="Instalar nginx" />
+                </Grid>
+              </Border>
+              <ctl:Note Tone="Accent" Margin="16,12"
+                        Content="nginx.org no publica checksums: Roost solo instala versiones cuya firma PGP se ha verificado, y cada versión nueva llega con una actualización de Roost." />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <!-- Apache -->
+        <Grid ColumnDefinitions="*,340" ColumnSpacing="16" IsVisible="{Binding ShowApache}">
+          <Border Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="Instalado" /></Border>
+              <StackPanel Margin="24,28" Spacing="12">
+                <Border Classes="badge-ic">
+                  <ctl:Icon Data="{StaticResource IcServer}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                </Border>
+                <TextBlock Classes="strong" FontSize="15" Text="Apache no está instalado" />
+                <TextBlock Classes="muted" MaxWidth="520" HorizontalAlignment="Left" TextWrapping="Wrap"
+                           Text="Úsalo si tus proyectos dependen de .htaccess (WordPress, aplicaciones antiguas). Con Apache, cada PHP en uso necesita su build TS; Roost te ofrecerá instalarlos al activarlo." />
+                <ctl:Note Tone="Warn" MaxWidth="520" HorizontalAlignment="Left" Content="{Binding ApacheNote}" />
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
+                  <TextBlock Classes="muted" Text="Configuración" />
+                  <TextBlock Grid.Column="1" Classes="small" TextWrapping="Wrap"
+                             Text="etc\apache\httpd.conf generado y un sites\&lt;sitio&gt;.conf por sitio, editable fuera de las marcas" />
+                </Grid>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Disponibles" />
+                  <TextBlock Classes="hint" Text="Apache Lounge" />
+                </StackPanel>
+              </Border>
+              <Border Classes="tr" MinHeight="50" Padding="16,8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                  <ctl:Dot Tone="Off" VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Classes="mono strong" Text="2.4" />
+                    <TextBlock Classes="faint" Text="Win64 · Apache Lounge" />
+                  </StackPanel>
+                  <Button Grid.Column="2" Classes="sm" Content="Próximamente" IsEnabled="False" />
+                </Grid>
+              </Border>
+              <ctl:Note Tone="Accent" Margin="16,12"
+                        Content="Apache no publica binarios para Windows; los de Apache Lounge son el estándar de hecho. Necesitan el Visual C++ Redistributable 2015-2022. Llega en una próxima versión de Roost." />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

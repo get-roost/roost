@@ -1,0 +1,6 @@
+Use case: background-extraction / logo-brand.
+Image 1 is the approved standalone Roost logo. It is the edit target and exact source, not an inspiration reference.
+Primary request: isolate ONLY its blue bird symbol into one square transparent production PNG app icon, removing all the wordmark letters. Preserve exactly the same blue bird facing right, original proportions, contour, pointed long diagonal wing, curved negative-space wing gap, circular eye hole, r-shaped body, diagonal leg and flat foot. Do not redesign, simplify, stylize differently or add details. This is an extraction of the already approved mark.
+Composition: a square 1024 by 1024 canvas with the bird optically centered and approximately 10 percent transparent padding at the edges; the symbol should use about 80 percent of the canvas and retain its original aspect ratio.
+Background: genuine transparent RGBA alpha, including the eye hole and separation between wing and body. Color bird cobalt blue, matching the source. Crisp smooth antialiased edges.
+Constraints: exactly one bird, zero text. No wordmark, no "roost", no tile or square shape behind the bird, no border, no shadow, no glow, no textures, no white backdrop, no checkerboard painted into image, no other marks. Keep approved geometry unchanged.

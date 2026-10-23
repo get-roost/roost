@@ -1,0 +1,218 @@
+# Lleva cada release estable de Roost a Scoop (bucket/roost.json de este repo) y a winget
+# (Roost.Roost en microsoft/winget-pkgs).
+#
+# Se lanza solo cuando el workflow «Release» termina bien. No vale `on: release: published`: lo que
+# hace GITHUB_TOKEN (como publicar la release desde release.yml) no dispara otros workflows, y
+# workflow_run sí. En un run de Release lanzado por el push de la etiqueta, la etiqueta llega en
+# workflow_run.head_branch. También se puede lanzar a mano con la etiqueta (workflow_dispatch).
+#
+# Las prereleases (con «-» en la versión o marcadas como prerelease) no van ni a Scoop ni a winget.
+# winget solo se manda si existe el secreto WINGET_TOKEN (un token clásico con public_repo de la
+# cuenta que tiene el fork de winget-pkgs); si no, los manifiestos quedan como artefacto.
+#
+# workflow_run solo se dispara con la versión de este fichero que esté en la rama principal.
+name: Packages
+
+on:
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Etiqueta de la release (por ejemplo, v0.1.0)
+        required: true
+        type: string
+      scoop:
+        description: Actualizar bucket/roost.json en la rama principal
+        type: boolean
+        default: true
+      winget:
+        description: Generar los manifiestos de winget (y mandarlos a winget-pkgs si hay WINGET_TOKEN)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Datos de la release
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.info.outputs.tag }}
+      version: ${{ steps.info.outputs.version }}
+      stable: ${{ steps.info.outputs.stable }}
+      sha256: ${{ steps.info.outputs.sha256 }}
+      date: ${{ steps.info.outputs.date }}
+    steps:
+      - name: Etiqueta, release y SHA-256 del zip de Windows
+        id: info
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.workflow_run.head_branch }}
+        run: |
+          if [[ ! "$TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?)$ ]]; then
+            if [ "$EVENT" = "workflow_run" ]; then
+              echo "::notice::Ese run de Release no viene del push de una etiqueta v<version> ('$TAG'): no hay nada que publicar. Si hace falta, lanza Packages a mano con la etiqueta."
+              echo "stable=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "::error::'$TAG' no es una etiqueta v<version> (por ejemplo, v0.1.0)."
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}"
+          { echo "tag=$TAG"; echo "version=$version"; } >> "$GITHUB_OUTPUT"
+
+          info=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,isPrerelease,publishedAt \
+            --jq '"\(.isDraft) \(.isPrerelease) \(.publishedAt)"')
+          read -r draft prerelease published <<< "$info"
+          if [ "$draft" = "true" ]; then
+            echo "::error::La release $TAG es un borrador: publicala y lanza Packages a mano."
+            exit 1
+          fi
+          if [ "$prerelease" = "true" ] || [[ "$version" == *-* ]]; then
+            echo "::notice::$TAG es una prerelease: no va a Scoop ni a winget."
+            echo "stable=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # El SHA-256 sale de SHA256SUMS.txt, y se comprueba contra el zip de verdad antes de
+          # ponerlo en ningún manifiesto.
+          zip="roost-$version-win-x64.zip"
+          dir="$RUNNER_TEMP/release"
+          mkdir -p "$dir"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir "$dir" --pattern SHA256SUMS.txt --pattern "$zip"
+          sha=$(tr -d '\r' < "$dir/SHA256SUMS.txt" | awk -v f="$zip" '{ n = $2; sub(/^\*/, "", n); if (n == f) print tolower($1) }')
+          if [[ ! "$sha" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::SHA256SUMS.txt de $TAG no trae el SHA-256 de $zip."
+            exit 1
+          fi
+          (cd "$dir" && echo "$sha  $zip" | sha256sum --check --strict -)
+
+          { echo "sha256=$sha"; echo "date=${published:0:10}"; echo "stable=true"; } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Roost $version"
+            echo ""
+            echo "- Zip de Windows: \`$zip\`, SHA-256 \`$sha\` (verificado)"
+            echo "- Publicada el ${published:0:10}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  scoop:
+    name: Scoop
+    needs: release
+    if: needs.release.outputs.stable == 'true' && (github.event_name != 'workflow_dispatch' || inputs.scoop)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+      BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Actualizar bucket/roost.json
+        env:
+          SHA256: ${{ needs.release.outputs.sha256 }}
+        run: python3 packaging/packages.py scoop --version "$VERSION" --sha256 "$SHA256"
+
+      - name: Validar contra el esquema de Scoop
+        run: |
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/python" -m pip install --disable-pip-version-check --quiet jsonschema==4.26.0 pyyaml==6.0.3
+          "$RUNNER_TEMP/venv/bin/python" packaging/packages.py check --scoop bucket/roost.json
+
+      - name: Commit en la rama principal
+        run: |
+          if git diff --quiet -- bucket/roost.json; then
+            echo "bucket/roost.json ya estaba en la $VERSION."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bucket/roost.json
+          git commit -m "Scoop: Roost $VERSION"
+          for _ in 1 2 3; do
+            if git push origin "HEAD:$BRANCH"; then
+              echo "### Scoop: bucket/roost.json en la $VERSION" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            git pull --rebase origin "$BRANCH"
+          done
+          echo "::error::No se pudo subir bucket/roost.json a $BRANCH (si la rama esta protegida, GITHUB_TOKEN no puede escribir en ella)."
+          exit 1
+
+  winget:
+    name: winget
+    needs: release
+    if: needs.release.outputs.stable == 'true' && (github.event_name != 'workflow_dispatch' || inputs.winget)
+    # wingetcreate solo funciona en Windows.
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.release.outputs.version }}
+      HAS_WINGET_TOKEN: ${{ secrets.WINGET_TOKEN != '' }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Generar los manifiestos
+        env:
+          SHA256: ${{ needs.release.outputs.sha256 }}
+          RELEASE_DATE: ${{ needs.release.outputs.date }}
+        run: python packaging/packages.py winget --version $env:VERSION --sha256 $env:SHA256 --release-date $env:RELEASE_DATE --out "$env:RUNNER_TEMP/winget"
+
+      - name: Validar contra los esquemas de winget
+        run: |
+          python -m venv "$env:RUNNER_TEMP/venv"
+          & "$env:RUNNER_TEMP/venv/Scripts/python.exe" -m pip install --disable-pip-version-check --quiet jsonschema==4.26.0 pyyaml==6.0.3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:RUNNER_TEMP/venv/Scripts/python.exe" packaging/packages.py check --winget "$env:RUNNER_TEMP/winget/manifests/r/Roost/Roost/$env:VERSION"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Guardar los manifiestos
+        uses: actions/upload-artifact@v7
+        with:
+          name: winget-Roost.Roost-${{ needs.release.outputs.version }}
+          path: ${{ runner.temp }}/winget
+
+      - name: Mandar a microsoft/winget-pkgs
+        if: env.HAS_WINGET_TOKEN == 'true'
+        env:
+          # wingetcreate lee el token de aquí (así no sale en la línea de órdenes).
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $api = 'https://api.github.com/repos/microsoft/winget-pkgs/contents/manifests/r/Roost/Roost'
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; 'User-Agent' = 'roost-packages' }
+          Invoke-RestMethod "$api/$env:VERSION" -Headers $headers -SkipHttpErrorCheck -StatusCodeVariable status | Out-Null
+          if ($status -eq 200) {
+            "Roost.Roost $env:VERSION ya esta en winget-pkgs: no se manda otra vez."
+            exit 0
+          }
+          Invoke-RestMethod $api -Headers $headers -SkipHttpErrorCheck -StatusCodeVariable status | Out-Null
+          $kind = if ($status -eq 200) { 'New version' } else { 'New package' }
+
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile "$env:RUNNER_TEMP/wingetcreate.exe"
+          & "$env:RUNNER_TEMP/wingetcreate.exe" submit --no-open --prtitle "${kind}: Roost.Roost version $env:VERSION" `
+            "$env:RUNNER_TEMP/winget/manifests/r/Roost/Roost/$env:VERSION"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "### winget: PR de Roost.Roost $env:VERSION abierto en microsoft/winget-pkgs ($kind)" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Sin WINGET_TOKEN
+        if: env.HAS_WINGET_TOKEN != 'true'
+        run: |
+          "::notice::No hay secreto WINGET_TOKEN: los manifiestos de Roost.Roost $env:VERSION quedan en el artefacto, sin mandar a winget-pkgs."
+          "### winget: manifiestos de Roost.Roost $env:VERSION en el artefacto (sin WINGET_TOKEN no se mandan)" >> $env:GITHUB_STEP_SUMMARY

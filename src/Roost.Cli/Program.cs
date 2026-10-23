@@ -1,0 +1,207 @@
+using System.Text;
+using Roost.Cli.Commands;
+using Roost.Cli.Commands.Db;
+using Roost.Cli.Commands.Php;
+using Roost.Cli.Commands.Shims;
+using Roost.Cli.Commands.Sites;
+using Roost.Cli.Commands.Stack;
+using Spectre.Console.Cli;
+
+// roost — CLI de Roost: inventario (scan), auditoria (audit), PHP (php) y el stack local
+// (up / down / status). `roost daemon` es el mismo ejecutable haciendo de roostd.
+// UTF-8 en la salida para que el semaforo (●) y las tablas se vean en Windows.
+try { Console.OutputEncoding = Encoding.UTF8; } catch { /* consola redirigida: da igual */ }
+
+// Las extensiones de bin/extensions (ROOST.md §12.4): una que no carga no impide usar Roost.
+var extensions = CliExtensions.Load();
+
+var app = new CommandApp();
+app.Configure(config =>
+{
+    config.SetApplicationName("roost");
+    // roost --version: la de Directory.Build.props.
+    config.SetApplicationVersion(Roost.Core.Updates.RoostVersion.Current);
+    config.UseStrictParsing();
+
+    config.AddCommand<ScanCommand>("scan")
+        .WithDescription("Inventaria los componentes del entorno (PHP, MySQL, MariaDB...), agrupados por tipo.")
+        .WithExample("scan")
+        .WithExample("scan", "--json");
+
+    config.AddCommand<AuditCommand>("audit")
+        .WithDescription("Audita cada componente contra los avisos (el feed firmado de roost-catalog): PARCHEADA / SOPORTADA / VULNERABLE / EOL / DESCONOCIDA.")
+        .WithExample("audit")
+        .WithExample("audit", "--json")
+        .WithExample("audit", "--offline");
+
+    config.AddBranch("catalog", catalog =>
+    {
+        catalog.SetDescription("El feed firmado de avisos que usa la auditoria (roost-catalog): se actualiza solo una vez al dia.");
+
+        catalog.AddCommand<CatalogStatusCommand>("status")
+            .WithDescription("Que feed hay en la cache, cual va empaquetado y cual se usa.")
+            .WithExample("catalog", "status");
+
+        catalog.AddCommand<CatalogUpdateCommand>("update")
+            .WithDescription("Baja ya el feed nuevo, aunque el de la cache sea de hoy.")
+            .WithExample("catalog", "update");
+    });
+
+    config.AddBranch("php", php =>
+    {
+        php.SetDescription("Instala y quita PHP oficiales en la raiz de Roost (de momento, solo en Windows).");
+
+        php.AddCommand<PhpListCommand>("list")
+            .WithDescription("Lista los PHP instalados por Roost y los disponibles en windows.php.net, con su estado de seguridad.")
+            .WithExample("php", "list")
+            .WithExample("php", "list", "--json");
+
+        php.AddCommand<PhpInstallCommand>("install")
+            .WithDescription("Descarga un PHP oficial, verifica su SHA-256 y lo instala en su propia carpeta.")
+            .WithExample("php", "install", "8.4")
+            .WithExample("php", "install", "8.3.36", "--ts");
+
+        php.AddCommand<PhpRemoveCommand>("remove")
+            .WithDescription("Quita un PHP instalado por Roost (nunca toca los de Laragon, XAMPP...).")
+            .WithExample("php", "remove", "8.3.36-nts-x64");
+
+        php.AddCommand<PhpUseCommand>("use")
+            .WithDescription("Fija el PHP global (el que sirve http://localhost/), o con --here el de la carpeta actual (.php-version).")
+            .WithExample("php", "use", "8.4")
+            .WithExample("php", "use", "7.4", "--here");
+
+        php.AddCommand<PhpWhichCommand>("which")
+            .WithDescription("Que PHP usa la terminal en esta carpeta, y por que (.php-version, el sitio, el global).")
+            .WithExample("php", "which")
+            .WithExample("php", "which", "--dir", @"C:\www\legacy");
+    });
+
+    config.AddBranch("shims", shims =>
+    {
+        shims.SetDescription("El php de la terminal segun la carpeta del proyecto (de momento, solo en Windows).");
+
+        shims.AddCommand<ShimsInstallCommand>("install")
+            .WithDescription("Pone el shim de php y su carpeta delante en el PATH de tu usuario (sin administrador).")
+            .WithExample("shims", "install");
+
+        shims.AddCommand<ShimsRemoveCommand>("remove")
+            .WithDescription("Quita los shims y su carpeta del PATH de tu usuario.")
+            .WithExample("shims", "remove");
+
+        shims.AddCommand<ShimsStatusCommand>("status")
+            .WithDescription("Si estan puestos y en el PATH, y si otro php del PATH del sistema les gana.")
+            .WithExample("shims", "status");
+    });
+
+    config.AddBranch("db", db =>
+    {
+        db.SetDescription("Instala y elige MariaDB o MySQL (de momento, solo en Windows).");
+
+        db.AddCommand<DbListCommand>("list")
+            .WithDescription("Lista las bases de datos instaladas por Roost y las disponibles (MariaDB y MySQL), con su estado de seguridad.")
+            .WithExample("db", "list");
+
+        db.AddCommand<DbInstallCommand>("install")
+            .WithDescription("Descarga una MariaDB o MySQL oficial, verifica su SHA-256 y la instala en su propia carpeta.")
+            .WithExample("db", "install", "mariadb@11.4")
+            .WithExample("db", "install", "mysql@8.4")
+            .WithExample("db", "install", "mysql@5.7");
+
+        db.AddCommand<DbRemoveCommand>("remove")
+            .WithDescription("Quita los binarios de una base de datos de Roost. Sus datos se conservan.")
+            .WithExample("db", "remove", "mysql@5.7");
+
+        db.AddCommand<DbUseCommand>("use")
+            .WithDescription("Elige la base de datos que arranca roost up (o none). Si el stack esta en marcha, lo aplica ya.")
+            .WithExample("db", "use", "mariadb@11.4")
+            .WithExample("db", "use", "none");
+
+        db.AddCommand<DbCreateCommand>("create")
+            .WithDescription("Crea una base de datos (utf8mb4) en la base de datos global, que tiene que estar en marcha.")
+            .WithExample("db", "create", "tienda");
+    });
+
+    config.AddBranch("site", site =>
+    {
+        site.SetDescription("Sitios https://<nombre>.test/ con su propio vhost, certificado y, si quieres, su propio PHP.");
+
+        site.AddCommand<SiteAddCommand>("add")
+            .WithDescription("Registra un sitio (o lo actualiza): vhost de nginx, entrada en el hosts y certificado.")
+            .WithExample("site", "add", "tienda")
+            .WithExample("site", "add", "legacy", "--path", "C:\\proyectos\\legacy", "--php", "7.4");
+
+        site.AddCommand<SiteRemoveCommand>("remove")
+            .WithDescription("Quita un sitio. La carpeta del proyecto no se toca.")
+            .WithExample("site", "remove", "tienda");
+
+        site.AddCommand<SiteListCommand>("list")
+            .WithDescription("Lista los sitios con su carpeta, su PHP, su certificado y si estan en el hosts.")
+            .WithExample("site", "list");
+    });
+
+    config.AddBranch("dns", dns =>
+    {
+        dns.SetDescription("El DNS local para los .test: crear un sitio deja de pedir permiso de administrador (de momento, solo en Windows).");
+
+        dns.AddCommand<DnsInstallCommand>("install")
+            .WithDescription("Pone la regla de DNS de .test (un solo permiso de administrador) y deja de usar el hosts.")
+            .WithExample("dns", "install");
+
+        dns.AddCommand<DnsRemoveCommand>("remove")
+            .WithDescription("Quita la regla de DNS y vuelve al fichero hosts.")
+            .WithExample("dns", "remove");
+
+        dns.AddCommand<DnsStatusCommand>("status")
+            .WithDescription("Como se resuelven los .test, si la regla esta puesta y si el DNS local contesta.")
+            .WithExample("dns", "status");
+    });
+
+    config.AddBranch("cert", cert =>
+    {
+        cert.SetDescription("La CA local que firma los certificados de los sitios .test.");
+
+        cert.AddCommand<CertTrustCommand>("trust")
+            .WithDescription("Anade la CA de Roost a los certificados de confianza de tu usuario (Windows pide confirmacion).")
+            .WithExample("cert", "trust");
+
+        cert.AddCommand<CertRenewCommand>("renew")
+            .WithDescription("Vuelve a emitir el certificado de todos los sitios (roost up ya los renueva solo antes de caducar).")
+            .WithExample("cert", "renew");
+    });
+
+    config.AddCommand<UpCommand>("up")
+        .WithDescription("Arranca nginx y el pool de php-cgi del PHP global en http://localhost/ (la primera vez instala nginx).")
+        .WithExample("up");
+
+    config.AddCommand<DownCommand>("down")
+        .WithDescription("Para nginx, los php-cgi y el daemon.")
+        .WithExample("down");
+
+    config.AddCommand<RestartCommand>("restart")
+        .WithDescription("Reinicia un servicio sin tocar el resto: nginx, el pool de un PHP o la base de datos.")
+        .WithExample("restart", "nginx")
+        .WithExample("restart", "php-8.4")
+        .WithExample("restart", "mariadb-11.4");
+
+    config.AddCommand<StatusCommand>("status")
+        .WithDescription("Estado de los servicios: en marcha, puertos, reinicios.")
+        .WithExample("status")
+        .WithExample("status", "--json");
+
+    config.AddCommand<ExtensionsCommand>("extensions")
+        .WithDescription("Las extensiones instaladas en bin/extensions: cuales cargan, que aportan y por que no las que no.")
+        .WithExample("extensions");
+
+    config.AddCommand<UpdateCommand>("update")
+        .WithDescription("Comprueba si hay una Roost nueva en GitHub y dice como actualizar (no descarga nada).")
+        .WithExample("update")
+        .WithExample("update", "--json");
+
+    // roostd: lo lanza la CLI cuando hace falta, no el usuario.
+    config.AddCommand<DaemonCommand>("daemon").IsHidden();
+
+    // Lo ultimo: los comandos de las extensiones no pueden pisar los de Roost.
+    extensions.AddCommands(config);
+});
+
+return app.Run(args);

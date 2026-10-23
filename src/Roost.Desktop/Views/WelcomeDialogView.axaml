@@ -1,0 +1,119 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.WelcomeDialogView"
+             x:DataType="vm:WelcomeDialogViewModel">
+  <Border Classes="modal wide" Width="720">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <Button DockPanel.Dock="Left" Classes="ghost" Content="Saltar: lo hago luego" Command="{Binding SkipCommand}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Atrás" Command="{Binding BackCommand}" IsVisible="{Binding IsStep2}" />
+            <Button Classes="primary" Content="Siguiente" Command="{Binding NextCommand}" IsVisible="{Binding ShowNext}" IsEnabled="{Binding Ready}" />
+            <Button Classes="primary" Content="Empezar" Command="{Binding StartCommand}" IsVisible="{Binding ShowStart}" IsEnabled="{Binding Ready}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <ScrollViewer MaxHeight="600">
+        <StackPanel Spacing="16" Margin="24,22,24,20">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Border Width="36" Height="36" CornerRadius="10" Background="{DynamicResource AccentBrush}" VerticalAlignment="Top">
+              <ctl:Icon Data="{StaticResource IcBrand}" Size="20" StrokeThickness="2.2" Foreground="#FFFFFF" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Classes="h3" Text="Bienvenido a Roost" />
+              <TextBlock Classes="faint" Text="{Binding Subtitle}" TextWrapping="Wrap" />
+            </StackPanel>
+            <ctl:Chip Grid.Column="2" Text="{Binding StepText}" VerticalAlignment="Top" />
+          </Grid>
+
+          <!-- Paso 1 -->
+          <StackPanel Spacing="16" IsVisible="{Binding IsStep1}">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="lbl" Text="Encontrado en este equipo" />
+              <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8" IsVisible="{Binding !FoundNothing}">
+                <ItemsControl ItemsSource="{Binding Found}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FoundGroup">
+                      <Border Classes="tr" MinHeight="44" Padding="14,8">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                          <TextBlock Classes="strong" Text="{Binding Source}" VerticalAlignment="Center" />
+                          <TextBlock Grid.Column="1" Classes="small muted" Text="{Binding Detail}" VerticalAlignment="Center" TextWrapping="Wrap" />
+                          <ctl:Chip Grid.Column="2" Text="{Binding Chip}" Tone="{Binding Tone}" IsVisible="{Binding HasChip}" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Border>
+              <TextBlock Classes="muted" IsVisible="{Binding FoundNothing}" TextWrapping="Wrap"
+                         Text="No hay otros PHP ni bases de datos en este equipo: empezamos de cero." />
+            </StackPanel>
+
+            <StackPanel Spacing="10">
+              <TextBlock Classes="lbl" Text="¿Qué traemos?" />
+              <CheckBox IsChecked="{Binding InstallPhp}" IsEnabled="{Binding PhpAvailable}">
+                <StackPanel>
+                  <TextBlock Text="{Binding PhpText}" TextWrapping="Wrap" />
+                  <TextBlock Classes="faint" Text="{Binding PhpHint}" TextWrapping="Wrap" />
+                </StackPanel>
+              </CheckBox>
+              <CheckBox IsChecked="{Binding RegisterSites}" IsVisible="{Binding HasFolders}">
+                <StackPanel>
+                  <TextBlock Text="{Binding SitesText}" TextWrapping="Wrap" />
+                  <TextBlock Classes="faint" TextWrapping="Wrap" Text="Se sirven desde su sitio actual, sin copiarlas. Elige cuáles en el paso siguiente." />
+                </StackPanel>
+              </CheckBox>
+              <CheckBox IsChecked="{Binding InstallDb}" IsEnabled="{Binding DbAvailable}">
+                <StackPanel>
+                  <TextBlock Text="{Binding DbText}" TextWrapping="Wrap" />
+                  <TextBlock Classes="faint" Text="{Binding DbHint}" TextWrapping="Wrap" />
+                </StackPanel>
+              </CheckBox>
+            </StackPanel>
+
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="lbl" Text="Carpeta de Roost" />
+                <Border Classes="field"><TextBlock Classes="mono" Text="{Binding RootPath}" TextTrimming="LeadingCharacterEllipsis" /></Border>
+                <TextBlock Classes="faint" Text="Binarios, configuración y datos" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="6">
+                <TextBlock Classes="lbl" Text="Proyectos nuevos" />
+                <Border Classes="field"><TextBlock Classes="mono" Text="{Binding WwwPath}" TextTrimming="LeadingCharacterEllipsis" /></Border>
+                <TextBlock Classes="faint" Text="Donde se crean los sitios nuevos" />
+              </StackPanel>
+            </Grid>
+          </StackPanel>
+
+          <!-- Paso 2 -->
+          <StackPanel Spacing="10" IsVisible="{Binding IsStep2}">
+            <TextBlock Classes="lbl" Text="{Binding LaragonWww, StringFormat='Carpetas de {0}'}" />
+            <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8">
+              <ItemsControl ItemsSource="{Binding Folders}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:FolderChoice">
+                    <Border Classes="tr" MinHeight="40" Padding="14,6">
+                      <CheckBox IsChecked="{Binding Checked}">
+                        <TextBlock>
+                          <Run Text="{Binding Name, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontWeight="SemiBold" />
+                          <Run Text=" → " Foreground="{DynamicResource FaintBrush}" />
+                          <Run Text="{Binding Url, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" Foreground="{DynamicResource AccentBrush}" />
+                        </TextBlock>
+                      </CheckBox>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Border>
+          </StackPanel>
+
+          <ctl:Note Tone="Accent"
+                    Content="Windows pedirá dos permisos: uno para el fichero hosts (los nombres .test) y otro para confiar en la CA local (el candado de https)." />
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

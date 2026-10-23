@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    La app de escritorio (ROOST.md §5.2): Avalonia, MVVM. No tiene lógica de negocio propia:
+    usa Roost.Core (instalar, configurar, auditar) y habla con roostd como la CLI.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>roost-desktop</AssemblyName>
+    <RootNamespace>Roost.Desktop</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Roost.Desktop.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Roost.Core\Roost.Core.csproj" />
+    <ProjectReference Include="..\Roost.Daemon\Roost.Daemon.csproj" />
+    <!-- Para llevar al lado roost.exe (que hace de daemon) y roost-helper.exe (el hosts). -->
+    <ProjectReference Include="..\Roost.Cli\Roost.Cli.csproj" />
+    <ProjectReference Include="..\Roost.Helper\Roost.Helper.csproj" />
+    <ProjectReference Include="..\Roost.Shim\Roost.Shim.csproj" />
+    <ProjectReference Include="..\Roost.Extensibility\Roost.Extensibility.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,42 @@
+{
+    "##": "Lo mantiene .github/workflows/packages.yml (packaging/packages.py scoop): con cada release estable cambia version, url y hash, sacado de SHA256SUMS.txt. Hasta que se publique la v0.1.0, el hash es un marcador y no se puede instalar.",
+    "version": "0.1.0",
+    "description": "Entorno de desarrollo PHP local (PHP, MariaDB/MySQL, nginx y https://*.test) que avisa de lo que esta fuera de soporte o tiene CVE.",
+    "homepage": "https://github.com/get-roost/roost",
+    "license": "MIT",
+    "notes": [
+        "Roost guarda sus datos fuera de la carpeta de Scoop: PHP, bases de datos y certificados en C:\\roost, la configuracion en %APPDATA%\\Roost y los proyectos en C:\\www. Actualizar o desinstalar con Scoop no los borra.",
+        "Antes de 'scoop update roost' o 'scoop uninstall roost', ejecuta 'roost down' y cierra la app: Scoop no actualiza una app que esta en marcha.",
+        "roost-helper.exe se ejecuta como administrador (UAC) para editar el hosts y la regla DNS de .test, y aqui vive en una carpeta que puede escribir cualquier programa de tu usuario. Mientras no haya instalador, acepta su UAC solo cuando lo hayas pedido tu.",
+        "Los PHP y las MariaDB/MySQL oficiales de Windows necesitan el Visual C++ Redistributable 2015-2022 (scoop install extras/vcredist2022)."
+    ],
+    "suggest": {
+        "Visual C++ Redistributable 2015-2022": "extras/vcredist2022"
+    },
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/get-roost/roost/releases/download/v0.1.0/roost-0.1.0-win-x64.zip",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+    },
+    "bin": "roost.exe",
+    "shortcuts": [
+        [
+            "roost-desktop.exe",
+            "Roost"
+        ]
+    ],
+    "checkver": {
+        "github": "https://github.com/get-roost/roost"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/get-roost/roost/releases/download/v$version/roost-$version-win-x64.zip"
+            }
+        },
+        "hash": {
+            "url": "$baseurl/SHA256SUMS.txt"
+        }
+    }
+}

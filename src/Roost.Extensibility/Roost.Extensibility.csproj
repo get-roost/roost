@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    El contrato de las extensiones de Roost (ROOST.md §12.4) y su cargador. Es lo único que una
+    extensión (Roost Pro, por ejemplo) necesita referenciar, además de Roost.Core: lo que puede
+    aportar (servicios del stack, avisos y scanners, comandos de la CLI) y cómo se carga desde
+    bin/extensions. Las pantallas de la app están en Roost.Desktop (IDesktopExtension), porque
+    dependen de Avalonia.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Roost.Extensibility</RootNamespace>
+  </PropertyGroup>
+
+  <!-- Paquete NuGet (ROOST.md §12.4): el que referencia una extensión; trae Roost.Core como dependencia. -->
+  <PropertyGroup>
+    <IsPackable>true</IsPackable>
+    <Description>El contrato de las extensiones de Roost (IRoostExtension, IStackExtension, IAuditExtension, ICliExtension) y su cargador: servicios para el stack, avisos y scanners para la auditoría y comandos para la CLI, que Roost carga desde bin/extensions.</Description>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- No todo lo público lleva comentario XML, ni todos sus parámetros: que no avise de cada uno. -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console.Cli" Version="0.57.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Roost.Core\Roost.Core.csproj" />
+  </ItemGroup>
+
+</Project>

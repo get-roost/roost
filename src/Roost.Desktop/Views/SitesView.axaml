@@ -1,0 +1,137 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.SitesView"
+             x:DataType="vm:SitesViewModel">
+  <ScrollViewer>
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto" Margin="24,18,24,14">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Classes="h1" Text="Sitios" />
+          <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="primary" Command="{Binding NewSiteCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <ctl:Icon Data="{StaticResource IcPlus}" Size="15" StrokeThickness="2" VerticalAlignment="Center" />
+            <TextBlock Text="Nuevo sitio" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Grid>
+
+      <Grid Margin="24,0,24,24" ColumnDefinitions="*,360" ColumnSpacing="16">
+        <!-- Lista -->
+        <Border Classes="card" VerticalAlignment="Top">
+          <StackPanel>
+            <Border Classes="card-h">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="lbl" Text="Buscar" VerticalAlignment="Center" />
+                  <TextBox Width="180" MinHeight="30" Height="30" PlaceholderText="nombre o carpeta" Text="{Binding Search}" AutomationProperties.Name="Buscar sitios" />
+                </StackPanel>
+                <TextBlock Classes="h2" Text="{Binding Count}" />
+              </DockPanel>
+            </Border>
+            <Border Classes="th">
+              <Grid ColumnDefinitions="2.4*,*,1.3*,64" ColumnSpacing="12">
+                <TextBlock Text="Sitio" />
+                <TextBlock Grid.Column="1" Text="PHP" />
+                <TextBlock Grid.Column="2" Text="Certificado" />
+                <TextBlock Grid.Column="3" Text="hosts" />
+              </Grid>
+            </Border>
+            <ctl:Note Tone="Accent" Margin="16,14" IsVisible="{Binding !HasSites}"
+                      Content="Aún no hay sitios. Pulsa Nuevo sitio: cada uno es una carpeta servida en https://&lt;nombre&gt;.test con su propio certificado." />
+            <ItemsControl ItemsSource="{Binding Rows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SiteRow">
+                  <Button Classes="row" Classes.sel="{Binding IsSelected}"
+                          Command="{Binding $parent[ItemsControl].((vm:SitesViewModel)DataContext).ChooseCommand}" CommandParameter="{Binding}"
+                          AutomationProperties.Name="{Binding Host}">
+                    <Border Classes="tr" Padding="16,10">
+                      <Grid ColumnDefinitions="2.4*,*,1.3*,64" ColumnSpacing="12">
+                        <StackPanel VerticalAlignment="Center">
+                          <TextBlock Classes="mono strong" Text="{Binding Host}" />
+                          <TextBlock Classes="faint" Text="{Binding DocumentRoot}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding DocumentRoot}" />
+                        </StackPanel>
+                        <ctl:Chip Grid.Column="1" Text="{Binding Php}" Tone="{Binding PhpTone}" />
+                        <ctl:Chip Grid.Column="2" Text="{Binding Cert}" Tone="{Binding CertTone}" />
+                        <ctl:Chip Grid.Column="3" Text="{Binding Hosts}" Tone="{Binding HostsTone}" />
+                      </Grid>
+                    </Border>
+                  </Button>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <!-- Detalle -->
+        <Border Grid.Column="1" Classes="card" VerticalAlignment="Top" IsVisible="{Binding HasSelection}">
+          <StackPanel>
+            <Border Classes="card-h">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Classes="sm" Content="Abrir" Command="{Binding OpenCommand}" />
+                <TextBlock Classes="h2 mono" Text="{Binding Selected.Host, FallbackValue=''}" TextTrimming="CharacterEllipsis" />
+              </DockPanel>
+            </Border>
+            <StackPanel Margin="16,14" Spacing="14">
+              <ctl:Note Tone="Warn" IsVisible="{Binding MissingFromHosts}">
+                <StackPanel Spacing="6">
+                  <TextBlock TextWrapping="Wrap" Text="Falta en el hosts: no resolverá hasta que se añada (Windows pide permiso de administrador)." />
+                  <Button Classes="sm" Content="Añadir al hosts" HorizontalAlignment="Left" Command="{Binding SyncHostsCommand}" />
+                </StackPanel>
+              </ctl:Note>
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+                <TextBlock Classes="muted" Text="Direcciones" />
+                <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Urls}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="1" Classes="muted" Text="Carpeta" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Classes="mono" Text="{Binding Selected.Site.Folder, FallbackValue=''}" TextTrimming="LeadingCharacterEllipsis"
+                           ToolTip.Tip="{Binding Selected.Site.Folder, FallbackValue=''}" />
+                <TextBlock Grid.Row="2" Classes="muted" Text="Raíz web" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Classes="mono" Text="{Binding RootText}" />
+              </Grid>
+              <StackPanel Spacing="6">
+                <TextBlock Classes="lbl" Text="PHP del sitio" />
+                <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding SelectedPhp}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
+                <TextBlock Classes="faint" TextWrapping="Wrap" Text="Cambiarlo rearranca el stack. Cada rama en uso tiene su propio pool de php-cgi." />
+              </StackPanel>
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+                <TextBlock Classes="muted" Text="Certificado" />
+                <StackPanel Grid.Column="1" Spacing="4">
+                  <ctl:Chip Text="{Binding Selected.Cert, FallbackValue=''}" Tone="{Binding Selected.CertTone, FallbackValue=Neutral}" />
+                  <TextBlock Classes="faint" Text="{Binding CertDetail}" TextWrapping="Wrap" />
+                </StackPanel>
+                <TextBlock Grid.Row="1" Classes="muted" Text="Base de datos" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Classes="small" Text="{Binding DbText}" TextWrapping="Wrap" />
+                <TextBlock Grid.Row="2" Classes="muted" Text="vhost" />
+                <TextBlock Grid.Row="2" Grid.Column="1" Classes="mono" Text="{Binding ConfPath}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding ConfPath}" />
+              </Grid>
+              <WrapPanel ItemSpacing="8" LineSpacing="8">
+                <Button Classes="sm" Content="Carpeta" Command="{Binding OpenFolderCommand}" />
+                <Button Classes="sm" Content="Terminal aquí" Command="{Binding OpenTerminalCommand}" />
+                <Button Classes="sm" Content="Editar vhost" Command="{Binding EditConfCommand}" />
+                <Button Classes="sm" Content="Renovar certificado" Command="{Binding RenewCertCommand}" />
+              </WrapPanel>
+              <ctl:Note Tone="Accent">
+                <TextBlock TextWrapping="Wrap">
+                  <Run Text="En el vhost puedes editar todo lo que esté fuera de las marcas " />
+                  <Run Text="roost:begin" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text=" / " />
+                  <Run Text="roost:end" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text="." />
+                </TextBlock>
+              </ctl:Note>
+              <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Button Classes="sm danger" Content="Quitar sitio" Command="{Binding RemoveCommand}" />
+                  <TextBlock Classes="faint" Text="La carpeta del proyecto no se toca." VerticalAlignment="Center" />
+                </StackPanel>
+              </Border>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

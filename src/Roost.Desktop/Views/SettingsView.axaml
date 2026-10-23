@@ -1,0 +1,283 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             xmlns:sys="using:System"
+             x:Class="Roost.Desktop.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+  <UserControl.Styles>
+    <!-- Cada fila de ajuste: etiqueta a la izquierda, control a la derecha -->
+    <Style Selector="Grid.setting">
+      <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+  </UserControl.Styles>
+  <ScrollViewer>
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto" Margin="24,18,24,14">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Classes="h1" Text="Ajustes" />
+          <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="LeadingCharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="Abrir roost.toml" Command="{Binding OpenConfigCommand}" />
+      </Grid>
+
+      <!-- Una Roost nueva (UpdateState): solo si la hay. Aquí lleva el aviso de la barra lateral. -->
+      <ctl:Note Margin="24,0,24,16" IsVisible="{Binding Updates.HasUpdate}">
+        <StackPanel Spacing="8">
+          <TextBlock TextWrapping="Wrap">
+            <Run Text="{Binding Updates.BannerTitle, Mode=OneWay}" FontWeight="SemiBold" />
+            <Run Text="{Binding Version, StringFormat=' · tienes la {0}', Mode=OneWay}" />
+          </TextBlock>
+          <ItemsControl ItemsSource="{Binding Updates.NotesLines}" IsVisible="{Binding Updates.HasNotes}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="sys:String">
+                <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <TextBlock Text="{Binding Updates.HowText}" TextWrapping="Wrap" Margin="0,2,0,0" />
+          <Border IsVisible="{Binding Updates.HasCommand}" HorizontalAlignment="Left" CornerRadius="6" Padding="10,5"
+                  Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1">
+            <SelectableTextBlock Classes="mono" Text="{Binding Updates.Command}" Foreground="{DynamicResource TextBrush}" />
+          </Border>
+          <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,2,0,0">
+            <Button Classes="sm primary" Command="{Binding OpenReleaseCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <ctl:Icon Data="{StaticResource IcExternal}" Size="14" VerticalAlignment="Center" />
+                <TextBlock Text="Ver la versión en GitHub" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="sm" Command="{Binding DownloadReleaseCommand}" IsVisible="{Binding Updates.HasDownload}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <ctl:Icon Data="{StaticResource IcDownload}" Size="14" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Updates.DownloadText}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="sm" Command="{Binding CopyUpdateCommand}" IsVisible="{Binding Updates.HasCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <ctl:Icon Data="{StaticResource IcCopy}" Size="14" VerticalAlignment="Center" />
+                <TextBlock Text="Copiar el comando" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+          </WrapPanel>
+        </StackPanel>
+      </ctl:Note>
+
+      <Grid Margin="24,0,24,24" ColumnDefinitions="*,*" ColumnSpacing="16">
+        <StackPanel Spacing="16">
+          <!-- General -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="General" /></Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <CheckBox IsChecked="{Binding StartWithWindows}" Content="Abrir Roost al iniciar sesión (en la bandeja)" />
+                <CheckBox IsChecked="{Binding StartStackOnLaunch}" Content="Iniciar todo al abrir Roost" />
+                <CheckBox IsChecked="{Binding CloseToTray}" Content="Cerrar la ventana deja Roost en la bandeja" />
+                <CheckBox IsChecked="{Binding ShimsEnabled}">
+                  <StackPanel>
+                    <TextBlock Text="{Binding ShimsText}" TextWrapping="Wrap" />
+                    <TextBlock Classes="faint" TextWrapping="Wrap"
+                               Text="Lo decide un .php-version en la carpeta (roost php use 7.4 --here), el PHP del sitio o el global. Abre una terminal nueva para verlo." />
+                  </StackPanel>
+                </CheckBox>
+                <ctl:Note Tone="Warn" IsVisible="{Binding HasShimsWarning}" Content="{Binding ShimsWarning}" />
+                <CheckBox IsEnabled="False" ToolTip.Tip="Próximamente: llega con el feed de avisos, que se actualiza solo" ToolTip.ShowOnDisabled="True"
+                          Content="Avisarme en la bandeja si algo pasa a rojo en la auditoría · próximamente" />
+                <StackPanel Spacing="6" Margin="0,4,0,0">
+                  <TextBlock Classes="lbl" Text="Tema" />
+                  <Border Classes="seg">
+                    <StackPanel Orientation="Horizontal" Spacing="2">
+                      <RadioButton Theme="{StaticResource SegButton}" GroupName="tema" Content="Como el sistema" IsChecked="{Binding ThemeSystem}" />
+                      <RadioButton Theme="{StaticResource SegButton}" GroupName="tema" Content="Claro" IsChecked="{Binding ThemeLight}" />
+                      <RadioButton Theme="{StaticResource SegButton}" GroupName="tema" Content="Oscuro" IsChecked="{Binding ThemeDark}" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Rutas -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="Rutas" /></Border>
+              <Grid Margin="16,14" ColumnDefinitions="110,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                <TextBlock Classes="muted" Text="Roost" VerticalAlignment="Center" />
+                <Button Grid.Column="1" Classes="link" HorizontalAlignment="Left" ToolTip.Tip="{Binding Paths.Root}"
+                        Command="{Binding OpenFolderCommand}" CommandParameter="{Binding Paths.Root}">
+                  <TextBlock Classes="mono" Text="{Binding Paths.Root}" TextTrimming="LeadingCharacterEllipsis" />
+                </Button>
+                <Button Grid.Column="2" Classes="sm" Content="Cambiar…" IsEnabled="False" ToolTip.Tip="Próximamente (hoy: la variable ROOST_HOME)" ToolTip.ShowOnDisabled="True" />
+                <TextBlock Grid.Row="1" Classes="muted" Text="Proyectos" VerticalAlignment="Center" />
+                <Button Grid.Row="1" Grid.Column="1" Classes="link" HorizontalAlignment="Left" ToolTip.Tip="{Binding Paths.Www}"
+                        Command="{Binding OpenFolderCommand}" CommandParameter="{Binding Paths.Www}">
+                  <TextBlock Classes="mono" Text="{Binding Paths.Www}" TextTrimming="LeadingCharacterEllipsis" />
+                </Button>
+                <Button Grid.Row="1" Grid.Column="2" Classes="sm" Content="Cambiar…" IsEnabled="False" ToolTip.Tip="Próximamente" ToolTip.ShowOnDisabled="True" />
+                <TextBlock Grid.Row="2" Classes="muted" Text="Descargas" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" TextTrimming="LeadingCharacterEllipsis">
+                  <Run Text="{Binding Paths.Cache, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                  <Run Text="{Binding CacheSize, StringFormat='  ({0})', Mode=OneWay}" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
+                </TextBlock>
+                <Button Grid.Row="2" Grid.Column="2" Classes="sm" Content="Vaciar" Command="{Binding ClearCacheCommand}" />
+                <TextBlock Grid.Row="3" Classes="muted" Text="Datos de BD" VerticalAlignment="Center" />
+                <TextBlock Grid.Row="3" Grid.Column="1" Classes="mono" Text="{Binding Paths.Data}" VerticalAlignment="Center" TextTrimming="LeadingCharacterEllipsis" />
+                <TextBlock Grid.Row="3" Grid.Column="2" Classes="faint" Text="Roost nunca los borra" VerticalAlignment="Center" />
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- Puertos -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Puertos y procesos" />
+                  <TextBlock Classes="hint" Text="Todo escucha solo en 127.0.0.1" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="16,14" Spacing="12">
+                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
+                  <StackPanel Spacing="6">
+                    <TextBlock Classes="lbl" Text="HTTP" />
+                    <TextBox Classes="mono" Text="{Binding HttpText}" AutomationProperties.Name="Puerto HTTP" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Spacing="6">
+                    <TextBlock Classes="lbl" Text="HTTPS" />
+                    <TextBox Classes="mono" Text="{Binding HttpsText}" AutomationProperties.Name="Puerto HTTPS" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Spacing="6">
+                    <TextBlock Classes="lbl" Text="Base de datos" />
+                    <TextBox Classes="mono" Text="{Binding DbPortText}" AutomationProperties.Name="Puerto de la base de datos" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="3" Spacing="6">
+                    <TextBlock Classes="lbl" Text="php-cgi por versión" />
+                    <TextBox Classes="mono" Text="{Binding PoolText}" AutomationProperties.Name="Procesos php-cgi por versión" />
+                  </StackPanel>
+                </Grid>
+                <ctl:Note Tone="Bad" IsVisible="{Binding HasPortsError}" Content="{Binding PortsError}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm primary" Content="Guardar y aplicar" Command="{Binding ApplyPortsCommand}" />
+                  <Button Classes="sm ghost" Content="Ver quién ocupa cada puerto" Command="{Binding ShowPortOwnersCommand}" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Spacing="16">
+          <!-- Certificados -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="Certificados de confianza" /></Border>
+              <StackPanel Margin="16,14" Spacing="12">
+                <Grid ColumnDefinitions="90,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                  <TextBlock Classes="muted" Text="CA local" />
+                  <StackPanel Grid.Column="1" Spacing="4">
+                    <TextBlock Classes="small" Text="{Binding CaText}" TextWrapping="Wrap" />
+                    <ctl:Chip Text="de confianza" Tone="Ok" IsVisible="{Binding CaTrusted}" />
+                    <ctl:Chip Text="el navegador aún no confía en ella" Tone="Warn" IsVisible="{Binding CaNotTrusted}" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="1" Classes="muted" Text="Clave" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" Classes="small" TextWrapping="Wrap">
+                    <Run Text="certs\ca\roost-ca.key" FontFamily="{StaticResource MonoFont}" />
+                    <Run Text=" · solo la lee tu usuario" Foreground="{DynamicResource FaintBrush}" />
+                  </TextBlock>
+                  <TextBlock Grid.Row="2" Classes="muted" Text="Sitios" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="small" TextWrapping="Wrap" Text="397 días; se renuevan solos 30 días antes" />
+                </Grid>
+                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                  <Button Classes="sm" Content="Renovar todos" Command="{Binding RenewAllCommand}" IsEnabled="{Binding CaExists}" />
+                  <Button Classes="sm primary" Content="Confiar en la CA…" Command="{Binding TrustCommand}" IsVisible="{Binding CaNotTrusted}" IsEnabled="{Binding CaExists}" />
+                  <Button Classes="sm" Content="Configurar Firefox" IsEnabled="False" ToolTip.Tip="Próximamente" ToolTip.ShowOnDisabled="True" />
+                  <Button Classes="sm danger" Content="Dejar de confiar" Command="{Binding UntrustCommand}" IsVisible="{Binding CaTrusted}" />
+                </WrapPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Nombres .test -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Nombres .test" />
+                  <TextBlock Classes="hint" Text="Cómo se resuelven" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <RadioButton GroupName="dns" IsChecked="{Binding ResolverHosts}">
+                  <StackPanel>
+                    <TextBlock Classes="strong" Text="Fichero hosts del sistema" />
+                    <TextBlock Classes="faint" TextWrapping="Wrap"
+                               Text="Pide permiso de administrador (UAC) al añadir o quitar un sitio. Lo hace roost-helper, que solo toca su bloque." />
+                    <TextBlock Classes="faint mono" FontSize="11" Text="{Binding HostsFileText}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="dns" IsChecked="{Binding ResolverDns}">
+                  <StackPanel>
+                    <TextBlock Classes="strong" Text="DNS local, sin permisos al añadir sitios" />
+                    <TextBlock Classes="faint" TextWrapping="Wrap"
+                               Text="Un solo permiso, al ponerlo: una regla de Windows manda los .test al DNS de Roost, que los responde mientras el stack está en marcha." />
+                  </StackPanel>
+                </RadioButton>
+                <TextBlock Classes="faint" Text="{Binding DnsStateText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm" Content="Ver el bloque del hosts" Command="{Binding ShowHostsBlockCommand}" />
+                  <Button Classes="sm ghost" Content="Registro del helper" Command="{Binding OpenHelperLogCommand}" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Avisos -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Avisos de seguridad" />
+                  <TextBlock Classes="hint" Text="{Binding DatasetText}" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <Grid ColumnDefinitions="90,*" ColumnSpacing="12">
+                  <TextBlock Classes="muted" Text="Fuente" />
+                  <TextBlock Grid.Column="1" Classes="small" TextWrapping="Wrap" Text="{Binding DatasetSource}" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm" Content="Comprobar ahora" Command="{Binding CheckNowCommand}" />
+                  <Button Classes="sm ghost" Content="Ir a Auditoría" Command="{Binding GoAuditCommand}" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Acerca de -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="Acerca de Roost" /></Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="strong" Text="{Binding Version, StringFormat='Roost {0}'}" VerticalAlignment="Center" />
+                  <TextBlock Classes="faint" Text="Licencia MIT ·" VerticalAlignment="Center" />
+                  <Button Classes="link" FontSize="12" Content="github.com/get-roost/roost" Command="{Binding OpenRepoCommand}" />
+                </StackPanel>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                  <ctl:Dot Tone="{Binding Updates.StatusTone}" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding Updates.StatusText}" TextWrapping="Wrap" />
+                </Grid>
+                <CheckBox IsChecked="{Binding CheckUpdatesOnLaunch}" Content="Avisarme de las versiones nuevas de Roost (mira una vez al día)" />
+                <TextBlock Classes="faint" Text="{Binding UpdatesDisabledText}" IsVisible="{Binding UpdatesDisabledByEnvironment}" TextWrapping="Wrap" />
+                <TextBlock Classes="faint" Text="{Binding ExtensionsText}" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm" Content="Importar desde Laragon…" Command="{Binding ImportLaragonCommand}" />
+                  <Button Classes="sm ghost" Content="{Binding Updates.CheckLabel}" Command="{Binding CheckUpdatesCommand}" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

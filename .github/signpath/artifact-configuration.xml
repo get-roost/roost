@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuración de artefacto para SignPath (se pega en el proyecto de SignPath; este fichero es la
+  referencia). El artefacto es la carpeta de build/publish-windows.ps1 subida por release.yml, con
+  los ficheros en la raíz. Se firman solo los binarios de Roost (la misma lista que deja el script
+  en artifacts/win-x64.firmar.txt): los de terceros (el runtime de .NET, Avalonia, SkiaSharp...)
+  no son nuestros y SignPath Foundation no los firma.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="roost.exe"><authenticode-sign /></pe-file>
+    <pe-file path="roost.dll"><authenticode-sign /></pe-file>
+    <pe-file path="roost-desktop.exe"><authenticode-sign /></pe-file>
+    <pe-file path="roost-desktop.dll"><authenticode-sign /></pe-file>
+    <pe-file path="roost-helper.exe"><authenticode-sign /></pe-file>
+    <pe-file path="roost-helper.dll"><authenticode-sign /></pe-file>
+    <pe-file path="roost-shim.exe"><authenticode-sign /></pe-file>
+    <pe-file path="Roost.Core.dll"><authenticode-sign /></pe-file>
+    <pe-file path="Roost.Daemon.dll"><authenticode-sign /></pe-file>
+    <pe-file path="Roost.Extensibility.dll"><authenticode-sign /></pe-file>
+  </zip-file>
+</artifact-configuration>

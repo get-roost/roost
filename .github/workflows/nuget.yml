@@ -1,0 +1,103 @@
+# Empaqueta Roost.Core, Roost.Daemon y Roost.Extensibility (ROOST.md §12.4) y, si se pide, los
+# publica en nuget.org. Solo a mano (workflow_dispatch): sin «publicar», deja los paquetes en el
+# artefacto «nuget» para revisarlos. Para publicar hay que lanzarlo sobre la etiqueta v<versión>
+# (en «Use workflow from», elegir la etiqueta), que tiene que coincidir con Directory.Build.props.
+#
+# Credenciales, la primera que haya:
+#   - trusted publishing de nuget.org (sin claves): política en nuget.org con propietario
+#     get-roost, repositorio roost y workflow nuget.yml, y el usuario de nuget.org (el
+#     nombre de perfil, no el correo) en la variable o el secreto NUGET_USER;
+#   - una API key de nuget.org en el secreto NUGET_API_KEY (con permiso de push para Roost.*).
+name: NuGet
+
+on:
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: Publicar en nuget.org (si no, solo empaqueta)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+
+jobs:
+  paquetes:
+    name: Paquetes NuGet
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write   # trusted publishing de nuget.org
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Versión
+        shell: bash
+        env:
+          PUBLICAR: ${{ inputs.publicar }}
+        run: |
+          version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -n 1)"
+          echo "Version: $version (ref $GITHUB_REF)"
+          if [ "$PUBLICAR" = "true" ] && [ "$GITHUB_REF" != "refs/tags/v$version" ]; then
+            echo "::error::Para publicar, lanza el workflow sobre la etiqueta v$version (ahora es $GITHUB_REF)"
+            exit 1
+          fi
+
+      - name: Tests
+        run: dotnet test Roost.slnx -c Release
+
+      - name: Empaquetar
+        shell: bash
+        run: |
+          dotnet pack Roost.slnx -c Release --no-build -o artifacts/nuget
+          ls -l artifacts/nuget
+          # Solo esos tres son empaquetables (IsPackable en Directory.Build.props y sus csproj).
+          got="$(cd artifacts/nuget && ls *.nupkg | sed 's/\.[0-9][^.]*\.[0-9].*\.nupkg$//' | sort | tr '\n' ' ')"
+          if [ "$got" != "Roost.Core Roost.Daemon Roost.Extensibility " ]; then
+            echo "::error::Salen otros paquetes de los esperados: $got"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: nuget
+          path: artifacts/nuget/
+          if-no-files-found: error
+
+      - name: Elegir las credenciales
+        if: inputs.publicar
+        id: modo
+        shell: bash
+        env:
+          NUGET_USER: ${{ secrets.NUGET_USER || vars.NUGET_USER }}
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -n "$NUGET_USER" ]; then echo "modo=oidc" >> "$GITHUB_OUTPUT"
+          elif [ -n "$NUGET_API_KEY" ]; then echo "modo=clave" >> "$GITHUB_OUTPUT"
+          else echo "::error::Falta NUGET_USER (trusted publishing) o el secreto NUGET_API_KEY"; exit 1
+          fi
+
+      - name: NuGet login (trusted publishing)
+        if: inputs.publicar && steps.modo.outputs.modo == 'oidc'
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER || vars.NUGET_USER }}
+
+      - name: Publicar en nuget.org
+        if: inputs.publicar
+        shell: bash
+        env:
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY || secrets.NUGET_API_KEY }}
+        run: |
+          # Los .snupkg (símbolos) se suben solos con su .nupkg. --skip-duplicate: relanzarlo no falla.
+          for pkg in artifacts/nuget/*.nupkg; do
+            dotnet nuget push "$pkg" --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done

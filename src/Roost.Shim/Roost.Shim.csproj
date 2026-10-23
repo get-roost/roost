@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    roost-shim: el `php` de la terminal (ROOST.md §5.9). `roost shims install` lo copia como
+    bin/shims/php.exe; en cada llamada decide qué PHP toca en esa carpeta (TerminalPhp, en Core)
+    y lo ejecuta con los mismos argumentos. Para las releases se publica con NativeAOT: un solo
+    ejecutable que arranca en milisegundos. En una compilación normal funciona igual, con su dll.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>roost-shim</AssemblyName>
+    <RootNamespace>Roost.Shim</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Roost.Core\Roost.Core.csproj" />
+  </ItemGroup>
+
+</Project>

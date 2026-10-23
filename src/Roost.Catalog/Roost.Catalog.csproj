@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- roost-catalog: el generador del feed firmado de avisos (ROOST.md §7.3). Lo ejecuta cada día
+       .github/workflows/catalog.yml; no se distribuye con Roost. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>roost-catalog</AssemblyName>
+    <RootNamespace>Roost.Catalog</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Roost.Core\Roost.Core.csproj" />
+  </ItemGroup>
+
+</Project>

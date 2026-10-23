@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\Roost.Core\Roost.Core.csproj" />
+    <ProjectReference Include="..\Roost.Daemon\Roost.Daemon.csproj" />
+    <!-- Para que roost-helper.exe quede junto a roost.exe. -->
+    <ProjectReference Include="..\Roost.Helper\Roost.Helper.csproj" />
+    <ProjectReference Include="..\Roost.Shim\Roost.Shim.csproj" />
+    <ProjectReference Include="..\Roost.Extensibility\Roost.Extensibility.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>roost</AssemblyName>
+    <RootNamespace>Roost.Cli</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Spectre.Console" Version="0.57.2" />
+    <PackageReference Include="Spectre.Console.Cli" Version="0.57.2" />
+  </ItemGroup>
+
+</Project>
