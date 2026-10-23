@@ -72,7 +72,6 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     [ObservableProperty] public partial string HttpText { get; set; } = "";
     [ObservableProperty] public partial string HttpsText { get; set; } = "";
-    [ObservableProperty] public partial string DbPortText { get; set; } = "";
     [ObservableProperty] public partial string PoolText { get; set; } = "";
     [ObservableProperty] public partial string? PortsError { get; private set; }
 
@@ -216,7 +215,6 @@ public sealed partial class SettingsViewModel : PageViewModel
             try { config = RoostConfig.Load(Paths.ConfigFile); } catch (RoostException) { config = new RoostConfig(); }
             HttpText = config.HttpPort.ToString(CultureInfo.InvariantCulture);
             HttpsText = config.HttpsPort.ToString(CultureInfo.InvariantCulture);
-            DbPortText = config.DbPort.ToString(CultureInfo.InvariantCulture);
             PoolText = config.PhpPool.ToString(CultureInfo.InvariantCulture);
             ResolverDns = config.UsesLocalDns;
             ResolverHosts = !config.UsesLocalDns;
@@ -311,14 +309,13 @@ public sealed partial class SettingsViewModel : PageViewModel
     private Task ApplyPortsAsync() => Main.RunAsync("No se pudieron guardar los puertos", async () =>
     {
         PortsError = null;
-        if (!int.TryParse(HttpText, out var http) || !int.TryParse(HttpsText, out var https)
-            || !int.TryParse(DbPortText, out var db) || !int.TryParse(PoolText, out var pool))
+        if (!int.TryParse(HttpText, out var http) || !int.TryParse(HttpsText, out var https) || !int.TryParse(PoolText, out var pool))
         {
             PortsError = "Todos tienen que ser números.";
             return;
         }
         // Lo mismo que comprueba Servidor web, antes de escribir nada.
-        if (http is < 1 or > 65535 || https is < 1 or > 65535 || db is < 1 or > 65535)
+        if (http is < 1 or > 65535 || https is < 1 or > 65535)
         {
             PortsError = "Los puertos van del 1 al 65535.";
             return;
@@ -328,17 +325,19 @@ public sealed partial class SettingsViewModel : PageViewModel
             PortsError = "El puerto HTTP y el HTTPS tienen que ser distintos.";
             return;
         }
-        if (db == http || db == https)
+
+        // El de la base de datos se cambia en su pantalla; aquí solo se evita pisarlo.
+        RoostConfig current;
+        try { current = RoostConfig.Load(Paths.ConfigFile); } catch (RoostException) { current = new RoostConfig(); }
+        if (http == current.DbPort || https == current.DbPort)
         {
-            PortsError = "La base de datos no puede usar un puerto del servidor web.";
+            PortsError = $"El {current.DbPort} es el de la base de datos (se cambia en Bases de datos).";
             return;
         }
 
         // Un puerto nuevo que ya tiene otro proceso: se dice aquí, antes de guardar, y no como un
         // arranque fallido con la configuración ya cambiada. Los que no cambian son de Roost.
-        RoostConfig current;
-        try { current = RoostConfig.Load(Paths.ConfigFile); } catch (RoostException) { current = new RoostConfig(); }
-        foreach (var (port, now, role) in new[] { (http, current.HttpPort, "HTTP"), (https, current.HttpsPort, "HTTPS"), (db, current.DbPort, "de la base de datos") })
+        foreach (var (port, now, role) in new[] { (http, current.HttpPort, "HTTP"), (https, current.HttpsPort, "HTTPS") })
         {
             if (port == now || StackPlanner.BusyPorts([port]).Count == 0) continue;
             var owner = PortOwners.Find(port);
@@ -349,7 +348,6 @@ public sealed partial class SettingsViewModel : PageViewModel
         try
         {
             RoostConfig.SetWebPorts(Paths.ConfigFile, http, https);
-            RoostConfig.SetDbPort(Paths.ConfigFile, db);
             RoostConfig.SetPhpPool(Paths.ConfigFile, pool);
         }
         catch (RoostException ex)
@@ -362,13 +360,18 @@ public sealed partial class SettingsViewModel : PageViewModel
         if (applied) Main.Flash("Puertos guardados");
     });
 
+    /// <summary>El puerto de la base de datos vive en su pantalla: aquí solo se remite.</summary>
+    [RelayCommand]
+    private Task GoDatabasesAsync() => Main.NavigateToAsync(Main.Databases);
+
     [RelayCommand]
     private Task ShowPortOwnersAsync()
     {
         int.TryParse(HttpText, out var http);
         int.TryParse(HttpsText, out var https);
-        int.TryParse(DbPortText, out var db);
-        var lines = new[] { (http, "HTTP"), (https, "HTTPS"), (db, "base de datos") }
+        RoostConfig current;
+        try { current = RoostConfig.Load(Paths.ConfigFile); } catch (RoostException) { current = new RoostConfig(); }
+        var lines = new[] { (http, "HTTP"), (https, "HTTPS"), (current.DbPort, "base de datos") }
             .Select(p =>
             {
                 if (StackPlanner.BusyPorts([p.Item1]).Count == 0) return $"{p.Item1} ({p.Item2}): libre";

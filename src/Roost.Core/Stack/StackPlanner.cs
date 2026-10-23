@@ -396,18 +396,17 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
     }
 
     /// <summary>
-    /// Genera el my.ini de la base de datos, crea su datadir la primera vez y devuelve su
-    /// servicio. Se para limpio: se le pide <c>shutdown</c> con el admin y se espera.
+    /// Genera el my.ini de la base de datos (con la contraseña de root que guarda Roost en su
+    /// <c>[client]</c> y el <c>usuario.cnf</c> del usuario incluido), crea su datadir la primera
+    /// vez y devuelve su servicio. Se para limpio: se le pide <c>shutdown</c> con el admin y se espera.
     /// </summary>
     private ServiceDefinition PrepareDb(InstalledDb db, int port)
     {
-        if (db.Version is not { } version || db.Branch is not { } branch)
+        if (db.Version is null || db.Branch is not { } branch)
             throw new RoostException($"No se reconoce la version de la instalacion {db.Label}.");
 
-        var ini = DbIniPath(db);
-        var datadir = Path.Combine(paths.Data, db.Engine.Key(), branch);
-        Directory.CreateDirectory(Path.GetDirectoryName(ini)!);
-        File.WriteAllText(ini, DbIni.Render(db.Engine, version, db.Directory, datadir, port));
+        var ini = DbIni.Write(paths, db, port, new DbPasswords(paths).For(db));
+        var datadir = DbIni.DataDir(paths, db);
         EnsureDataDir(db, ini, datadir);
 
         var name = $"{db.Engine.Key()}-{branch}";
