@@ -146,6 +146,56 @@ public sealed class SiteRemoveCommand : AsyncCommand<SiteRemoveCommand.Settings>
     }
 }
 
+/// <summary><c>roost site root</c>: ensena o cambia la raiz web de un sitio (la subcarpeta del proyecto que se sirve).</summary>
+public sealed class SiteRootCommand : AsyncCommand<SiteRootCommand.Settings>
+{
+    public sealed class Settings : CommandSettings
+    {
+        [CommandArgument(0, "<NOMBRE>")]
+        [Description("Nombre del sitio (el de <nombre>.test).")]
+        public string Name { get; init; } = "";
+
+        [CommandArgument(1, "[CARPETA]")]
+        [Description("La raiz web nueva: una subcarpeta del proyecto (public, web, dist...) o . para la carpeta del proyecto. Sin ella, ensena la actual.")]
+        public string? Root { get; init; }
+    }
+
+    public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
+    {
+        var paths = RoostPaths.Default();
+        var sites = new SiteManager(paths);
+        try
+        {
+            if (settings.Root is null)
+            {
+                var site = sites.Find(settings.Name);
+                if (site is null)
+                {
+                    AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun sitio '{settings.Name}'.[/] Mira los registrados con: roost site list");
+                    return 1;
+                }
+
+                AnsiConsole.MarkupLineInterpolated($"[bold]{site.Host}[/] sirve {Describe(site)}: [grey]{site.DocumentRoot}[/]");
+                if (!Directory.Exists(site.DocumentRoot))
+                    AnsiConsole.MarkupLine("[yellow]Esa carpeta ya no existe:[/] el sitio dara error hasta que vuelva o cambies la raiz.");
+                AnsiConsole.MarkupLineInterpolated($"[grey]Para cambiarla: roost site root {site.Name} <subcarpeta> (o . para la carpeta del proyecto).[/]");
+                return 0;
+            }
+
+            var changed = sites.SetRoot(settings.Name, settings.Root);
+            AnsiConsole.MarkupLineInterpolated($"[green]{changed.Host}[/] sirve ahora {Describe(changed)}: [grey]{changed.DocumentRoot}[/]");
+            return await StackApply.IfRunningAsync(paths, _ => $"{changed.Host} -> {changed.DocumentRoot}", cancellation);
+        }
+        catch (RoostException ex)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]{ex.Message}[/]");
+            return 1;
+        }
+    }
+
+    private static string Describe(Site site) => site.Root is null ? "la carpeta del proyecto" : $"la subcarpeta {site.Root}/";
+}
+
 /// <summary><c>roost site list</c>: los sitios, su carpeta, su PHP, su certificado y si estan en el hosts.</summary>
 public sealed class SiteListCommand : Command<SiteListCommand.Settings>
 {

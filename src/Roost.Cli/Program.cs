@@ -138,6 +138,12 @@ app.Configure(config =>
         site.AddCommand<SiteListCommand>("list")
             .WithDescription("Lista los sitios con su carpeta, su PHP, su certificado y si estan en el hosts.")
             .WithExample("site", "list");
+
+        site.AddCommand<SiteRootCommand>("root")
+            .WithDescription("Ensena o cambia la raiz web de un sitio: la subcarpeta del proyecto que se sirve (public, web, dist...). Con . vuelve a la carpeta del proyecto.")
+            .WithExample("site", "root", "tienda")
+            .WithExample("site", "root", "tienda", "public")
+            .WithExample("site", "root", "tienda", ".");
     });
 
     config.AddBranch("dns", dns =>

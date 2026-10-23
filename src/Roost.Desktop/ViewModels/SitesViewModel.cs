@@ -1,4 +1,5 @@
 using System.Security.Cryptography.X509Certificates;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Roost.Core;
@@ -41,10 +42,16 @@ public sealed record PhpOption(string Label, string? Spec)
     public override string ToString() => Label;
 }
 
+/// <summary>Un acceso rápido a una subcarpeta típica (public, web, dist…) que existe en el proyecto.</summary>
+public sealed record RootChoice(string Root)
+{
+    public string Label => Root + "/";
+}
+
 /// <summary>
 /// Sitios: cada proyecto en https://&lt;nombre&gt;.test con su certificado, su PHP (el global o
-/// uno propio) y su línea en el hosts. Alta con el diálogo Nuevo sitio; la carpeta del
-/// proyecto nunca se toca al quitarlo.
+/// uno propio), su raíz web y su línea en el hosts. Alta con el diálogo Nuevo sitio; la carpeta
+/// del proyecto nunca se toca al quitarlo.
 /// </summary>
 public sealed partial class SitesViewModel : PageViewModel
 {
@@ -70,21 +77,36 @@ public sealed partial class SitesViewModel : PageViewModel
     [ObservableProperty] public partial string DbText { get; private set; } = "";
     [ObservableProperty] public partial string ConfPath { get; private set; } = "";
 
+    /// <summary>Las subcarpetas típicas que existen en el proyecto y no son ya la raíz web.</summary>
+    [ObservableProperty] public partial IReadOnlyList<RootChoice> RootChoices { get; private set; } = [];
+
+    /// <summary>Si la carpeta del proyecto o la raíz web ya no existen; vacío si todo está.</summary>
+    [ObservableProperty] public partial string PathWarning { get; private set; } = "";
+
     public bool HasSelection => Selected is not null;
     public bool HasSites => _all.Count > 0;
     public bool MissingFromHosts => Selected is { InHosts: false, ByDns: false };
+    public bool HasRootChoices => RootChoices.Count > 0;
+    public bool HasSubRoot => Selected?.Site.Root is not null;
+    public bool HasPathWarning => PathWarning.Length > 0;
+    public bool FolderExists => Selected is { } row && Directory.Exists(row.Site.Folder);
 
     partial void OnSearchChanged(string value) => ApplySearch();
     partial void OnSelectedChanged(SiteRow? value)
     {
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(MissingFromHosts));
+        OnPropertyChanged(nameof(HasSubRoot));
+        OnPropertyChanged(nameof(FolderExists));
     }
+
+    partial void OnRootChoicesChanged(IReadOnlyList<RootChoice> value) => OnPropertyChanged(nameof(HasRootChoices));
+    partial void OnPathWarningChanged(string value) => OnPropertyChanged(nameof(HasPathWarning));
 
     partial void OnSelectedPhpChanged(PhpOption? value)
     {
         if (_settingPhp || value is null || Selected is not { } row || value.Spec == row.Site.Php) return;
-        _ = SetPhpAsync(row, value.Spec);
+        _ = SetPhpAsync(row, value);
     }
 
     public override Task ShownAsync()
@@ -174,12 +196,36 @@ public sealed partial class SitesViewModel : PageViewModel
         var site = row.Site;
         var http = config.HttpPort == 80 ? $"http://{site.Host}" : $"http://{site.Host}:{config.HttpPort}";
         Urls = StackPlanner.SiteUrl(site, config.HttpsPort).TrimEnd('/') + Environment.NewLine + http;
-        RootText = site.Root is null ? "(la carpeta)" : site.Root.Replace('\\', '/').TrimEnd('/') + "/";
+        RootText = RootLabel(site);
         CertDetail = $"Roost Local CA · {site.Host}, *.{site.Host}";
-        ConfPath = new SiteManager(paths).ConfFile(site);
+        ConfPath = new SiteManager(paths).ConfFile(site, config);
         var db = Main.Stack.Status?.Db;
         DbText = db is null ? "La global no está en marcha" : $"La global: {db} en 127.0.0.1:{Main.Stack.Status!.DbPort}";
 
+        // La carpeta o la raíz web pueden haber desaparecido desde que se registró el sitio.
+        var folderExists = Directory.Exists(site.Folder);
+        PathWarning = !folderExists
+            ? $"La carpeta del proyecto ya no existe ({site.Folder}). El sitio dará error hasta que vuelva; si ya no lo quieres, quítalo."
+            : site.Root is not null && !Directory.Exists(site.DocumentRoot)
+                ? $"La raíz web {RootText} ya no existe dentro de la carpeta. Elige otra con Cambiar… o vuelve a servir la carpeta del proyecto."
+                : "";
+        var currentRoot = site.Root?.Replace('\\', '/').TrimEnd('/');
+        RootChoices = folderExists
+            ? SiteManager.TypicalRoots
+                .Where(r => !string.Equals(r, currentRoot, StringComparison.OrdinalIgnoreCase) && Directory.Exists(Path.Combine(site.Folder, r)))
+                .Select(r => new RootChoice(r)).ToList()
+            : [];
+        OnPropertyChanged(nameof(HasSubRoot));
+        OnPropertyChanged(nameof(FolderExists));
+
+        SelectPhpOf(site);
+    }
+
+    private static string RootLabel(Site site) => site.Root is null ? "(la carpeta)" : site.Root.Replace('\\', '/').TrimEnd('/') + "/";
+
+    /// <summary>Deja el desplegable en el PHP del sitio sin disparar un cambio.</summary>
+    private void SelectPhpOf(Site site)
+    {
         _settingPhp = true;
         SelectedPhp = PhpOptions.FirstOrDefault(o => o.Spec == site.Php)
                       ?? (site.Php is null ? PhpOptions.FirstOrDefault() : new PhpOption(site.Php, site.Php));
@@ -213,17 +259,46 @@ public sealed partial class SitesViewModel : PageViewModel
         }
     }
 
+    /// <summary>El selector de carpetas del sistema, abierto en <paramref name="startIn"/> si existe; null si se cancela.</summary>
+    internal static async Task<string?> PickFolderAsync(MainViewModel main, string title, string? startIn)
+    {
+        if (main.StorageProvider is not { } storage) return null;
+        var start = startIn is not null && Directory.Exists(startIn) ? await storage.TryGetFolderFromPathAsync(startIn) : null;
+        var folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions { Title = title, AllowMultiple = false, SuggestedStartLocation = start });
+        return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
+    }
+
     // Acciones
 
     [RelayCommand]
     private void Choose(SiteRow row) => Pick(row);
 
-    private Task SetPhpAsync(SiteRow row, string? spec) => Main.RunAsync($"No se pudo cambiar el PHP de {row.Host}", async () =>
+    /// <summary>
+    /// Cambiar el PHP del sitio rearranca todo el stack: se confirma antes (si está en marcha) y,
+    /// si el rearranque no va, el sitio vuelve a su PHP de antes en el registro.
+    /// </summary>
+    private async Task SetPhpAsync(SiteRow row, PhpOption option)
     {
-        new SiteRegistry(Main.App.Paths).Upsert(row.Site with { Php = spec });
-        await Main.ApplyAsync();
+        var label = option.Spec ?? "el global";
+        if (Main.Stack.IsRunning && !await Main.ConfirmAsync($"Cambiar el PHP de {row.Host}",
+                $"Cambiar el PHP de {row.Host} a {label} rearranca Roost (unos segundos).", "Cambiar"))
+        {
+            SelectPhpOf(row.Site);
+            return;
+        }
+
+        var applied = false;
+        await Main.RunAsync($"No se pudo cambiar el PHP de {row.Host}", async () =>
+        {
+            var registry = new SiteRegistry(Main.App.Paths);
+            registry.Upsert(row.Site with { Php = option.Spec });
+            applied = await Main.ApplyAsync();
+            // El rearranque no fue (el diálogo ya lo ha contado): el registro vuelve a como estaba.
+            if (!applied) registry.Upsert(row.Site);
+        });
         Main.NotifyConfigChanged();
-    });
+        if (applied) Main.Flash(Main.Stack.IsRunning ? $"{row.Host} usa ahora PHP {label}" : $"{row.Host} usará PHP {label} al iniciar");
+    }
 
     [RelayCommand]
     private Task OpenAsync() => Main.RunAsync("No se pudo abrir el navegador", () =>
@@ -231,6 +306,12 @@ public sealed partial class SitesViewModel : PageViewModel
         if (Selected is { } row) Shell.OpenUrl(Urls.Split(Environment.NewLine)[0] + "/");
         return Task.CompletedTask;
     });
+
+    [RelayCommand]
+    private Task CopyUrlAsync() => Selected is null ? Task.CompletedTask : Main.CopyAsync(Urls.Split(Environment.NewLine)[0] + "/", "URL copiada");
+
+    [RelayCommand]
+    private Task CopyPathAsync() => Selected is { } row ? Main.CopyAsync(row.Site.Folder, "Ruta copiada") : Task.CompletedTask;
 
     [RelayCommand]
     private Task OpenFolderAsync() => Main.RunAsync("No se pudo abrir la carpeta", () =>
@@ -261,13 +342,39 @@ public sealed partial class SitesViewModel : PageViewModel
     {
         if (Selected is not { } row) return;
         new LocalCa(Main.App.Paths).EnsureSiteCert(row.Site, force: true);
-        await Main.ApplyAsync();
         Main.NotifyConfigChanged();
+        if (!await Main.ApplyAsync()) return;
         Main.Flash($"Certificado de {row.Host} renovado");
     });
 
     [RelayCommand]
-    private Task SyncHostsAsync() => Main.RunAsync("No se pudo actualizar el hosts", Main.SyncHostsAsync);
+    private async Task SyncHostsAsync() => await Main.SyncHostsAsync();
+
+    // La raíz web
+
+    /// <summary>«Cambiar…»: el selector de carpetas, abierto en la del proyecto; lo elegido tiene que estar dentro.</summary>
+    [RelayCommand]
+    private async Task ChangeRootAsync()
+    {
+        if (Selected is not { } row) return;
+        if (await PickFolderAsync(Main, $"Raíz web de {row.Host} (una subcarpeta del proyecto)", row.Site.Folder) is not { } picked) return;
+        await ApplyRootAsync(row, picked);
+    }
+
+    [RelayCommand]
+    private Task UseProjectRootAsync() => Selected is { } row ? ApplyRootAsync(row, null) : Task.CompletedTask;
+
+    [RelayCommand]
+    private Task SetRootAsync(string root) => Selected is { } row ? ApplyRootAsync(row, root) : Task.CompletedTask;
+
+    /// <summary>Guarda la raíz web (validada en Core) y la aplica. De momento rearranca el stack; más adelante recargará solo el servidor web.</summary>
+    private Task ApplyRootAsync(SiteRow row, string? root) => Main.RunAsync($"No se pudo cambiar la raíz web de {row.Host}", async () =>
+    {
+        var site = new SiteManager(Main.App.Paths).SetRoot(row.Site.Name, root);
+        Main.NotifyConfigChanged();
+        if (!await Main.ApplyAsync()) return;
+        Main.Flash($"{row.Host} sirve ahora {(site.Root is null ? "la carpeta del proyecto" : site.Root + "/")}");
+    });
 
     [RelayCommand]
     private async Task RemoveAsync()
@@ -281,14 +388,30 @@ public sealed partial class SitesViewModel : PageViewModel
                 "Quitar sitio", danger: true))
             return;
 
+        var removed = false;
+        var hostsOk = true;
+        var applied = false;
         await Main.RunAsync($"No se pudo quitar {row.Host}", async () =>
         {
             new SiteManager(Main.App.Paths).Remove(row.Site.Name);
+            removed = true;
             Main.NotifyConfigChanged();
-            await Main.SyncHostsAsync();
-            await Main.ApplyAsync();
+            // Si se cancela el permiso del hosts, el sitio ya está quitado: el cambio se aplica igual
+            // (deja de servirse) y se cuenta la verdad al final.
+            hostsOk = await Main.SyncHostsAsync(showError: false);
+            applied = await Main.ApplyAsync();
         });
         Main.NotifyConfigChanged();
+        if (!removed) return;
+
+        if (!hostsOk)
+            await Main.InfoAsync($"{row.Host} está quitado, pero sigue en el hosts",
+                $"{Main.HostsError}\n\nEl sitio ya no está registrado{(applied ? " ni se sirve" : "")}; solo queda su línea en el hosts, que no molesta. "
+                + "Se quitará la próxima vez que Roost sincronice el hosts: al crear o quitar otro sitio, o con «Añadir al hosts» en el panel de un sitio al que le falte. "
+                + "Con el DNS local (Ajustes › Nombres .test) el hosts deja de hacer falta.",
+                Tone.Warn);
+        else if (applied)
+            Main.Flash($"{row.Host} quitado");
     }
 
     [RelayCommand]
@@ -299,17 +422,32 @@ public sealed partial class SitesViewModel : PageViewModel
         await CreateAsync(request);
     }
 
-    /// <summary>Crear y abrir: registra, pasa al hosts, (re)arranca, crea la base de datos y abre el navegador.</summary>
+    /// <summary>Crear y abrir: registra, pasa al hosts, (re)arranca, crea la base de datos, ofrece confiar en la CA y abre el navegador.</summary>
     private Task CreateAsync(NewSiteRequest request) => Main.RunAsync($"No se pudo crear {request.Name}.test", async () =>
     {
         var paths = Main.App.Paths;
-        var change = new SiteManager(paths).Add(request.Name, request.Folder, php: request.Php ?? "global");
+        var change = new SiteManager(paths).Add(request.Name, request.Folder, request.Root, request.Php ?? "global");
+        var host = change.Site.Host;
         Main.NotifyConfigChanged();
-        await Main.SyncHostsAsync();
 
-        if (Main.Stack.IsRunning) await Main.ApplyAsync();
-        else await Main.StartStackAsync();
-        if (!Main.Stack.IsRunning) return;
+        // Si se cancela el permiso de Windows, el sitio ya está creado: se dice tal cual y se sigue
+        // (se sirve, aunque el nombre no resuelva hasta que entre en el hosts).
+        var hostsOk = await Main.SyncHostsAsync(showError: false);
+        if (!hostsOk)
+            await Main.InfoAsync($"{host} está creado, pero falta en el hosts",
+                $"{Main.HostsError}\n\nEl sitio queda registrado y se sirve, pero {host} no resolverá en el navegador hasta que esté en el hosts. "
+                + $"Para añadirlo: Sitios › {host} › «Añadir al hosts» (Windows volverá a pedir permiso), o pasa al DNS local en Ajustes › Nombres .test.",
+                Tone.Warn);
+
+        if (Main.Stack.IsRunning)
+        {
+            if (!await Main.ApplyAsync()) return;
+        }
+        else
+        {
+            await Main.StartStackAsync();
+            if (!Main.Stack.IsRunning) return;
+        }
 
         if (request.Database is { } database && Main.Stack.Status?.Db is not null)
         {
@@ -323,8 +461,11 @@ public sealed partial class SitesViewModel : PageViewModel
 
         Main.NotifyConfigChanged();
         Pick(_all.FirstOrDefault(r => r.Site.Name == change.Site.Name));
+        if (!hostsOk) return;   // sin el hosts, el navegador no lo encontraría
+
+        // Confiar en la CA antes de abrir el navegador: así la primera visita ya sale sin aviso.
+        await Main.OfferTrustAsync();
         var config = RoostConfig.Load(paths.ConfigFile);
         Shell.OpenUrl(StackPlanner.SiteUrl(change.Site, config.HttpsPort));
-        await Main.OfferTrustAsync();
     });
 }

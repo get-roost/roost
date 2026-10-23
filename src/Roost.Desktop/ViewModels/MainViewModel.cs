@@ -314,14 +314,32 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// Deja en el hosts los .test de todos los sitios. Con el hosts del sistema Windows pide
-    /// permiso de administrador (roost-helper), y solo si el bloque cambia. Lanza si se cancela.
+    /// permiso de administrador (roost-helper), y solo si el bloque cambia. No lanza: devuelve
+    /// false si no se pudo (el permiso cancelado, el helper falló), con el motivo en
+    /// <see cref="HostsError"/>; con <paramref name="showError"/> lo enseña además en un diálogo.
+    /// Quien quiera contarlo a su manera (Sitios: «creado, pero falta en el hosts») lo pasa a false.
     /// </summary>
-    public async Task SyncHostsAsync()
+    public async Task<bool> SyncHostsAsync(bool showError = true)
     {
-        var changed = await Task.Run(() => new SiteManager(App.Paths).SyncHosts(AppServices.HelperExe));
-        RefreshMachineState();
-        if (changed) Flash("hosts actualizado");
+        try
+        {
+            var changed = await Task.Run(() => new SiteManager(App.Paths).SyncHosts(AppServices.HelperExe));
+            HostsError = null;
+            RefreshMachineState();
+            if (changed) Flash("hosts actualizado");
+            return true;
+        }
+        catch (Exception ex) when (ex is RoostException or IOException or UnauthorizedAccessException)
+        {
+            HostsError = ex.Message;
+            RefreshMachineState();
+            if (showError) await InfoAsync("No se pudo actualizar el hosts", ex.Message, Tone.Bad);
+            return false;
+        }
     }
+
+    /// <summary>Por qué falló el último <see cref="SyncHostsAsync"/>; null si fue bien.</summary>
+    public string? HostsError { get; private set; }
 
     /// <summary>
     /// Cambia cómo se resuelven los .test. Al DNS local: pone la regla NRPT (un UAC) y deja de usar

@@ -9,7 +9,7 @@
       <Border DockPanel.Dock="Bottom" Classes="modal-f">
         <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
           <Button Content="Cancelar" Command="{Binding DismissCommand}" />
-          <Button Classes="primary" Content="Crear y abrir" Command="{Binding CreateCommand}" IsEnabled="{Binding NameValid}" />
+          <Button Classes="primary" Content="Crear y abrir" Command="{Binding CreateCommand}" IsEnabled="{Binding CanCreate}" />
         </StackPanel>
       </Border>
       <ScrollViewer MaxHeight="600">
@@ -27,7 +27,7 @@
             </Button>
           </Grid>
 
-          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="14">
+          <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="14">
             <StackPanel Spacing="6">
               <TextBlock Classes="lbl" Text="Nombre" />
               <TextBox Classes="mono" Text="{Binding Name}" PlaceholderText="tienda" AutomationProperties.Name="Nombre del sitio" />
@@ -44,12 +44,23 @@
               </Grid>
               <TextBlock Classes="faint" Text="{Binding FolderHint}" TextWrapping="Wrap" />
             </StackPanel>
-            <StackPanel Grid.Row="1" Spacing="6">
+            <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="6">
+              <TextBlock Classes="lbl" Text="Raíz web (dentro de la carpeta; opcional)" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                <TextBox Classes="mono" Text="{Binding Root}" PlaceholderText="public" AutomationProperties.Name="Raíz web del sitio" />
+                <Button Grid.Column="1" Classes="icon" Command="{Binding BrowseRootCommand}" IsEnabled="{Binding FolderExists}"
+                        ToolTip.Tip="Elegir la subcarpeta que se sirve" AutomationProperties.Name="Elegir raíz web">
+                  <ctl:Icon Data="{StaticResource IcFolder}" Size="15" />
+                </Button>
+              </Grid>
+              <TextBlock Classes="faint" Text="{Binding RootHint}" TextWrapping="Wrap" />
+            </StackPanel>
+            <StackPanel Grid.Row="2" Spacing="6">
               <TextBlock Classes="lbl" Text="PHP" />
               <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding Php}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
               <Button Classes="link" Content="Instalar otra versión…" HorizontalAlignment="Left" FontSize="12" Command="{Binding InstallOtherCommand}" />
             </StackPanel>
-            <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+            <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
               <TextBlock Classes="lbl" Text="Base de datos" />
               <CheckBox IsChecked="{Binding CreateDatabase}" IsEnabled="{Binding HasDb}" MinHeight="34">
                 <TextBlock>
