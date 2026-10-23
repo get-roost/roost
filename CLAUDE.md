@@ -56,7 +56,7 @@ dotnet test tests/Roost.Desktop.Tests                       # vistas en headless
 
   Sin `--ssl-no-revoke`, el curl de Windows (Schannel) falla con «revocation status is unknown», porque la CA local no publica lista de revocación. Los navegadores no la piden.
 
-- Para probar a mano sin crear `C:\roost`, `C:\www` ni `%APPDATA%\Roost`, define `ROOST_HOME` con una carpeta temporal: todo va debajo, y la caché a `ROOST_HOME\cache`. El daemon hereda la variable.
+- Para probar a mano sin crear `C:\roost` ni `%APPDATA%\Roost`, define `ROOST_HOME` con una carpeta temporal: todo va debajo, y la caché a `ROOST_HOME\cache`. El daemon hereda la variable.
 - Para probar el aviso de actualizaciones sin depender de GitHub, sirve un JSON con la forma de `/releases/latest` (`py -3 -m http.server <puerto> --bind 127.0.0.1`) y define `ROOST_UPDATE_URL=http://127.0.0.1:<puerto>/latest.json` (y `ROOST_HOME`): `roost update` lo consulta y deja la caché que leen `roost status` y la app. La caché recuerda la URL, así que al quitar la variable no se mezcla con la de GitHub. Mientras no haya ninguna release, la API real da 404 («aún no hay ninguna versión publicada»).
 - Para probar `roost up` usa puertos libres (`[web] port` y `[db] port` en `ROOST_HOME\roost.toml`): en una máquina de desarrollo el 80, el 8080, el 3306 y el 3307 suelen estar cogidos (Laragon, `php -S`, otro MySQL, túneles). No pares lo que haya en ellos.
 - Los zips grandes (MySQL 8.4, de unos 270 MB) se pueden copiar a `ROOST_HOME\cache\downloads` para no volver a descargarlos: el instalador los reutiliza si su SHA-256 cuadra.
@@ -91,7 +91,7 @@ Ocho proyectos: `Roost.Cli` → `Roost.Daemon` → `Roost.Extensibility` → `Ro
 - `ComponentParser` (puro, estático) convierte la salida de `php -v` / `mysqld --version` en un `DetectedComponent`. MySQL y MariaDB se distinguen por el banner "MariaDB": el scanner de MariaDB también prueba binarios `mysqld`, y el parser rechaza el binario cuyo banner no coincide con el tipo esperado, así que ninguno se cuenta como los dos.
 - `ComponentVersion` compara por número (8.3.9 < 8.3.36) y guarda el texto original en `Raw`. La auditoría lee `Raw` para detectar sufijos de backport de distro.
 - `ComponentKind` ya incluye Nginx y Apache, pero todavía no hay scanners para ellos. Si añades un scanner, actualiza también `ScannerPlumbingTests.CatalogoPorDefecto_RegistraLosTresScannersEnEsteSo`, que exige exactamente tres.
-- `RoostPaths` (`Platform/`) es la única fuente de rutas (ROOST.md §8): raíz `C:\roost` con `bin/`, `etc/`, `logs/` y `run/`; caché en `%LOCALAPPDATA%\Roost\cache`; `roost.toml` en `%APPDATA%\Roost`; www en `C:\www`. Con `ROOST_HOME` todo va bajo esa carpeta.
+- `RoostPaths` (`Platform/`) es la única fuente de rutas (ROOST.md §8): raíz `C:\roost` con `bin/`, `etc/`, `logs/` y `run/`; caché en `%LOCALAPPDATA%\Roost\cache`; `roost.toml` en `%APPDATA%\Roost`; www **siempre** en `<raíz>/www` (`C:\roost\www`, nunca `C:\www`). Con `ROOST_HOME` todo va bajo esa carpeta.
 - `RoostException` (namespace raíz) es el error para el usuario de cualquier operación (instalar, configuración, stack). Lleva un mensaje para enseñarlo tal cual, y quien la lanza no deja nada a medias.
 - **Instalación** (`Install/`, sigue ROOST.md §5.4). `InstallFiles` tiene las reglas comunes:
   - descarga a un `.part-…` y verifica el SHA-256 **antes** de extraer, con caché que se reutiliza si el hash cuadra;

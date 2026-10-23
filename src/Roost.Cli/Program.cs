@@ -74,7 +74,7 @@ app.Configure(config =>
         php.AddCommand<PhpWhichCommand>("which")
             .WithDescription("Que PHP usa la terminal en esta carpeta, y por que (.php-version, el sitio, el global).")
             .WithExample("php", "which")
-            .WithExample("php", "which", "--dir", @"C:\www\legacy");
+            .WithExample("php", "which", "--dir", @"C:\roost\www\legacy");
     });
 
     config.AddBranch("shims", shims =>

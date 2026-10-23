@@ -28,7 +28,7 @@ Todo sale de las [releases de GitHub](https://github.com/get-roost/roost/release
 En Linux, descarga `roost-<versión>-linux-x64.tar.gz` (solo la CLI). Sin instalar nada, en Windows vale también el `roost-<versión>-win-x64.zip`: descomprímelo donde quieras. Comprueba cualquier descarga con el `SHA256SUMS.txt` de la misma release. winget llegará más adelante (`Roost.Roost`).
 
 - Scoop pone `roost` en el `PATH` y un acceso directo «Roost» a la app en el menú Inicio.
-- Los datos no viven en la carpeta de Roost, sino en `C:\roost`, `%APPDATA%\Roost` y `C:\www` (ver [Dónde vive todo](#dónde-vive-todo-windows)), así que actualizar o desinstalar no los borra. El instalador para el stack él solo antes de actualizar o desinstalar; con Scoop o el zip, ejecuta antes `roost down` y cierra la app: los ficheros en uso no se pueden sustituir.
+- Los datos no viven en la carpeta de Roost, sino en `C:\roost` (tus proyectos incluidos, en `C:\roost\www`) y `%APPDATA%\Roost` (ver [Dónde vive todo](#dónde-vive-todo-windows)), así que actualizar o desinstalar no los borra. El instalador para el stack él solo antes de actualizar o desinstalar; con Scoop o el zip, ejecuta antes `roost down` y cierra la app: los ficheros en uso no se pueden sustituir.
 - **Por qué el instalador es lo recomendado.** `roost-helper.exe` se ejecuta como administrador (UAC) para editar el `hosts` y la regla DNS de `.test`. Con el instalador vive en `Program Files`, donde no puede escribir un programa sin permisos; con Scoop o el zip vive en una carpeta que puede escribir cualquier programa de tu usuario, así que acepta su UAC solo cuando lo hayas pedido tú.
 - Los PHP, MariaDB y MySQL oficiales de Windows necesitan el Visual C++ Redistributable 2015-2022 (`winget install Microsoft.VCRedist.2015+.x64` o `scoop install extras/vcredist2022`).
 
@@ -156,7 +156,7 @@ roost db remove mysql@5.7        # quita los binarios; los datos se quedan
 
 `roost up` arranca la base de datos global (si hay alguna) y sirve el PHP global con nginx en `http://localhost/`:
 
-- **La carpeta servida** es `C:\www`. Si no existe, Roost la crea con una portada; si ya existe, no la toca. Cada proyecto dentro se ve en `http://localhost/<carpeta>/`.
+- **La carpeta servida** es `C:\roost\www`. Si no existe, Roost la crea con una portada; si ya existe, no la toca. Cada proyecto dentro se ve en `http://localhost/<carpeta>/`.
 - **El PHP global** es el que fija `roost php use`. Si no hay ninguno fijado, se usa el más nuevo que haya instalado Roost.
 - **php-cgi:** como Windows no tiene php-fpm, arranca un pool de 4 `php-cgi` (por defecto) detrás de nginx, en los puertos `9000 + mayor·100 + menor·10 + i` (la 8.4 usa 9840-9843).
 - **nginx 1.30.6:** la primera vez lo descarga de nginx.org y verifica su SHA-256.
@@ -238,7 +238,7 @@ En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION
 Cada proyecto puede tener su sitio `https://<nombre>.test/`, con su vhost, su certificado y, si quiere, su propio PHP:
 
 ```sh
-roost site add tienda                                    # carpeta C:\www\tienda (se crea si no existe)
+roost site add tienda                                    # carpeta C:\roost\www\tienda (se crea si no existe)
 roost site add legacy --path C:\proyectos\legacy --php 7.4
 roost site add legacy --php global                       # vuelve al PHP global
 roost site add api --root web                            # raíz web distinta (por defecto, public si existe)
@@ -302,11 +302,11 @@ roost update --json   # lo mismo para scripts (código 0 si se pudo comprobar, 1
 | CA local y certificados de los sitios | `C:\roost\certs\ca\`, `C:\roost\certs\sites\` |
 | Sitios registrados | `C:\roost\state\sites.json` |
 | Logs (daemon, nginx, cada php-cgi) | `C:\roost\logs\` |
-| Proyectos | `C:\www\` |
+| Proyectos | `C:\roost\www\` |
 | Tu configuración | `%APPDATA%\Roost\roost.toml` |
 | Zips descargados (se reutilizan) | `%LOCALAPPDATA%\Roost\cache\downloads\` |
 
-La variable de entorno `ROOST_HOME` lo mete todo bajo una carpeta, para probar sin tocar `C:\roost` ni `C:\www`: binarios, configuración, `www` y `roost.toml` van directamente en `ROOST_HOME`, y la caché en `ROOST_HOME\cache`.
+La variable de entorno `ROOST_HOME` lo mete todo bajo una carpeta, para probar sin tocar `C:\roost`: binarios, configuración, `www` y `roost.toml` van directamente en `ROOST_HOME`, y la caché en `ROOST_HOME\cache`.
 
 ## El feed de avisos (`roost-catalog`)
 

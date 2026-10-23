@@ -3,8 +3,9 @@ namespace Roost.Core.Platform;
 /// <summary>
 /// Dónde vive lo que gestiona Roost (ROOST.md §8): la raíz (binarios, configuración generada,
 /// logs, pidfiles), la caché de descargas, el <c>roost.toml</c> del usuario y la carpeta de
-/// proyectos. La variable de entorno <c>ROOST_HOME</c> lo mete todo bajo una sola carpeta
-/// (caché en <c>ROOST_HOME/cache</c>), para probar sin tocar <c>C:\roost</c> ni <c>C:\www</c>.
+/// proyectos, que es siempre <c>www</c> dentro de la raíz (<c>C:\roost\www</c>). La variable de
+/// entorno <c>ROOST_HOME</c> lo mete todo bajo una sola carpeta (caché en <c>ROOST_HOME/cache</c>),
+/// para probar sin tocar <c>C:\roost</c>.
 /// </summary>
 public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = null, string? WwwDir = null)
 {
@@ -94,8 +95,7 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
             return new RoostPaths(
                 @"C:\roost",
                 Path.Combine(local, "Roost", "cache"),
-                Path.Combine(roaming, "Roost"),
-                @"C:\www");
+                Path.Combine(roaming, "Roost"));
         }
 
         // Linux/macOS: XDG, con sus valores por defecto si no están definidas.
@@ -103,8 +103,7 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
         return new RoostPaths(
             Path.Combine(Xdg("XDG_DATA_HOME", Path.Combine(userHome, ".local", "share")), "roost"),
             Path.Combine(Xdg("XDG_CACHE_HOME", Path.Combine(userHome, ".cache")), "roost"),
-            Path.Combine(Xdg("XDG_CONFIG_HOME", Path.Combine(userHome, ".config")), "roost"),
-            Path.Combine(userHome, "www"));
+            Path.Combine(Xdg("XDG_CONFIG_HOME", Path.Combine(userHome, ".config")), "roost"));
     }
 
     private static string Xdg(string variable, string fallback)

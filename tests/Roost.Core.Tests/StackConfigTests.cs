@@ -16,6 +16,15 @@ public class StackConfigTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "roost-stack-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void LaCarpetaDeProyectos_EsSiempreWwwDentroDeLaRaiz()
+    {
+        // C:\roost\www, no C:\www: todo lo de Roost cuelga de su raíz (con ROOST_HOME o sin él).
+        var paths = RoostPaths.Default();
+        Assert.Equal(Path.Combine(paths.Root, "www"), paths.Www);
+        Assert.Equal(Path.Combine(_dir, "www"), RoostPaths.ForRoot(_dir).Www);
+    }
+
+    [Fact]
     public void PhpPool_PuertosSeparadosPorRama_ComoEnRoostMd()
     {
         Assert.Equal([9830, 9831, 9832, 9833], PhpPool.Ports(new ComponentVersion(8, 3, 36, "8.3.36"), 4));

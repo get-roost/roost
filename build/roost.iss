@@ -6,8 +6,8 @@
 ;
 ; Instala para toda la máquina, en Program Files: roost-helper.exe se ejecuta elevado (UAC) y no
 ; puede vivir en una carpeta que pueda escribir cualquier programa del usuario (ROOST.md §10,
-; riesgo 4). Los datos (C:\roost, %APPDATA%\Roost, C:\www) no los toca: ni al actualizar ni al
-; desinstalar. Antes de sustituir o borrar ficheros, para el stack (roost down): roostd tiene
+; riesgo 4). Los datos (C:\roost, con los proyectos en C:\roost\www, y %APPDATA%\Roost) no
+; los toca: ni al actualizar ni al desinstalar. Antes de sustituir o borrar ficheros, para el stack (roost down): roostd tiene
 ; abiertas las dll.
 
 #ifndef AppVersion

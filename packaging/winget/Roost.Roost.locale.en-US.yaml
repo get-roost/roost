@@ -31,7 +31,7 @@ Tags:
 - eol
 ReleaseNotesUrl: https://github.com/get-roost/roost/releases/tag/v{{version}}
 InstallationNotes: |-
-  Roost keeps its data outside the package folder: PHP, nginx, databases and certificates in C:\roost, settings in %APPDATA%\Roost and projects in C:\www. Upgrading or uninstalling does not delete them.
+  Roost keeps its data outside the package folder: PHP, nginx, databases and certificates in C:\roost, projects in C:\roost\www and settings in %APPDATA%\Roost. Upgrading or uninstalling does not delete them.
   Run "roost down" and close the app before upgrading or uninstalling: running files cannot be replaced.
   roost-helper.exe runs elevated (UAC) to edit the hosts file and the .test DNS rule. With this portable install it lives in a folder that any program running as you can write to; installing with "--scope machine" (as administrator) puts it under Program Files instead.
   Official PHP, MariaDB and MySQL builds for Windows need the Visual C++ 2015-2022 Redistributable: winget install Microsoft.VCRedist.2015+.x64
