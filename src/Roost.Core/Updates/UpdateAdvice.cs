@@ -14,6 +14,9 @@ public enum InstallChannel
 
     /// <summary>Compilado desde el código (<c>bin\Debug</c> o <c>bin\Release</c>).</summary>
     Source,
+
+    /// <summary>Con el instalador de Windows (Program Files): junto a los exe está su <c>unins000.exe</c>.</summary>
+    Installer,
 }
 
 /// <summary>
@@ -29,6 +32,8 @@ public sealed record UpdateAdvice(InstallChannel Channel, string? Command, Uri? 
         InstallChannel.Scoop => $"Instalado con Scoop: {Command}",
         InstallChannel.Winget => $"Instalado con winget: {Command}",
         InstallChannel.Source => $"Compilado desde el codigo: {Command}",
+        InstallChannel.Installer when Package is not null && Url is not null => $"Instalado con el instalador: descarga {Package} ({Url}) y ejecutalo; actualiza sin tocar tus datos",
+        InstallChannel.Installer => "Instalado con el instalador: descarga el nuevo de la pagina de releases de Roost en GitHub y ejecutalo",
         _ when Package is not null && Url is not null => $"Descarga {Package} ({Url}) y sustituye con su contenido la carpeta de Roost",
         _ when Url is not null => $"Descarga la nueva desde {Url} y sustituye con ella la carpeta de Roost",
         _ => "Descarga la nueva desde la pagina de releases de Roost en GitHub",
@@ -75,14 +80,27 @@ public static class UpdateInstructions
     }
 
     /// <summary>
-    /// El de este proceso: la carpeta que resolvió .NET (la real, aunque se lance por un enlace)
-    /// y, si no dice nada, la ruta con la que se lanzó (el enlace de winget en <c>WinGet\Links</c>).
+    /// El de este proceso: si junto a los exe está el desinstalador del instalador
+    /// (<c>unins000.exe</c>, que deja Inno Setup), el instalador; si no, la carpeta que resolvió
+    /// .NET (la real, aunque se lance por un enlace) y, si no dice nada, la ruta con la que se
+    /// lanzó (el enlace de winget en <c>WinGet\Links</c>).
     /// </summary>
     public static InstallChannel DetectCurrent()
     {
+        try
+        {
+            if (File.Exists(Path.Combine(AppContext.BaseDirectory, InstallerUninstaller))) return InstallChannel.Installer;
+        }
+        catch
+        {
+            // Sin permiso para mirar: se decide por la ruta.
+        }
         var channel = Detect(AppContext.BaseDirectory);
         return channel != InstallChannel.Manual ? channel : Detect(Environment.ProcessPath);
     }
+
+    /// <summary>El desinstalador que deja el instalador de Windows junto a los exe.</summary>
+    public const string InstallerUninstaller = "unins000.exe";
 
     /// <summary>Qué hacer para pasar a <paramref name="latest"/> (o a la última, si aún no se sabe cuál es).</summary>
     public static UpdateAdvice For(InstallChannel channel, ReleaseInfo? latest, bool windows)
@@ -93,6 +111,9 @@ public static class UpdateInstructions
             InstallChannel.Scoop => new UpdateAdvice(channel, ScoopCommand, page),
             InstallChannel.Winget => new UpdateAdvice(channel, WingetCommand, page),
             InstallChannel.Source => new UpdateAdvice(channel, SourceCommand, page),
+            InstallChannel.Installer => latest?.Installer is { } setup
+                ? new UpdateAdvice(channel, null, setup.Url, setup.Name)
+                : new UpdateAdvice(channel, null, page),
             _ => latest?.PackageFor(windows) is { } package
                 ? new UpdateAdvice(channel, null, page, package.Name)
                 : new UpdateAdvice(channel, null, page),

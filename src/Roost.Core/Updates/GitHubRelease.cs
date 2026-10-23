@@ -35,6 +35,11 @@ public sealed record ReleaseInfo
     public ReleaseAsset? PackageFor(bool windows) =>
         Assets.FirstOrDefault(a => a.Name.StartsWith("roost-", StringComparison.OrdinalIgnoreCase)
             && a.Name.EndsWith(windows ? "-win-x64.zip" : "-linux-x64.tar.gz", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>El instalador de Windows de esta release (<c>roost-0.2.0-win-x64-setup.exe</c>), si lo trae.</summary>
+    public ReleaseAsset? Installer =>
+        Assets.FirstOrDefault(a => a.Name.StartsWith("roost-", StringComparison.OrdinalIgnoreCase)
+            && a.Name.EndsWith("-win-x64-setup.exe", StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>

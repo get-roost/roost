@@ -5,8 +5,10 @@
 # (workflow_dispatch) hace todo menos publicar: deja lo que saldría en el artefacto
 # «release-preview».
 #
-# Assets: roost-<versión>-win-x64.zip (CLI, helper, shim y app, autocontenidos y en la raíz del
-# zip), roost-<versión>-linux-x64.tar.gz (solo la CLI, un ejecutable) y SHA256SUMS.txt.
+# Assets: roost-<versión>-win-x64-setup.exe (el instalador de Windows: Program Files, accesos
+# directos y, si se elige, el PATH; build/roost.iss), roost-<versión>-win-x64.zip (lo mismo sin
+# instalar: CLI, helper, shim y app, autocontenidos y en la raíz del zip),
+# roost-<versión>-linux-x64.tar.gz (solo la CLI, un ejecutable) y SHA256SUMS.txt.
 #
 # Firma (opcional; sin configurar, la release sale sin firmar y las notas lo dicen):
 #   - Azure Artifact Signing (antes Trusted Signing), con OIDC: variables AZURE_SIGNING_ENDPOINT,
@@ -222,10 +224,55 @@ jobs:
           [IO.Compression.ZipFile]::CreateFromDirectory((Resolve-Path $env:STAGE).Path, $zip, 'Optimal', $false)
           Get-Item $zip | Format-Table Name, Length
 
+      # El instalador (Inno Setup, build/roost.iss), con lo mismo que lleva el zip.
+      - name: Instalador
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --no-progress -y
+            if ($LASTEXITCODE -ne 0) { throw "No se pudo instalar Inno Setup" }
+          }
+          $numeric = $env:VERSION -replace '-.*$', ''
+          $source = (Resolve-Path $env:STAGE).Path
+          $out = (Resolve-Path artifacts/dist).Path
+          & $iscc /Q "/DAppVersion=$env:VERSION" "/DNumericVersion=$numeric" "/DSourceDir=$source" "/DOutputDir=$out" build/roost.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC ha fallado (codigo $LASTEXITCODE)" }
+          Get-Item artifacts/dist/*-setup.exe | Format-Table Name, Length
+
+      # Se instala en silencio en el runner, se prueba y se desinstala: que no salga un instalador roto.
+      - name: Probar el instalador
+        shell: pwsh
+        run: |
+          $setup = (Get-Item "artifacts/dist/roost-$env:VERSION-win-x64-setup.exe").FullName
+          $dir = Join-Path $env:RUNNER_TEMP 'RoostInstalado'
+          $log = Join-Path $env:RUNNER_TEMP 'setup.log'
+          $p = Start-Process $setup -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', "/DIR=`"$dir`"", '/TASKS=addtopath', "/LOG=`"$log`"" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content $log -Tail 40; throw "El instalador ha salido con $($p.ExitCode)" }
+          foreach ($f in 'roost.exe', 'roost-desktop.exe', 'roost-helper.exe', 'roost-shim.exe', 'unins000.exe') {
+            if (-not (Test-Path (Join-Path $dir $f))) { throw "Falta $f en la instalacion" }
+          }
+          $v = & (Join-Path $dir 'roost.exe') --version
+          if ($v -ne $env:VERSION) { throw "roost --version, instalado, da '$v' y la version es $env:VERSION" }
+          if (-not ([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';' -contains $dir)) {
+            throw "El instalador no ha puesto $dir en el PATH del sistema"
+          }
+          $u = Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
+          if ($u.ExitCode -ne 0) { throw "El desinstalador ha salido con $($u.ExitCode)" }
+          # El desinstalador se copia a %TEMP% y termina de borrar desde ahi: se espera a que acabe.
+          for ($i = 0; $i -lt 30 -and (Test-Path (Join-Path $dir 'roost.exe')); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path (Join-Path $dir 'roost.exe')) { throw "El desinstalador ha dejado roost.exe" }
+          if ([Environment]::GetEnvironmentVariable('Path', 'Machine') -split ';' -contains $dir) {
+            throw "El desinstalador no ha quitado $dir del PATH"
+          }
+          Write-Host "Instalador probado: instala, roost --version $v, PATH del sistema, desinstala y lo quita."
+
       - uses: actions/upload-artifact@v7
         with:
           name: release-win-x64
-          path: artifacts/dist/*.zip
+          path: |
+            artifacts/dist/*.zip
+            artifacts/dist/*-setup.exe
           if-no-files-found: error
 
   linux:
@@ -314,7 +361,8 @@ jobs:
             echo
             echo "| Fichero | Qué lleva |"
             echo "|---|---|"
-            echo "| roost-$VERSION-win-x64.zip | Windows 10/11 x64: la app (roost-desktop.exe), la CLI (roost.exe), roost-helper.exe y el shim de php. No necesita .NET instalado: descomprime y abre roost-desktop.exe. |"
+            echo "| **roost-$VERSION-win-x64-setup.exe** | **Windows 10/11 x64, el instalador (recomendado).** Instala Roost en Program Files con su acceso directo y, si lo eliges, añade roost a la línea de comandos. Para actualizar, ejecuta el de la versión nueva: tus datos y tus sitios no se tocan. |"
+            echo "| roost-$VERSION-win-x64.zip | Windows 10/11 x64, sin instalar: la app (roost-desktop.exe), la CLI (roost.exe), roost-helper.exe y el shim de php. No necesita .NET: descomprime y abre roost-desktop.exe. Es lo que usa Scoop (\`scoop bucket add roost https://github.com/$GITHUB_REPOSITORY\` y \`scoop install roost\`). |"
             echo "| roost-$VERSION-linux-x64.tar.gz | Linux x64: la CLI (roost), un solo ejecutable. De momento, roost scan y roost audit. |"
             echo "| SHA256SUMS.txt | Las sumas SHA-256 de lo anterior (\`sha256sum -c SHA256SUMS.txt\`). |"
             echo

@@ -15,22 +15,21 @@ El 21-oct-2026 se publicaron los parches de PHP2Shell (CVE-2026-109618 y CVE-202
 
 ## Instalar Roost
 
-Los paquetes salen de las [releases de GitHub](https://github.com/get-roost/roost/releases), que son autocontenidas (no hace falta .NET). **Todavía no hay ninguna**: todo esto funciona a partir de la primera, la v0.1.0. Al publicarla, el workflow `Packages` pone su versión y su SHA-256 en el bucket de Scoop y genera los manifiestos de winget.
+Todo sale de las [releases de GitHub](https://github.com/get-roost/roost/releases), que son autocontenidas (no hace falta .NET). En Windows hay dos formas:
 
-```powershell
-# Scoop (el bucket es este mismo repositorio)
-scoop bucket add roost https://github.com/get-roost/roost
-scoop install roost
+- **Con el instalador (lo recomendado):** descarga y ejecuta `roost-<versión>-win-x64-setup.exe`. Instala Roost en `Program Files` (pide permiso de administrador una vez), con su acceso directo en el menú Inicio y, si lo marcas, `roost` en la línea de comandos. Para actualizar, ejecuta el instalador de la versión nueva. Para desinstalar, desde «Aplicaciones instaladas» de Windows.
+- **Desde la línea de comandos, con Scoop** (el bucket es este mismo repositorio):
 
-# winget, cuando Roost.Roost esté aceptado en winget-pkgs
-winget install Roost.Roost
-```
+  ```powershell
+  scoop bucket add roost https://github.com/get-roost/roost
+  scoop install roost
+  ```
 
-O a mano: descarga `roost-<versión>-win-x64.zip` (Windows: la CLI, la app y el helper) o `roost-<versión>-linux-x64.tar.gz` (Linux: solo la CLI), compruébalo con el `SHA256SUMS.txt` de la misma release y descomprímelo donde quieras.
+En Linux, descarga `roost-<versión>-linux-x64.tar.gz` (solo la CLI). Sin instalar nada, en Windows vale también el `roost-<versión>-win-x64.zip`: descomprímelo donde quieras. Comprueba cualquier descarga con el `SHA256SUMS.txt` de la misma release. winget llegará más adelante (`Roost.Roost`).
 
-- Scoop pone `roost` en el `PATH` y un acceso directo «Roost» a la app en el menú Inicio. winget pone en el `PATH` la carpeta del paquete (`roost` y `roost-desktop`).
-- Los datos no viven en la carpeta del paquete, sino en `C:\roost`, `%APPDATA%\Roost` y `C:\www` (ver [Dónde vive todo](#dónde-vive-todo-windows)), así que actualizar o desinstalar no los borra. Antes de actualizar, ejecuta `roost down` y cierra la app: los ficheros en uso no se pueden sustituir.
-- **El helper elevado en una carpeta de usuario.** `roost-helper.exe` se ejecuta como administrador (UAC) para editar el `hosts` y la regla DNS de `.test`, y con Scoop, winget o el zip vive en una carpeta que puede escribir cualquier programa de tu usuario. Lo resolverá el instalador; mientras tanto, acepta su UAC solo cuando lo hayas pedido tú. Con `winget install Roost.Roost --scope machine`, desde una consola de administrador, el paquete va a `Program Files`, donde no puede escribir un programa sin permisos.
+- Scoop pone `roost` en el `PATH` y un acceso directo «Roost» a la app en el menú Inicio.
+- Los datos no viven en la carpeta de Roost, sino en `C:\roost`, `%APPDATA%\Roost` y `C:\www` (ver [Dónde vive todo](#dónde-vive-todo-windows)), así que actualizar o desinstalar no los borra. El instalador para el stack él solo antes de actualizar o desinstalar; con Scoop o el zip, ejecuta antes `roost down` y cierra la app: los ficheros en uso no se pueden sustituir.
+- **Por qué el instalador es lo recomendado.** `roost-helper.exe` se ejecuta como administrador (UAC) para editar el `hosts` y la regla DNS de `.test`. Con el instalador vive en `Program Files`, donde no puede escribir un programa sin permisos; con Scoop o el zip vive en una carpeta que puede escribir cualquier programa de tu usuario, así que acepta su UAC solo cuando lo hayas pedido tú.
 - Los PHP, MariaDB y MySQL oficiales de Windows necesitan el Visual C++ Redistributable 2015-2022 (`winget install Microsoft.VCRedist.2015+.x64` o `scoop install extras/vcredist2022`).
 
 ## Uso

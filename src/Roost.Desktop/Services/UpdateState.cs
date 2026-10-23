@@ -72,6 +72,8 @@ public sealed partial class UpdateState : ObservableObject
         { Channel: InstallChannel.Scoop } => "La instalaste con Scoop. Para actualizarla, sal de Roost (con el stack parado) y ejecuta en una terminal:",
         { Channel: InstallChannel.Winget } => "La instalaste con winget. Para actualizarla, sal de Roost (con el stack parado) y ejecuta en una terminal:",
         { Channel: InstallChannel.Source } => "La compilaste desde el código. Para actualizarla, para el stack y ejecuta en la carpeta del repositorio:",
+        { Channel: InstallChannel.Installer, Package: { } setup } => $"La instalaste con el instalador. Descarga {setup} y ejecútalo: actualiza Roost sin tocar tus datos ni tus sitios.",
+        { Channel: InstallChannel.Installer } => "La instalaste con el instalador. Descarga el nuevo de su página y ejecútalo: actualiza Roost sin tocar tus datos ni tus sitios.",
         { Package: { } package } => $"Descarga {package} y, con Roost cerrado y el stack parado, sustituye con su contenido la carpeta de Roost.",
         _ => "Descárgala de su página y, con Roost cerrado y el stack parado, sustituye con ella la carpeta de Roost.",
     };
@@ -80,8 +82,13 @@ public sealed partial class UpdateState : ObservableObject
 
     public bool HasCommand => HasUpdate && Command is not null;
 
-    /// <summary>El zip de esta release para este sistema (instalación manual).</summary>
-    public Uri? DownloadUrl => Advice.Channel == InstallChannel.Manual ? Latest?.PackageFor(OperatingSystem.IsWindows())?.Url : null;
+    /// <summary>Lo que hay que bajar: el instalador nuevo, o el zip de esta release si se instaló a mano.</summary>
+    public Uri? DownloadUrl => Advice.Channel switch
+    {
+        InstallChannel.Manual => Latest?.PackageFor(OperatingSystem.IsWindows())?.Url,
+        InstallChannel.Installer => Latest?.Installer?.Url,
+        _ => null,
+    };
 
     public string DownloadText => Advice.Package is { } package ? $"Descargar {package}" : "Descargar";
 
