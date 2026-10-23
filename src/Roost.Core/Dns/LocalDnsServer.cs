@@ -13,12 +13,14 @@ public sealed class LocalDnsServer : IAsyncDisposable
     private readonly UdpClient _udp;
     private readonly CancellationTokenSource _stop = new();
     private readonly Action<string> _log;
+    private readonly bool _ipv6;
     private readonly Task _loop;
 
-    private LocalDnsServer(UdpClient udp, Action<string> log)
+    private LocalDnsServer(UdpClient udp, Action<string> log, bool ipv6)
     {
         _udp = udp;
         _log = log;
+        _ipv6 = ipv6;
         _loop = Task.Run(LoopAsync);
     }
 
@@ -30,7 +32,8 @@ public sealed class LocalDnsServer : IAsyncDisposable
     private long _answered;
 
     /// <summary>Escucha en <paramref name="endPoint"/>. Lanza <see cref="RoostException"/> si el puerto está cogido.</summary>
-    public static LocalDnsServer Start(IPEndPoint endPoint, Action<string>? log = null)
+    /// <param name="ipv6">Si se contesta <c>::1</c> a las AAAA (el servidor web escucha en [::1]).</param>
+    public static LocalDnsServer Start(IPEndPoint endPoint, Action<string>? log = null, bool ipv6 = true)
     {
         var udp = new UdpClient(endPoint.AddressFamily);
         try
@@ -45,7 +48,7 @@ public sealed class LocalDnsServer : IAsyncDisposable
             throw new RoostException($"El DNS local no puede escuchar en {endPoint} (UDP): {ex.Message}. "
                 + "Vuelve al fichero hosts con: roost dns remove");
         }
-        return new LocalDnsServer(udp, log ?? (_ => { }));
+        return new LocalDnsServer(udp, log ?? (_ => { }), ipv6);
     }
 
     private async Task LoopAsync()
@@ -74,7 +77,7 @@ public sealed class LocalDnsServer : IAsyncDisposable
             try
             {
                 var reply = DnsMessage.TryParseQuery(received.Buffer, out var query)
-                    ? DnsMessage.Answer(query!)
+                    ? DnsMessage.Answer(query!, _ipv6)
                     : DnsMessage.FormatError(received.Buffer);
                 if (reply is null) continue;
                 await _udp.SendAsync(reply, received.RemoteEndPoint, _stop.Token);

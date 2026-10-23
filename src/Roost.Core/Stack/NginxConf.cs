@@ -20,6 +20,7 @@ public static class PhpPool
 public sealed record NginxUpstream(string Name, IReadOnlyList<int> Ports);
 
 /// <summary>Lo que necesita <see cref="NginxConf.Render"/>; todas las rutas, absolutas.</summary>
+/// <param name="Ipv6">Escuchar también en <c>[::1]</c> (false en una máquina sin IPv6 en loopback).</param>
 public sealed record NginxConfInput(
     string MimeTypes,
     string FastCgiParams,
@@ -29,16 +30,23 @@ public sealed record NginxConfInput(
     int HttpPort,
     IReadOnlyList<NginxUpstream> Upstreams,
     string DefaultUpstream,
-    string SitesDirectory);
+    string SitesDirectory,
+    bool Ipv6 = true);
 
 /// <summary>
 /// El nginx.conf base que genera Roost (ROOST.md §5.6): un <c>upstream php-X.Y</c> por cada
 /// pool, el sitio por defecto en <c>http://localhost/</c> (la carpeta www) y un
 /// <c>include sites/*.conf</c> con los vhosts <c>*.test</c> (<see cref="SiteConf"/>). Escucha
-/// solo en 127.0.0.1: es un entorno de desarrollo y no debe verse desde la red.
+/// solo en loopback (127.0.0.1 y, si lo hay, [::1]): es un entorno de desarrollo y no debe verse
+/// desde la red. Lo de [::1] importa porque Windows resuelve <c>localhost</c> primero a <c>::1</c>:
+/// sin ello, <c>http://localhost</c> podía acabar en otro servidor que escuchase en <c>[::]:80</c>.
 /// </summary>
 public static class NginxConf
 {
+    /// <summary>Las directivas <c>listen</c> de un puerto: 127.0.0.1 y, con IPv6, también [::1].</summary>
+    public static string Listen(int port, bool ipv6, string indent, string suffix = "") =>
+        $"{indent}listen 127.0.0.1:{port}{suffix};\n" + (ipv6 ? $"{indent}listen [::1]:{port}{suffix};\n" : "");
+
     /// <summary>PURO: genera el texto del nginx.conf.</summary>
     public static string Render(NginxConfInput input)
     {
@@ -83,8 +91,7 @@ public static class NginxConf
                 scgi_temp_path "{{run}}/nginx-temp/scgi";
 
             {{upstreams}}    server {
-                    listen 127.0.0.1:{{input.HttpPort}};
-                    server_name localhost;
+            {{Listen(input.HttpPort, input.Ipv6, "        ")}}        server_name localhost;
                     root "{{Nginx(input.Www)}}";
                     index index.php index.html index.htm;
                     autoindex on;

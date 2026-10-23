@@ -69,7 +69,43 @@ public sealed class Supervisor
     {
         List<Slot> slots;
         lock (_gate) slots = [.. _slots];
+        await StopSlotsAsync(slots);
+    }
 
+    /// <summary>
+    /// Para solo los servicios cuyo nombre cumple <paramref name="match"/> (un grupo: la base de
+    /// datos, el pool php-8.4-*, nginx), como <see cref="StopAsync()"/>: limpios si tienen comando
+    /// de parada, en orden inverso, y quedan <see cref="ServiceState.Stopped"/> sin que nadie los
+    /// relance hasta <see cref="StartAsync"/> o <see cref="RestartAsync"/>. Devuelve cuántos casaban.
+    /// </summary>
+    public async Task<int> StopAsync(Func<string, bool> match)
+    {
+        List<Slot> slots;
+        lock (_gate) slots = _slots.Where(s => match(s.Definition.Name)).ToList();
+        await StopSlotsAsync(slots);
+        return slots.Count;
+    }
+
+    /// <summary>
+    /// Vuelve a arrancar, en el orden de arranque, los servicios parados o <see cref="ServiceState.Failed"/>
+    /// cuyo nombre cumple <paramref name="match"/>; los que ya están en marcha se dejan como están.
+    /// Devuelve cuántos casaban.
+    /// </summary>
+    public Task<int> StartAsync(Func<string, bool> match)
+    {
+        List<Slot> slots;
+        lock (_gate) slots = _slots.Where(s => match(s.Definition.Name)).ToList();
+
+        foreach (var slot in slots)
+        {
+            // Sin bucle vivo no hay nadie que lo relance: se arranca otro, como la primera vez.
+            if (slot.Loop is { IsCompleted: true }) Relaunch(slot);
+        }
+        return Task.FromResult(slots.Count);
+    }
+
+    private async Task StopSlotsAsync(List<Slot> slots)
+    {
         for (var i = slots.Count - 1; i >= 0; i--)
         {
             var slot = slots[i];
@@ -83,12 +119,22 @@ public sealed class Supervisor
         await Task.WhenAny(Task.WhenAll(slots.Select(s => s.Loop ?? Task.CompletedTask)), Task.Delay(TimeSpan.FromSeconds(10)));
     }
 
+    /// <summary>Un servicio sin bucle (parado a mano o Failed): se deja como nuevo y se lanza con otro bucle.</summary>
+    private void Relaunch(Slot slot)
+    {
+        slot.Reset();
+        var first = Launch(slot);
+        if (first is null) return;
+        _log($"{slot.Definition.Name}: relanzado a peticion");
+        lock (_gate) slot.Loop = Task.Run(() => SuperviseAsync(slot, first.Value));
+    }
+
     /// <summary>
     /// Reinicia los servicios cuyo nombre cumple <paramref name="match"/> (la UI reinicia un
-    /// grupo: nginx, el pool php-8.4-*, la base de datos). Se paran como en <see cref="StopAsync"/>
+    /// grupo: nginx, el pool php-8.4-*, la base de datos). Se paran como en <see cref="StopAsync()"/>
     /// (limpios si tienen comando de parada) y el supervisor los relanza en el acto, sin
-    /// contarlo como caída. Uno marcado <see cref="ServiceState.Failed"/> se vuelve a lanzar.
-    /// Devuelve cuántos servicios casaban.
+    /// contarlo como caída. Uno marcado <see cref="ServiceState.Failed"/>, o parado a mano con
+    /// <see cref="StopAsync(Func{string, bool})"/>, se vuelve a lanzar. Devuelve cuántos servicios casaban.
     /// </summary>
     public async Task<int> RestartAsync(Func<string, bool> match)
     {
@@ -97,19 +143,13 @@ public sealed class Supervisor
 
         foreach (var slot in slots)
         {
-            if (slot.IsStopping) continue;
-
-            // Un servicio que ha dejado de relanzarse (Failed) ya no tiene bucle: se arranca otro.
+            // Uno sin bucle (parado a mano, o Failed porque dejó de relanzarse) se arranca otra vez.
             if (slot.Loop is { IsCompleted: true })
             {
-                var first = Launch(slot);
-                if (first is not null)
-                {
-                    _log($"{slot.Definition.Name}: relanzado a peticion");
-                    lock (_gate) slot.Loop = Task.Run(() => SuperviseAsync(slot, first.Value));
-                }
+                Relaunch(slot);
                 continue;
             }
+            if (slot.IsStopping) continue;
 
             var generation = slot.Generation;
             if (!slot.BeginRestart()) continue;
@@ -270,8 +310,24 @@ public sealed class Supervisor
         private int _generation;
 
         public ServiceDefinition Definition { get; } = definition;
-        public CancellationTokenSource Stopping { get; } = new();
+        public CancellationTokenSource Stopping { get; private set; } = new();
         public Task? Loop { get; set; }
+
+        /// <summary>
+        /// Lo deja como recién creado para arrancarlo de nuevo tras una parada a mano o un Failed:
+        /// otra cancelación (la de antes ya está disparada) y sin parada ni reinicio pendientes.
+        /// Solo con el bucle anterior terminado.
+        /// </summary>
+        public void Reset()
+        {
+            lock (_lock)
+            {
+                Stopping = new CancellationTokenSource();
+                _stopRequested = false;
+                _restartRequested = false;
+                _state = ServiceState.Restarting;
+            }
+        }
 
         /// <summary>true desde que se empieza a parar (limpio o no): ya no se relanza.</summary>
         public bool IsStopping

@@ -30,9 +30,11 @@ public class ApacheTests : IDisposable
         var conf = ApacheConf.Render(Input());
 
         Assert.Contains("ServerRoot \"C:/roost/bin/apache/2.4.69\"", conf);
-        Assert.Contains("Listen 127.0.0.1:8765", conf);
+        Assert.Contains("Listen 127.0.0.1:8765\nListen [::1]:8765\n", conf);
+        Assert.Contains("<VirtualHost 127.0.0.1:8765 [::1]:8765>", conf);
         Assert.DoesNotContain("Listen 127.0.0.1:8443", conf);         // sin sitios, no abre el HTTPS
         Assert.DoesNotContain("Listen 80", conf);
+        Assert.DoesNotContain("[::1]", ApacheConf.Render(Input() with { Ipv6 = false }));   // máquina sin IPv6
         Assert.Contains("LoadModule proxy_fcgi_module modules/mod_proxy_fcgi.so", conf);
         Assert.Contains("LoadModule rewrite_module modules/mod_rewrite.so", conf);
         Assert.Contains("<Proxy \"balancer://php-8.4\">", conf);
@@ -43,7 +45,7 @@ public class ApacheTests : IDisposable
         Assert.Contains("AllowOverride All", conf);
         Assert.Contains("DocumentRoot \"C:/roost/www\"", conf);
         Assert.Contains("IncludeOptional \"C:/roost/etc/apache/sites/*.conf\"", conf);
-        Assert.Contains("Listen 127.0.0.1:8443", ApacheConf.Render(Input(https: 8443)));
+        Assert.Contains("Listen 127.0.0.1:8443\nListen [::1]:8443\n", ApacheConf.Render(Input(https: 8443)));
     }
 
     private static ApacheSiteConf.Input SiteInput() => new(
@@ -55,8 +57,9 @@ public class ApacheTests : IDisposable
     {
         var fresh = ApacheSiteConf.RenderNew(SiteInput());
 
-        Assert.Contains("<VirtualHost 127.0.0.1:8765>", fresh);
-        Assert.Contains("<VirtualHost 127.0.0.1:8443>", fresh);
+        Assert.Contains("<VirtualHost 127.0.0.1:8765 [::1]:8765>", fresh);
+        Assert.Contains("<VirtualHost 127.0.0.1:8443 [::1]:8443>", fresh);
+        Assert.Contains("<VirtualHost 127.0.0.1:8443>", ApacheSiteConf.RenderNew(SiteInput() with { Ipv6 = false }));   // máquina sin IPv6
         Assert.Contains("ServerAlias *.tienda.test", fresh);
         Assert.Contains("DocumentRoot \"C:/www/tienda/public\"", fresh);
         Assert.Contains("SetHandler \"proxy:balancer://php-7.4/\"", fresh);

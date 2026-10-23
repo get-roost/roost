@@ -40,11 +40,25 @@ public class LocalDnsTests : IDisposable
     }
 
     [Fact]
-    public void Aaaa_SinRespuesta_ParaQueSeUseIpv4()
+    public void Aaaa_EsUnoLocalIpv6_PorqueElServidorWebEscuchaEnLasDos()
     {
         var response = Ask("tienda.test", DnsMessage.TypeAaaa);
 
         Assert.Equal(0, Rcode(response));
+        Assert.Equal(1, Answers(response));
+        // El registro de respuesta: nombre (puntero, 2), tipo (2), clase (2), TTL (4), longitud (2) y los 16 bytes.
+        Assert.Equal(DnsMessage.TypeAaaa, BinaryPrimitives.ReadUInt16BigEndian(response.AsSpan(response.Length - 26)));
+        Assert.Equal(16, BinaryPrimitives.ReadUInt16BigEndian(response.AsSpan(response.Length - 18)));
+        Assert.Equal(IPAddress.IPv6Loopback, new IPAddress(response.AsSpan(response.Length - 16)));
+    }
+
+    [Fact]
+    public void Aaaa_SinIpv6EnLaMaquina_VaSinRespuesta_ParaQueSeUseIpv4()
+    {
+        Assert.True(DnsMessage.TryParseQuery(LocalDnsProbe.Query(0x1234, "tienda.test", DnsMessage.TypeAaaa), out var query));
+        var response = DnsMessage.Answer(query!, ipv6: false);
+
+        Assert.Equal(0, Rcode(response));   // NODATA, no un error: el nombre existe
         Assert.Equal(0, Answers(response));
     }
 

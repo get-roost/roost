@@ -72,8 +72,9 @@ public class SitesTests : IDisposable
     {
         var conf = SiteConf.RenderNew(Input(Tienda));
 
-        Assert.Contains("listen 127.0.0.1:8765;", conf);
-        Assert.Contains("listen 127.0.0.1:8443 ssl;", conf);
+        Assert.Contains("    listen 127.0.0.1:8765;\n    listen [::1]:8765;\n", conf);
+        Assert.Contains("    listen 127.0.0.1:8443 ssl;\n    listen [::1]:8443 ssl;\n    http2 on;", conf);
+        Assert.DoesNotContain("[::1]", SiteConf.RenderNew(Input(Tienda) with { Ipv6 = false }));   // máquina sin IPv6
         Assert.Contains("server_name tienda.test *.tienda.test;", conf);
         Assert.Contains("root \"C:/www/tienda/public\";", conf);
         Assert.Contains("fastcgi_pass php-8.3;", conf);

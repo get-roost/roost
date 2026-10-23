@@ -4,6 +4,7 @@ using Roost.Core.Sites;
 namespace Roost.Core.Stack;
 
 /// <summary>Lo que necesita <see cref="ApacheConf.Render"/>; todas las rutas, absolutas.</summary>
+/// <param name="Ipv6">Escuchar también en <c>[::1]</c> (false en una máquina sin IPv6 en loopback).</param>
 public sealed record ApacheConfInput(
     string ServerRoot,
     string RunDirectory,
@@ -13,17 +14,26 @@ public sealed record ApacheConfInput(
     int? HttpsPort,
     IReadOnlyList<NginxUpstream> Pools,
     string DefaultPool,
-    string SitesDirectory);
+    string SitesDirectory,
+    bool Ipv6 = true);
 
 /// <summary>
 /// El httpd.conf que genera Roost para Apache. El PHP va por los mismos pools de php-cgi que
 /// nginx (<c>mod_proxy_fcgi</c> con un balanceador por pool), no por mod_php: así sirve el PHP NTS
 /// de siempre y cada sitio puede tener el suyo, que con mod_php sería uno solo para todo Apache.
 /// Lee los <c>.htaccess</c> (<c>AllowOverride All</c> y mod_rewrite): es por lo que se elige
-/// Apache. Escucha solo en 127.0.0.1, como nginx.
+/// Apache. Escucha solo en loopback (127.0.0.1 y, si lo hay, [::1]), como nginx.
 /// </summary>
 public static class ApacheConf
 {
+    /// <summary>Las directivas <c>Listen</c> de un puerto: 127.0.0.1 y, con IPv6, también [::1].</summary>
+    public static string Listen(int port, bool ipv6) =>
+        $"Listen 127.0.0.1:{port}\n" + (ipv6 ? $"Listen [::1]:{port}\n" : "");
+
+    /// <summary>Las direcciones de un <c>&lt;VirtualHost&gt;</c> de un puerto.</summary>
+    public static string VirtualHost(int port, bool ipv6) =>
+        $"127.0.0.1:{port}" + (ipv6 ? $" [::1]:{port}" : "");
+
     /// <summary>
     /// Los módulos que se cargan: lo justo para servir PHP y los <c>.htaccess</c> habituales
     /// (WordPress, Laravel, los de Apache 2.2 con <c>Order allow,deny</c>), más TLS y HTTP/2.
@@ -56,14 +66,13 @@ public static class ApacheConf
             pools.Append("</Proxy>\n");
         }
 
-        var https = input.HttpsPort is { } port443 ? $"Listen 127.0.0.1:{port443}\n" : "";
+        var https = input.HttpsPort is { } port443 ? Listen(port443, input.Ipv6) : "";
 
         return $$"""
             # Generado por Roost: NO lo edites, se regenera en cada `roost up`.
             # Lo tuyo va en sites\<sitio>.conf (fuera de las marcas) o en un .htaccess.
             ServerRoot "{{Path(input.ServerRoot)}}"
-            Listen 127.0.0.1:{{input.HttpPort}}
-            {{https}}ServerName localhost:{{input.HttpPort}}
+            {{Listen(input.HttpPort, input.Ipv6)}}{{https}}ServerName localhost:{{input.HttpPort}}
 
             {{modules}}
             ThreadsPerChild 64
@@ -101,7 +110,7 @@ public static class ApacheConf
 
             # http://localhost/: la carpeta www, con el PHP global. Es el primer VirtualHost de
             # su puerto, así que también atiende lo que no sea de ningún sitio.
-            <VirtualHost 127.0.0.1:{{input.HttpPort}}>
+            <VirtualHost {{VirtualHost(input.HttpPort, input.Ipv6)}}>
                 ServerName localhost
                 DocumentRoot "{{www}}"
                 <Directory "{{www}}">
@@ -142,7 +151,8 @@ public static class ApacheConf
 public static class ApacheSiteConf
 {
     /// <summary>Lo que necesita el bloque de Roost; todas las rutas, absolutas.</summary>
-    public sealed record Input(Site Site, string Pool, int HttpPort, int HttpsPort, string CertFile, string KeyFile);
+    /// <param name="Ipv6">Escuchar también en <c>[::1]</c> (false en una máquina sin IPv6 en loopback).</param>
+    public sealed record Input(Site Site, string Pool, int HttpPort, int HttpsPort, string CertFile, string KeyFile, bool Ipv6 = true);
 
     /// <summary>PURO: el bloque que regenera Roost, marcas incluidas.</summary>
     public static string RenderBlock(Input input)
@@ -162,10 +172,10 @@ public static class ApacheSiteConf
             """;
         return $$"""
             {{SiteConf.Begin}}  (lo regenera Roost en cada roost up; edita fuera de las marcas)
-            <VirtualHost 127.0.0.1:{{input.HttpPort}}>
+            <VirtualHost {{ApacheConf.VirtualHost(input.HttpPort, input.Ipv6)}}>
             {{common}}
             </VirtualHost>
-            <VirtualHost 127.0.0.1:{{input.HttpsPort}}>
+            <VirtualHost {{ApacheConf.VirtualHost(input.HttpsPort, input.Ipv6)}}>
             {{common}}
                 SSLEngine on
                 SSLCertificateFile "{{ApacheConf.Path(input.CertFile)}}"

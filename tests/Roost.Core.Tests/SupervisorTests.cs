@@ -240,6 +240,57 @@ public class SupervisorTests
     }
 
     [Fact]
+    public async Task Stop_DeUnGrupo_LoParaLimpio_NoLoRelanza_YStart_LoVuelveAArrancar()
+    {
+        // healthyUptime cero: si el supervisor tomara la salida por reciclaje, lo relanzaria en el acto.
+        var launcher = new FakeLauncher();
+        var supervisor = new Supervisor(launcher, restartDelay: TimeSpan.Zero, healthyUptime: TimeSpan.Zero);
+        supervisor.Start([Database("mysql-8.4"), Service("php-8.4-0"), Service("php-8.4-1"), Service("nginx")]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+
+        Assert.Equal(1, await supervisor.StopAsync(name => name == "mysql-8.4"));
+        await Task.Delay(100); // margen para que un relanzamiento indebido se viera
+
+        Assert.Equal(ServiceState.Stopped, StatusOf(supervisor, "mysql-8.4").State);
+        Assert.Null(StatusOf(supervisor, "mysql-8.4").ProcessId);
+        Assert.Equal(1, launcher.StartsOf("mysql-8.4-shutdown"));
+        Assert.Equal(1, launcher.StartsOf("mysql-8.4"));   // parada limpia, y nadie la relanza
+        Assert.Empty(launcher.KillOrder());
+        Assert.Equal(ServiceState.Running, StatusOf(supervisor, "nginx").State);   // el resto sigue
+
+        // Arrancarla de nuevo la deja como al principio: con bucle, vigilada.
+        Assert.Equal(1, await supervisor.StartAsync(name => name == "mysql-8.4"));
+        await Until(() => StatusOf(supervisor, "mysql-8.4").State == ServiceState.Running);
+        Assert.Equal(2, launcher.StartsOf("mysql-8.4"));
+        launcher.Last("mysql-8.4").Exit(0);   // reciclaje: se relanza, luego sigue vigilada
+        await Until(() => launcher.StartsOf("mysql-8.4") == 3);
+
+        // Start sobre uno en marcha no hace nada; el pool entero se para y arranca por su prefijo.
+        Assert.Equal(1, await supervisor.StartAsync(name => name == "nginx"));
+        Assert.Equal(1, launcher.StartsOf("nginx"));
+        Assert.Equal(2, await supervisor.StopAsync(name => name.StartsWith("php-8.4-", StringComparison.Ordinal)));
+        Assert.Equal(["php-8.4-1", "php-8.4-0"], launcher.KillOrder());   // en orden inverso
+        await supervisor.StopAsync();
+    }
+
+    [Fact]
+    public async Task Restart_DeUnServicioParadoAMano_LoArranca()
+    {
+        var launcher = new FakeLauncher();
+        var supervisor = new Supervisor(launcher, healthyUptime: TimeSpan.FromHours(1));
+        supervisor.Start([Service("nginx")]);
+        await Until(() => StatusOf(supervisor, "nginx").State == ServiceState.Running);
+        await supervisor.StopAsync(name => name == "nginx");
+        Assert.Equal(ServiceState.Stopped, StatusOf(supervisor, "nginx").State);
+
+        await supervisor.RestartAsync(name => name == "nginx");
+
+        await Until(() => StatusOf(supervisor, "nginx").State == ServiceState.Running);
+        Assert.Equal(2, launcher.StartsOf("nginx"));
+        await supervisor.StopAsync();
+    }
+
+    [Fact]
     public async Task Restart_DeUnServicioFailed_LoVuelveALanzar()
     {
         var launcher = new FakeLauncher { ExitsImmediately = "nginx" };
