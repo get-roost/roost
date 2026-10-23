@@ -447,6 +447,65 @@ public class UpdateInstallerTests : IDisposable
     }
 
     [Fact]
+    public void LasNotas_DeLaRelease_SoloHastaLaMarcaDelWorkflow_YSinTablas()
+    {
+        // Lo que escribe release.yml: la sección del CHANGELOG, la marca y, detrás, descargas y firma.
+        var notes = $"""
+            ## Novedades
+
+            - **Actualizar desde la app**, con el SHA-256 verificado.
+            - El VC++ en el instalador.
+
+            {ReleaseNotes.EndMarker}
+
+            ## Descargas
+
+            | Fichero | Qué lleva |
+            |---|---|
+            | roost-0.2.0-win-x64-setup.exe | el instalador |
+
+            ## Firma y procedencia
+
+            Esta versión no va firmada.
+            """;
+
+        Assert.Equal(
+        [
+            new NotesBlock(NotesBlockKind.Heading, "Novedades", 2),
+            new NotesBlock(NotesBlockKind.Bullet, "Actualizar desde la app, con el SHA-256 verificado."),
+            new NotesBlock(NotesBlockKind.Bullet, "El VC++ en el instalador."),
+        ], ReleaseNotes.Parse(notes));
+        Assert.Equal(["- Actualizar desde la app, con el SHA-256 verificado.", "- El VC++ en el instalador."], GitHubReleases.Summarize(notes));
+
+        // Sin la marca (las releases de antes), se lee todo, pero las tablas no.
+        var old = ReleaseNotes.Parse("## Descargas\n\n| Fichero | Qué lleva |\n|---|---|\n| a | b |\n\nTexto.");
+        Assert.Equal([new NotesBlock(NotesBlockKind.Heading, "Descargas", 2), new NotesBlock(NotesBlockKind.Paragraph, "Texto.")], old);
+        Assert.Equal(["Texto."], GitHubReleases.Summarize("## Descargas\n\n| a | b |\n|---|---|\n\nTexto."));
+    }
+
+    [Fact]
+    public async Task AlAcabarDeBajar_AvisaAntesDeVerificar_YLaFirmaSeCuentaSinTildes()
+    {
+        var github = new FakeGitHub(_setup, Sums());
+        var installer = Installer(github);
+        var release = Release();
+        var seen = new List<long>();
+        var verifyingAt = -1L;
+
+        await installer.DownloadVerifiedAsync(release, release.Installer!, new SyncProgress(seen.Add), verifying: () => verifyingAt = seen.LastOrDefault());
+        Assert.Equal(5000, verifyingAt);   // se avisa con todo bajado, antes del hash
+
+        // Ya en la caché: también se avisa (se vuelve a calcular su hash).
+        verifyingAt = -1;
+        await installer.DownloadAsync(release.Installer!, _setupSha, new SyncProgress(seen.Add), verifying: () => verifyingAt = seen.Last());
+        Assert.Equal(5000, verifyingAt);
+
+        Assert.Equal("firma digital valida", UpdateInstaller.DescribeSignature(SignatureStatus.Valid));
+        Assert.StartsWith("sin firma digital", UpdateInstaller.DescribeSignature(SignatureStatus.Unsigned));
+        Assert.Equal("firma no comprobada", UpdateInstaller.DescribeSignature(SignatureStatus.NotChecked));
+    }
+
+    [Fact]
     public void VcRedist_SegunLoQueDiceElRegistro()
     {
         Assert.Equal(new VcRedistStatus(false, null), VcRedist.Evaluate(null, null, null, null));

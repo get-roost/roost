@@ -6,7 +6,7 @@
     "license": "MIT",
     "notes": [
         "Roost guarda sus datos fuera de la carpeta de Scoop: PHP, bases de datos, certificados y los proyectos (C:\\roost\\www) en C:\\roost, y la configuracion en %APPDATA%\\Roost. Actualizar o desinstalar con Scoop no los borra.",
-        "Actualizar y desinstalar paran el stack solos (roost down). Cierra antes la app de Roost, o mejor: actualiza desde ella (el aviso de version nueva lo hace todo, incluido relanzarla).",
+        "Lo mas facil para actualizar es hacerlo desde la app: el aviso de version nueva para el stack, cierra Roost, ejecuta 'scoop update roost' y la vuelve a abrir. A mano, cierra antes la app y ejecuta 'roost down': Scoop no actualiza ni desinstala una app con procesos en marcha. Actualizar y desinstalar ejecutan tambien 'roost down', por si acaso.",
         "roost-helper.exe se ejecuta como administrador (UAC) para editar el hosts y la regla DNS de .test, y aqui vive en una carpeta que puede escribir cualquier programa de tu usuario. Si prefieres que viva en Program Files, usa el instalador de la release.",
         "Los PHP y las MariaDB/MySQL oficiales de Windows necesitan el Visual C++ Redistributable 2015-2022 (scoop install extras/vcredist2022)."
     ],
@@ -26,8 +26,15 @@
             "Roost"
         ]
     ],
-    "pre_install": "$anterior = Join-Path (Split-Path $dir) 'current\\roost.exe'; if (Test-Path $anterior) { Write-Host 'Parando el stack de Roost (roost down)...'; & $anterior down }",
-    "pre_uninstall": "if (Test-Path \"$dir\\roost.exe\") { Write-Host 'Parando el stack de Roost (roost down)...'; & \"$dir\\roost.exe\" down }",
+    "pre_install": [
+        "# Al actualizar, la version anterior sigue en su carpeta (current ya no existe a estas alturas): su roost.exe para el stack.",
+        "$anterior = Get-ChildItem (Split-Path $dir) -Directory -ErrorAction SilentlyContinue | Where-Object { $_.FullName -ne $dir -and (Test-Path (Join-Path $_.FullName 'roost.exe')) } | Sort-Object LastWriteTime -Descending | Select-Object -First 1",
+        "if ($anterior) { Write-Host 'Parando el stack de Roost (roost down)...'; & (Join-Path $anterior.FullName 'roost.exe') down | Out-Host }"
+    ],
+    "pre_uninstall": [
+        "$roost = Join-Path $dir 'roost.exe'",
+        "if (Test-Path $roost) { Write-Host 'Parando el stack de Roost (roost down)...'; & $roost down | Out-Host }"
+    ],
     "checkver": {
         "github": "https://github.com/get-roost/roost"
     },
