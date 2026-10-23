@@ -200,7 +200,22 @@ internal static class InstallFiles
 
     public static void TryDeleteDirectory(string path)
     {
-        try { if (Directory.Exists(path)) Directory.Delete(path, recursive: true); }
+        try
+        {
+            if (!Directory.Exists(path)) return;
+            try
+            {
+                Directory.Delete(path, recursive: true);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Un clon a medias deja ficheros de solo lectura (.git/objects): se les quita el
+                // atributo y se vuelve a intentar.
+                foreach (var file in Directory.EnumerateFileSystemEntries(path, "*", SearchOption.AllDirectories))
+                    File.SetAttributes(file, FileAttributes.Normal);
+                Directory.Delete(path, recursive: true);
+            }
+        }
         catch { /* se reintenta en la siguiente operación (CleanLeftovers) */ }
     }
 

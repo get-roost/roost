@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
+using Roost.Core.Git;
 using Roost.Core.Platform;
 
 namespace Roost.Core.Sites;
@@ -22,6 +23,9 @@ public sealed partial record Site
     /// <summary>PHP del sitio: rama, versión o instalación; null = el PHP global.</summary>
     public string? Php { get; init; }
 
+    /// <summary>El repositorio del que viene el sitio (ROOST.md: git al estilo Plesk); null en los sitios de siempre.</summary>
+    public SiteGit? Git { get; init; }
+
     public string Host => $"{Name}.test";
 
     public string DocumentRoot => Root is null ? Folder : Path.GetFullPath(Path.Combine(Folder, Root));
@@ -31,6 +35,53 @@ public sealed partial record Site
     private static partial Regex NamePattern();
 
     public static bool IsValidName(string name) => NamePattern().IsMatch(name);
+}
+
+/// <summary>
+/// Lo que Roost sabe del repositorio de un sitio. NADA secreto: el token y la clave viven
+/// aparte (el Administrador de credenciales y <c>state/git/keys</c>); aquí solo va el tipo de
+/// acceso y el nombre con el que buscarlos.
+/// </summary>
+public sealed record SiteGit
+{
+    /// <summary><see cref="Access"/>: un repositorio público, sin credenciales.</summary>
+    public const string AccessNone = "none";
+
+    /// <summary><see cref="Access"/>: token HTTPS en el Administrador de credenciales (<see cref="CredentialTarget"/>).</summary>
+    public const string AccessToken = "token";
+
+    /// <summary><see cref="Access"/>: la clave SSH que Roost generó para el sitio (<see cref="KeyName"/>).</summary>
+    public const string AccessKey = "key";
+
+    /// <summary><see cref="Access"/>: lo que tenga el usuario (su <c>~/.ssh</c>, su git); Roost no guarda nada.</summary>
+    public const string AccessOwn = "own";
+
+    /// <summary>La dirección del remoto, ya normalizada (<see cref="GitUrl.Normalized"/>): nunca con credenciales dentro.</summary>
+    public required string Remote { get; init; }
+
+    /// <summary>La rama del checkout.</summary>
+    public required string Branch { get; init; }
+
+    /// <summary>Cómo se entra: <see cref="AccessNone"/>, <see cref="AccessToken"/>, <see cref="AccessKey"/> o <see cref="AccessOwn"/>.</summary>
+    public string Access { get; init; } = AccessNone;
+
+    /// <summary>El nombre de la clave SSH de Roost (<c>state/git/keys/&lt;nombre&gt;</c>), con <see cref="AccessKey"/>. Lo rellena el paquete de claves.</summary>
+    public string? KeyName { get; init; }
+
+    /// <summary>El target del Administrador de credenciales, con <see cref="AccessToken"/>. Lo rellena el paquete de tokens.</summary>
+    public string? CredentialTarget { get; init; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter<GitProvider>))]
+    public GitProvider Provider { get; init; } = GitProvider.Other;
+
+    /// <summary>Si la app mira cada cierto tiempo si hay commits nuevos (solo <c>ls-remote</c>; nunca descarga).</summary>
+    public bool CheckUpdates { get; init; } = true;
+
+    /// <summary>La última vez que Roost clonó o actualizó el sitio.</summary>
+    public DateTimeOffset? LastPullUtc { get; init; }
+
+    /// <summary>El commit del checkout la última vez que Roost lo miró.</summary>
+    public GitCommit? LastCommit { get; init; }
 }
 
 /// <summary>Los sitios registrados, en <c>state/sites.json</c>. Lo escribe Roost; no es configuración del usuario.</summary>
