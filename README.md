@@ -118,7 +118,7 @@ Instala PHP oficiales de windows.php.net, cada uno en su propia carpeta, sin toc
 ```sh
 roost php list                    # instalados por Roost y disponibles, con su veredicto de seguridad
 roost php install 8.4             # la última de la rama 8.4, NTS x64 (el que usa nginx)
-roost php install 8.3.36 --ts     # build thread-safe, para Apache
+roost php install 8.3.36 --ts     # build thread-safe (para un mod_php tuyo; el Apache de Roost usa NTS)
 roost php install 7.4 --arch x86  # también ramas EOL, con aviso, para proyectos viejos
 roost php remove 8.4.27-nts-x64   # también vale la versión (8.4.27) o la rama (8.4) si no es ambigua
 roost php use 8.3                 # PHP global: el que sirve http://localhost/ (si está en marcha, se aplica ya)
@@ -160,8 +160,9 @@ roost db remove mysql@5.7        # quita los binarios; los datos se quedan
 - **El PHP global** es el que fija `roost php use`. Si no hay ninguno fijado, se usa el más nuevo que haya instalado Roost.
 - **php-cgi:** como Windows no tiene php-fpm, arranca un pool de 4 `php-cgi` (por defecto) detrás de nginx, en los puertos `9000 + mayor·100 + menor·10 + i` (la 8.4 usa 9840-9843).
 - **nginx 1.30.6:** la primera vez lo descarga de nginx.org y verifica su SHA-256.
-- **Solo local:** nginx escucha solo en 127.0.0.1, así que no se ve desde la red.
-- **Comprobaciones previas:** si el puerto está ocupado, lo dice y no arranca nada. La configuración de nginx se valida con `nginx -t` antes de arrancar.
+- **O Apache 2.4.69,** si lo prefieres: `roost web use apache` lo instala (de Apache Lounge, con su SHA-256 verificado) y lo deja como servidor web; `roost web use nginx` vuelve. Sirve lo mismo, con HTTPS y HTTP/2, y con los mismos pools de php-cgi (por mod_proxy_fcgi), así que cada sitio sigue con su PHP. Además lee los `.htaccess`, así que WordPress o Laravel funcionan sin tocar nada. Necesita el Visual C++ Redistributable 2017-2026 (14.50 o posterior).
+- **Solo local:** el servidor web escucha solo en 127.0.0.1, así que no se ve desde la red.
+- **Comprobaciones previas:** si el puerto está ocupado, lo dice y no arranca nada. La configuración se valida antes de arrancar (`nginx -t` o `httpd -t`).
 - **Si algo no arranca,** `up` lo dice con el final de su log y para el resto. Si es un puerto ocupado, dice qué proceso lo tiene.
 
 Un daemon de usuario (`roost daemon`, que la CLI lanza sola) hace de padre de nginx y de los php-cgi:
@@ -173,7 +174,8 @@ Un daemon de usuario (`roost daemon`, que la CLI lanza sola) hace de padre de ng
 ```sh
 roost up          # arranca, o re-arranca con la configuración actual
 roost status      # servicios, PID, puertos y reinicios (también --json)
-roost restart nginx   # reinicia un servicio sin tocar el resto: nginx, php-8.4 (todo su pool), mariadb-11.4
+roost restart nginx   # reinicia un servicio sin tocar el resto: nginx (o apache), php-8.4 (todo su pool), mariadb-11.4
+roost web use apache  # cambia de servidor web (y lo instala si falta)
 roost down        # lo para todo, daemon incluido
 ```
 
@@ -185,7 +187,8 @@ version = "8.4"   # PHP global: rama, versión (8.4.27) o instalación (8.4.27-n
 pool = 4          # procesos php-cgi (1 a 10)
 
 [web]
-port = 80         # puerto HTTP de nginx, solo en 127.0.0.1
+server = "nginx"  # "nginx" o "apache" (roost web use)
+port = 80         # puerto HTTP, solo en 127.0.0.1
 https_port = 443  # puerto HTTPS de los sitios *.test
 
 [db]
@@ -205,7 +208,7 @@ Cuando un comando cambia una clave, Roost toca solo esa clave y respeta el resto
 - **Inicio:** accesos a la web, a una terminal con el PHP global en el PATH, a la carpeta www y a la base de datos, y los servicios con su estado, sus puertos, sus reinicios y un botón para reiniciar cada uno.
 - **Sitios:** alta con plantilla y el PHP que pide el `composer.json`, el PHP propio de cada sitio, su certificado y su línea en el hosts.
 - **PHP:** las versiones instaladas, con su veredicto, quién las usa y sus extensiones (activar una reinicia solo su pool), el catálogo de windows.php.net (NTS/TS, x64/x86) y lo que hay fuera de Roost.
-- **Servidor web:** nginx, sus puertos HTTP y HTTPS, `nginx -t` y su configuración.
+- **Servidor web:** cuál arranca (nginx o Apache, que se instala al elegirlo), sus puertos HTTP y HTTPS, la validación (`nginx -t` / `httpd -t`) y su configuración.
 - **Bases de datos:** la conexión (con copiar y la línea para el `.env`), el puerto con quién ocupa cada uno, MariaDB y MySQL instaladas y disponibles, y las bases de datos del servidor (crear, consola SQL).
 - **Auditoría:** todo lo de la máquina frente a los avisos, con sus mitigaciones y una exportación a Markdown o JSON.
 - **Registros:** el final de cada log, coloreado, con filtro y en vivo.
@@ -217,7 +220,7 @@ La primera vez, una bienvenida propone traer las ramas de PHP que ya usas, una M
 dotnet run --project src/Roost.Desktop
 ```
 
-Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que sigue en marcha aunque salgas de la app (al salir, pregunta). Lo que está previsto pero aún no hecho (Apache, plantillas distintas de «Vacía», DNS local, Firefox, cambiar las rutas) aparece desactivado y marcado como «próximamente».
+Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que sigue en marcha aunque salgas de la app (al salir, pregunta). Lo que está previsto pero aún no hecho (plantillas distintas de «Vacía», DNS local, Firefox, cambiar las rutas) aparece desactivado y marcado como «próximamente».
 
 ### `roost shims`: el `php` de la terminal según la carpeta (solo Windows, por ahora)
 
@@ -248,7 +251,7 @@ roost cert renew                                         # vuelve a emitir los c
 - **Repetir `site add` actualiza el sitio,** sin romper nada. Si el stack está en marcha, el cambio se aplica en el acto.
 - **Nombres y certificado.** Se sirven `tienda.test` y cualquier subdominio (`api.tienda.test`), en HTTP y HTTPS. Escucha solo en 127.0.0.1, por los puertos de `[web]` (80 y 443 por defecto). La raíz web es `public/` si existe (Laravel, Symfony); si no, la carpeta.
 - **PHP por sitio.** Cada rama de PHP en uso tiene su propio pool de php-cgi.
-- **Tu vhost.** Cada sitio tiene su `C:\roost\etc\nginx\sites\<nombre>.conf`. Puedes editarlo **fuera** de las marcas `# roost:begin` / `# roost:end`, por ejemplo el `location /` del controlador frontal o reglas tuyas: Roost solo regenera lo de dentro. Al quitar el sitio, el fichero se aparta como `.conf.removed`.
+- **Tu vhost.** Cada sitio tiene su `C:\roost\etc\nginx\sites\<nombre>.conf`. Puedes editarlo **fuera** de las marcas `# roost:begin` / `# roost:end`, por ejemplo el `location /` del controlador frontal o reglas tuyas: Roost solo regenera lo de dentro. Al quitar el sitio, el fichero se aparta como `.conf.removed`. Con Apache es `C:\roost\etc\apache\sites\<nombre>.conf`, con las mismas marcas, aunque lo propio del proyecto va mejor en su `.htaccess`.
 - **El `hosts`.** Roost escribe en el `hosts` de Windows un bloque `# roost:begin` / `# roost:end` con una línea `127.0.0.1 <nombre>.test` por sitio. Lo hace `roost-helper.exe`, lo único de Roost que se ejecuta como administrador:
   - solo sabe hacer eso;
   - rechaza cualquier nombre que no sea `<algo>.test`;
@@ -292,10 +295,10 @@ roost update --json   # lo mismo para scripts (código 0 si se pudo comprobar, 1
 
 | Qué | Ruta |
 |---|---|
-| PHP, nginx y bases de datos instalados | `C:\roost\bin\php\<versión>-<nts\|ts>-<arq>\`, `C:\roost\bin\nginx\<versión>\`, `C:\roost\bin\mariadb\<versión>\`, `C:\roost\bin\mysql\<versión>\` |
+| PHP, nginx, Apache y bases de datos instalados | `C:\roost\bin\php\<versión>-<nts\|ts>-<arq>\`, `C:\roost\bin\nginx\<versión>\`, `C:\roost\bin\apache\<versión>\`, `C:\roost\bin\mariadb\<versión>\`, `C:\roost\bin\mysql\<versión>\` |
 | Datos de las bases de datos (uno por motor y rama) | `C:\roost\data\<motor>\<rama>\` |
-| Configuración generada (`nginx.conf`, un `php.ini` por instalación, un `my.ini` por motor y rama) y `conf.d\` | `C:\roost\etc\` |
-| El vhost de cada sitio (editable fuera de las marcas) | `C:\roost\etc\nginx\sites\<nombre>.conf` |
+| Configuración generada (`nginx.conf` o `apache\httpd.conf`, un `php.ini` por instalación, un `my.ini` por motor y rama) y `conf.d\` | `C:\roost\etc\` |
+| El vhost de cada sitio (editable fuera de las marcas) | `C:\roost\etc\nginx\sites\<nombre>.conf`, o `C:\roost\etc\apache\sites\<nombre>.conf` con Apache |
 | CA local y certificados de los sitios | `C:\roost\certs\ca\`, `C:\roost\certs\sites\` |
 | Sitios registrados | `C:\roost\state\sites.json` |
 | Logs (daemon, nginx, cada php-cgi) | `C:\roost\logs\` |
@@ -341,7 +344,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Cambiar un sitio rearranca todo el stack, base de datos incluida (un par de segundos), en vez de recargar solo nginx.
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
-- La app de escritorio no tiene aún Apache, plantillas de proyecto (Laravel, WordPress…) ni configuración de Firefox.
+- La app de escritorio no tiene aún plantillas de proyecto (Laravel, WordPress…) ni configuración de Firefox.
 
 ## Desarrollo
 
@@ -353,7 +356,7 @@ dotnet test tests/Roost.Core.Tests --filter "FullyQualifiedName~AuditEvaluatorTe
 
 | Proyecto | Qué contiene |
 |---|---|
-| `src/Roost.Core` | La detección (scanners, parseo de versiones, modelos), la auditoría (evaluador y dataset), la instalación (PHP, nginx, MariaDB y MySQL), `roost.toml`, el supervisor de procesos y la generación de `php.ini`, `nginx.conf` y `my.ini`. |
+| `src/Roost.Core` | La detección (scanners, parseo de versiones, modelos), la auditoría (evaluador y dataset), la instalación (PHP, nginx, Apache, MariaDB y MySQL), `roost.toml`, el supervisor de procesos y la generación de `php.ini`, `nginx.conf`, `httpd.conf` y `my.ini`. |
 | `src/Roost.Daemon` | El daemon (Kestrel en una named pipe) que mantiene el stack, y su cliente. |
 | `src/Roost.Extensibility` | El contrato de las extensiones y su cargador: servicios, avisos, scanners, comandos y pantallas que se enchufan desde `bin/extensions`. |
 | `src/Roost.Shim` | `roost-shim.exe`, el `php` de la terminal: elige el PHP de la carpeta y lo ejecuta. Se publica con NativeAOT. |
@@ -407,7 +410,7 @@ Por fases:
 - **Fase 0:** hecha: `scan` y `audit` por CLI y el feed firmado `roost-catalog`.
 - **Fase 1, MVP:** hecha en Windows: instalar PHP, MariaDB y MySQL, servirlos con nginx desde un daemon de usuario con supervisor, sitios `https://*.test` con certificados de una CA local, y la app de escritorio. Falta Linux y la firma de los binarios; las releases ya salen de un workflow, pero aún no se ha publicado ninguna.
 - **Fase 2 (en curso):** hechos en Windows los shims de terminal (`php` según el proyecto en el que estés), los puntos de enganche para extensiones y el DNS local. Los paquetes de Scoop y winget están preparados y esperan a la primera release. Faltan Xdebug con un clic, las plantillas y el instalador.
-- **Fase 3:** macOS, ARM y Apache.
+- **Fase 3:** macOS y ARM (Apache ya está, en Windows).
 
 Roost es y seguirá siendo gratis y MIT. Más adelante habrá un **Roost Pro** de pago, aparte, para quien lo usa en su trabajo o en equipo: varias bases de datos y servicios a la vez (PostgreSQL, Redis, Mailpit), auditoría de servidores por SSH y un feed de avisos ampliado. Nada de lo que hoy es gratis pasará al Pro, y la seguridad básica (EOL y avisos críticos) llega a todos igual.
 

@@ -15,13 +15,16 @@ using Roost.Desktop.Services;
 namespace Roost.Desktop.ViewModels;
 
 /// <summary>
-/// Servidor web: el que arranca (nginx; Apache llega más adelante), sus puertos, el nginx
-/// instalado con su configuración y el catálogo. La pestaña Apache explica qué hará falta.
+/// Servidor web: el que arranca (nginx o Apache, <c>[web] server</c>), sus puertos y, en una
+/// pestaña cada uno, lo instalado con su configuración y el catálogo. Los dos sirven los mismos
+/// PHP (los pools de php-cgi); Apache lee además los <c>.htaccess</c>.
 /// </summary>
 public sealed partial class WebServerViewModel : PageViewModel
 {
     private RoostConfig _config = new();
     private InstalledNginx? _nginx;
+    private InstalledApache? _apache;
+    private bool _loading;
 
     public WebServerViewModel(MainViewModel main) : base(main)
     {
@@ -48,7 +51,24 @@ public sealed partial class WebServerViewModel : PageViewModel
     [ObservableProperty] public partial string Modules { get; private set; } = "";
     [ObservableProperty] public partial string? TestOutput { get; private set; }
     [ObservableProperty] public partial Tone TestTone { get; private set; } = Tone.Ok;
-    [ObservableProperty] public partial string ApacheNote { get; private set; } = "";
+
+    [ObservableProperty] public partial bool ApacheInstalled { get; private set; }
+    [ObservableProperty] public partial bool ApacheRunning { get; private set; }
+    [ObservableProperty] public partial string ApacheState { get; private set; } = "";
+    [ObservableProperty] public partial Tone ApacheStateTone { get; private set; } = Tone.Off;
+    [ObservableProperty] public partial string ApacheFolder { get; private set; } = "";
+    [ObservableProperty] public partial string? ApacheTestOutput { get; private set; }
+    [ObservableProperty] public partial Tone ApacheTestTone { get; private set; } = Tone.Ok;
+
+    /// <summary>El radio «nginx» de Servidor activo (el otro es <see cref="UseApache"/>).</summary>
+    [ObservableProperty] public partial bool UseNginx { get; set; } = true;
+    [ObservableProperty] public partial bool UseApache { get; set; }
+
+    public string ApacheVersion => ApacheCatalog.Windows.Version;
+    public string ApacheRedistributable => ApacheCatalog.Windows.Redistributable;
+    public string ApacheModules => string.Join(", ", ApacheConf.Modules.Where(m => m is "rewrite" or "ssl" or "http2" or "proxy_fcgi" or "headers" or "expires" or "deflate"))
+                                   + $" y {ApacheConf.Modules.Count - 7} más";
+    public bool HasApacheTestOutput => ApacheTestOutput is not null;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowApache))]
@@ -63,6 +83,13 @@ public sealed partial class WebServerViewModel : PageViewModel
     partial void OnHttpTextChanged(string value) => CheckPorts();
     partial void OnHttpsTextChanged(string value) => CheckPorts();
     partial void OnTestOutputChanged(string? value) => OnPropertyChanged(nameof(HasTestOutput));
+    partial void OnApacheTestOutputChanged(string? value) => OnPropertyChanged(nameof(HasApacheTestOutput));
+
+    partial void OnUseApacheChanged(bool value)
+    {
+        if (_loading || value == _config.UsesApache) return;
+        _ = SwitchServerAsync(value ? RoostConfig.WebApache : RoostConfig.WebNginx);
+    }
 
     public override Task ShownAsync()
     {
@@ -78,10 +105,31 @@ public sealed partial class WebServerViewModel : PageViewModel
         var status = Main.Stack.Status;
         try { _config = RoostConfig.Load(paths.ConfigFile); } catch (RoostException) { _config = new RoostConfig(); }
         _nginx = new NginxInstaller(paths).Find(NginxCatalog.Windows);
+        _apache = new ApacheInstaller(paths).Find(ApacheCatalog.Windows);
+
+        _loading = true;
+        UseApache = _config.UsesApache;
+        UseNginx = !_config.UsesApache;
+        _loading = false;
 
         NginxInstalled = _nginx is not null;
         NginxRunning = status?.Running == true && status.Services.Any(s => s.Name == "nginx" && s.State == "Running");
-        (NginxState, NginxStateTone) = NginxRunning ? ("en marcha", Tone.Ok) : NginxInstalled ? ("parado", Tone.Neutral) : ("se instala al iniciar", Tone.Neutral);
+        (NginxState, NginxStateTone) = NginxRunning ? ("en marcha", Tone.Ok)
+            : !NginxInstalled ? (_config.UsesApache ? ("sin instalar", Tone.Neutral) : ("se instala al iniciar", Tone.Neutral))
+            : _config.UsesApache ? ("instalado", Tone.Neutral) : ("parado", Tone.Neutral);
+
+        ApacheInstalled = _apache is not null;
+        ApacheRunning = status?.Running == true && status.Services.Any(s => s.Name == "apache" && s.State == "Running");
+        (ApacheState, ApacheStateTone) = ApacheRunning ? ("en marcha", Tone.Ok)
+            : !ApacheInstalled ? ("se instala al elegirlo", Tone.Neutral)
+            : _config.UsesApache ? ("parado", Tone.Neutral) : ("instalado", Tone.Neutral);
+        ApacheFolder = _apache?.Directory ?? Path.Combine(paths.ApacheBin, ApacheCatalog.Windows.Version);
+        if (!_tabChosen && ShowNginx == _config.UsesApache)
+        {
+            _loading = true;
+            ShowNginx = !_config.UsesApache;
+            _loading = false;
+        }
         NginxVersion = _nginx?.Version ?? NginxCatalog.Windows.Version;
         NginxFolder = _nginx?.Directory ?? Path.Combine(paths.NginxBin, NginxCatalog.Windows.Version);
         var hasSites = SafeSites().Count > 0;
@@ -94,7 +142,14 @@ public sealed partial class WebServerViewModel : PageViewModel
         if (HttpText.Length == 0) HttpText = current.Item1;
         if (HttpsText.Length == 0) HttpsText = current.Item2;
         CheckPorts();
-        BuildApacheNote();
+    }
+
+    // La pestaña sigue al servidor activo hasta que el usuario elige otra.
+    private bool _tabChosen;
+
+    partial void OnShowNginxChanged(bool value)
+    {
+        if (!_loading) _tabChosen = true;
     }
 
     private async Task LoadModulesAsync(InstalledNginx nginx)
@@ -134,7 +189,7 @@ public sealed partial class WebServerViewModel : PageViewModel
             return ("no válido", Tone.Bad);
         if (port == _config.DbPort)
             return ("es de la base de datos", Tone.Bad);
-        if (port == current && NginxRunning)
+        if (port == current && (NginxRunning || ApacheRunning))
         {
             ok = true;
             return ("en uso por Roost", Tone.Ok);
@@ -146,25 +201,6 @@ public sealed partial class WebServerViewModel : PageViewModel
         }
         ok = true;
         return ("libre", Tone.Ok);
-    }
-
-    private void BuildApacheNote()
-    {
-        // Con Apache (mod_php) cada PHP en uso necesita su build TS.
-        var installed = new PhpInstaller(Main.App.Paths).ListInstalled();
-        var inUse = new List<string>();
-        var status = Main.Stack.Status;
-        if (status?.Php is { } php) inUse.Add(php);
-        if (status is not null) inUse.AddRange(status.Sites.Select(s => s.Php));
-        if (inUse.Count == 0 && installed.Count > 0) inUse.Add(installed[0].Name);
-        var missing = inUse.Distinct()
-            .Select(name => name.Split('-')[0])
-            .Where(version => !installed.Any(i => i.ThreadSafe && i.Name.StartsWith(version + "-", StringComparison.Ordinal)))
-            .Distinct()
-            .ToList();
-        ApacheNote = missing.Count == 0
-            ? "Tus PHP en uso ya tienen su build TS: Apache podría usarlos tal cual."
-            : $"Para usar Apache con tus sitios harían falta PHP {string.Join(" y ", missing.Select(v => v + " TS"))} (ahora tienes las NTS).";
     }
 
     private IReadOnlyList<Site> SafeSites()
@@ -227,6 +263,101 @@ public sealed partial class WebServerViewModel : PageViewModel
 
     [RelayCommand]
     private Task GoErrorLogAsync() => Main.OpenLogAsync("nginx-error.log");
+
+    /// <summary>
+    /// Cambia el servidor web activo: lo instala si falta (con su diálogo), lo guarda en roost.toml
+    /// y rearranca el stack si está en marcha. Si se cancela la instalación, se queda como estaba.
+    /// </summary>
+    private async Task SwitchServerAsync(string server)
+    {
+        var apache = server == RoostConfig.WebApache;
+        if (apache && _apache is null) await InstallApacheAsync();
+        if (!apache && _nginx is null) await InstallNginxAsync();
+        var installed = apache
+            ? new ApacheInstaller(Main.App.Paths).Find(ApacheCatalog.Windows) is not null
+            : new NginxInstaller(Main.App.Paths).Find(NginxCatalog.Windows) is not null;
+        if (installed)
+        {
+            await Main.RunAsync("No se pudo cambiar el servidor web", async () =>
+            {
+                RoostConfig.SetWebServer(Main.App.Paths.ConfigFile, server);
+                _tabChosen = false;
+                ShowNginx = !apache;
+                await Main.ApplyAsync();
+                Main.NotifyConfigChanged();
+                Main.Flash(apache ? "Ahora sirve Apache (lee los .htaccess)" : "Ahora sirve nginx");
+            });
+        }
+        Build();
+    }
+
+    [RelayCommand]
+    private Task TestApacheConfigAsync() => Main.RunAsync("No se pudo validar la configuración", async () =>
+    {
+        if (_apache is not { } apache) throw new RoostException("Apache no está instalado: instálalo desde Disponibles o eligiéndolo arriba.");
+        var planner = new StackPlanner(Main.App.Paths, ProcessRunner.Default);
+        if (!File.Exists(planner.ApacheConfPath))
+            throw new RoostException("Aún no hay configuración de Apache: se genera al iniciar con Apache como servidor activo.");
+        var output = await Task.Run(() => planner.TestApache(apache));
+        ApacheTestOutput = output?.Trim() ?? "httpd -t no respondió.";
+        ApacheTestTone = output?.Contains("Syntax OK", StringComparison.OrdinalIgnoreCase) == true ? Tone.Ok : Tone.Bad;
+    });
+
+    [RelayCommand]
+    private Task ReloadApacheAsync() => Main.RunAsync("No se pudo recargar Apache", async () =>
+    {
+        var response = await Main.App.Daemon.RestartAsync("apache");
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        await Main.Stack.RefreshAsync();
+        Main.Flash("Apache recargado");
+    });
+
+    [RelayCommand]
+    private Task OpenApacheConfAsync() => Main.RunAsync("No se pudo abrir httpd.conf", () =>
+    {
+        var conf = new StackPlanner(Main.App.Paths, ProcessRunner.Default).ApacheConfPath;
+        if (!File.Exists(conf)) throw new RoostException("Aún no hay httpd.conf: se genera al iniciar con Apache como servidor activo.");
+        Shell.OpenFile(conf);
+        return Task.CompletedTask;
+    });
+
+    [RelayCommand]
+    private Task OpenApacheFolderAsync() => Main.RunAsync("No se pudo abrir la carpeta", () =>
+    {
+        Shell.OpenFolder(ApacheFolder);
+        return Task.CompletedTask;
+    });
+
+    [RelayCommand]
+    private Task GoApacheErrorLogAsync() => Main.OpenLogAsync("apache-error.log");
+
+    [RelayCommand]
+    private async Task InstallApacheAsync()
+    {
+        var build = ApacheCatalog.Windows;
+        var installer = new ApacheInstaller(Main.App.Paths, Main.App.Http);
+        var dialog = new InstallDialogViewModel(
+            $"Instalando Apache {build.Version}",
+            $"Win64 · desde {build.Url.Host}",
+            null,
+            [
+                new("Versión fijada en Roost", "· firma PGP de Apache Lounge verificada"),
+                new("Descargando el zip", null),
+                new("Verificar el SHA-256", "· antes de extraer nada"),
+                new($"Extraer en {Path.Combine(Main.App.Paths.ApacheBin, build.Version)}", null),
+            ],
+            async (d, cancel) =>
+            {
+                d.Step(1, "Descargando");
+                await installer.InstallAsync(build, new Progress<long>(d.Downloaded), cancel);
+                d.Step(3, "Extrayendo");
+            });
+        var run = dialog.RunAsync();
+        await Main.ShowDialogAsync(dialog);
+        await run;
+        Main.NotifyConfigChanged();
+        Build();
+    }
 
     [RelayCommand]
     private async Task InstallNginxAsync()

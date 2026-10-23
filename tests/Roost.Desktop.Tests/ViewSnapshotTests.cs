@@ -164,8 +164,20 @@ public class ViewSnapshotTests
         Assert.Equal("es de la base de datos", web.HttpChip);
 
         web.ShowApache = true;
-        Assert.Contains("7.4.33 TS", web.ApacheNote);
+        Assert.True(web.UseNginx);                         // el activo sigue siendo nginx
+        Assert.False(web.ApacheInstalled);
+        Assert.Equal("se instala al elegirlo", web.ApacheState);
+        Assert.Equal(Roost.Core.Install.ApacheCatalog.Windows.Version, web.ApacheVersion);
         Snapshot(window, "servidor-web-apache");
+
+        // Ya instalado (pero sin elegir), la pestaña enseña el detalle.
+        var httpd = Path.Combine(fake.Paths.ApacheBin, Roost.Core.Install.ApacheCatalog.Windows.Version, "bin", "httpd.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(httpd)!);
+        File.WriteAllText(httpd, "");
+        web.StackChanged();
+        Assert.True(web.ApacheInstalled);
+        Assert.Equal("instalado", web.ApacheState);
+        Snapshot(window, "servidor-web-apache-instalado");
     }
 
     [AvaloniaFact]

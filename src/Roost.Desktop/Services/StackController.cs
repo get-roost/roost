@@ -103,9 +103,9 @@ public sealed partial class StackController(AppServices app) : ObservableObject
             var php = planner.ResolvePhp(config, new PhpInstaller(paths).ListInstalled());
             planner.ResolveDb(config, new DbInstaller(paths).ListInstalled());
 
-            await EnsureNginxAsync(progress);
+            await EnsureWebServerAsync(config.WebServer, progress);
 
-            progress?.Report($"Arrancando PHP {php.Name} y nginx...");
+            progress?.Report($"Arrancando PHP {php.Name} y {(config.UsesApache ? "Apache" : "nginx")}...");
             await app.Daemon.EnsureRunningAsync(DaemonLauncher.FromDirectory(AppServices.AppDirectory));
             var response = await app.Daemon.UpAsync();
             Status = response.Status;
@@ -121,15 +121,25 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         }
     }
 
-    private async Task EnsureNginxAsync(IProgress<string>? progress)
+    /// <summary>El servidor web de <c>[web] server</c>, instalado la primera vez que hace falta.</summary>
+    private async Task EnsureWebServerAsync(string server, IProgress<string>? progress)
     {
-        var installer = new NginxInstaller(app.Paths, app.Http);
-        var build = NginxCatalog.Windows;
-        if (installer.Find(build) is not null) return;
-
-        progress?.Report($"Instalando nginx {build.Version} (la primera vez)...");
-        var bytes = new Progress<long>(b => progress?.Report($"Instalando nginx {build.Version}... {b / 1048576.0:0.0} MB"));
-        await installer.InstallAsync(build, bytes);
+        if (server == RoostConfig.WebApache)
+        {
+            var installer = new ApacheInstaller(app.Paths, app.Http);
+            var build = ApacheCatalog.Windows;
+            if (installer.Find(build) is not null) return;
+            progress?.Report($"Instalando Apache {build.Version} (la primera vez)...");
+            await installer.InstallAsync(build, new Progress<long>(b => progress?.Report($"Instalando Apache {build.Version}... {b / 1048576.0:0.0} MB")));
+        }
+        else
+        {
+            var installer = new NginxInstaller(app.Paths, app.Http);
+            var build = NginxCatalog.Windows;
+            if (installer.Find(build) is not null) return;
+            progress?.Report($"Instalando nginx {build.Version} (la primera vez)...");
+            await installer.InstallAsync(build, new Progress<long>(b => progress?.Report($"Instalando nginx {build.Version}... {b / 1048576.0:0.0} MB")));
+        }
     }
 
     private StartFailure Failure(string error, RoostConfig config)
@@ -137,7 +147,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         // Tras un up fallido no queda nada nuestro en marcha: lo que esté ocupado es de otro.
         var wanted = new List<(int Port, string Role, string Key, int[] Alternatives)>
         {
-            (config.HttpPort, "HTTP de nginx", "[web] port", [8080, 8000, 8081, 8888, 8088]),
+            (config.HttpPort, config.UsesApache ? "HTTP de Apache" : "HTTP de nginx", "[web] port", [8080, 8000, 8081, 8888, 8088]),
         };
         if (new SiteRegistry(app.Paths).Load().Count > 0)
             wanted.Add((config.HttpsPort, "HTTPS de los sitios .test", "[web] https_port", [8443, 4443, 9443, 10443]));
@@ -156,6 +166,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         var first = error.Split(' ', 2)[0];
         var service = first.StartsWith("php-", StringComparison.Ordinal) ? "PHP"
             : first is "nginx" or "mariadb" or "mysql" ? first
+            : first is "apache" ? "Apache"
             : busy.Count > 0 ? busy[0].Role
             : null;
         return new StartFailure(service is null ? "No se pudo arrancar Roost" : $"No se pudo arrancar {service}", error, busy);

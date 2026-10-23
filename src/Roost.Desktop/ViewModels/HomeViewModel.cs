@@ -134,7 +134,7 @@ public sealed partial class HomeViewModel : PageViewModel
         Subtitle = running
             ? $"Todo en marcha{(status!.Since is { } since ? $" desde las {since.LocalDateTime:HH:mm}" : "")} · "
               + $"{Count(sites.Count, "sitio", "sitios")}, PHP {Branch(status.Php)} global, {(status.Db is null ? "sin base de datos" : Short(status.Db))}"
-            : "Parado. Iniciar todo arranca la base de datos, los PHP en uso y nginx.";
+            : "Parado. Iniciar todo arranca la base de datos, los PHP en uso y el servidor web.";
         BuildAudit();
     }
 
@@ -161,12 +161,13 @@ public sealed partial class HomeViewModel : PageViewModel
                     PhpLabel(install), ports.Count == 0 ? "-" : ports.Count == 1 ? $"{ports[0]}" : $"{ports[0]}–{ports[^1]}",
                     state, tone, restarts, group.Key));
             }
-            else if (group.Key == "nginx")
+            else if (group.Key is "nginx" or "apache")
             {
                 var listen = sites.Count > 0 ? $":{config.HttpPort} · :{config.HttpsPort}" : $":{config.HttpPort}";
-                rows.Add(new ServiceRow("nginx", null, Tone.Neutral,
-                    sites.Count == 0 ? "localhost" : $"localhost y {Count(sites.Count, "sitio .test", "sitios .test")}",
-                    status.Nginx ?? "", listen, state, tone, restarts, "nginx"));
+                rows.Add(new ServiceRow(group.Key == "apache" ? "Apache" : "nginx", null, Tone.Neutral,
+                    (sites.Count == 0 ? "localhost" : $"localhost y {Count(sites.Count, "sitio .test", "sitios .test")}")
+                        + (group.Key == "apache" ? " · lee los .htaccess" : ""),
+                    status.WebVersion ?? "", listen, state, tone, restarts, group.Key));
             }
             else if (group.Key == "dns")
             {
@@ -190,8 +191,8 @@ public sealed partial class HomeViewModel : PageViewModel
             }
         }
 
-        // Mismo orden que el arranque: base de datos, extensiones, PHP, nginx.
-        return rows.OrderBy(r => r.Name == "nginx" ? 3 : r.Name.StartsWith("PHP", StringComparison.Ordinal) ? 2 : r.Tag == "extensión" ? 1 : r.Name == "DNS local" ? -1 : 0).ToList();
+        // Mismo orden que el arranque: base de datos, extensiones, PHP, servidor web.
+        return rows.OrderBy(r => r.Name is "nginx" or "Apache" ? 3 : r.Name.StartsWith("PHP", StringComparison.Ordinal) ? 2 : r.Tag == "extensión" ? 1 : r.Name == "DNS local" ? -1 : 0).ToList();
     }
 
     private IReadOnlyList<ServiceRow> PlannedRows(
@@ -229,10 +230,13 @@ public sealed partial class HomeViewModel : PageViewModel
             }
         }
 
-        var nginx = new NginxInstaller(Main.App.Paths).Find(NginxCatalog.Windows);
-        rows.Add(new ServiceRow("nginx", null, Tone.Neutral,
-            nginx is null ? "Se instala solo al iniciar por primera vez" : sites.Count == 0 ? "localhost" : $"localhost y {Count(sites.Count, "sitio .test", "sitios .test")}",
-            nginx?.Version ?? NginxCatalog.Windows.Version,
+        // El servidor web que arrancará: el de [web] server.
+        var (webName, webVersion) = config.UsesApache
+            ? ("Apache", new ApacheInstaller(Main.App.Paths).Find(ApacheCatalog.Windows)?.Version)
+            : ("nginx", new NginxInstaller(Main.App.Paths).Find(NginxCatalog.Windows)?.Version);
+        rows.Add(new ServiceRow(webName, null, Tone.Neutral,
+            webVersion is null ? "Se instala solo al iniciar por primera vez" : sites.Count == 0 ? "localhost" : $"localhost y {Count(sites.Count, "sitio .test", "sitios .test")}",
+            webVersion ?? (config.UsesApache ? ApacheCatalog.Windows.Version : NginxCatalog.Windows.Version),
             sites.Count > 0 ? $":{config.HttpPort} · :{config.HttpsPort}" : $":{config.HttpPort}", "Parado", Tone.Off, 0, null));
         return rows;
     }

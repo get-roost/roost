@@ -91,9 +91,11 @@ internal static class InstallFiles
     /// <summary>
     /// Extrae <paramref name="zip"/> en <paramref name="target"/> sin dejar nunca una carpeta
     /// a medias. Con <paramref name="stripSingleRoot"/>, si el zip lo mete todo en una única
-    /// carpeta (nginx-1.30.6/…), se instala su contenido. Exige <paramref name="requiredFile"/>.
+    /// carpeta (nginx-1.30.6/…), se instala su contenido. Con <paramref name="fromFolder"/>, solo
+    /// se instala esa carpeta del zip (el de Apache Lounge trae <c>Apache24/</c> y, al lado, un
+    /// ReadMe). Exige <paramref name="requiredFile"/>.
     /// </summary>
-    public static void ExtractAtomic(string zip, string target, string requiredFile, bool stripSingleRoot, string label)
+    public static void ExtractAtomic(string zip, string target, string requiredFile, bool stripSingleRoot, string label, string? fromFolder = null)
     {
         var parent = Path.GetDirectoryName(target)!;
         Directory.CreateDirectory(parent);
@@ -104,7 +106,13 @@ internal static class InstallFiles
             ZipFile.ExtractToDirectory(zip, temp);
 
             var source = temp;
-            if (stripSingleRoot
+            if (fromFolder is not null)
+            {
+                source = Path.Combine(temp, fromFolder);
+                if (!Directory.Exists(source))
+                    throw new RoostException($"El zip {label} no trae la carpeta {fromFolder}; no se instala.");
+            }
+            else if (stripSingleRoot
                 && Directory.GetFiles(temp).Length == 0
                 && Directory.GetDirectories(temp) is [var only])
             {

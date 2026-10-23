@@ -16,6 +16,9 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     /// <summary>Una subcarpeta por cada nginx instalado: <c>bin/nginx/1.30.6</c>.</summary>
     public string NginxBin => Path.Combine(Root, "bin", "nginx");
 
+    /// <summary>Una subcarpeta por cada Apache instalado: <c>bin/apache/2.4.69</c>.</summary>
+    public string ApacheBin => Path.Combine(Root, "bin", "apache");
+
     /// <summary>Binarios de un motor de base de datos: <c>bin/mariadb/11.4.13</c>, <c>bin/mysql/8.4.11</c>.</summary>
     public string DbBin(string engineKey) => Path.Combine(Root, "bin", engineKey);
 
@@ -38,6 +41,9 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
 
     /// <summary>Un <c>&lt;sitio&gt;.conf</c> de nginx por sitio, editable fuera de las marcas de Roost.</summary>
     public string NginxSites => Path.Combine(Etc, "nginx", "sites");
+
+    /// <summary>Un <c>&lt;sitio&gt;.conf</c> de Apache por sitio, editable fuera de las marcas de Roost.</summary>
+    public string ApacheSites => Path.Combine(Etc, "apache", "sites");
 
     /// <summary>Pidfiles y temporales de los servicios.</summary>
     public string Run => Path.Combine(Root, "run");

@@ -171,16 +171,27 @@ app.Configure(config =>
     });
 
     config.AddCommand<UpCommand>("up")
-        .WithDescription("Arranca nginx y el pool de php-cgi del PHP global en http://localhost/ (la primera vez instala nginx).")
+        .WithDescription("Arranca el servidor web (nginx o Apache) y el pool de php-cgi del PHP global en http://localhost/ (la primera vez lo instala).")
         .WithExample("up");
 
     config.AddCommand<DownCommand>("down")
-        .WithDescription("Para nginx, los php-cgi y el daemon.")
+        .WithDescription("Para el servidor web, los php-cgi y el daemon.")
         .WithExample("down");
+
+    config.AddBranch("web", web =>
+    {
+        web.SetDescription("El servidor web que arranca roost up: nginx o Apache (de momento, solo en Windows).");
+
+        web.AddCommand<WebUseCommand>("use")
+            .WithDescription("Elige nginx o Apache (lee los .htaccess). Lo instala si falta y rearranca el stack si esta en marcha.")
+            .WithExample("web", "use", "apache")
+            .WithExample("web", "use", "nginx");
+    });
 
     config.AddCommand<RestartCommand>("restart")
         .WithDescription("Reinicia un servicio sin tocar el resto: nginx, el pool de un PHP o la base de datos.")
         .WithExample("restart", "nginx")
+        .WithExample("restart", "apache")
         .WithExample("restart", "php-8.4")
         .WithExample("restart", "mariadb-11.4");
 

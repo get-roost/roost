@@ -19,6 +19,12 @@ public sealed record RoostConfig
     /// <summary>Valor de <c>[db] engine</c> para no arrancar ninguna base de datos.</summary>
     public const string NoDb = "none";
 
+    /// <summary><c>[web] server</c>: nginx, con los pools de php-cgi (el de siempre).</summary>
+    public const string WebNginx = "nginx";
+
+    /// <summary><c>[web] server</c>: Apache, con los mismos pools por mod_proxy_fcgi y los .htaccess.</summary>
+    public const string WebApache = "apache";
+
     /// <summary><c>[sites] resolver</c>: los <c>.test</c> por el fichero hosts (UAC en cada alta o baja).</summary>
     public const string ResolverHosts = "hosts";
 
@@ -34,7 +40,12 @@ public sealed record RoostConfig
     /// <summary>Procesos php-cgi por versión (Windows no tiene php-fpm, ROOST.md §5.5).</summary>
     public int PhpPool { get; init; } = DefaultPhpPool;
 
-    /// <summary>Puerto HTTP en el que escucha nginx (solo en 127.0.0.1).</summary>
+    /// <summary>El servidor web que arranca <c>roost up</c>: <see cref="WebNginx"/> o <see cref="WebApache"/>.</summary>
+    public string WebServer { get; init; } = WebNginx;
+
+    public bool UsesApache => WebServer == WebApache;
+
+    /// <summary>Puerto HTTP en el que escucha el servidor web (solo en 127.0.0.1).</summary>
     public int HttpPort { get; init; } = DefaultHttpPort;
 
     /// <summary>Puerto HTTPS de los sitios <c>*.test</c> (solo en 127.0.0.1).</summary>
@@ -69,7 +80,9 @@ public sealed record RoostConfig
         pool = {DefaultPhpPool}
 
         [web]
-        # Puertos HTTP y HTTPS de nginx (escucha solo en 127.0.0.1).
+        # Servidor web: "nginx" o "apache" (lee los .htaccess). Los dos usan los mismos PHP.
+        server = "{WebNginx}"
+        # Puertos HTTP y HTTPS (escucha solo en 127.0.0.1).
         port = {DefaultHttpPort}
         https_port = {DefaultHttpsPort}
 
@@ -102,6 +115,7 @@ public sealed record RoostConfig
         {
             PhpVersion = ReadString(doc, "php", "version", path),
             PhpPool = ReadInteger(doc, "php", "pool", path) ?? DefaultPhpPool,
+            WebServer = ReadString(doc, "web", "server", path)?.Trim().ToLowerInvariant() ?? WebNginx,
             HttpPort = ReadInteger(doc, "web", "port", path) ?? DefaultHttpPort,
             HttpsPort = ReadInteger(doc, "web", "https_port", path) ?? DefaultHttpsPort,
             DbEngine = ReadString(doc, "db", "engine", path)?.Trim().ToLowerInvariant(),
@@ -112,6 +126,8 @@ public sealed record RoostConfig
 
         if (config.PhpPool is < 1 or > 10)
             throw new RoostException($"{path}: [php] pool tiene que estar entre 1 y 10 (vale {config.PhpPool}).");
+        if (config.WebServer is not (WebNginx or WebApache))
+            throw new RoostException($"{path}: [web] server tiene que ser \"nginx\" o \"apache\" (vale \"{config.WebServer}\").");
         if (config.HttpPort is < 1 or > 65535)
             throw new RoostException($"{path}: [web] port tiene que estar entre 1 y 65535 (vale {config.HttpPort}).");
         if (config.HttpsPort is < 1 or > 65535 || config.HttpsPort == config.HttpPort)
@@ -150,6 +166,14 @@ public sealed record RoostConfig
         if (pool is < 1 or > 10)
             throw new RoostException($"El pool de PHP tiene que estar entre 1 y 10 (vale {pool}).");
         Set(path, "php", [("pool", Number(pool))]);
+    }
+
+    /// <summary>Fija <c>[web] server</c>: <see cref="WebNginx"/> o <see cref="WebApache"/>.</summary>
+    public static void SetWebServer(string path, string server)
+    {
+        if (server is not (WebNginx or WebApache))
+            throw new RoostException($"[web] server tiene que ser \"nginx\" o \"apache\" (vale \"{server}\").");
+        Set(path, "web", [("server", Text(server))]);
     }
 
     /// <summary>Fija <c>[web] port</c> y <c>[web] https_port</c>.</summary>

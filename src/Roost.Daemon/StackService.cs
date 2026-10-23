@@ -43,12 +43,13 @@ internal sealed class StackService(RoostPaths paths, FileLog log, ExtensionSet e
             supervisor is not null,
             plan?.Url,
             plan?.Php.Name,
-            plan?.Nginx.Version,
+            plan?.WebVersion,
             plan?.Db?.Label,
             plan?.Db is null ? null : plan.DbPort,
             plan?.Sites.Select(s => new SiteDto(s.Site.Name, s.Url, s.Php.Name)).ToList() ?? [],
             services,
-            supervisor is null ? null : _since);
+            supervisor is null ? null : _since,
+            plan?.WebServer);
     }
 
     /// <summary>
@@ -68,12 +69,13 @@ internal sealed class StackService(RoostPaths paths, FileLog log, ExtensionSet e
             var planner = new StackPlanner(paths, ProcessRunner.Default);
             var installedPhp = new PhpInstaller(paths).ListInstalled();
             var php = planner.ResolvePhp(config, installedPhp);
-            var nginx = new NginxInstaller(paths).Find(NginxCatalog.Windows)
-                ?? throw new RoostException($"nginx {NginxCatalog.Windows.Version} no esta instalado; roost up lo instala antes de arrancar.");
+            // El servidor web de [web] server; si falta, Prepare lo dice (roost up lo instala antes).
+            var nginx = new NginxInstaller(paths).Find(NginxCatalog.Windows);
+            var apache = new ApacheInstaller(paths).Find(ApacheCatalog.Windows);
             var db = planner.ResolveDb(config, new DbInstaller(paths).ListInstalled());
             var sites = new SiteRegistry(paths).Load();
             var extra = extensions.StackServices(new StackContext(paths, config));
-            var plan = planner.Prepare(config, php, nginx, db, sites, installedPhp, new LocalCa(paths), extra);
+            var plan = planner.Prepare(config, php, nginx, db, sites, installedPhp, new LocalCa(paths), extra, apache);
 
             // El DNS local, antes que nada: sin él, con [sites] resolver = "dns", los .test no resuelven.
             await SetDnsAsync(config.UsesLocalDns);
@@ -92,7 +94,7 @@ internal sealed class StackService(RoostPaths paths, FileLog log, ExtensionSet e
             _plan = plan;
             _since = DateTimeOffset.Now;
             starting = null;
-            log.Write($"stack en marcha en {plan.Url} con PHP {php.Name}, nginx {nginx.Version}"
+            log.Write($"stack en marcha en {plan.Url} con PHP {php.Name}, {plan.WebServer} {plan.WebVersion}"
                 + (db is null ? ", sin base de datos" : $", {db.Label} en el puerto {plan.DbPort}")
                 + $" y {plan.Sites.Count} sitio(s)");
             return new CommandResponse(true, null, Status());
@@ -246,6 +248,7 @@ internal sealed class StackService(RoostPaths paths, FileLog log, ExtensionSet e
         var files = new List<string>();
         if (plan.Services.FirstOrDefault(s => s.Name == service)?.LogFile is { } own) files.Add(own);
         if (service == "nginx") files.Add(Path.Combine(paths.Logs, "nginx-error.log"));
+        if (service == "apache") files.Add(Path.Combine(paths.Logs, "apache-error.log"));
 
         var lines = new List<string>();
         foreach (var file in files)

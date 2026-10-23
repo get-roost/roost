@@ -15,11 +15,14 @@ public sealed record SitePlan(Site Site, InstalledPhp Php, string Url);
 /// <summary>
 /// Lo que arranca <c>roost up</c>, en este orden (ROOST.md §5.5): la base de datos global si
 /// la hay, un pool de php-cgi por cada rama de PHP en uso (la global y la de cada sitio que
-/// fije otra) y nginx delante, con <c>http://localhost/</c> y un vhost por sitio.
+/// fije otra) y el servidor web delante (nginx o Apache, <c>[web] server</c>), con
+/// <c>http://localhost/</c> y un vhost por sitio.
 /// </summary>
+/// <param name="WebServer">«nginx» o «apache»: también es el nombre de su servicio.</param>
 public sealed record StackPlan(
     InstalledPhp Php,
-    InstalledNginx Nginx,
+    string WebServer,
+    string WebVersion,
     int HttpPort,
     int HttpsPort,
     InstalledDb? Db,
@@ -110,12 +113,13 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
     public StackPlan Prepare(
         RoostConfig config,
         InstalledPhp php,
-        InstalledNginx nginx,
+        InstalledNginx? nginx,
         InstalledDb? db = null,
         IReadOnlyList<Site>? sites = null,
         IReadOnlyList<InstalledPhp>? installedPhp = null,
         LocalCa? ca = null,
-        IReadOnlyList<ServiceDefinition>? extraServices = null)
+        IReadOnlyList<ServiceDefinition>? extraServices = null,
+        InstalledApache? apache = null)
     {
         sites ??= [];
         extraServices ??= [];
@@ -123,9 +127,13 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         if (sites.Count > 0 && ca is null)
             throw new ArgumentException("Con sitios hace falta la CA local para sus certificados.", nameof(ca));
 
-        var nginxEtc = Path.Combine(paths.Etc, "nginx");
+        if (config.UsesApache && apache is null)
+            throw new RoostException($"Apache {ApacheCatalog.Windows.Version} no esta instalado; roost up lo instala antes de arrancar.");
+        if (!config.UsesApache && nginx is null)
+            throw new RoostException($"nginx {NginxCatalog.Windows.Version} no esta instalado; roost up lo instala antes de arrancar.");
+
         var confD = PhpConfD;
-        foreach (var dir in new[] { nginxEtc, paths.NginxSites, confD, paths.Logs, Path.Combine(paths.Run, "nginx-temp") })
+        foreach (var dir in new[] { confD, paths.Logs, paths.Run })
             Directory.CreateDirectory(dir);
         EnsureUserIni();
 
@@ -152,6 +160,33 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
 
         EnsureWww();
 
+        // El servidor web: su configuración (validada antes de arrancar nada) y su servicio.
+        var (web, webVersion) = config.UsesApache
+            ? (PrepareApache(config, apache!, upstreams, sitePlans, ca), apache!.Version)
+            : (PrepareNginx(config, nginx!, upstreams, sitePlans, ca), nginx!.Version);
+
+        // Orden de arranque (ROOST.md §5.5): DB → servicios de las extensiones → pools de PHP →
+        // servidor web. La parada, al revés.
+        var all = new List<ServiceDefinition>();
+        if (db is not null)
+            all.Add(PrepareDb(db, config.DbPort));
+        all.AddRange(extraServices);
+        all.AddRange(phpServices);
+        all.Add(web);
+
+        // Los nombres identifican a cada servicio (status, restart, logs): una extensión no puede repetir uno.
+        if (all.GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1) is { } repeated)
+            throw new RoostException($"Hay dos servicios llamados '{repeated.Key}': una extension usa un nombre que ya existe.");
+
+        return new StackPlan(php, web.Name, webVersion, config.HttpPort, config.HttpsPort, db, config.DbPort, sitePlans, all);
+    }
+
+    /// <summary>nginx.conf, un .conf por sitio, <c>nginx -t</c> y su servicio.</summary>
+    private ServiceDefinition PrepareNginx(RoostConfig config, InstalledNginx nginx, List<NginxUpstream> upstreams, List<SitePlan> sitePlans, LocalCa? ca)
+    {
+        foreach (var dir in new[] { Path.Combine(paths.Etc, "nginx"), paths.NginxSites, Path.Combine(paths.Run, "nginx-temp") })
+            Directory.CreateDirectory(dir);
+
         // Un .conf por sitio: nuevo la primera vez; después solo se regenera el bloque de Roost.
         foreach (var plan in sitePlans)
         {
@@ -175,34 +210,79 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             upstreams[0].Name,
             paths.NginxSites)));
 
-        var nginxArgs = NginxArguments;
         var test = TestNginx(nginx);
         if (test is null || !test.Contains("test is successful", StringComparison.OrdinalIgnoreCase))
             throw new RoostException($"nginx no acepta la configuracion generada ({conf}):\n{test?.Trim() ?? "nginx -t no respondio"}");
 
-        // Orden de arranque (ROOST.md §5.5): DB → servicios de las extensiones → pools de PHP →
-        // nginx. La parada, al revés.
-        var all = new List<ServiceDefinition>();
-        if (db is not null)
-            all.Add(PrepareDb(db, config.DbPort));
-        all.AddRange(extraServices);
-        all.AddRange(phpServices);
-        all.Add(new ServiceDefinition
+        return new ServiceDefinition
         {
             Name = "nginx",
             Executable = nginx.Executable,
-            Arguments = nginxArgs,
+            Arguments = NginxArguments,
             WorkingDirectory = nginx.Directory,
             LogFile = Path.Combine(paths.Logs, "nginx-stdout.log"),
             Port = config.HttpPort,
-        });
-
-        // Los nombres identifican a cada servicio (status, restart, logs): una extensión no puede repetir uno.
-        if (all.GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1) is { } repeated)
-            throw new RoostException($"Hay dos servicios llamados '{repeated.Key}': una extension usa un nombre que ya existe.");
-
-        return new StackPlan(php, nginx, config.HttpPort, config.HttpsPort, db, config.DbPort, sitePlans, all);
+        };
     }
+
+    /// <summary>
+    /// httpd.conf, un .conf por sitio, <c>httpd -t</c> y su servicio. El PHP va por los mismos
+    /// pools de php-cgi que nginx (<see cref="ApacheConf"/>).
+    /// </summary>
+    private ServiceDefinition PrepareApache(RoostConfig config, InstalledApache apache, List<NginxUpstream> pools, List<SitePlan> sitePlans, LocalCa? ca)
+    {
+        foreach (var dir in new[] { Path.Combine(paths.Etc, "apache"), paths.ApacheSites })
+            Directory.CreateDirectory(dir);
+
+        foreach (var plan in sitePlans)
+        {
+            var (certFile, keyFile) = ca!.EnsureSiteCert(plan.Site);
+            var input = new ApacheSiteConf.Input(
+                plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort, certFile, keyFile);
+            var file = Path.Combine(paths.ApacheSites, plan.Site.Name + ".conf");
+            File.WriteAllText(file, File.Exists(file) ? ApacheSiteConf.Merge(File.ReadAllText(file), input, file) : ApacheSiteConf.RenderNew(input));
+        }
+
+        var conf = ApacheConfPath;
+        File.WriteAllText(conf, ApacheConf.Render(new ApacheConfInput(
+            apache.Directory,
+            paths.Run,
+            paths.Logs,
+            paths.Www,
+            config.HttpPort,
+            sitePlans.Count > 0 ? config.HttpsPort : null,
+            pools,
+            pools[0].Name,
+            paths.ApacheSites)));
+
+        var test = TestApache(apache);
+        if (test is null || !test.Contains("Syntax OK", StringComparison.OrdinalIgnoreCase))
+            throw new RoostException($"Apache no acepta la configuracion generada ({conf}):\n{test?.Trim() ?? "httpd -t no respondio"}");
+
+        // Apache se para matando su árbol de procesos y el pidfile se queda: sin borrarlo, cada
+        // arranque avisaría en el log de un «Unclean shutdown» que no es tal.
+        var pidFile = Path.Combine(paths.Run, "apache.pid");
+        if (File.Exists(pidFile)) File.Delete(pidFile);
+
+        return new ServiceDefinition
+        {
+            Name = "apache",
+            Executable = apache.Executable,
+            Arguments = ApacheArguments,
+            WorkingDirectory = apache.Directory,
+            LogFile = Path.Combine(paths.Logs, "apache-stdout.log"),
+            Port = config.HttpPort,
+        };
+    }
+
+    /// <summary>El httpd.conf que genera cada <c>up</c> con Apache.</summary>
+    public string ApacheConfPath => Path.Combine(paths.Etc, "apache", "httpd.conf");
+
+    /// <summary>Los argumentos con los que se arranca (y se valida) Apache.</summary>
+    public string ApacheArguments => $"-f \"{ApacheConf.Path(ApacheConfPath)}\"";
+
+    /// <summary><c>httpd -t</c> sobre la configuración generada: su salida, o null si no responde.</summary>
+    public string? TestApache(InstalledApache apache) => runner.Run(apache.Executable, "-t " + ApacheArguments, TimeSpan.FromSeconds(15));
 
     private static string Branch(InstalledPhp php) =>
         php.Version is { } v ? $"{v.Major}.{v.Minor}" : throw new RoostException($"No se reconoce la version de la instalacion {php.Name}.");
@@ -383,7 +463,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             <meta charset="utf-8">
             <title>Roost</title>
             <h1>Roost funciona</h1>
-            <p>PHP <?= PHP_VERSION ?> (<?= PHP_SAPI ?>) servido por nginx.</p>
+            <p>PHP <?= PHP_VERSION ?> (<?= PHP_SAPI ?>) servido por <?= htmlspecialchars(explode(' ', $_SERVER['SERVER_SOFTWARE'] ?? 'Roost')[0]) ?>.</p>
             <p>Pon tus proyectos en <code><?= htmlspecialchars(__DIR__) ?></code>: cada carpeta se ve en http://<?= htmlspecialchars($_SERVER['HTTP_HOST'] ?? 'localhost') ?>/&lt;carpeta&gt;/.</p>
 
             """);

@@ -16,7 +16,8 @@ namespace Roost.Cli.Commands.Stack;
 
 /// <summary>
 /// <c>roost up</c>: arranca (o vuelve a arrancar con la configuracion actual) el stack local:
-/// el pool de php-cgi del PHP global y nginx en http://localhost/. La primera vez instala nginx.
+/// el pool de php-cgi del PHP global y el servidor web ([web] server: nginx o Apache) en
+/// http://localhost/. La primera vez instala el servidor web.
 /// Lo hace el daemon, que se lanza solo si no esta en marcha.
 /// </summary>
 public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
@@ -39,13 +40,13 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             var php = planner.ResolvePhp(config, new PhpInstaller(paths).ListInstalled());
             planner.ResolveDb(config, new DbInstaller(paths).ListInstalled());
 
-            await EnsureNginxAsync(paths, cancellation);
+            await WebServerSetup.EnsureAsync(paths, config.WebServer, cancellation);
 
             using var client = new DaemonClient(paths);
             await client.EnsureRunningAsync(DaemonLauncher.ForCurrentCli(), cancellation);
 
             CommandResponse response = null!;
-            await AnsiConsole.Status().StartAsync($"Arrancando PHP {php.Name} y nginx...", async _ =>
+            await AnsiConsole.Status().StartAsync($"Arrancando PHP {php.Name} y {WebServerSetup.Label(config.WebServer)}...", async _ =>
                 response = await client.UpAsync(cancellation));
 
             if (!response.Ok)
@@ -57,7 +58,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             var status = response.Status;
             var pool = status.Services.Count(s => s.Name.StartsWith("php-", StringComparison.Ordinal));
             AnsiConsole.MarkupLineInterpolated($"[green]En marcha:[/] [bold]{status.Url}[/]");
-            AnsiConsole.MarkupLineInterpolated($"  PHP {status.Php} ({pool} php-cgi) · nginx {status.Nginx}");
+            AnsiConsole.MarkupLineInterpolated($"  PHP {status.Php} ({pool} php-cgi) · {status.WebLabel}");
             if (status.Db is null)
                 AnsiConsole.MarkupLine("  [grey]Sin base de datos (instala una con: roost db install mariadb@11.4)[/]");
             else
@@ -75,20 +76,6 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
         }
     }
 
-    private static async Task EnsureNginxAsync(RoostPaths paths, CancellationToken cancellation)
-    {
-        var installer = new NginxInstaller(paths, RoostHttp.Client);
-        var build = NginxCatalog.Windows;
-        if (installer.Find(build) is not null) return;
-
-        AnsiConsole.MarkupLineInterpolated($"Instalando nginx {build.Version} (la primera vez) desde {build.Url.Host}...");
-        await AnsiConsole.Status().StartAsync($"Instalando nginx {build.Version}...", async ctx =>
-        {
-            var progress = new Progress<long>(bytes => ctx.Status($"Instalando nginx {build.Version}... {bytes / 1048576.0:0.0} MB"));
-            await installer.InstallAsync(build, progress, cancellation);
-        });
-        AnsiConsole.MarkupLineInterpolated($"[green]Instalado[/] nginx {build.Version} [grey](SHA-256 verificado)[/]");
-    }
 }
 
 /// <summary><c>roost down</c>: para el stack y el daemon.</summary>
@@ -171,7 +158,7 @@ public sealed class StatusCommand : AsyncCommand<StatusCommand.Settings>
         }
 
         var db = status.Db is null ? "sin base de datos" : $"{status.Db} :{status.DbPort}";
-        AnsiConsole.MarkupLineInterpolated($"[bold]{status.Url}[/]  ·  PHP {status.Php}  ·  nginx {status.Nginx}  ·  {db}  [grey](daemon pid {status.DaemonPid})[/]");
+        AnsiConsole.MarkupLineInterpolated($"[bold]{status.Url}[/]  ·  PHP {status.Php}  ·  {status.WebLabel}  ·  {db}  [grey](daemon pid {status.DaemonPid})[/]");
         foreach (var site in status.Sites)
             AnsiConsole.MarkupLineInterpolated($"  {site.Url} [grey](PHP {site.Php})[/]");
         var table = new Table().Border(TableBorder.Rounded);
