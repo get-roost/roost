@@ -102,8 +102,22 @@ public sealed class UpdateChecker
     public string CacheFile => Path.Combine(_paths.Cache, "update-check.json");
 
     /// <summary><c>ROOST_NO_UPDATE_CHECK</c> vale 1, true, yes u on: nada de comprobaciones automáticas.</summary>
-    public static bool DisabledByEnvironment =>
-        Environment.GetEnvironmentVariable(DisableVariable)?.Trim().ToLowerInvariant() is "1" or "true" or "yes" or "on";
+    public static bool DisabledByEnvironment => DisabledIn(Environment.GetEnvironmentVariable);
+
+    /// <summary>
+    /// Las comprobaciones que nadie ha pedido (las del daemon y la línea de aviso de la CLI) no se
+    /// hacen con <c>ROOST_NO_UPDATE_CHECK</c> ni en CI (<c>CI</c> o <c>GITHUB_ACTIONS</c> definidas):
+    /// en un runner nadie va a actualizar Roost a mano. <c>roost update</c> sigue funcionando.
+    /// </summary>
+    public static bool AutomaticChecksOff => AutomaticChecksOffIn(Environment.GetEnvironmentVariable);
+
+    /// <summary>PURO: <see cref="DisabledByEnvironment"/> con las variables de <paramref name="env"/>.</summary>
+    public static bool DisabledIn(Func<string, string?> env) =>
+        env(DisableVariable)?.Trim().ToLowerInvariant() is "1" or "true" or "yes" or "on";
+
+    /// <summary>PURO: <see cref="AutomaticChecksOff"/> con las variables de <paramref name="env"/>.</summary>
+    public static bool AutomaticChecksOffIn(Func<string, string?> env) =>
+        DisabledIn(env) || !string.IsNullOrWhiteSpace(env("CI")) || !string.IsNullOrWhiteSpace(env("GITHUB_ACTIONS"));
 
     /// <summary>La URL de <c>ROOST_UPDATE_URL</c> si es una URL http(s) válida; si no, la de GitHub.</summary>
     public static Uri EndpointFromEnvironment() =>

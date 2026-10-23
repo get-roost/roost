@@ -285,9 +285,9 @@ roost update --json   # lo mismo para scripts (código 0 si se pudo comprobar, 1
 
 - **Cómo actualizar** depende de cómo instalaste Roost, y `roost update` lo detecta: con Scoop, `scoop update roost`; con winget, `winget upgrade Roost.Roost`; desde el zip, baja el de la release (`roost-<versión>-win-x64.zip`) y sustituye con él la carpeta. Antes, sal de la app y para el stack (`roost down`): mientras corren, sus ficheros están en uso.
 - **La app** lo mira sola al abrirse y, si sigue en la bandeja, una vez al día. Si hay una versión nueva, lo dice al pie de la barra lateral, en el menú de la bandeja y arriba en Ajustes, con las novedades y el comando para actualizar. Se apaga con la casilla de Ajustes › Acerca de Roost.
-- **`roost status`** añade una línea si la última comprobación (de `roost update` o de la app) encontró una versión nueva. Para eso no va a la red.
+- **`roost status` y `roost up`** añaden una línea si la última comprobación encontró una versión nueva. Para eso no van a la red: la comprobación la hace `roost update`, la app o, mientras el stack está en marcha, el propio daemon (al minuto de arrancar y luego cada 6 h, respetando la caché de 24 h). Así se entera también quien usa solo la CLI.
 - **Una consulta al día como mucho.** La respuesta se guarda 24 h en `%LOCALAPPDATA%\Roost\cache\update-check.json`. Solo se pregunta a `api.github.com`, sin cuenta y sin más datos que la versión de Roost en el User-Agent. Las prereleases (`v0.2.0-beta.1`) no se anuncian.
-- **`ROOST_NO_UPDATE_CHECK=1`** apaga lo automático (la app y la línea de `roost status`), por ejemplo en CI. `roost update` y el botón «Buscar actualizaciones» de Ajustes siguen funcionando, porque los pides tú.
+- **`ROOST_NO_UPDATE_CHECK=1`** apaga lo automático (la app, el daemon y la línea de `roost status` y `roost up`). En CI (`CI` o `GITHUB_ACTIONS` definidas) el daemon y esa línea se apagan solos. `roost update` y el botón «Buscar actualizaciones» de Ajustes siguen funcionando, porque los pides tú.
 
 ### Dónde vive todo (Windows)
 

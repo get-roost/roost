@@ -65,6 +65,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             foreach (var site in status.Sites)
                 AnsiConsole.MarkupLineInterpolated($"  [bold]{site.Url}[/] [grey](PHP {site.Php})[/]");
             AnsiConsole.MarkupLineInterpolated($"  [grey]www: {paths.Www}   logs: {paths.Logs}[/]");
+            UpdateNotice.FromCache(paths);
             return 0;
         }
         catch (RoostException ex)

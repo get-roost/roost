@@ -83,6 +83,8 @@ public static class DaemonHost
                 log.Write($"extension {extension.Name} {extension.Version} ({extension.Id})");
             foreach (var error in extensions.Errors)
                 log.Write($"extension {error.Source}: {error.Message}");
+            // El aviso de versión nueva para quien usa solo la CLI; acaba solo al pararse roostd.
+            _ = UpdateRefresher.RunAsync(paths, log, app.Lifetime.ApplicationStopping);
             await app.WaitForShutdownAsync(cancellation);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

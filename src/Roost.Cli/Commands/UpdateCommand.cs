@@ -136,7 +136,7 @@ internal static class UpdateNotice
 {
     public static void FromCache(RoostPaths paths)
     {
-        if (UpdateChecker.DisabledByEnvironment) return;
+        if (UpdateChecker.AutomaticChecksOff) return;
         var cached = new UpdateChecker(paths, RoostHttp.Client).Cached();
         if (cached is not { UpdateAvailable: true, Latest: { } latest }) return;
         AnsiConsole.MarkupLineInterpolated($"[yellow]Hay una Roost nueva: {latest.Version}[/] [grey](tienes la {cached.Installed}). Como actualizar: roost update[/]");
