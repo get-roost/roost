@@ -1,0 +1,2236 @@
+{
+  "schemaVersion": "1.0.0",
+  "generated": "2026-10-23T14:19:05+00:00",
+  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src y CISA KEV 2026.10.21; 2 revisado(s) a mano",
+  "remediation": {
+    "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
+    "realFix": "Actualiza a la ultima de tu rama: 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).",
+    "note": "El que te expone en web es el php-fpm/apache (el que sirva tu sitio), no necesariamente el CLI. Revisa cual sirve tu web."
+  },
+  "products": {
+    "php": {
+      "displayName": "PHP",
+      "branches": {
+        "5.0": {
+          "latest": "5.0.5",
+          "eol": "2005-09-05",
+          "status": "eol"
+        },
+        "5.1": {
+          "latest": "5.1.6",
+          "eol": "2006-08-24",
+          "status": "eol"
+        },
+        "5.2": {
+          "latest": "5.2.17",
+          "eol": "2011-01-06",
+          "status": "eol"
+        },
+        "5.3": {
+          "latest": "5.3.29",
+          "eol": "2014-08-14",
+          "status": "eol"
+        },
+        "5.4": {
+          "latest": "5.4.45",
+          "eol": "2015-09-14",
+          "status": "eol"
+        },
+        "5.5": {
+          "latest": "5.5.38",
+          "eol": "2016-07-21",
+          "status": "eol"
+        },
+        "5.6": {
+          "latest": "5.6.40",
+          "eol": "2018-12-31",
+          "status": "eol"
+        },
+        "7.0": {
+          "latest": "7.0.33",
+          "eol": "2019-01-10",
+          "status": "eol"
+        },
+        "7.1": {
+          "latest": "7.1.33",
+          "eol": "2019-12-01",
+          "status": "eol"
+        },
+        "7.2": {
+          "latest": "7.2.34",
+          "eol": "2020-11-30",
+          "status": "eol"
+        },
+        "7.3": {
+          "latest": "7.3.33",
+          "eol": "2021-12-06",
+          "status": "eol"
+        },
+        "7.4": {
+          "latest": "7.4.33",
+          "eol": "2022-11-28",
+          "status": "eol"
+        },
+        "8.0": {
+          "latest": "8.0.30",
+          "eol": "2023-11-26",
+          "status": "eol"
+        },
+        "8.1": {
+          "latest": "8.1.34",
+          "eol": "2025-12-31",
+          "status": "eol"
+        },
+        "8.2": {
+          "latest": "8.2.35",
+          "eol": "2026-12-31",
+          "securityUntil": "2026-12-31",
+          "status": "security"
+        },
+        "8.3": {
+          "latest": "8.3.36",
+          "eol": "2027-12-31",
+          "securityUntil": "2027-12-31",
+          "status": "security"
+        },
+        "8.4": {
+          "latest": "8.4.27",
+          "eol": "2028-12-31",
+          "status": "active"
+        },
+        "8.5": {
+          "latest": "8.5.12",
+          "eol": "2029-12-31",
+          "status": "active"
+        }
+      }
+    },
+    "mysql": {
+      "displayName": "MySQL",
+      "branches": {
+        "5.5": {
+          "latest": "5.5.63",
+          "eol": "2018-12-31",
+          "status": "eol"
+        },
+        "5.6": {
+          "latest": "5.6.51",
+          "eol": "2021-02-28",
+          "status": "eol"
+        },
+        "5.7": {
+          "latest": "5.7.44",
+          "eol": "2023-10-31",
+          "status": "eol"
+        },
+        "8.0": {
+          "latest": "8.0.46",
+          "eol": "2026-04-30",
+          "status": "eol"
+        },
+        "8.1": {
+          "latest": "8.1.0",
+          "eol": "2023-10-25",
+          "status": "eol"
+        },
+        "8.2": {
+          "latest": "8.2.0",
+          "eol": "2024-01-16",
+          "status": "eol"
+        },
+        "8.3": {
+          "latest": "8.3.0",
+          "eol": "2024-04-30",
+          "status": "eol"
+        },
+        "8.4": {
+          "latest": "8.4.13",
+          "eol": "2032-04-30",
+          "status": "active"
+        },
+        "9.0": {
+          "latest": "9.0.1",
+          "eol": "2024-10-15",
+          "status": "eol"
+        },
+        "9.1": {
+          "latest": "9.1.2",
+          "eol": "2025-01-21",
+          "status": "eol"
+        },
+        "9.2": {
+          "latest": "9.2.2",
+          "eol": "2025-04-15",
+          "status": "eol"
+        },
+        "9.3": {
+          "latest": "9.3.2",
+          "eol": "2025-07-22",
+          "status": "eol"
+        },
+        "9.4": {
+          "latest": "9.4.2",
+          "eol": "2025-10-21",
+          "status": "eol"
+        },
+        "9.5": {
+          "latest": "9.5.2",
+          "eol": "2026-01-20",
+          "status": "eol"
+        },
+        "9.6": {
+          "latest": "9.6.1",
+          "eol": "2026-04-21",
+          "status": "eol"
+        },
+        "9.7": {
+          "latest": "9.7.4",
+          "eol": "2034-04-30",
+          "status": "active"
+        },
+        "26.7": {
+          "latest": "26.7.0",
+          "status": "active"
+        }
+      }
+    },
+    "mariadb": {
+      "displayName": "MariaDB",
+      "branches": {
+        "5.1": {
+          "latest": "5.1.67",
+          "eol": "2015-02-01",
+          "status": "eol"
+        },
+        "5.2": {
+          "latest": "5.2.14",
+          "eol": "2015-11-10",
+          "status": "eol"
+        },
+        "5.3": {
+          "latest": "5.3.12",
+          "eol": "2017-03-01",
+          "status": "eol"
+        },
+        "5.5": {
+          "latest": "5.5.68",
+          "eol": "2020-04-11",
+          "status": "eol"
+        },
+        "10.0": {
+          "latest": "10.0.38",
+          "eol": "2019-03-31",
+          "status": "eol"
+        },
+        "10.1": {
+          "latest": "10.1.48",
+          "eol": "2020-10-17",
+          "status": "eol"
+        },
+        "10.2": {
+          "latest": "10.2.44",
+          "eol": "2022-05-23",
+          "status": "eol"
+        },
+        "10.3": {
+          "latest": "10.3.39",
+          "eol": "2023-05-25",
+          "status": "eol"
+        },
+        "10.4": {
+          "latest": "10.4.34",
+          "eol": "2024-06-18",
+          "status": "eol"
+        },
+        "10.5": {
+          "latest": "10.5.29",
+          "eol": "2025-06-24",
+          "status": "eol"
+        },
+        "10.6": {
+          "latest": "10.6.28",
+          "eol": "2026-07-06",
+          "status": "eol"
+        },
+        "10.7": {
+          "latest": "10.7.8",
+          "eol": "2023-02-09",
+          "status": "eol"
+        },
+        "10.8": {
+          "latest": "10.8.8",
+          "eol": "2023-05-20",
+          "status": "eol"
+        },
+        "10.9": {
+          "latest": "10.9.8",
+          "eol": "2023-08-22",
+          "status": "eol"
+        },
+        "10.10": {
+          "latest": "10.10.7",
+          "eol": "2023-11-17",
+          "status": "eol"
+        },
+        "10.11": {
+          "latest": "10.11.19",
+          "eol": "2028-02-16",
+          "status": "active"
+        },
+        "11.0": {
+          "latest": "11.0.6",
+          "eol": "2024-06-06",
+          "status": "eol"
+        },
+        "11.1": {
+          "latest": "11.1.6",
+          "eol": "2024-08-21",
+          "status": "eol"
+        },
+        "11.2": {
+          "latest": "11.2.6",
+          "eol": "2024-11-21",
+          "status": "eol"
+        },
+        "11.3": {
+          "latest": "11.3.2",
+          "eol": "2024-05-29",
+          "status": "eol"
+        },
+        "11.4": {
+          "latest": "11.4.13",
+          "eol": "2029-05-29",
+          "status": "active"
+        },
+        "11.5": {
+          "latest": "11.5.2",
+          "eol": "2024-11-21",
+          "status": "eol"
+        },
+        "11.6": {
+          "latest": "11.6.2",
+          "eol": "2025-02-13",
+          "status": "eol"
+        },
+        "11.7": {
+          "latest": "11.7.2",
+          "eol": "2025-05-12",
+          "status": "eol"
+        },
+        "11.8": {
+          "latest": "11.8.9",
+          "eol": "2028-06-04",
+          "status": "active"
+        },
+        "12.0": {
+          "latest": "12.0.2",
+          "eol": "2025-11-18",
+          "status": "eol"
+        },
+        "12.1": {
+          "latest": "12.1.2",
+          "eol": "2026-02-13",
+          "status": "eol"
+        },
+        "12.2": {
+          "latest": "12.2.2",
+          "eol": "2026-05-28",
+          "status": "eol"
+        },
+        "12.3": {
+          "latest": "12.3.3",
+          "eol": "2029-06-12",
+          "status": "active"
+        },
+        "13.0": {
+          "latest": "13.0.2",
+          "eol": "2026-12-31",
+          "status": "active"
+        }
+      }
+    },
+    "nginx": {
+      "displayName": "nginx",
+      "branches": {
+        "1.0": {
+          "latest": "1.0.15",
+          "eol": "2012-04-23",
+          "status": "eol"
+        },
+        "1.1": {
+          "latest": "1.1.19",
+          "eol": "2012-05-15",
+          "status": "eol"
+        },
+        "1.2": {
+          "latest": "1.2.9",
+          "eol": "2013-04-24",
+          "status": "eol"
+        },
+        "1.3": {
+          "latest": "1.3.16",
+          "eol": "2013-05-07",
+          "status": "eol"
+        },
+        "1.4": {
+          "latest": "1.4.7",
+          "eol": "2014-04-24",
+          "status": "eol"
+        },
+        "1.5": {
+          "latest": "1.5.13",
+          "eol": "2014-04-24",
+          "status": "eol"
+        },
+        "1.6": {
+          "latest": "1.6.3",
+          "eol": "2015-04-21",
+          "status": "eol"
+        },
+        "1.7": {
+          "latest": "1.7.12",
+          "eol": "2015-04-28",
+          "status": "eol"
+        },
+        "1.8": {
+          "latest": "1.8.1",
+          "eol": "2016-04-26",
+          "status": "eol"
+        },
+        "1.9": {
+          "latest": "1.9.15",
+          "eol": "2016-05-24",
+          "status": "eol"
+        },
+        "1.10": {
+          "latest": "1.10.3",
+          "eol": "2017-04-12",
+          "status": "eol"
+        },
+        "1.11": {
+          "latest": "1.11.13",
+          "eol": "2017-04-25",
+          "status": "eol"
+        },
+        "1.12": {
+          "latest": "1.12.2",
+          "eol": "2018-04-17",
+          "status": "eol"
+        },
+        "1.13": {
+          "latest": "1.13.12",
+          "eol": "2018-06-05",
+          "status": "eol"
+        },
+        "1.14": {
+          "latest": "1.14.2",
+          "eol": "2019-04-23",
+          "status": "eol"
+        },
+        "1.15": {
+          "latest": "1.15.12",
+          "eol": "2019-05-21",
+          "status": "eol"
+        },
+        "1.16": {
+          "latest": "1.16.1",
+          "eol": "2020-04-20",
+          "status": "eol"
+        },
+        "1.17": {
+          "latest": "1.17.10",
+          "eol": "2020-05-26",
+          "status": "eol"
+        },
+        "1.18": {
+          "latest": "1.18.0",
+          "eol": "2021-04-20",
+          "status": "eol"
+        },
+        "1.19": {
+          "latest": "1.19.10",
+          "eol": "2021-05-25",
+          "status": "eol"
+        },
+        "1.20": {
+          "latest": "1.20.2",
+          "eol": "2022-05-24",
+          "status": "eol"
+        },
+        "1.21": {
+          "latest": "1.21.6",
+          "eol": "2022-06-21",
+          "status": "eol"
+        },
+        "1.22": {
+          "latest": "1.22.1",
+          "eol": "2023-04-11",
+          "status": "eol"
+        },
+        "1.23": {
+          "latest": "1.23.4",
+          "eol": "2023-05-23",
+          "status": "eol"
+        },
+        "1.24": {
+          "latest": "1.24.0",
+          "eol": "2024-04-23",
+          "status": "eol"
+        },
+        "1.25": {
+          "latest": "1.25.5",
+          "eol": "2024-05-29",
+          "status": "eol"
+        },
+        "1.26": {
+          "latest": "1.26.3",
+          "eol": "2025-04-23",
+          "status": "eol"
+        },
+        "1.27": {
+          "latest": "1.27.5",
+          "eol": "2025-06-24",
+          "status": "eol"
+        },
+        "1.28": {
+          "latest": "1.28.3",
+          "eol": "2026-04-14",
+          "status": "eol"
+        },
+        "1.29": {
+          "latest": "1.29.8",
+          "eol": "2026-05-13",
+          "status": "eol"
+        },
+        "1.30": {
+          "latest": "1.30.6",
+          "status": "active"
+        },
+        "1.31": {
+          "latest": "1.31.8",
+          "status": "active"
+        }
+      }
+    }
+  },
+  "advisories": [
+    {
+      "id": "CVE-2026-109618",
+      "aliases": [
+        "PHP2Shell",
+        "GHSA-w8hw-w9fx-j79w"
+      ],
+      "product": "php",
+      "title": "PHP2Shell: RCE sin autenticacion por consumo de memoria en la gestion de peticiones",
+      "affected": [
+        ">=8.2.0 <8.2.35",
+        ">=8.3.0 <8.3.36",
+        ">=8.4.0 <8.4.27",
+        ">=8.5.0 <8.5.12",
+        "<8.2.0"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.35",
+        "8.3": "8.3.36",
+        "8.4": "8.4.27",
+        "8.5": "8.5.12"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [
+        {
+          "ini": "memory_limit",
+          "value": "128M (razonable)",
+          "note": "y upload_max_filesize / post_max_size bajos"
+        }
+      ],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w",
+        "https://www.php.net/releases/"
+      ]
+    },
+    {
+      "id": "CVE-2026-109619",
+      "aliases": [
+        "PHP2Shell",
+        "GHSA-6wmf-4rv5-p3rp"
+      ],
+      "product": "php",
+      "title": "PHP2Shell: RCE sin autenticacion via session.upload_progress",
+      "affected": [
+        ">=8.2.0 <8.2.35",
+        ">=8.3.0 <8.3.36",
+        ">=8.4.0 <8.4.27",
+        ">=8.5.0 <8.5.12",
+        "<8.2.0"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.35",
+        "8.3": "8.3.36",
+        "8.4": "8.4.27",
+        "8.5": "8.5.12"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [
+        {
+          "ini": "session.upload_progress.enabled",
+          "value": "0",
+          "note": "y reinicia TODOS los workers (php-fpm / apache)"
+        }
+      ],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp",
+        "https://www.php.net/releases/"
+      ]
+    },
+    {
+      "id": "CVE-2026-93682",
+      "aliases": [
+        "GHSA-7875-c8px-7q5f"
+      ],
+      "product": "php",
+      "title": "Out-of-bounds read in the HTTP stream wrapper when following a redirect with an empty Location header",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 5.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-7875-c8px-7q5f"
+      ]
+    },
+    {
+      "id": "CVE-2026-92842",
+      "aliases": [
+        "GHSA-88hq-2827-7pg6"
+      ],
+      "product": "php",
+      "title": "OOB read / info leak in convert.* stream filters when line-break-chars contains NUL",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 5.9,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-88hq-2827-7pg6"
+      ]
+    },
+    {
+      "id": "GHSA-ch8v-r6jh-4vvr",
+      "aliases": [],
+      "product": "php",
+      "title": "ext/filter: encode 0xFF in FILTER_SANITIZE_ENCODED",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.25",
+        ">=8.5.0 <8.5.10"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.25",
+        "8.5": "8.5.10"
+      },
+      "cvss": 3.7,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-ch8v-r6jh-4vvr"
+      ]
+    },
+    {
+      "id": "CVE-2026-91768",
+      "aliases": [
+        "GHSA-62xp-839h-2637"
+      ],
+      "product": "php",
+      "title": "IPv6 ACL bypass in FastCGI listen.allowed_clients due to partial address comparison (memcmp 12 bytes)",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 6.5,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-62xp-839h-2637"
+      ]
+    },
+    {
+      "id": "CVE-2026-91769",
+      "aliases": [
+        "GHSA-vvx9-73fr-5jjx"
+      ],
+      "product": "php",
+      "title": "TLS Hostname Verification Falls Back to CN After SAN Mismatch",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 4.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-vvx9-73fr-5jjx"
+      ]
+    },
+    {
+      "id": "CVE-2026-91767",
+      "aliases": [
+        "GHSA-xr7j-rvgx-xq5p"
+      ],
+      "product": "php",
+      "title": "Heap-buffer-overflow in php_openssl_matches_wildcard_name on crafted server cert wildcard CN",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 6.5,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-xr7j-rvgx-xq5p"
+      ]
+    },
+    {
+      "id": "CVE-2025-1218",
+      "aliases": [
+        "GHSA-r6x9-5r99-36j7"
+      ],
+      "product": "php",
+      "title": "Various packet overreads in mysqlnd_writeprotocol.c",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 3.1,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-r6x9-5r99-36j7"
+      ]
+    },
+    {
+      "id": "CVE-2026-91766",
+      "aliases": [
+        "GHSA-fpwc-w8rq-cr92"
+      ],
+      "product": "php",
+      "title": "Cross-origin credential leak in HTTP stream wrapper redirects",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 5.9,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-fpwc-w8rq-cr92"
+      ]
+    },
+    {
+      "id": "CVE-2026-91765",
+      "aliases": [
+        "GHSA-rgrp-mwpx-f6rm"
+      ],
+      "product": "php",
+      "title": "SOAP: Unbounded Recursion in Server-Side cleanup_xml_node",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 7.5,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-rgrp-mwpx-f6rm"
+      ]
+    },
+    {
+      "id": "CVE-2025-14181",
+      "aliases": [
+        "GHSA-cj93-vc83-wgqv"
+      ],
+      "product": "php",
+      "title": "Integer overflow to buffer overflow in soap HTTP parsing",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 6.5,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-cj93-vc83-wgqv"
+      ]
+    },
+    {
+      "id": "CVE-2026-6103",
+      "aliases": [
+        "GHSA-j3wh-g957-2m85"
+      ],
+      "product": "php",
+      "title": "Phar TAR phar_tar_number() Integer Overflow - Archive Entry Injection",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 4,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-j3wh-g957-2m85"
+      ]
+    },
+    {
+      "id": "CVE-2026-17545",
+      "aliases": [
+        "GHSA-9f67-6fw4-hpfp"
+      ],
+      "product": "php",
+      "title": "PHP on Windows: Reserved Device Names Are Not Rejected Before File/Stream I/O which can cause DoS",
+      "affected": [
+        ">=8.2.0 <8.2.34",
+        ">=8.3.0 <8.3.35",
+        ">=8.4.0 <8.4.26",
+        ">=8.5.0 <8.5.11"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.34",
+        "8.3": "8.3.35",
+        "8.4": "8.4.26",
+        "8.5": "8.5.11"
+      },
+      "cvss": 6.9,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-9f67-6fw4-hpfp"
+      ]
+    },
+    {
+      "id": "CVE-2026-7260",
+      "aliases": [
+        "GHSA-vc5h-9ppw-p5f3"
+      ],
+      "product": "php",
+      "title": "Stack overflow in phar with circular symlinks",
+      "affected": [
+        ">=8.2.0 <8.2.33",
+        ">=8.3.0 <8.3.33",
+        ">=8.4.0 <8.4.24",
+        ">=8.5.0 <8.5.9"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.33",
+        "8.3": "8.3.33",
+        "8.4": "8.4.24",
+        "8.5": "8.5.9"
+      },
+      "cvss": 5.5,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-vc5h-9ppw-p5f3"
+      ]
+    },
+    {
+      "id": "CVE-2026-17544",
+      "aliases": [
+        "GHSA-x692-q9x7-8c3f"
+      ],
+      "product": "php",
+      "title": "Out-of-bounds write in bccomp() via crafted operand and scale",
+      "affected": [
+        ">=8.4.0 <8.4.24",
+        ">=8.5.0 <8.5.9"
+      ],
+      "fixedIn": {
+        "8.4": "8.4.24",
+        "8.5": "8.5.9"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-x692-q9x7-8c3f"
+      ]
+    },
+    {
+      "id": "CVE-2026-17543",
+      "aliases": [
+        "GHSA-7qpv-r5mr-78m4"
+      ],
+      "product": "php",
+      "title": "SQL injection in ext-pgsql via E'...' backslash breakout",
+      "affected": [
+        ">=8.2.0 <8.2.33",
+        ">=8.3.0 <8.3.33",
+        ">=8.4.0 <8.4.24",
+        ">=8.5.0 <8.5.9"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.33",
+        "8.3": "8.3.33",
+        "8.4": "8.4.24",
+        "8.5": "8.5.9"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-7qpv-r5mr-78m4"
+      ]
+    },
+    {
+      "id": "CVE-2026-12184",
+      "aliases": [
+        "GHSA-mhmq-mmqj-2v39"
+      ],
+      "product": "php",
+      "title": "Failure to setup TLS with a remote server can result in a remote DoS",
+      "affected": [
+        ">=8.3.0 <8.3.32",
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.3": "8.3.32",
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 8.2,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-mhmq-mmqj-2v39"
+      ]
+    },
+    {
+      "id": "CVE-2026-14355",
+      "aliases": [
+        "GHSA-7jrw-539f-x6vr"
+      ],
+      "product": "php",
+      "title": "ext/openssl: Memory corruption (zend_mm_heap corrupted) in openssl_encrypt with AES-WRAP-PAD",
+      "affected": [
+        ">=8.2.0 <8.2.32",
+        ">=8.3.0 <8.3.32",
+        ">=8.4.0 <8.4.23",
+        ">=8.5.0 <8.5.8"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.32",
+        "8.3": "8.3.32",
+        "8.4": "8.4.23",
+        "8.5": "8.5.8"
+      },
+      "cvss": 4.8,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-7jrw-539f-x6vr"
+      ]
+    },
+    {
+      "id": "CVE-2026-7262",
+      "aliases": [
+        "GHSA-hmxp-6pc4-f3vv"
+      ],
+      "product": "php",
+      "title": "NULL pointer dereference in SOAP apache:Map decoder with missing <value>",
+      "affected": [
+        ">=8.2.0 <8.2.31",
+        ">=8.3.0 <8.3.31",
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.31",
+        "8.3": "8.3.31",
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-hmxp-6pc4-f3vv"
+      ]
+    },
+    {
+      "id": "CVE-2026-7261",
+      "aliases": [
+        "GHSA-m33r-qmcv-p97q"
+      ],
+      "product": "php",
+      "title": "SoapServer session-persisted object use-after-free via SOAP header fault",
+      "affected": [
+        ">=8.2.0 <8.2.31",
+        ">=8.3.0 <8.3.31",
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.31",
+        "8.3": "8.3.31",
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-m33r-qmcv-p97q"
+      ]
+    },
+    {
+      "id": "CVE-2026-7259",
+      "aliases": [
+        "GHSA-wm6j-2649-pv75"
+      ],
+      "product": "php",
+      "title": "Null pointer dereference in php_mb_check_encoding() via mb_ereg_search_init()",
+      "affected": [
+        ">=8.5.0 <8.5.6",
+        ">=8.4.0 <8.4.21",
+        ">=8.3.0 <8.3.31",
+        ">=8.2.0 <8.2.31"
+      ],
+      "fixedIn": {
+        "8.5": "8.5.6",
+        "8.4": "8.4.21",
+        "8.3": "8.3.31",
+        "8.2": "8.2.31"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-wm6j-2649-pv75"
+      ]
+    },
+    {
+      "id": "CVE-2026-6735",
+      "aliases": [
+        "GHSA-7qg2-v9fj-4mwv"
+      ],
+      "product": "php",
+      "title": "XSS within PHP-FPM status endpoint",
+      "affected": [
+        ">=8.2.0 <8.2.31",
+        ">=8.3.0 <8.3.31",
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.31",
+        "8.3": "8.3.31",
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 7.6,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-7qg2-v9fj-4mwv"
+      ]
+    },
+    {
+      "id": "CVE-2026-6722",
+      "aliases": [
+        "GHSA-85c2-q967-79q5"
+      ],
+      "product": "php",
+      "title": "Use-After-Free in SOAP using Apache map with Remote Code Execution",
+      "affected": [
+        ">=8.2.0 <8.2.31",
+        ">=8.3.0 <8.3.31",
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.31",
+        "8.3": "8.3.31",
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 9.4,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-85c2-q967-79q5"
+      ]
+    },
+    {
+      "id": "CVE-2026-7258",
+      "aliases": [
+        "GHSA-m8rr-4c36-8gq4"
+      ],
+      "product": "php",
+      "title": "Out-of-bounds read in urldecode()",
+      "affected": [
+        ">=8.2.0 <8.2.31",
+        ">=8.3.0 <8.3.31",
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.31",
+        "8.3": "8.3.31",
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-m8rr-4c36-8gq4"
+      ]
+    },
+    {
+      "id": "CVE-2026-6104",
+      "aliases": [
+        "GHSA-74r9-qxhc-fx53"
+      ],
+      "product": "php",
+      "title": "Global buffer over-read in mb_convert_encoding() with attacker-supplied encoding",
+      "affected": [
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-74r9-qxhc-fx53"
+      ]
+    },
+    {
+      "id": "CVE-2025-14179",
+      "aliases": [
+        "GHSA-w476-322c-wpvm"
+      ],
+      "product": "php",
+      "title": "SQL injection in pdo_firebird via NUL bytes in quoted strings",
+      "affected": [
+        ">=8.2.0 <8.2.31",
+        ">=8.3.0 <8.3.31",
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.31",
+        "8.3": "8.3.31",
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 9.2,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-w476-322c-wpvm"
+      ]
+    },
+    {
+      "id": "CVE-2026-7568",
+      "aliases": [
+        "GHSA-96wq-48vp-hh57"
+      ],
+      "product": "php",
+      "title": "Signed integer overflow in metaphone()",
+      "affected": [
+        ">=8.2.0 <8.2.31",
+        ">=8.3.0 <8.3.31",
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.31",
+        "8.3": "8.3.31",
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-96wq-48vp-hh57"
+      ]
+    },
+    {
+      "id": "CVE-2026-7263",
+      "aliases": [
+        "GHSA-4jhr-8w89-j733"
+      ],
+      "product": "php",
+      "title": "DoS attack via DOMNode::C14N()",
+      "affected": [
+        ">=8.4.0 <8.4.21",
+        ">=8.5.0 <8.5.6"
+      ],
+      "fixedIn": {
+        "8.4": "8.4.21",
+        "8.5": "8.5.6"
+      },
+      "cvss": 8.2,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-4jhr-8w89-j733"
+      ]
+    },
+    {
+      "id": "GHSA-www2-q4fc-65wf",
+      "aliases": [],
+      "product": "php",
+      "title": "Null byte termination in dns_get_record()",
+      "affected": [
+        ">=8.1.0 <8.1.34",
+        ">=8.2.0 <8.2.30",
+        ">=8.3.0 <8.3.29",
+        ">=8.4.0 <8.4.16",
+        ">=8.5.0 <8.5.1"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.34",
+        "8.2": "8.2.30",
+        "8.3": "8.3.29",
+        "8.4": "8.4.16",
+        "8.5": "8.5.1"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-www2-q4fc-65wf"
+      ]
+    },
+    {
+      "id": "CVE-2025-14180",
+      "aliases": [
+        "GHSA-8xr5-qppj-gvwj"
+      ],
+      "product": "php",
+      "title": "NULL Pointer Dereference in PDO quoting",
+      "affected": [
+        ">=8.1.0 <8.1.34",
+        ">=8.2.0 <8.2.30",
+        ">=8.3.0 <8.3.29",
+        ">=8.4.0 <8.4.16",
+        ">=8.5.0 <8.5.1"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.34",
+        "8.2": "8.2.30",
+        "8.3": "8.3.29",
+        "8.4": "8.4.16",
+        "8.5": "8.5.1"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-8xr5-qppj-gvwj"
+      ]
+    },
+    {
+      "id": "CVE-2025-14178",
+      "aliases": [
+        "GHSA-h96m-rvf9-jgm2"
+      ],
+      "product": "php",
+      "title": "Heap buffer overflow in array_merge()",
+      "affected": [
+        ">=8.1.0 <8.1.34",
+        ">=8.2.0 <8.2.30",
+        ">=8.3.0 <8.3.29",
+        ">=8.4.0 <8.4.16",
+        ">=8.5.0 <8.5.1"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.34",
+        "8.2": "8.2.30",
+        "8.3": "8.3.29",
+        "8.4": "8.4.16",
+        "8.5": "8.5.1"
+      },
+      "cvss": 6.5,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-h96m-rvf9-jgm2"
+      ]
+    },
+    {
+      "id": "CVE-2025-14177",
+      "aliases": [
+        "GHSA-3237-qqm7-mfv7"
+      ],
+      "product": "php",
+      "title": "Information Leak of Memory in getimagesize",
+      "affected": [
+        ">=8.1.0 <8.1.34",
+        ">=8.2.0 <8.2.30",
+        ">=8.3.0 <8.3.29",
+        ">=8.4.0 <8.4.16",
+        ">=8.5.0 <8.5.1"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.34",
+        "8.2": "8.2.30",
+        "8.3": "8.3.29",
+        "8.4": "8.4.16",
+        "8.5": "8.5.1"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-3237-qqm7-mfv7"
+      ]
+    },
+    {
+      "id": "CVE-2025-1735",
+      "aliases": [
+        "GHSA-hrwm-9436-5mv3"
+      ],
+      "product": "php",
+      "title": "pgsql extension does not check for errors during escaping",
+      "affected": [
+        ">=8.1.0 <8.1.33",
+        ">=8.2.0 <8.2.29",
+        ">=8.3.0 <8.3.23",
+        ">=8.4.0 <8.4.10"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.33",
+        "8.2": "8.2.29",
+        "8.3": "8.3.23",
+        "8.4": "8.4.10"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-hrwm-9436-5mv3"
+      ]
+    },
+    {
+      "id": "CVE-2025-6491",
+      "aliases": [
+        "GHSA-453j-q27h-5p8x"
+      ],
+      "product": "php",
+      "title": "NULL Pointer Dereference in PHP SOAP Extension via Large XML Namespace Prefix",
+      "affected": [
+        ">=8.1.0 <8.1.33",
+        ">=8.2.0 <8.2.29",
+        ">=8.3.0 <8.3.23",
+        ">=8.4.0 <8.4.10"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.33",
+        "8.2": "8.2.29",
+        "8.3": "8.3.23",
+        "8.4": "8.4.10"
+      },
+      "cvss": 5.9,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-453j-q27h-5p8x"
+      ]
+    },
+    {
+      "id": "CVE-2025-1220",
+      "aliases": [
+        "GHSA-3cr5-j632-f35r"
+      ],
+      "product": "php",
+      "title": "Null byte termination in hostnames",
+      "affected": [
+        ">=8.1.0 <8.1.33",
+        ">=8.2.0 <8.2.29",
+        ">=8.3.0 <8.3.23",
+        ">=8.4.0 <8.4.10"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.33",
+        "8.2": "8.2.29",
+        "8.3": "8.3.23",
+        "8.4": "8.4.10"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-3cr5-j632-f35r"
+      ]
+    },
+    {
+      "id": "CVE-2024-11235",
+      "aliases": [
+        "GHSA-rwp7-7vc6-8477"
+      ],
+      "product": "php",
+      "title": "Reference counting in php_request_shutdown causes Use-After-Free",
+      "affected": [
+        ">=8.3.0 <8.3.18",
+        ">=8.4.0 <8.4.5"
+      ],
+      "fixedIn": {
+        "8.3": "8.3.19",
+        "8.4": "8.4.5"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-rwp7-7vc6-8477"
+      ]
+    },
+    {
+      "id": "GHSA-wg4p-4hqh-c3g9",
+      "aliases": [],
+      "product": "php",
+      "title": "Possible out of bounds read when XML_OPTION_SKIP_TAGSTART used",
+      "affected": [
+        ">=8.1.0 <8.1.32",
+        ">=8.2.0 <8.2.28",
+        ">=8.3.0 <8.3.18",
+        ">=8.4.0 <8.4.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.32",
+        "8.2": "8.2.28",
+        "8.3": "8.3.19",
+        "8.4": "8.4.5"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-wg4p-4hqh-c3g9"
+      ]
+    },
+    {
+      "id": "CVE-2025-1219",
+      "aliases": [
+        "GHSA-p3x9-6h7p-cgfc"
+      ],
+      "product": "php",
+      "title": "libxml streams use wrong `content-type` header when requesting a redirected resource",
+      "affected": [
+        ">=8.1.0 <8.1.32",
+        ">=8.2.0 <8.2.28",
+        ">=8.3.0 <8.3.18",
+        ">=8.4.0 <8.4.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.32",
+        "8.2": "8.2.28",
+        "8.3": "8.3.19",
+        "8.4": "8.4.5"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-p3x9-6h7p-cgfc"
+      ]
+    },
+    {
+      "id": "CVE-2025-1736",
+      "aliases": [
+        "GHSA-hgf5-96fm-v528"
+      ],
+      "product": "php",
+      "title": "Stream HTTP wrapper header check might omit basic auth header",
+      "affected": [
+        ">=8.1.0 <8.1.32",
+        ">=8.2.0 <8.2.28",
+        ">=8.3.0 <8.3.18",
+        ">=8.4.0 <8.4.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.32",
+        "8.2": "8.2.28",
+        "8.3": "8.3.19",
+        "8.4": "8.4.5"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-hgf5-96fm-v528"
+      ]
+    },
+    {
+      "id": "CVE-2025-1861",
+      "aliases": [
+        "GHSA-52jp-hrpf-2jff"
+      ],
+      "product": "php",
+      "title": "Stream HTTP wrapper truncate redirect location to 1024 bytes",
+      "affected": [
+        ">=8.1.0 <8.1.32",
+        ">=8.2.0 <8.2.28",
+        ">=8.3.0 <8.3.18",
+        ">=8.4.0 <8.4.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.32",
+        "8.2": "8.2.28",
+        "8.3": "8.3.19",
+        "8.4": "8.4.5"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-52jp-hrpf-2jff"
+      ]
+    },
+    {
+      "id": "CVE-2025-1734",
+      "aliases": [
+        "GHSA-pcmh-g36c-qc44"
+      ],
+      "product": "php",
+      "title": "Streams HTTP wrapper does not fail for headers with invalid name and no colon",
+      "affected": [
+        ">=8.1.0 <8.1.32",
+        ">=8.2.0 <8.2.28",
+        ">=8.3.0 <8.3.18",
+        ">=8.4.0 <8.4.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.32",
+        "8.2": "8.2.28",
+        "8.3": "8.3.19",
+        "8.4": "8.4.5"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-pcmh-g36c-qc44"
+      ]
+    },
+    {
+      "id": "CVE-2025-1217",
+      "aliases": [
+        "GHSA-v8xr-gpvj-cx9g"
+      ],
+      "product": "php",
+      "title": "Header parser of `http` stream wrapper does not handle folded headers",
+      "affected": [
+        ">=8.1.0 <8.1.32",
+        ">=8.2.0 <8.2.28",
+        ">=8.3.0 <8.3.18",
+        ">=8.4.0 <8.4.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.32",
+        "8.2": "8.2.28",
+        "8.3": "8.3.19",
+        "8.4": "8.4.5"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-v8xr-gpvj-cx9g"
+      ]
+    },
+    {
+      "id": "CVE-2024-8929",
+      "aliases": [
+        "GHSA-h35g-vwh6-m678"
+      ],
+      "product": "php",
+      "title": "[Mysqlnd] Leak partial content of the heap through heap buffer over-read ",
+      "affected": [
+        ">=8.1.0 <8.1.31",
+        ">=8.2.0 <8.2.26",
+        ">=8.3.0 <8.3.14"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.31",
+        "8.2": "8.2.26",
+        "8.3": "8.3.14"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-h35g-vwh6-m678"
+      ]
+    },
+    {
+      "id": "CVE-2024-8932",
+      "aliases": [
+        "GHSA-g665-fm4p-vhff"
+      ],
+      "product": "php",
+      "title": "OOB access in ldap_escape",
+      "affected": [
+        ">=8.1.0 <8.1.31",
+        ">=8.2.0 <8.2.26",
+        ">=8.3.0 <8.3.14"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.31",
+        "8.2": "8.2.26",
+        "8.3": "8.3.14"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-g665-fm4p-vhff"
+      ]
+    },
+    {
+      "id": "CVE-2024-11234",
+      "aliases": [
+        "GHSA-c5f2-jwm7-mmq2"
+      ],
+      "product": "php",
+      "title": "Configuring a proxy in a stream context might allow for CRLF injection in URIs",
+      "affected": [
+        ">=8.1.0 <8.1.31",
+        ">=8.2.0 <8.2.26",
+        ">=8.3.0 <8.3.14"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.31",
+        "8.2": "8.2.26",
+        "8.3": "8.3.14"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-c5f2-jwm7-mmq2"
+      ]
+    },
+    {
+      "id": "CVE-2024-11236",
+      "aliases": [
+        "GHSA-5hqh-c84r-qjcv"
+      ],
+      "product": "php",
+      "title": "Integer overflow in the firebird and dblib quoters causing OOB writes",
+      "affected": [
+        ">=8.1.0 <8.1.31",
+        ">=8.2.0 <8.2.26",
+        ">=8.3.0 <8.3.14"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.31",
+        "8.2": "8.2.26",
+        "8.3": "8.3.14"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-5hqh-c84r-qjcv"
+      ]
+    },
+    {
+      "id": "CVE-2024-11233",
+      "aliases": [
+        "GHSA-r977-prxv-hc43"
+      ],
+      "product": "php",
+      "title": "Single byte overread with convert.quoted-printable-decode filter",
+      "affected": [
+        ">=8.1.0 <8.1.31",
+        ">=8.2.0 <8.2.26",
+        ">=8.3.0 <8.3.14"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.31",
+        "8.2": "8.2.26",
+        "8.3": "8.3.14"
+      },
+      "cvss": 4.8,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-r977-prxv-hc43"
+      ]
+    },
+    {
+      "id": "GHSA-4w77-75f9-2c8w",
+      "aliases": [],
+      "product": "php",
+      "title": "Heap-Use-After-Free in sapi_read_post_data Processing in CLI SAPI Interface",
+      "affected": [
+        ">=8.1.0 <8.1.31",
+        ">=8.2.0 <8.2.26",
+        ">=8.3.0 <8.3.14"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.31",
+        "8.2": "8.2.26",
+        "8.3": "8.3.14"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-4w77-75f9-2c8w"
+      ]
+    },
+    {
+      "id": "CVE-2024-4577",
+      "aliases": [
+        "GHSA-3qgc-jrrr-25jv"
+      ],
+      "product": "php",
+      "title": "PHP RCE: A Bypass of CVE-2012-1823, Argument Injection in PHP-CGI",
+      "affected": [
+        ">=8.3.0 <8.3.8",
+        ">=8.2.0 <8.2.20",
+        ">=8.1.0 <8.1.29"
+      ],
+      "fixedIn": {
+        "8.3": "8.3.8",
+        "8.2": "8.2.20",
+        "8.1": "8.1.29"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": true,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-3qgc-jrrr-25jv"
+      ]
+    },
+    {
+      "id": "CVE-2024-8927",
+      "aliases": [
+        "GHSA-94p6-54jq-9mwp"
+      ],
+      "product": "php",
+      "title": "cgi.force_redirect configuration is bypassable due to the environment variable collision",
+      "affected": [
+        ">=8.1.0 <8.1.30",
+        ">=8.2.0 <8.2.24",
+        ">=8.3.0 <8.3.12"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.30",
+        "8.2": "8.2.24",
+        "8.3": "8.3.12"
+      },
+      "cvss": 5.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-94p6-54jq-9mwp"
+      ]
+    },
+    {
+      "id": "CVE-2024-8926",
+      "aliases": [
+        "GHSA-p99j-rfp4-xqvq"
+      ],
+      "product": "php",
+      "title": "PHP CGI Parameter Injection Vulnerability (CVE-2024-4577 bypass)",
+      "affected": [
+        ">=8.1.0 <8.1.30",
+        ">=8.2.0 <8.2.24",
+        ">=8.3.0 <8.3.12"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.30",
+        "8.2": "8.2.24",
+        "8.3": "8.3.12"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-p99j-rfp4-xqvq"
+      ]
+    },
+    {
+      "id": "CVE-2024-8925",
+      "aliases": [
+        "GHSA-9pqp-7h25-4f32"
+      ],
+      "product": "php",
+      "title": "Erroneous parsing of multipart form data",
+      "affected": [
+        ">=8.1.0 <8.1.30",
+        ">=8.2.0 <8.2.24",
+        ">=8.3.0 <8.3.12"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.30",
+        "8.2": "8.2.24",
+        "8.3": "8.3.12"
+      },
+      "cvss": 3.1,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-9pqp-7h25-4f32"
+      ]
+    },
+    {
+      "id": "CVE-2024-9026",
+      "aliases": [
+        "GHSA-865w-9rf3-2wh5"
+      ],
+      "product": "php",
+      "title": "[PHP-FPM] Logs from childrens may be altered ",
+      "affected": [
+        ">=8.1.0 <8.1.30",
+        ">=8.2.0 <8.2.24",
+        ">=8.3.0 <8.3.12"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.30",
+        "8.2": "8.2.24",
+        "8.3": "8.3.12"
+      },
+      "cvss": 3.3,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-865w-9rf3-2wh5"
+      ]
+    },
+    {
+      "id": "CVE-2024-5585",
+      "aliases": [
+        "GHSA-9fcc-425m-g385"
+      ],
+      "product": "php",
+      "title": "bypass CVE-2024-1874",
+      "affected": [
+        ">=8.1.0 <8.1.29",
+        ">=8.2.0 <8.2.20",
+        ">=8.3.0 <8.3.8"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.29",
+        "8.2": "8.2.20",
+        "8.3": "8.3.8"
+      },
+      "cvss": 7.7,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-9fcc-425m-g385"
+      ]
+    },
+    {
+      "id": "CVE-2024-5458",
+      "aliases": [
+        "GHSA-w8qr-v226-r27w"
+      ],
+      "product": "php",
+      "title": "Filter bypass in filter_var (FILTER_VALIDATE_URL)",
+      "affected": [
+        ">=8.1.0 <8.1.29",
+        ">=8.2.0 <8.2.20",
+        ">=8.3.0 <8.3.8"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.29",
+        "8.2": "8.2.20",
+        "8.3": "8.3.8"
+      },
+      "cvss": 5.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-w8qr-v226-r27w"
+      ]
+    },
+    {
+      "id": "CVE-2024-2408",
+      "aliases": [
+        "GHSA-hh26-4ppw-5864"
+      ],
+      "product": "php",
+      "title": "PHP is vulnerable to the Marvin Attack",
+      "affected": [
+        "=8.2.12"
+      ],
+      "fixedIn": {},
+      "cvss": 5.9,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-hh26-4ppw-5864"
+      ]
+    },
+    {
+      "id": "CVE-2024-2757",
+      "aliases": [
+        "GHSA-fjp9-9hwx-59fq"
+      ],
+      "product": "php",
+      "title": "mb_encode_mimeheader runs endlessly for some inputs",
+      "affected": [
+        ">=8.3.0 <8.3.5"
+      ],
+      "fixedIn": {
+        "8.3": "8.3.6"
+      },
+      "cvss": 7.5,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-fjp9-9hwx-59fq"
+      ]
+    },
+    {
+      "id": "CVE-2024-3096",
+      "aliases": [
+        "GHSA-h746-cjrr-wfmr"
+      ],
+      "product": "php",
+      "title": "password_verify can erroneously return true, opening ATO risk",
+      "affected": [
+        ">=8.1.0 <8.1.28",
+        ">=8.2.0 <8.2.18",
+        ">=8.3.0 <8.3.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.28",
+        "8.2": "8.2.18",
+        "8.3": "8.3.6"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-h746-cjrr-wfmr"
+      ]
+    },
+    {
+      "id": "CVE-2024-1874",
+      "aliases": [
+        "GHSA-pc52-254m-w9w7"
+      ],
+      "product": "php",
+      "title": "Command injection via array-ish $command parameter of proc_open even if bypass_shell option enabled on Windows",
+      "affected": [
+        ">=8.1.0 <8.1.28",
+        ">=8.2.0 <8.2.18",
+        ">=8.3.0 <8.3.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.28",
+        "8.2": "8.2.18",
+        "8.3": "8.3.6"
+      },
+      "cvss": 9.4,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-pc52-254m-w9w7"
+      ]
+    },
+    {
+      "id": "CVE-2024-2756",
+      "aliases": [
+        "GHSA-wpj3-hf5j-x4v4"
+      ],
+      "product": "php",
+      "title": "__Host-/__Secure- cookie bypass due to partial CVE-2022-31629 fix",
+      "affected": [
+        ">8.1.11 <8.1.28",
+        ">=8.2.0 <8.2.18",
+        ">=8.3.0 <8.3.5"
+      ],
+      "fixedIn": {
+        "8.1": "8.1.28",
+        "8.2": "8.2.18",
+        "8.3": "8.3.6"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-wpj3-hf5j-x4v4"
+      ]
+    },
+    {
+      "id": "CVE-2023-3824",
+      "aliases": [
+        "GHSA-jqcx-ccgc-xwhv"
+      ],
+      "product": "php",
+      "title": "Buffer overflow and overread in phar_dir_read()",
+      "affected": [
+        ">=8.0.0 <8.0.30"
+      ],
+      "fixedIn": {
+        "8.0": "8.0.30"
+      },
+      "cvss": 9.4,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-jqcx-ccgc-xwhv"
+      ]
+    },
+    {
+      "id": "CVE-2023-3823",
+      "aliases": [
+        "GHSA-3qrf-m4j2-pcrr"
+      ],
+      "product": "php",
+      "title": "Security issue with external entity loading in XML without enabling it",
+      "affected": [
+        ">=8.0.0 <8.0.30"
+      ],
+      "fixedIn": {
+        "8.0": "8.0.30"
+      },
+      "cvss": 8.6,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-3qrf-m4j2-pcrr"
+      ]
+    },
+    {
+      "id": "CVE-2023-3247",
+      "aliases": [
+        "GHSA-76gg-c692-v2mw"
+      ],
+      "product": "php",
+      "title": "Missing error check and insufficient random bytes in HTTP Digest authentication for SOAP",
+      "affected": [
+        ">=8.0.0 <8.0.29",
+        ">=8.1.0 <8.1.20",
+        ">=8.2.0 <8.2.7"
+      ],
+      "fixedIn": {
+        "8.0": "8.0.29",
+        "8.1": "8.1.20",
+        "8.2": "8.2.7"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-76gg-c692-v2mw"
+      ]
+    },
+    {
+      "id": "CVE-2023-0567",
+      "aliases": [
+        "GHSA-7fj2-8x79-rjf4"
+      ],
+      "product": "php",
+      "title": "BCrypt hashes erroneously validate if the salt is cut short by `$`",
+      "affected": [
+        ">=8.0.0 <8.0.28",
+        ">=8.1.0 <8.1.16",
+        ">=8.2.0 <8.2.3"
+      ],
+      "fixedIn": {
+        "8.0": "8.0.28",
+        "8.1": "8.1.16",
+        "8.2": "8.2.3"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-7fj2-8x79-rjf4"
+      ]
+    },
+    {
+      "id": "CVE-2023-0662",
+      "aliases": [
+        "GHSA-54hq-v5wp-fqgv"
+      ],
+      "product": "php",
+      "title": "DoS vulnerability when parsing multipart request body",
+      "affected": [
+        ">=8.0.0 <=8.0.27",
+        ">=8.1.0 <=8.1.15",
+        ">=8.2.0 <=8.2.2"
+      ],
+      "fixedIn": {
+        "8.0": "8.0.28",
+        "8.1": "8.1.16",
+        "8.2": "8.2.3"
+      },
+      "cvss": 7.5,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-54hq-v5wp-fqgv"
+      ]
+    }
+  ]
+}
