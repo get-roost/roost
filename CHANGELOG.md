@@ -9,6 +9,7 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 - **Sitios con Apache:** quitar un sitio ya no impide el siguiente arranque, y «Editar vhost» abre el fichero que de verdad usa Apache.
 - **Sitios:** si cancelas el permiso de Windows, el mensaje dice la verdad (el sitio está creado o quitado; falta el hosts) y cómo arreglarlo; cambiar el PHP de un sitio pide confirmación; botones para copiar la URL y la ruta, y aviso si la carpeta ya no existe.
 - **Certificados:** al crear un sitio, Roost ofrece confiar en su CA antes de abrir el navegador, así que lo primero que ves ya no es un error de certificado.
+- **Firefox:** también confía en tus sitios `.test`. «Configurar Firefox» en Ajustes, la casilla del diálogo de la CA y `roost cert trust` lo preparan en todos tus perfiles; reinicia Firefox para que lo aplique.
 - **Actualizar Roost desde la app:** «Roost X disponible → Actualizar ahora» descarga la versión nueva, la verifica y Roost vuelve a abrirse solo.
 - **Novedades:** esta pestaña, debajo de Ajustes, con lo que cambia cada versión.
 - **Proyectos en `C:\roost\www`:** la carpeta de proyectos por defecto pasa a estar dentro de la raíz de Roost. Los sitios que ya tenías siguen donde están.

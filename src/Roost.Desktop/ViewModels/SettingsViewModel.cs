@@ -233,6 +233,7 @@ public sealed partial class SettingsViewModel : PageViewModel
 
         CacheSize = FolderSize(Paths.Downloads);
         BuildCa();
+        BuildFirefox();
         try
         {
             var hosts = new HostsUpdater();
@@ -396,6 +397,28 @@ public sealed partial class SettingsViewModel : PageViewModel
         BuildCa();
     }
 
+    /// <summary>Hay Firefox (algún perfil en profiles.ini): «Configurar Firefox» se puede pulsar.</summary>
+    [ObservableProperty] public partial bool HasFirefox { get; private set; }
+
+    [ObservableProperty] public partial string FirefoxTip { get; private set; } = "";
+
+    private void BuildFirefox()
+    {
+        var profiles = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot());
+        HasFirefox = profiles.Count > 0;
+        var done = profiles.Count(FirefoxTrust.IsEnabled);
+        FirefoxTip = profiles.Count == 0 ? "No se ha encontrado Firefox en este equipo"
+            : done == profiles.Count ? "Firefox ya usa las CA de Windows: confía en la de Roost si confías en ella aquí"
+            : "Firefox usa su propio almacén: con esto lee las CA de confianza de Windows (hay que reiniciarlo)";
+    }
+
+    [RelayCommand]
+    private async Task ConfigureFirefoxAsync()
+    {
+        await Main.ConfigureFirefoxAsync();
+        BuildFirefox();
+    }
+
     [RelayCommand]
     private async Task UntrustAsync()
     {
@@ -405,10 +428,16 @@ public sealed partial class SettingsViewModel : PageViewModel
             return;
         await Main.RunAsync("No se pudo quitar la CA", async () =>
         {
-            await Task.Run(() => new LocalCa(Paths).Untrust());
+            await Task.Run(() =>
+            {
+                new LocalCa(Paths).Untrust();
+                // Lo de Firefox lo puso Roost para esta CA: se quita también.
+                foreach (var profile in FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot())) FirefoxTrust.Disable(profile);
+            });
             Main.RefreshMachineState();
         });
         BuildCa();
+        BuildFirefox();
     }
 
     [RelayCommand]

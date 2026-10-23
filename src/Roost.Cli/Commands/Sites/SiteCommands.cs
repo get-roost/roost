@@ -298,6 +298,7 @@ public sealed class CertTrustCommand : Command<EmptyCommandSettings>
                 if (ca.IsTrusted())
                 {
                     AnsiConsole.MarkupLineInterpolated($"[green]Ya confias en la CA de Roost[/] ({cert.Subject}).");
+                    ConfigureFirefox();
                     return 0;
                 }
 
@@ -311,7 +312,8 @@ public sealed class CertTrustCommand : Command<EmptyCommandSettings>
                 AnsiConsole.MarkupLine("[red]La CA no se ha anadido[/] (rechazaste el aviso de Windows?).");
                 return 1;
             }
-            AnsiConsole.MarkupLine("[green]Hecho:[/] Chrome y Edge ya confian en https://*.test. [grey]Firefox usa su propio almacen: activa security.enterprise_roots.enabled en about:config.[/]");
+            AnsiConsole.MarkupLine("[green]Hecho:[/] Chrome y Edge ya confian en https://*.test.");
+            ConfigureFirefox();
             return 0;
         }
         catch (RoostException ex)
@@ -319,6 +321,18 @@ public sealed class CertTrustCommand : Command<EmptyCommandSettings>
             AnsiConsole.MarkupLineInterpolated($"[red]{ex.Message}[/]");
             return 1;
         }
+    }
+
+    /// <summary>
+    /// Firefox usa su propio almacen: con security.enterprise_roots.enabled en el user.js de cada
+    /// perfil lee las CA de confianza de Windows (las del usuario incluidas). Sin Firefox, nada.
+    /// </summary>
+    private static void ConfigureFirefox()
+    {
+        var profiles = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot());
+        if (profiles.Count == 0) return;
+        foreach (var profile in profiles) FirefoxTrust.Enable(profile);
+        AnsiConsole.MarkupLineInterpolated($"[green]Firefox tambien[/] ({profiles.Count} perfil{(profiles.Count == 1 ? "" : "es")}): [grey]cierralo y vuelve a abrirlo para que lo aplique.[/]");
     }
 }
 

@@ -48,8 +48,8 @@
             <Run Text="." />
           </TextBlock>
         </ctl:Note>
-        <CheckBox IsEnabled="False" ToolTip.Tip="Próximamente" ToolTip.ShowOnDisabled="True">
-          <TextBlock Classes="small" Text="Configurar también Firefox (usa su propio almacén) · próximamente" />
+        <CheckBox IsChecked="{Binding ConfigureFirefox}" IsVisible="{Binding HasFirefox}">
+          <TextBlock Classes="small" Text="{Binding FirefoxText}" TextWrapping="Wrap" />
         </CheckBox>
       </StackPanel>
     </DockPanel>

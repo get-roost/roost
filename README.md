@@ -220,7 +220,7 @@ La primera vez, una bienvenida propone traer las ramas de PHP que ya usas, una M
 dotnet run --project src/Roost.Desktop
 ```
 
-Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que sigue en marcha aunque salgas de la app (al salir, pregunta). Lo que está previsto pero aún no hecho (plantillas distintas de «Vacía», DNS local, Firefox, cambiar las rutas) aparece desactivado y marcado como «próximamente».
+Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que sigue en marcha aunque salgas de la app (al salir, pregunta). Lo que está previsto pero aún no hecho (plantillas distintas de «Vacía», cambiar las rutas) aparece desactivado y marcado como «próximamente».
 
 ### `roost shims`: el `php` de la terminal según la carpeta (solo Windows, por ahora)
 
@@ -261,7 +261,7 @@ roost cert renew                                         # vuelve a emitir los c
   - anota cada ejecución en `%ProgramData%\Roost\roost-helper.log`.
 
   Windows solo pide permiso (UAC) cuando el bloque tiene que cambiar. Con el DNS local (abajo), el hosts no se toca.
-- **La CA local.** Roost tiene su propia CA (ECDSA P-256, 10 años) en `C:\roost\certs\ca`. Su clave privada solo la puede leer tu usuario. Con ella firma un certificado por sitio, de 397 días, que `roost up` renueva cuando le quedan menos de 30. `roost cert trust` la añade al almacén de **tu usuario** (no al de la máquina), y Windows te pide confirmarlo. Firefox usa su propio almacén: activa `security.enterprise_roots.enabled` en `about:config`.
+- **La CA local.** Roost tiene su propia CA (ECDSA P-256, 10 años) en `C:\roost\certs\ca`. Su clave privada solo la puede leer tu usuario. Con ella firma un certificado por sitio, de 397 días, que `roost up` renueva cuando le quedan menos de 30. `roost cert trust` la añade al almacén de **tu usuario** (no al de la máquina), y Windows te pide confirmarlo. Firefox usa su propio almacén: `roost cert trust` (o «Configurar Firefox» en Ajustes y en el diálogo de la CA) pone `security.enterprise_roots.enabled` en el `user.js` de cada perfil, para que Firefox lea las CA de confianza de Windows. Hay que reiniciar Firefox. «Dejar de confiar» lo quita también.
 - **Con el `curl` de Windows** (Schannel) añade `--ssl-no-revoke`. Los certificados de una CA local no tienen lista de revocación, y Schannel la exige por defecto. Los navegadores no la piden.
 
 ### `roost dns`: los `.test` sin tocar el hosts (solo Windows, por ahora)
@@ -346,7 +346,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Cambiar un sitio rearranca todo el stack, base de datos incluida (un par de segundos), en vez de recargar solo nginx.
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
-- La app de escritorio no tiene aún plantillas de proyecto (Laravel, WordPress…) ni configuración de Firefox.
+- La app de escritorio no tiene aún plantillas de proyecto (Laravel, WordPress…).
 
 ## Desarrollo
 

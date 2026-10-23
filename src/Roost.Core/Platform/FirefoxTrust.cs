@@ -17,9 +17,14 @@ public static class FirefoxTrust
                                  + "user_pref(\"" + Pref + "\", true);\n"
                                  + End + "\n";
 
-    /// <summary>La carpeta de Firefox con <c>profiles.ini</c>: <c>%APPDATA%\Mozilla\Firefox</c>.</summary>
+    /// <summary>Para probar sin tocar el Firefox de verdad: otra carpeta con su <c>profiles.ini</c>.</summary>
+    public const string DirVariable = "ROOST_FIREFOX_DIR";
+
+    /// <summary>La carpeta de Firefox con <c>profiles.ini</c>: <c>%APPDATA%\Mozilla\Firefox</c> (o la de <see cref="DirVariable"/>).</summary>
     public static string DefaultRoot() =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Mozilla", "Firefox");
+        Environment.GetEnvironmentVariable(DirVariable) is { Length: > 0 } dir
+            ? dir
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Mozilla", "Firefox");
 
     /// <summary>Los perfiles de <c>profiles.ini</c> que existen en disco; vacío si no hay Firefox.</summary>
     public static IReadOnlyList<string> Profiles(string firefoxRoot)

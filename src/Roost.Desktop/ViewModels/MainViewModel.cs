@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Roost.Core;
 using Roost.Core.Config;
+using Roost.Core.Platform;
 using Roost.Core.Scanning;
 using Roost.Core.Sites;
 using Roost.Core.Stack;
@@ -381,7 +382,8 @@ public sealed partial class MainViewModel : ObservableObject
         if (!force && (_trustOffered || !File.Exists(ca.CaCertFile))) return;
         if (ca.IsTrusted()) return;
         _trustOffered = true;
-        if (await ShowDialogAsync(new TrustCaDialogViewModel(ca)) is not true) return;
+        var dialog = new TrustCaDialogViewModel(ca, FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot()).Count);
+        if (await ShowDialogAsync(dialog) is not true) return;
         await RunAsync("No se ha añadido la CA", async () =>
         {
             await Task.Run(() =>
@@ -392,7 +394,26 @@ public sealed partial class MainViewModel : ObservableObject
             RefreshMachineState();
             Flash("El navegador ya confía en tus sitios .test");
         });
+        if (dialog.ConfigureFirefox && ca.IsTrusted()) await ConfigureFirefoxAsync();
     }
+
+    /// <summary>
+    /// Que Firefox también se fíe de la CA: fija <c>security.enterprise_roots.enabled</c> en el
+    /// user.js de cada perfil (Firefox lee entonces las CA de confianza de Windows, las del usuario
+    /// incluidas). Hace falta reiniciar Firefox. No pide permisos.
+    /// </summary>
+    public Task ConfigureFirefoxAsync() => RunAsync("No se pudo configurar Firefox", async () =>
+    {
+        var profiles = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot());
+        if (profiles.Count == 0)
+        {
+            await InfoAsync("No se ha encontrado Firefox", $"No hay perfiles en {FirefoxTrust.DefaultRoot()}.", Tone.Warn);
+            return;
+        }
+        await Task.Run(() => { foreach (var profile in profiles) FirefoxTrust.Enable(profile); });
+        var running = System.Diagnostics.Process.GetProcessesByName("firefox").Length > 0;
+        Flash(running ? "Firefox configurado: ciérralo y vuelve a abrirlo para que se aplique" : "Firefox ya confía en tus sitios .test");
+    });
 
     /// <summary>El selector de carpetas del sistema (lo pone MainWindow); null si se cancela.</summary>
     public Avalonia.Platform.Storage.IStorageProvider? StorageProvider { get; set; }

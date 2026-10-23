@@ -189,7 +189,8 @@
                 <WrapPanel ItemSpacing="8" LineSpacing="8">
                   <Button Classes="sm" Content="Renovar todos" Command="{Binding RenewAllCommand}" IsEnabled="{Binding CaExists}" />
                   <Button Classes="sm primary" Content="Confiar en la CA…" Command="{Binding TrustCommand}" IsVisible="{Binding CaNotTrusted}" IsEnabled="{Binding CaExists}" />
-                  <Button Classes="sm" Content="Configurar Firefox" IsEnabled="False" ToolTip.Tip="Próximamente" ToolTip.ShowOnDisabled="True" />
+                  <Button Classes="sm" Content="Configurar Firefox" Command="{Binding ConfigureFirefoxCommand}" IsEnabled="{Binding HasFirefox}"
+                          ToolTip.Tip="{Binding FirefoxTip}" ToolTip.ShowOnDisabled="True" />
                   <Button Classes="sm danger" Content="Dejar de confiar" Command="{Binding UntrustCommand}" IsVisible="{Binding CaTrusted}" />
                 </WrapPanel>
               </StackPanel>

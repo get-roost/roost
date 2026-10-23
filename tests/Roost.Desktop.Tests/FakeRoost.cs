@@ -57,6 +57,8 @@ public sealed class FakeRoost : IDisposable
 
             """);
         Environment.SetEnvironmentVariable(Roost.Core.Sites.HostsUpdater.HostsFileVariable, HostsFile);
+        // Ni el Firefox de verdad: una carpeta sin profiles.ini (no hay Firefox).
+        Environment.SetEnvironmentVariable(Roost.Core.Platform.FirefoxTrust.DirVariable, Path.Combine(root, "firefox"));
 
         Write(Path.Combine(Paths.State, "sites.json"), $$"""
             [
@@ -111,6 +113,7 @@ public sealed class FakeRoost : IDisposable
     public void Dispose()
     {
         Environment.SetEnvironmentVariable(Roost.Core.Sites.HostsUpdater.HostsFileVariable, null);
+        Environment.SetEnvironmentVariable(Roost.Core.Platform.FirefoxTrust.DirVariable, null);
         try { Directory.Delete(Path.GetDirectoryName(Paths.Root)!, recursive: true); } catch { /* best effort */ }
     }
 }
