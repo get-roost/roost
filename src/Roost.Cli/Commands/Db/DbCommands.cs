@@ -73,7 +73,10 @@ public sealed class DbListCommand : AsyncCommand<DbListCommand.Settings>
         var paths = RoostPaths.Default();
         var installed = new DbInstaller(paths).ListInstalled();
         var global = DbCatalogs.Global(paths, installed);
-        var (catalog, error) = await DbCatalogs.LoadAsync(cancellation);
+        // Los catalogos son zips de Windows: fuera de Windows no se ofrecen como «disponibles».
+        var (catalog, error) = OperatingSystem.IsWindows()
+            ? await DbCatalogs.LoadAsync(cancellation)
+            : ([], "Instalar bases de datos solo funciona en Windows por ahora (ROOST.md: fase 1, Windows primero).");
 
         if (settings.Json)
         {
@@ -114,6 +117,7 @@ public sealed class DbListCommand : AsyncCommand<DbListCommand.Settings>
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[bold]Disponibles[/]  [grey](MariaDB: la ultima de cada rama estable; MySQL: las fijadas por Roost)[/]");
         if (error is not null) AnsiConsole.MarkupLineInterpolated($"[yellow]{error}[/]");
+        if (!OperatingSystem.IsWindows()) return 0;
 
         var available = new Table().Border(TableBorder.Rounded);
         available.AddColumn(""); available.AddColumn("Motor@rama"); available.AddColumn("Version"); available.AddColumn("Soporte"); available.AddColumn("Veredicto"); available.AddColumn("Instalada");
@@ -183,22 +187,14 @@ public sealed class DbInstallCommand : AsyncCommand<DbSpecSettings>
         }
     }
 
-    /// <summary>Si el servidor no responde a --version, casi siempre falta un Visual C++ Redistributable.</summary>
+    /// <summary>Si el servidor no responde a --version, casi siempre falta un Visual C++ Redistributable (lo decide DbAdmin.SmokeTest).</summary>
     private static void SmokeTest(InstalledDb db)
     {
-        var output = ProcessRunner.Default.Run(db.Server, "--version", TimeSpan.FromSeconds(15));
-        var line = output?.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Contains("Ver", StringComparison.Ordinal));
-        if (line is not null)
-        {
-            AnsiConsole.MarkupLineInterpolated($"[grey]{line}[/]");
-            return;
-        }
-
-        // MySQL 5.7 se compilo con Visual Studio 2013; el resto, con 2015-2022.
-        var redist = db.Engine == DbEngine.MySql && db.Version is { Major: 5 }
-            ? "el de Visual C++ 2013 (x64): https://aka.ms/highdpimfc2013x64enu"
-            : "el de Visual C++ 2015-2022 (x64): https://aka.ms/vs/17/release/vc_redist.x64.exe";
-        AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {db.Server} no responde a --version. Suele faltar el Redistributable {redist}");
+        var smoke = DbAdmin.SmokeTest(db, ProcessRunner.Default);
+        if (smoke.Ok)
+            AnsiConsole.MarkupLineInterpolated($"[grey]{smoke.VersionLine}[/]");
+        else
+            AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {db.Server} no responde a --version. Suele faltar el Visual C++ Redistributable {smoke.MissingRedistributable}: {smoke.RedistributableUrl}");
     }
 }
 
@@ -319,7 +315,8 @@ public sealed class DbCreateCommand : AsyncCommand<DbCreateCommand.Settings>
             DbAdmin.Create(db, planner.DbIniPath(db), settings.Name, ProcessRunner.Default);
 
             AnsiConsole.MarkupLineInterpolated($"[green]Base de datos {settings.Name} lista[/] en {status.Db}.");
-            AnsiConsole.MarkupLineInterpolated($"[grey]Conexion: host 127.0.0.1, puerto {status.DbPort}, usuario root, sin contrasena.[/]");
+            var password = new DbPasswords(paths).For(db) is null ? "sin contrasena" : "con la contrasena que guarda Roost";
+            AnsiConsole.MarkupLineInterpolated($"[grey]Conexion: host 127.0.0.1, puerto {status.DbPort}, usuario root, {password}. Un usuario propio: roost db user add <usuario> --db {settings.Name}[/]");
             return 0;
         }
         catch (RoostException ex)

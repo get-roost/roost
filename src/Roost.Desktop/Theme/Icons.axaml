@@ -36,6 +36,11 @@
   <StreamGeometry x:Key="IcTrash">M4 7 H20 M9 7 V4 H15 V7 M6 7 L7 20 H17 L18 7</StreamGeometry>
   <StreamGeometry x:Key="IcSearch">M17 11 A6 6 0 1 1 5 11 A6 6 0 1 1 17 11 Z M15.5 15.5 L20 20</StreamGeometry>
   <StreamGeometry x:Key="IcChevronRight">M9 6 L15 12 L9 18</StreamGeometry>
+  <!-- BD-1 -->
+  <StreamGeometry x:Key="IcEye">M2 12 C4.5 7.5 8 5 12 5 C16 5 19.5 7.5 22 12 C19.5 16.5 16 19 12 19 C8 19 4.5 16.5 2 12 Z M15 12 A3 3 0 1 1 9 12 A3 3 0 1 1 15 12 Z</StreamGeometry>
+  <StreamGeometry x:Key="IcEyeOff">M3 3 L21 21 M10.6 10.6 A3 3 0 0 0 13.4 13.4 M9.9 5.2 C10.6 5.1 11.3 5 12 5 C16 5 19.5 7.5 22 12 C21.3 13.3 20.5 14.4 19.6 15.3 M6.6 6.6 C4.8 7.9 3.3 9.7 2 12 C4.5 16.5 8 19 12 19 C13.8 19 15.5 18.5 17 17.6</StreamGeometry>
+  <StreamGeometry x:Key="IcUser">M16 8 A4 4 0 1 1 8 8 A4 4 0 1 1 16 8 Z M4 21 C4 17 7.6 14.5 12 14.5 C16.4 14.5 20 17 20 21</StreamGeometry>
+  <StreamGeometry x:Key="IcKey">M14 10 A4 4 0 1 1 15.2 12.8 L8 20 H4 V16 L11.2 8.8 A4 4 0 0 1 14 10 Z M16 8 H16.01</StreamGeometry>
   <!-- Novedades -->
   <StreamGeometry x:Key="IcGift">M20 12 V21 H4 V12 M2 7 H22 V12 H2 Z M12 21 V7 M12 7 H7.5 A2.5 2.5 0 0 1 7.5 2 C11 2 12 7 12 7 Z M12 7 H16.5 A2.5 2.5 0 0 0 16.5 2 C13 2 12 7 12 7 Z</StreamGeometry>
 </ResourceDictionary>

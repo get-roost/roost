@@ -371,14 +371,15 @@ public class ViewSnapshotTests
         await main.NavigateToAsync(main.Settings);
         var settings = main.Settings;
         Assert.Equal("80", settings.HttpText);
-        Assert.Equal("3308", settings.DbPortText);
         Assert.Equal("4", settings.PoolText);
         Assert.False(settings.CaExists);
         Snapshot(window, "ajustes");
 
-        settings.DbPortText = "80";
+        // El puerto de la base de datos ya no se edita aquí (BD-1): solo se evita pisarlo.
+        settings.HttpsText = "3308";
         await settings.ApplyPortsCommand.ExecuteAsync(null);
-        Assert.Equal("La base de datos no puede usar un puerto del servidor web.", settings.PortsError);
+        Assert.Equal("El 3308 es el de la base de datos (se cambia en Bases de datos).", settings.PortsError);
+        settings.HttpsText = "443";
 
         // El tema oscuro repinta todo y se guarda en state/desktop.json.
         settings.ThemeDark = true;
@@ -523,6 +524,120 @@ public class ViewSnapshotTests
         await main.NavigateToAsync(main.ComponentNav[^1].Page);
         Snapshot(window, "extension");
         Assert.Contains("Redis de prueba 0.1.0", main.Settings.ExtensionsText);
+    }
+
+    // BD-1
+
+    [AvaloniaFact]
+    public async Task BasesDeDatos_ConContrasenaDeRootGuardada_LaEnsenaEnmascarada_YEnElEnv()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        var db11 = new Roost.Core.Install.InstalledDb(Roost.Core.Install.DbEngine.MariaDb, "11.4.13", Path.Combine(fake.Paths.DbBin("mariadb"), "11.4.13"));
+        new Roost.Core.Stack.DbPasswords(fake.Paths).Set(db11, "S3cret!");
+        main.NotifyConfigChanged();
+
+        await main.NavigateToAsync(main.Databases);
+        var db = main.Databases;
+        Assert.True(db.HasPassword);
+        Assert.Equal("••••••••", db.PasswordMask);
+        Assert.Equal("DB_HOST=127.0.0.1  DB_PORT=3308  DB_USERNAME=root  DB_PASSWORD=S3cret!", db.EnvLine);
+        Assert.EndsWith(Path.Combine("etc", "mariadb", "11.4", "usuario.cnf"), db.UserFilePath);
+        Assert.Equal("11.4", db.Installed[0].UseSpec);   // una sola de la rama: «Usar» guarda la rama
+        Assert.Empty(db.Clients);                        // en este equipo no hay HeidiSQL, TablePlus ni DBeaver
+        Assert.Equal("El 3308 lo usa Roost", db.PortTitle);
+        Snapshot(window, "bases-de-datos-con-contrasena");
+
+        // Más abajo: las bases de datos del servidor y los usuarios (sin cliente real, con su aviso).
+        Assert.True(db.HasDatabasesError);
+        Assert.True(db.HasUsersError);
+        Assert.Empty(db.Users);
+        var scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First(s => s.DataContext == db);
+        scroll.Offset = new Avalonia.Vector(0, 2000);
+        Snapshot(window, "bases-de-datos-usuarios");
+
+        // Sin contraseña: la máscara dice que está vacía y el .env la lleva vacía.
+        new Roost.Core.Stack.DbPasswords(fake.Paths).Set(db11, null);
+        main.NotifyConfigChanged();
+        Assert.False(db.HasPassword);
+        Assert.Equal("(vacía)", db.PasswordMask);
+        Assert.EndsWith("DB_PASSWORD=", db.EnvLine);
+    }
+
+    [AvaloniaFact]
+    public async Task BasesDeDatos_CambiarContrasenaDeRoot_AbreElDialogo()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Databases);
+        var changing = main.Databases.ChangePasswordCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<DbPasswordDialogViewModel>(main.Dialog);
+        Assert.Equal("Contraseña de root", dialog.Title);
+        Assert.True(dialog.ForRoot);
+        Assert.True(dialog.CanConfirm);              // vacía = quitar la contraseña
+        Assert.Equal("Quitar la contraseña", dialog.ConfirmLabel);
+
+        dialog.Password = "con espacio";
+        Assert.False(dialog.CanConfirm);
+        Assert.StartsWith("Solo letras", dialog.Hint);
+        dialog.Password = "S3cret!";
+        dialog.Repeat = "S3cret";
+        Assert.Equal("No coinciden.", dialog.Hint);
+        dialog.Repeat = "S3cret!";
+        Assert.True(dialog.CanConfirm);
+        Assert.Equal("Cambiar", dialog.ConfirmLabel);
+        dialog.SaveOnly = true;
+        Assert.Equal("Guardar en Roost", dialog.ConfirmLabel);
+        dialog.Show = true;
+        Snapshot(window, "bases-de-datos-contrasena");
+
+        dialog.Close(null);
+        await changing;
+        Assert.False(main.Databases.HasPassword);   // cancelado: nada cambia
+    }
+
+    [AvaloniaFact]
+    public async Task BasesDeDatos_NuevoUsuario_AbreElDialogoConElAcceso()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Databases);
+        var creating = main.Databases.NewUserCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<DbUserDialogViewModel>(main.Dialog);
+        Assert.Equal("Todas las bases de datos", dialog.Options[0].Label);
+        Assert.Null(dialog.Access.Database);
+        Assert.False(dialog.CanConfirm);
+
+        dialog.Name = "mi-tienda";
+        Assert.Equal("Solo letras, números y _ (hasta 32).", dialog.NameHint);
+        dialog.Name = "root";
+        Assert.Contains("cuenta del servidor", dialog.NameHint);
+        dialog.Name = "tienda";
+        dialog.Password = "S3cret!";
+        dialog.Repeat = "S3cret!";
+        Assert.True(dialog.CanConfirm);
+        Assert.StartsWith("Todos los privilegios sobre todas", dialog.AccessHint);
+        Snapshot(window, "bases-de-datos-usuario");
+
+        dialog.Close(null);
+        await creating;
+    }
+
+    [AvaloniaFact]
+    public async Task Ajustes_ElPuertoDeLaBaseDeDatos_RemiteABasesDeDatos()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Settings);
+        await main.Settings.GoDatabasesCommand.ExecuteAsync(null);
+
+        Assert.Same(main.Databases, main.Current);
+        Assert.Equal("3308", main.Databases.PortText);
+        Assert.False(main.Databases.CanApplyPort);
+        Snapshot(window, "bases-de-datos");
     }
 
     // Sitios-1: la raíz web, los avisos de carpetas que faltan y la confirmación del PHP.

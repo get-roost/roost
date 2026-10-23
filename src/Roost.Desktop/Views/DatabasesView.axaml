@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:sys="using:System"
              x:Class="Roost.Desktop.Views.DatabasesView"
              x:DataType="vm:DatabasesViewModel">
@@ -21,7 +22,7 @@
         </ctl:Note>
 
         <Grid ColumnDefinitions="*,340" ColumnSpacing="16">
-          <!-- La global -->
+          <!-- La global: conexión, puerto, contraseña, ficheros -->
           <Border Classes="card" VerticalAlignment="Top">
             <StackPanel>
               <Border Classes="card-h">
@@ -52,12 +53,14 @@
                   </StackPanel>
                   <StackPanel Grid.Column="1" Spacing="6">
                     <TextBlock Classes="lbl" Text="Puerto" />
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                      <Border Classes="field"><TextBlock Classes="mono" Text="{Binding Port}" /></Border>
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                      <TextBox Classes="mono" Text="{Binding PortText}" AutomationProperties.Name="Puerto de la base de datos" />
                       <Button Grid.Column="1" Classes="icon" Command="{Binding CopyCommand}" CommandParameter="{Binding Port, Converter={x:Static ctl:ValueConverters.ToText}}"
                               ToolTip.Tip="Copiar" AutomationProperties.Name="Copiar puerto">
                         <ctl:Icon Data="{StaticResource IcCopy}" Size="15" />
                       </Button>
+                      <Button Grid.Column="2" Classes="primary" Content="Aplicar" Command="{Binding ApplyPortCommand}" IsEnabled="{Binding CanApplyPort}"
+                              ToolTip.Tip="Guarda el puerto y rearranca la base de datos" ToolTip.ShowOnDisabled="True" />
                     </Grid>
                   </StackPanel>
                   <StackPanel Grid.Row="1" Spacing="6">
@@ -66,9 +69,46 @@
                   </StackPanel>
                   <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
                     <TextBlock Classes="lbl" Text="Contraseña" />
-                    <Border Classes="field"><TextBlock Classes="muted" Text="(vacía)" /></Border>
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                      <Border Classes="field">
+                        <TextBlock Classes="mono" Text="{Binding PasswordMask}" Classes.muted="{Binding !HasPassword}" />
+                      </Border>
+                      <Button Grid.Column="1" Classes="icon" Command="{Binding CopyPasswordCommand}" IsEnabled="{Binding HasPassword}"
+                              ToolTip.Tip="Copiar la contraseña" AutomationProperties.Name="Copiar contraseña">
+                        <ctl:Icon Data="{StaticResource IcCopy}" Size="15" />
+                      </Button>
+                      <Button Grid.Column="2" Content="Cambiar…" Command="{Binding ChangePasswordCommand}" IsEnabled="{Binding DbRunning}"
+                              ToolTip.Tip="{Binding ChangePasswordTip}" ToolTip.ShowOnDisabled="True" AutomationProperties.Name="Cambiar la contraseña de root" />
+                    </Grid>
                   </StackPanel>
                 </Grid>
+
+                <!-- Estado del puerto tecleado, en vivo -->
+                <ctl:Note Tone="{Binding PortTone}">
+                  <StackPanel Spacing="6">
+                    <TextBlock TextWrapping="Wrap">
+                      <Run Text="{Binding PortTitle, Mode=OneWay}" FontWeight="SemiBold" />
+                      <Run Text="{Binding PortDetail, Mode=OneWay}" />
+                    </TextBlock>
+                    <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasSuggestions}">
+                      <TextBlock Classes="faint" Text="Libres:" VerticalAlignment="Center" />
+                      <ItemsControl ItemsSource="{Binding Suggestions}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="sys:Int32">
+                            <Button Classes="sm mono" Content="{Binding}"
+                                    Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).UseSuggestionCommand}" CommandParameter="{Binding}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                    <TextBlock Classes="faint" TextWrapping="Wrap" IsVisible="{Binding CanApplyPort}"
+                               Text="Cambiarlo rearranca la base de datos. Acuérdate del DB_PORT de tus proyectos." />
+                  </StackPanel>
+                </ctl:Note>
+
                 <StackPanel Spacing="6">
                   <TextBlock Classes="lbl" Text="Para tu .env" />
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
@@ -78,78 +118,89 @@
                     </Button>
                   </Grid>
                 </StackPanel>
-                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="8">
-                  <TextBlock Classes="muted" Text="Datos" />
-                  <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding DataPath}">
+
+                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="6">
+                  <TextBlock Classes="muted" Text="Datos" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding DataPath}">
                     <Run Text="{Binding DataPath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
                     <Run Text="  (los usa cualquier versión de esa rama)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
                   </TextBlock>
-                  <TextBlock Grid.Row="1" Classes="muted" Text="Configuración" />
-                  <TextBlock Grid.Row="1" Grid.Column="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding IniPath}">
+                  <Button Grid.Column="2" Classes="sm ghost" Content="Abrir carpeta" Command="{Binding OpenDataFolderCommand}" />
+
+                  <TextBlock Grid.Row="1" Classes="muted" Text="Configuración" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding IniPath}">
                     <Run Text="{Binding IniPath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
-                    <Run Text="  (generado)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
+                    <Run Text="  (generado en cada arranque)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
                   </TextBlock>
+                  <Button Grid.Row="1" Grid.Column="2" Classes="sm ghost" Content="Ver my.ini" Command="{Binding OpenIniCommand}" />
+
+                  <TextBlock Grid.Row="2" Classes="muted" Text="Mis ajustes" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding UserFilePath}">
+                    <Run Text="{Binding UserFilePath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                    <Run Text="  (sql_mode, max_allowed_packet…; Roost no lo toca)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
+                  </TextBlock>
+                  <Button Grid.Row="2" Grid.Column="2" Classes="sm ghost" Content="Editar mis ajustes" Command="{Binding EditUserFileCommand}" />
                 </Grid>
               </StackPanel>
             </StackPanel>
           </Border>
 
-          <!-- Puerto -->
-          <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
-            <StackPanel>
-              <Border Classes="card-h">
-                <StackPanel Orientation="Horizontal" Spacing="10">
-                  <TextBlock Classes="h2" Text="Puerto" />
-                  <TextBlock Classes="hint" Text="solo en 127.0.0.1" />
-                </StackPanel>
-              </Border>
-              <StackPanel Margin="16,14" Spacing="12">
-                <StackPanel Spacing="6">
-                  <TextBlock Classes="lbl" Text="Puerto de la base de datos" />
-                  <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBox Classes="mono" Width="110" Text="{Binding PortText}" AutomationProperties.Name="Puerto de la base de datos" />
-                    <Button Classes="primary" Content="Aplicar" Command="{Binding ApplyPortCommand}" IsEnabled="{Binding CanApplyPort}" />
+          <StackPanel Grid.Column="1" Spacing="16">
+            <!-- Clientes gráficos del equipo: solo si hay alguno -->
+            <Border Classes="card" IsVisible="{Binding HasClients}">
+              <StackPanel>
+                <Border Classes="card-h">
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h2" Text="Abrir con" />
+                    <TextBlock Classes="hint" Text="programas de este equipo" />
                   </StackPanel>
-                </StackPanel>
-                <ctl:Note Tone="{Binding PortTone}">
-                  <StackPanel>
-                    <TextBlock Classes="strong" Text="{Binding PortTitle}" />
-                    <TextBlock Text="{Binding PortDetail}" TextWrapping="Wrap" />
-                  </StackPanel>
-                </ctl:Note>
-                <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasSuggestions}">
-                  <TextBlock Classes="faint" Text="Libres:" VerticalAlignment="Center" />
-                  <ItemsControl ItemsSource="{Binding Suggestions}">
+                </Border>
+                <StackPanel Margin="16,14" Spacing="8">
+                  <ItemsControl ItemsSource="{Binding Clients}">
                     <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
+                      <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="sys:Int32">
-                        <Button Classes="sm mono" Content="{Binding}"
-                                Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).UseSuggestionCommand}" CommandParameter="{Binding}" />
+                      <DataTemplate x:DataType="svc:DbClient">
+                        <Button HorizontalAlignment="Stretch" Content="{Binding ButtonLabel}" ToolTip.Tip="{Binding Tip}" ToolTip.ShowOnDisabled="True"
+                                Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).OpenClientCommand}" CommandParameter="{Binding}"
+                                IsEnabled="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).DbRunning}" />
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+                  <TextBlock Classes="faint" TextWrapping="Wrap" Text="Entran como root, con la contraseña que guarda Roost." />
                 </StackPanel>
-                <TextBlock Classes="faint" TextWrapping="Wrap" Text="Cambiarlo rearranca la base de datos. Acuérdate del DB_PORT de tus proyectos." />
-                <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="0,1,0,0" Padding="0,10,0,0" IsVisible="{Binding HasBusyPorts}">
-                  <StackPanel Spacing="4">
-                    <TextBlock Classes="lbl" Text="Ocupados en este equipo" Margin="0,0,0,2" />
-                    <ItemsControl ItemsSource="{Binding BusyPorts}">
-                      <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:BusyPortLine">
-                          <TextBlock Classes="small" Margin="0,2">
-                            <Run Text="{Binding Port, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
-                            <Run Text="{Binding Owner, StringFormat=' · {0}', Mode=OneWay}" />
-                          </TextBlock>
-                        </DataTemplate>
-                      </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- Puertos de base de datos ocupados en la máquina -->
+            <Border Classes="card">
+              <StackPanel>
+                <Border Classes="card-h">
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h2" Text="Puertos en este equipo" />
+                    <TextBlock Classes="hint" Text="los habituales de MySQL" />
                   </StackPanel>
                 </Border>
+                <StackPanel Margin="16,14" Spacing="8">
+                  <ItemsControl ItemsSource="{Binding BusyPorts}" IsVisible="{Binding HasBusyPorts}">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:BusyPortLine">
+                        <TextBlock Classes="small" Margin="0,2">
+                          <Run Text="{Binding Port, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                          <Run Text="{Binding Owner, StringFormat=' · {0}', Mode=OneWay}" />
+                        </TextBlock>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock Classes="muted" TextWrapping="Wrap" IsVisible="{Binding !HasBusyPorts}"
+                             Text="Ninguno de los habituales (3306 a 3310, 33060) está ocupado." />
+                  <TextBlock Classes="faint" TextWrapping="Wrap"
+                             Text="Roost solo escucha en 127.0.0.1. Si el 3306 lo tiene otro MySQL o MariaDB, pon otro puerto en la conexión." />
+                </StackPanel>
               </StackPanel>
-            </StackPanel>
-          </Border>
+            </Border>
+          </StackPanel>
         </Grid>
 
         <Grid ColumnDefinitions="*,340" ColumnSpacing="16">
@@ -183,7 +234,7 @@
                         <TextBlock Grid.Column="3" Classes="mono" FontSize="11.5" Text="{Binding Data}" VerticalAlignment="Center" />
                         <ctl:Chip Grid.Column="4" Text="en uso" Tone="Accent" HorizontalAlignment="Right" IsVisible="{Binding InUse}" />
                         <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" IsVisible="{Binding NotInUse}">
-                          <Button Classes="sm" Content="Usar"
+                          <Button Classes="sm" Content="Usar" ToolTip.Tip="{Binding UseTip}"
                                   Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).UseCommand}" CommandParameter="{Binding}"
                                   AutomationProperties.Name="{Binding Version, StringFormat='Usar {0}'}" />
                           <Button Classes="sm ghost danger" Content="Quitar"
@@ -262,7 +313,11 @@
             <Border Classes="card-h">
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
-                  <TextBlock Classes="lbl" Text="Nueva" VerticalAlignment="Center" />
+                  <Button Classes="sm icon ghost" Command="{Binding RefreshCommand}" IsEnabled="{Binding DbRunning}"
+                          ToolTip.Tip="Volver a leer las bases de datos y los usuarios" AutomationProperties.Name="Actualizar">
+                    <ctl:Icon Data="{StaticResource IcRestart}" Size="15" />
+                  </Button>
+                  <TextBlock Classes="lbl" Text="Nueva" VerticalAlignment="Center" Margin="8,0,0,0" />
                   <TextBox Classes="mono" Width="160" MinHeight="30" Height="30" PlaceholderText="nombre" Text="{Binding NewDatabase}"
                            AutomationProperties.Name="Nombre de la base de datos nueva" />
                   <Button Classes="sm primary" Content="Crear (utf8mb4)" Command="{Binding CreateDatabaseCommand}" IsEnabled="{Binding DbRunning}" />
@@ -275,11 +330,14 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:DatabaseLine">
                   <Border Classes="tr" MinHeight="42" Padding="16,6">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
                       <TextBlock Classes="mono strong" Text="{Binding Name}" VerticalAlignment="Center" />
                       <TextBlock Grid.Column="1" Classes="faint" Text="{Binding UsedBy}" VerticalAlignment="Center" IsVisible="{Binding HasUsedBy}" />
                       <Button Grid.Column="2" Classes="sm ghost" Content="Consola"
                               Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).OpenConsoleCommand}" CommandParameter="{Binding Name}" />
+                      <Button Grid.Column="3" Classes="sm ghost danger" Content="Borrar"
+                              Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).DropDatabaseCommand}" CommandParameter="{Binding}"
+                              AutomationProperties.Name="{Binding Name, StringFormat='Borrar {0}'}" />
                     </Grid>
                   </Border>
                 </DataTemplate>
@@ -287,6 +345,57 @@
             </ItemsControl>
             <TextBlock Classes="muted" Margin="16,12" Text="Aún no hay bases de datos tuyas: crea una con su nombre."
                        IsVisible="{Binding ShowEmptyDatabases}" />
+          </StackPanel>
+        </Border>
+
+        <!-- Usuarios del servidor -->
+        <Border Classes="card" IsVisible="{Binding HasGlobal}">
+          <StackPanel>
+            <Border Classes="card-h">
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Classes="sm primary" Content="Nuevo usuario" Command="{Binding NewUserCommand}" CommandParameter="{x:Null}" IsEnabled="{Binding DbRunning}" />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Usuarios" />
+                  <TextBlock Classes="hint" Text="uno por proyecto, con acceso solo a su base de datos" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            <Border Classes="th" IsVisible="{Binding HasUsers}">
+              <Grid ColumnDefinitions="160,110,*,220">
+                <TextBlock Text="Usuario" />
+                <TextBlock Grid.Column="1" Text="Host" />
+                <TextBlock Grid.Column="2" Text="Acceso a" />
+                <TextBlock Grid.Column="3" Text="Acciones" HorizontalAlignment="Right" />
+              </Grid>
+            </Border>
+            <ctl:Note Tone="Neutral" Margin="16,12" IsVisible="{Binding HasUsersError}" Content="{Binding UsersError}" />
+            <ItemsControl ItemsSource="{Binding Users}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DbUserRow">
+                  <Border Classes="tr" MinHeight="42" Padding="16,6">
+                    <Grid ColumnDefinitions="160,110,*,220" ColumnSpacing="10">
+                      <TextBlock Classes="mono strong" Text="{Binding Name}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Host}" VerticalAlignment="Center" />
+                      <ctl:Chip Grid.Column="2" Text="{Binding Access}" Tone="{Binding AccessTone}" HorizontalAlignment="Left" />
+                      <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right">
+                        <Button Classes="sm ghost" Content="Cambiar contraseña"
+                                Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).ChangeUserPasswordCommand}" CommandParameter="{Binding}"
+                                AutomationProperties.Name="{Binding Name, StringFormat='Cambiar la contraseña de {0}'}" />
+                        <Button Classes="sm ghost danger" Content="Borrar"
+                                Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).DropUserCommand}" CommandParameter="{Binding}"
+                                AutomationProperties.Name="{Binding Name, StringFormat='Borrar el usuario {0}'}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="muted" Margin="16,12" Text="Ningún usuario aparte de root. Crea uno por proyecto, con acceso solo a su base de datos."
+                       IsVisible="{Binding ShowEmptyUsers}" />
+            <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="0,1,0,0" Padding="16,10">
+              <TextBlock Classes="faint" TextWrapping="Wrap"
+                         Text="root no sale aquí: su contraseña se cambia arriba, en la conexión. Los usuarios se crean como 'usuario'@'%', que vale porque el servidor solo escucha en este equipo." />
+            </Border>
           </StackPanel>
         </Border>
       </StackPanel>

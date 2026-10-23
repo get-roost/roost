@@ -37,6 +37,9 @@
     <DataTemplate DataType="vm:RemovePhpDialogViewModel"><v:RemovePhpDialogView /></DataTemplate>
     <DataTemplate DataType="vm:MessageDialogViewModel"><v:MessageDialogView /></DataTemplate>
     <DataTemplate DataType="vm:StartErrorDialogViewModel"><v:StartErrorDialogView /></DataTemplate>
+    <!-- BD-1 -->
+    <DataTemplate DataType="vm:DbPasswordDialogViewModel"><v:DbPasswordDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:DbUserDialogViewModel"><v:DbUserDialogView /></DataTemplate>
 
     <DataTemplate DataType="vm:NavItem">
       <Button Classes="nav" Classes.on="{Binding IsActive}" Command="{Binding Navigate}" CommandParameter="{Binding Page}"

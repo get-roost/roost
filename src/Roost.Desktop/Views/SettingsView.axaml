@@ -137,7 +137,7 @@
                 </StackPanel>
               </Border>
               <StackPanel Margin="16,14" Spacing="12">
-                <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
+                <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
                   <StackPanel Spacing="6">
                     <TextBlock Classes="lbl" Text="HTTP" />
                     <TextBox Classes="mono" Text="{Binding HttpText}" AutomationProperties.Name="Puerto HTTP" />
@@ -147,14 +147,15 @@
                     <TextBox Classes="mono" Text="{Binding HttpsText}" AutomationProperties.Name="Puerto HTTPS" />
                   </StackPanel>
                   <StackPanel Grid.Column="2" Spacing="6">
-                    <TextBlock Classes="lbl" Text="Base de datos" />
-                    <TextBox Classes="mono" Text="{Binding DbPortText}" AutomationProperties.Name="Puerto de la base de datos" />
-                  </StackPanel>
-                  <StackPanel Grid.Column="3" Spacing="6">
                     <TextBlock Classes="lbl" Text="php-cgi por versión" />
                     <TextBox Classes="mono" Text="{Binding PoolText}" AutomationProperties.Name="Procesos php-cgi por versión" />
                   </StackPanel>
                 </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Classes="faint" Text="El puerto de la base de datos se cambia en" VerticalAlignment="Center" />
+                  <Button Classes="link" Content="Bases de datos" FontSize="12" Command="{Binding GoDatabasesCommand}" />
+                  <TextBlock Classes="faint" Text=", junto a la conexión." VerticalAlignment="Center" />
+                </StackPanel>
                 <ctl:Note Tone="Bad" IsVisible="{Binding HasPortsError}" Content="{Binding PortsError}" />
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <Button Classes="sm primary" Content="Guardar y aplicar" Command="{Binding ApplyPortsCommand}" />

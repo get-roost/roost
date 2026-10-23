@@ -120,6 +120,36 @@ app.Configure(config =>
         db.AddCommand<DbCreateCommand>("create")
             .WithDescription("Crea una base de datos (utf8mb4) en la base de datos global, que tiene que estar en marcha.")
             .WithExample("db", "create", "tienda");
+
+        db.AddCommand<DbDropCommand>("drop")
+            .WithDescription("Borra una base de datos y todas sus tablas (nunca las del sistema). Pregunta antes, salvo con --yes.")
+            .WithExample("db", "drop", "tienda");
+
+        db.AddCommand<DbPasswordCommand>("password")
+            .WithDescription("Pone o cambia la contrasena de root (vacia = sin contrasena) y la guarda para los comandos de Roost. --save-only si ya la cambiaste por fuera.")
+            .WithExample("db", "password")
+            .WithExample("db", "password", "--save-only");
+
+        db.AddBranch("user", user =>
+        {
+            user.SetDescription("Usuarios de la base de datos global: listar, crear, borrar y cambiar la contrasena.");
+
+            user.AddCommand<DbUserListCommand>("list")
+                .WithDescription("Lista los usuarios (sin root ni los del sistema) y a que bases de datos llegan.")
+                .WithExample("db", "user", "list");
+
+            user.AddCommand<DbUserAddCommand>("add")
+                .WithDescription("Crea 'usuario'@'%' con todos los privilegios sobre una base de datos (--db) o sobre todas, y pide su contrasena.")
+                .WithExample("db", "user", "add", "tienda", "--db", "tienda");
+
+            user.AddCommand<DbUserRemoveCommand>("remove")
+                .WithDescription("Borra la cuenta de un usuario. Sus bases de datos se quedan.")
+                .WithExample("db", "user", "remove", "tienda");
+
+            user.AddCommand<DbUserPasswordCommand>("password")
+                .WithDescription("Cambia la contrasena de un usuario.")
+                .WithExample("db", "user", "password", "tienda");
+        });
     });
 
     config.AddBranch("site", site =>
