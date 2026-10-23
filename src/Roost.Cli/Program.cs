@@ -1,6 +1,7 @@
 using System.Text;
 using Roost.Cli.Commands;
 using Roost.Cli.Commands.Db;
+using Roost.Cli.Commands.Git;
 using Roost.Cli.Commands.Php;
 using Roost.Cli.Commands.Shims;
 using Roost.Cli.Commands.Sites;
@@ -191,6 +192,20 @@ app.Configure(config =>
         dns.AddCommand<DnsStatusCommand>("status")
             .WithDescription("Como se resuelven los .test, si la regla esta puesta y si el DNS local contesta.")
             .WithExample("dns", "status");
+    });
+
+    config.AddBranch("git", git =>
+    {
+        git.SetDescription("El git con el que Roost clona y actualiza los sitios: un MinGit verificado en bin/git, o el que diga [git] exe en roost.toml.");
+
+        git.AddCommand<GitInstallCommand>("install")
+            .WithDescription("Descarga MinGit, verifica su SHA-256 y lo instala en bin/git (roost site clone lo hace solo la primera vez).")
+            .WithExample("git", "install");
+
+        git.AddCommand<GitStatusCommand>("status")
+            .WithDescription("Que git usa Roost, su version y donde esta su configuracion aislada.")
+            .WithExample("git", "status")
+            .WithExample("git", "status", "--json");
     });
 
     config.AddBranch("cert", cert =>
