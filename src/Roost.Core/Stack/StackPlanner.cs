@@ -348,6 +348,16 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
     /// <summary>La carpeta conf.d que PHP lee en todas las versiones (<c>PHP_INI_SCAN_DIR</c>).</summary>
     public string PhpConfD => Path.Combine(paths.Etc, "php", "conf.d");
 
+    /// <summary>La conf.d de una rama (<c>conf.d/8.4</c>): solo la leen las instalaciones de esa rama, después de la común.</summary>
+    public string PhpBranchConfD(InstalledPhp php) => Path.Combine(PhpConfD, Branch(php));
+
+    /// <summary>
+    /// Lo que va en <c>PHP_INI_SCAN_DIR</c> para una instalación: la conf.d común y la de su rama, en
+    /// ese orden (PHP lee varias separadas por <c>;</c> en Windows, cada una por orden alfabético), así
+    /// que lo de la rama manda. Lo usan su pool de php-cgi y la terminal (<c>TerminalPhp</c>).
+    /// </summary>
+    public string PhpScanDir(InstalledPhp php) => string.Join(Path.PathSeparator, PhpConfD, PhpBranchConfD(php));
+
     /// <summary>El fragmento del usuario, <c>conf.d/99-usuario.ini</c>; lo crea con la plantilla si no existe.</summary>
     public string EnsureUserIni()
     {
@@ -357,21 +367,36 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         return userIni;
     }
 
+    /// <summary>El fragmento del usuario de la rama, <c>conf.d/&lt;rama&gt;/99-usuario.ini</c>; lo crea con la plantilla si no existe.</summary>
+    public string EnsureBranchUserIni(InstalledPhp php)
+    {
+        var dir = PhpBranchConfD(php);
+        Directory.CreateDirectory(dir);
+        var userIni = Path.Combine(dir, PhpIni.UserFragmentName);
+        if (!File.Exists(userIni)) File.WriteAllText(userIni, PhpIni.BranchFragmentTemplate(Branch(php)));
+        return userIni;
+    }
+
     /// <summary>El php.ini generado de una instalación.</summary>
     public string PhpIniPath(InstalledPhp php) => Path.Combine(paths.Etc, "php", php.Name, "php.ini");
 
-    /// <summary>Las extensiones que ha elegido el usuario para una instalación.</summary>
+    /// <summary>Las extensiones que ha elegido el usuario para una instalación (también Xdebug).</summary>
     public string PhpExtensionChoicePath(InstalledPhp php) => Path.Combine(paths.Etc, "php", php.Name, PhpExtensionChoice.FileName);
 
+    /// <summary>Los ajustes rápidos de una instalación (<c>memory_limit</c>…).</summary>
+    public string PhpSettingsPath(InstalledPhp php) => Path.Combine(paths.Etc, "php", php.Name, PhpSettings.FileName);
+
     /// <summary>
-    /// (Re)genera el php.ini de la instalación con las extensiones que ha elegido el usuario y
-    /// devuelve su ruta. Lo hace cada <c>up</c>; la app lo llama también al cambiar una
-    /// extensión, y luego reinicia solo ese pool.
+    /// (Re)genera el php.ini de la instalación con las extensiones, Xdebug y los ajustes rápidos que
+    /// ha elegido el usuario, y devuelve su ruta. Crea además la conf.d de su rama. Lo hace cada
+    /// <c>up</c>; la app y <c>roost php ext/xdebug</c> lo llaman también al cambiar algo, y luego
+    /// reinician solo ese pool.
     /// </summary>
     public string WritePhpIni(InstalledPhp php)
     {
         var ini = PhpIniPath(php);
         Directory.CreateDirectory(Path.GetDirectoryName(ini)!);
+        EnsureBranchUserIni(php);
         File.WriteAllText(ini, PhpIni.Render(
             php.Name,
             php.Directory,
@@ -379,7 +404,10 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             PhpConfD,
             Path.Combine(paths.Logs, $"php-{Branch(php)}-error.log"),
             PhpExtensionChoice.Load(PhpExtensionChoicePath(php)),
-            CaBundle.Write(paths)));
+            CaBundle.Write(paths),
+            PhpSettings.Load(PhpSettingsPath(php)),
+            new XdebugInstaller(paths).Locate(php),
+            PhpBranchConfD(php)));
         return ini;
     }
 
@@ -390,9 +418,10 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         if (!File.Exists(php.CgiExecutable))
             throw new RoostException($"{php.Name} no trae php-cgi.exe: no puede servir peticiones web.");
 
-        // php.ini generado (se pisa siempre); lo del usuario va en conf.d.
+        // php.ini generado (se pisa siempre); lo del usuario va en conf.d, la común y la de la rama.
         var ini = WritePhpIni(php);
         var branch = Branch(php);
+        var scanDir = string.Join(Path.PathSeparator, confD, PhpBranchConfD(php));
 
         var ports = PhpPool.Ports(version, poolSize);
         var services = new List<ServiceDefinition>();
@@ -408,7 +437,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
                 {
                     // php-cgi atiende una petición cada vez y sale tras estas; el supervisor lo relanza.
                     ["PHP_FCGI_MAX_REQUESTS"] = "500",
-                    ["PHP_INI_SCAN_DIR"] = confD,
+                    ["PHP_INI_SCAN_DIR"] = scanDir,
                 },
                 LogFile = Path.Combine(paths.Logs, $"php-{branch}-{i}.log"),
                 Port = ports[i],

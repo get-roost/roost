@@ -54,9 +54,10 @@ public static class TerminalPhp
 
     /// <summary>
     /// Lo que necesita el PHP de la terminal para cargar las mismas extensiones y ajustes que el
-    /// servidor: <c>PHPRC</c> (la carpeta de su php.ini generado) y <c>PHP_INI_SCAN_DIR</c> (conf.d).
-    /// Van en el entorno y no en <c>-c</c> para que los PHP que lance este (Composer, PHPUnit) los
-    /// hereden. Si el php.ini aún no existe (nunca se ha hecho <c>up</c>), lo genera.
+    /// servidor: <c>PHPRC</c> (la carpeta de su php.ini generado) y <c>PHP_INI_SCAN_DIR</c> (la conf.d
+    /// común y la de su rama, separadas por <c>;</c>, como su pool de php-cgi). Van en el entorno y no
+    /// en <c>-c</c> para que los PHP que lance este (Composer, PHPUnit) los hereden. Si el php.ini aún
+    /// no existe (nunca se ha hecho <c>up</c>), lo genera.
     /// </summary>
     public static IReadOnlyDictionary<string, string> Environment(RoostPaths paths, InstalledPhp php)
     {
@@ -70,7 +71,7 @@ public static class TerminalPhp
         return new Dictionary<string, string>
         {
             ["PHPRC"] = Path.GetDirectoryName(ini)!,
-            ["PHP_INI_SCAN_DIR"] = planner.PhpConfD,
+            ["PHP_INI_SCAN_DIR"] = planner.PhpScanDir(php),
         };
     }
 
