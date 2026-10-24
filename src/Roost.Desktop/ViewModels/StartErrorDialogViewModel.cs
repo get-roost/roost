@@ -21,7 +21,7 @@ public sealed partial class StartErrorDialogViewModel : DialogViewModel
         _main = main;
         Title = failure.Title;
         Subtitle = failure.StillRunning
-            ? "Roost ha comprobado la configuración nueva antes de parar nada y no vale: lo que estaba en marcha sigue en marcha, con la configuración de antes."
+            ? "Roost lo ha visto antes de parar nada: lo que estaba en marcha sigue en marcha, con la configuración de antes."
             : failure.WasRunning
             ? "Para aplicar el cambio, Roost ha parado lo que estaba en marcha y no ha podido volver a arrancarlo: ahora está parado."
             : "No se ha arrancado nada: Roost no deja el stack a medias.";
