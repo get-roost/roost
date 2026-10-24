@@ -173,7 +173,8 @@ public sealed class WordPressInstaller(RoostPaths paths, HttpClient http)
                         if (percent / 5 != lastPercent / 5 || percent == 100 && lastPercent != 100)
                         {
                             lastPercent = percent;
-                            lines.Report(string.Create(CultureInfo.GetCultureInfo("es-ES"),
+                            // Invariante: la CLI va sin datos de culturas (InvariantGlobalization).
+                            lines.Report(string.Create(CultureInfo.InvariantCulture,
                                 $"Descargando {release.FileName}: {percent}% ({done / 1048576.0:0.0} de {total.Value / 1048576.0:0.0} MB)"));
                         }
                     }

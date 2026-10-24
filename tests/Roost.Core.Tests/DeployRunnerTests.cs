@@ -247,7 +247,8 @@ public class DeployRunnerTests
         using var root = new DeployRoot(services: true);
         var folder = root.Project("api", new Dictionary<string, string>
         {
-            ["bin/console"] = "", ["symfony.lock"] = "{}", ["composer.json"] = "{}", [".env"] = "APP_ENV=dev\nAPP_SECRET=\nDATABASE_URL=\"postgresql://app:!ChangeMe!@127.0.0.1:5432/app?serverVersion=16&charset=utf8\"\n",
+            ["bin/console"] = "", ["symfony.lock"] = "{}", ["composer.json"] = """{ "require": { "doctrine/doctrine-bundle": "^2.13" } }""",
+            [".env"] = "APP_ENV=dev\nAPP_SECRET=\nDATABASE_URL=\"postgresql://app:!ChangeMe!@127.0.0.1:5432/app?serverVersion=16&charset=utf8\"\n",
         });
         var target = root.Target(root.Site("api", folder));
         var runner = new DeployRunner(root.Paths, new FakeCommandRunner());
@@ -259,6 +260,7 @@ public class DeployRunnerTests
         var local = EnvFile.Load(Path.Combine(folder, ".env.local")).Env;
         Assert.Equal("mysql://root@127.0.0.1:3409/api?serverVersion=11.4.13-MariaDB&charset=utf8mb4", local.Get("DATABASE_URL"));
         Assert.Equal("smtp://127.0.0.1:1028", local.Get("MAILER_DSN"));
+        Assert.Equal("https://api.test:8445", local.Get("DEFAULT_URI"));
         Assert.Matches("^[0-9a-f]{32}$", local.Get("APP_SECRET")!);
         Assert.Contains("  + APP_SECRET=(uno nuevo, al azar)", lines.Lines);
         Assert.Contains("APP_ENV=dev", File.ReadAllText(Path.Combine(folder, ".env")));   // el .env, que va a git, no se toca

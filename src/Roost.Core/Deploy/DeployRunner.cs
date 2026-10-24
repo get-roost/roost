@@ -230,7 +230,8 @@ public sealed class DeployRunner(RoostPaths paths, ICommandRunner commands, IPro
             // En una carpeta temporal al lado y renombrada al final: si falla o se cancela, no queda nada.
             var temp = Path.Combine(parent, InstallFiles.TempPrefix + Guid.NewGuid().ToString("N"));
             Journal.TempFolder = temp;
-            var outcome = await ComposerAsync(target, ["create-project", plan.Template.Package!, temp, ComposerTool.NoProgress], parent, lines, cancellation);
+            lines.Report($"En {temp} (pasa a {folder} al acabar)");
+            var outcome = await ComposerAsync(target, ["create-project", plan.Template.Package!, temp, ComposerTool.NoProgress], parent, lines, cancellation, echo: false);
             if (outcome.Ok && plan.Webapp)
             {
                 // Sin los compose.yaml de Docker de las recetas: Roost ya da la base de datos (y Flex no pregunta).
@@ -335,7 +336,7 @@ public sealed class DeployRunner(RoostPaths paths, ICommandRunner commands, IPro
         var (env, bom) = exists
             ? EnvFile.Load(path)
             : (EnvFile.Parse("# Lo de este equipo, que no va a git (Symfony lo lee despues de .env). Lo creo Roost.\n"), false);
-        var values = DeployPlan.SymfonyEnv(target).ToList();
+        var values = DeployPlan.SymfonyEnv(target, ProjectKind.Detect(target.Folder).HasDoctrine).ToList();
         // Sin APP_SECRET en ningún .env, Symfony avisa (y firma con una vacía): uno al azar, solo en este equipo.
         if (!HasSecret(target.Folder)) values.Add(new("APP_SECRET", Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16))));
         lines.Report(exists ? "En .env.local (ya estaba: solo se anade lo que falta):" : "Nuevo .env.local:");

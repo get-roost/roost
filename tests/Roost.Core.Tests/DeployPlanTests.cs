@@ -224,9 +224,12 @@ public class DeployPlanTests
         var values = DeployPlan.SymfonyEnv(target).ToDictionary(v => v.Key, v => v.Value);
         Assert.Equal("mysql://root@127.0.0.1:3409/api?serverVersion=11.4.13-MariaDB&charset=utf8mb4", values["DATABASE_URL"]);
 
-        // Sin Doctrine (el skeleton a secas): sin migraciones.
+        // Sin Doctrine (el skeleton a secas): ni base de datos ni migraciones; el .env.local, con la URL.
         var bare = root.Project("mini", "bin/console", "symfony.lock", "composer.json");
-        Assert.DoesNotContain("migrate", Ids(DeployPlan.For(ProjectKind.Detect(bare), root.Target(root.Site("mini", bare)))));
+        var plain = DeployPlan.For(ProjectKind.Detect(bare), root.Target(root.Site("mini", bare), DbState.Missing));
+        Assert.Equal(["composer", "env"], Ids(plain));
+        Assert.Equal("Crear .env.local", plain[1].Label);
+        Assert.StartsWith("DEFAULT_URI=https://mini.test:8445; MAILER_DSN=", plain[1].Hint);
     }
 
     [Fact]

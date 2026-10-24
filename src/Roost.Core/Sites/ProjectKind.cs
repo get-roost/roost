@@ -52,6 +52,9 @@ public sealed record ProjectKind(ProjectType Type, string? WebRoot, bool HasComp
     /// <summary>Laravel: ya tiene <c>public/storage</c> (el enlace de <c>storage:link</c>).</summary>
     public bool HasStorageLink { get; init; }
 
+    /// <summary>Symfony: usa Doctrine (<c>doctrine/doctrine-bundle</c>, <c>doctrine/orm</c> o <c>doctrine/dbal</c>), así que quiere una base de datos.</summary>
+    public bool HasDoctrine { get; init; }
+
     /// <summary>Symfony: usa las migraciones de Doctrine (<c>doctrine/doctrine-migrations-bundle</c>).</summary>
     public bool HasDoctrineMigrations { get; init; }
 
@@ -134,6 +137,7 @@ public sealed record ProjectKind(ProjectType Type, string? WebRoot, bool HasComp
                 HasAppKey = type == ProjectType.Laravel && HasValue(Path.Combine(folder, ".env"), "APP_KEY"),
                 // Un enlace roto también cuenta como hecho: storage:link fallaría igual («already exists»).
                 HasStorageLink = Dir(Path.Combine("public", "storage")) || File(Path.Combine("public", "storage")),
+                HasDoctrine = composer.Doctrine || composer.DoctrineMigrations,
                 HasDoctrineMigrations = composer.DoctrineMigrations,
                 // WordPress también lo busca una carpeta más arriba, si esa no es otro WordPress.
                 HasWpConfig = type == ProjectType.WordPress
@@ -150,7 +154,7 @@ public sealed record ProjectKind(ProjectType Type, string? WebRoot, bool HasComp
     }
 
     /// <summary>Lo que interesa del composer.json: el PHP, la versión del framework y si usa las migraciones de Doctrine.</summary>
-    private readonly record struct ComposerFacts(string? Php, string? Laravel, string? Symfony, bool DoctrineMigrations);
+    private readonly record struct ComposerFacts(string? Php, string? Laravel, string? Symfony, bool Doctrine, bool DoctrineMigrations);
 
     private static ComposerFacts ReadComposer(string file)
     {
@@ -173,6 +177,7 @@ public sealed record ProjectKind(ProjectType Type, string? WebRoot, bool HasComp
                 symfony = sfRequire.GetString();
 
             return new ComposerFacts(Get("php"), Get("laravel/framework"), symfony ?? Get("symfony/framework-bundle"),
+                Get("doctrine/doctrine-bundle") is not null || Get("doctrine/orm") is not null || Get("doctrine/dbal") is not null || Get("symfony/orm-pack") is not null,
                 Get("doctrine/doctrine-migrations-bundle") is not null);
         }
         catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)

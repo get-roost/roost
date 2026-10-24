@@ -258,7 +258,8 @@ public static partial class DeployPlan
     {
         var steps = new List<DeployStep>();
         var db = target.Database;
-        var usesDb = kind.Type is ProjectType.Laravel or ProjectType.Symfony or ProjectType.WordPress;
+        // Symfony solo quiere una base de datos si usa Doctrine (el skeleton a secas, no).
+        var usesDb = kind.Type is ProjectType.Laravel or ProjectType.WordPress || kind.Type == ProjectType.Symfony && kind.HasDoctrine;
 
         // Recién creado por una plantilla, create-project ya ha instalado vendor/: no se repite.
         if (kind.HasComposerJson && kind.Type != ProjectType.WordPress && !(target.Fresh && kind.HasVendor))
@@ -384,28 +385,25 @@ public static partial class DeployPlan
 
     private static void AddSymfony(List<DeployStep> steps, ProjectKind kind, DeployTarget target)
     {
-        var values = SymfonyEnv(target);
+        var values = SymfonyEnv(target, kind.HasDoctrine);
         var file = Path.Combine(target.Folder, ".env.local");
         var mode = kind.HasEnvLocal ? EnvMode.Complete : EnvMode.New;
         var missing = mode == EnvMode.Complete ? MissingKeys(file, values) : [];
-        if (values.Count > 0 || mode == EnvMode.Complete)
+        steps.Add(new DeployStep
         {
-            steps.Add(new DeployStep
-            {
-                Id = "env",
-                Kind = DeployStepKind.Env,
-                Label = mode == EnvMode.Complete ? "Completar .env.local" : target.Database is null ? "Crear .env.local" : "Crear .env.local con DATABASE_URL",
-                Hint = mode == EnvMode.Complete && missing.Count == 0
-                    ? "Ya tiene todo lo de Roost: no hay nada que anadir."
-                    : mode == EnvMode.Complete
-                        ? $"Ya hay .env.local: se anaden {Keys(missing)}; lo que ya tiene no se toca."
-                        : SymfonySummary(target, values) + " .env.local no se sube a git.",
-                Checked = mode != EnvMode.Complete || missing.Count > 0,
-                EnvMode = mode,
-                File = ".env.local",
-                MissingKeys = missing,
-            });
-        }
+            Id = "env",
+            Kind = DeployStepKind.Env,
+            Label = mode == EnvMode.Complete ? "Completar .env.local" : target.Database is null || !kind.HasDoctrine ? "Crear .env.local" : "Crear .env.local con DATABASE_URL",
+            Hint = mode == EnvMode.Complete && missing.Count == 0
+                ? "Ya tiene todo lo de Roost: no hay nada que anadir."
+                : mode == EnvMode.Complete
+                    ? $"Ya hay .env.local: se anaden {Keys(missing)}; lo que ya tiene no se toca."
+                    : SymfonySummary(target, kind.HasDoctrine) + " .env.local no se sube a git.",
+            Checked = mode != EnvMode.Complete || missing.Count > 0,
+            EnvMode = mode,
+            File = ".env.local",
+            MissingKeys = missing,
+        });
 
         if (kind.HasDoctrineMigrations && target.Database is { } db)
             steps.Add(MigrateStep("php bin/console doctrine:migrations:migrate", db, target.Fresh));
@@ -496,13 +494,15 @@ public static partial class DeployPlan
     }
 
     /// <summary>
-    /// PURO: lo que Roost pone en el <c>.env.local</c> de Symfony: <c>DATABASE_URL</c> (con la
-    /// versión del servidor, que Doctrine quiere saber) y, con Mailpit, <c>MAILER_DSN</c>.
+    /// PURO: lo que Roost pone en el <c>.env.local</c> de Symfony: <c>DEFAULT_URI</c> (la URL para
+    /// generar enlaces desde la consola; el .env de la receta trae <c>http://localhost</c>),
+    /// <c>DATABASE_URL</c> (con la versión del servidor, que Doctrine quiere saber) y, con Mailpit,
+    /// <c>MAILER_DSN</c>.
     /// </summary>
-    public static IReadOnlyList<KeyValuePair<string, string>> SymfonyEnv(DeployTarget target)
+    public static IReadOnlyList<KeyValuePair<string, string>> SymfonyEnv(DeployTarget target, bool doctrine = true)
     {
-        var values = new List<KeyValuePair<string, string>>();
-        if (target.Database is { } db) values.Add(new("DATABASE_URL", DatabaseUrl(db)));
+        var values = new List<KeyValuePair<string, string>> { new("DEFAULT_URI", target.Url) };
+        if (doctrine && target.Database is { } db) values.Add(new("DATABASE_URL", DatabaseUrl(db)));
         if (target.MailSmtpPort is { } smtp) values.Add(new("MAILER_DSN", $"smtp://127.0.0.1:{smtp}"));
         return values;
     }
@@ -546,12 +546,12 @@ public static partial class DeployPlan
         return string.Join("; ", parts) + ".";
     }
 
-    private static string SymfonySummary(DeployTarget target, IReadOnlyList<KeyValuePair<string, string>> values)
+    private static string SymfonySummary(DeployTarget target, bool doctrine)
     {
-        var parts = new List<string>();
-        if (target.Database is { } db) parts.Add($"DATABASE_URL=mysql://root@127.0.0.1:{db.Port}/{db.Name} ({db.Label})");
+        var parts = new List<string> { $"DEFAULT_URI={target.Url}" };
+        if (doctrine && target.Database is { } db) parts.Add($"DATABASE_URL=mysql://root@127.0.0.1:{db.Port}/{db.Name} ({db.Label})");
         if (target.MailSmtpPort is { } smtp) parts.Add($"MAILER_DSN=smtp://127.0.0.1:{smtp} (Mailpit)");
-        return parts.Count == 0 ? "Sin base de datos." : string.Join("; ", parts) + ".";
+        return string.Join("; ", parts) + ".";
     }
 
     /// <summary>

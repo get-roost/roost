@@ -84,8 +84,12 @@ public class ProjectTemplatesTests
         Assert.Equal("composer create-project symfony/skeleton y composer require webapp", sf[0].Label);
         Assert.StartsWith("Symfony 8.1 en", sf[0].Hint);   // con PHP 8.4
 
+        // Sin base de datos, el .env.local lleva igual la URL del sitio (DEFAULT_URI).
         var bare = ProjectTemplates.Plan(root.Paths, new NewProjectRequest(ProjectTemplate.Symfony, "mini"));
-        Assert.Equal(["create"], ProjectTemplates.Steps(bare, Target(bare)).Select(s => s.Id));
+        var mini = ProjectTemplates.Steps(bare, Target(bare));
+        Assert.Equal(["create", "env"], mini.Select(s => s.Id));
+        Assert.Equal("Crear .env.local", mini[1].Label);
+        Assert.Equal("DEFAULT_URI=https://mini.test:8445. .env.local no se sube a git.", mini[1].Hint);
 
         var wordpress = ProjectTemplates.Plan(root.Paths, new NewProjectRequest(ProjectTemplate.WordPress, "blog", Database: "blog"));
         var wp = ProjectTemplates.Steps(wordpress, Target(wordpress));

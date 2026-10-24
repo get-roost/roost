@@ -93,16 +93,15 @@ public sealed class NewCommand : AsyncCommand<NewCommand.Settings>
                 throw new RoostException($"No hay base de datos en Roost para {template.Name}: instala una (roost db install mariadb@11.4) o sigue sin ella con --no-db.");
 
             var plan = ProjectTemplates.Plan(paths, new NewProjectRequest(template.Template, settings.Name, settings.Path, settings.Php, database, settings.Webapp));
-            var host = $"{plan.Name}.test";
 
             // Antes de tocar nada: la base de datos tiene que estar en marcha para crearla y migrar.
             var status = await DeploySupport.StatusAsync(paths, cancellation);
-            target = ProjectTemplates.Target(paths, plan, DeploySupport.DbRunning(status), status?.DbPort);
+            target = await DeploySupport.ProbeAsync(ProjectTemplates.Target(paths, plan, DeploySupport.DbRunning(status), status?.DbPort), cancellation);
             steps = ProjectTemplates.Steps(plan, target);
 
             if (!json)
             {
-                AnsiConsole.MarkupLineInterpolated($"[bold]{template.Name}[/] en [bold]https://{host}/[/] [grey]({plan.Folder}, PHP {plan.Php.Version?.ToString() ?? plan.Php.Name}{(database is null ? ", sin base de datos" : $", base de datos {database}")})[/]");
+                AnsiConsole.MarkupLineInterpolated($"[bold]{template.Name}[/] en [bold]{target.Url}/[/] [grey]({plan.Folder}, PHP {plan.Php.Version?.ToString() ?? plan.Php.Name}{(database is null ? ", sin base de datos" : $", base de datos {database}")})[/]");
                 DeploySupport.Show(steps);
                 if (!settings.Yes)
                 {
@@ -121,10 +120,9 @@ public sealed class NewCommand : AsyncCommand<NewCommand.Settings>
                 status = await StartStackAsync(paths, context, json, cancellation);
                 if (!DeploySupport.DbRunning(status))
                     throw new RoostException("Roost no ha arrancado con la base de datos: no se ha creado nada. Mira roost status y vuelve a intentarlo.");
-                target = ProjectTemplates.Target(paths, plan, dbRunning: true, status!.DbPort);
+                target = await DeploySupport.ProbeAsync(ProjectTemplates.Target(paths, plan, dbRunning: true, status!.DbPort), cancellation);
+                steps = ProjectTemplates.Steps(plan, target);
             }
-            target = await DeploySupport.ProbeAsync(target, cancellation);
-            steps = ProjectTemplates.Steps(plan, target);
 
             if (template.UsesComposer && !json) AnsiConsole.MarkupLineInterpolated($"[grey]Composer baja {template.Package} de Packagist y ejecuta los scripts de la plantilla.[/]");
             runner = new DeployRunner(paths, CommandRunner.Default)

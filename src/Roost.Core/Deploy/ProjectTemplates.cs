@@ -44,6 +44,7 @@ public sealed record TemplateInfo(ProjectTemplate Template, string Key, string N
         ProjectTemplate.Symfony => new ProjectKind(ProjectType.Symfony, "public", true, true, true)
         {
             HasEnv = true,
+            HasDoctrine = webapp,
             HasDoctrineMigrations = webapp,
             Evidence = ["composer.json", "bin/console", "symfony.lock"],
         },
