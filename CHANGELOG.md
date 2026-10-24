@@ -2,7 +2,7 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
-## 0.1.4 — en preparación
+## 0.1.4 — 24-oct-2026
 
 - **Stack:** un cambio que no vale (un puerto ocupado, un vhost sin marcas, una configuración que nginx o Apache no aceptan) ya no deja Roost parado: se comprueba antes de parar nada y lo que estaba en marcha sigue igual.
 - **Servicios:** se puede parar y volver a iniciar un servicio suelto (la base de datos, un PHP, el servidor web) desde Inicio, desde Bases de datos y con `roost stop` / `roost start`; un servicio parado a mano no se relanza solo. «Reiniciar todo» (o `roost restart` sin más) reinicia el stack entero en orden.
