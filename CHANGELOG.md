@@ -2,7 +2,7 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
-## 0.1.8 — en preparación
+## 0.1.8 — 24-oct-2026
 
 - **Renombrar y mover un sitio:** «Editar…» en el panel del sitio (o `roost site rename tienda shop` y `roost site move tienda <carpeta>`) cambia su nombre o su carpeta. Al renombrar se llevan su certificado, su línea del hosts, sus subdominios, su git y sus registros; su base de datos se queda como estaba o, si lo eliges, se copia al nombre nuevo (con sus vistas, rutinas y triggers) y la de antes no se borra. Al mover, Roost mueve la carpeta del proyecto o solo apunta a otra que ya tengas.
 - **Carpetas aparcadas:** «Aparcar carpeta…» (o `roost park C:\proyectos`) hace de cada subcarpeta un sitio `<subcarpeta>.test`, como el `valet park` de Valet. Con la app abierta o el stack en marcha, una carpeta nueva da un sitio nuevo y una borrada lo quita; las que tienen un nombre que no vale se saltan y se dice. Con el hosts, lo que falta se añade de una vez, con un solo permiso.

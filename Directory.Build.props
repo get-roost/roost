@@ -8,7 +8,7 @@
     coinciden (ver «Publicar una versión» en el README).
   -->
   <PropertyGroup>
-    <Version>0.1.7</Version>
+    <Version>0.1.8</Version>
 
     <Product>Roost</Product>
     <Authors>MYA Consulting</Authors>
