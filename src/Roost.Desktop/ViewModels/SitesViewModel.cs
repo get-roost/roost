@@ -459,7 +459,11 @@ public sealed partial class SitesViewModel : PageViewModel
     {
         var paths = Main.App.Paths;
         var sites = new SiteManager(paths);
-        var change = sites.Add(request.Name, request.Folder, request.Root, request.Php ?? "global");
+        // Sitios avanzados (C11): con «Global» y un .roost.toml que pide PHP, manda el del proyecto.
+        var projectPhp = false;
+        try { projectPhp = request.Php is null && request.Folder is { } folder && Directory.Exists(folder) && ProjectFile.Read(folder)?.Php is not null; }
+        catch (RoostException) { /* Add dirá qué le pasa al fichero */ }
+        var change = sites.Add(request.Name, request.Folder, request.Root, request.Php ?? (projectPhp ? null : "global"));
         // La base de datos elegida (nueva o una que ya existe) queda como la del sitio, para su panel.
         if (request.Database is { } chosen) change = change with { Site = sites.SetDatabase(change.Site.Name, chosen) };
         var host = change.Site.Host;

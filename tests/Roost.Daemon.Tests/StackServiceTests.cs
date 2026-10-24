@@ -1083,4 +1083,59 @@ public class StackServiceTests : IDisposable
     {
         try { Directory.Delete(_root, recursive: true); } catch { /* best effort */ }
     }
+
+    // Sitios avanzados (oleada 6): el .roost.toml y las carpetas aparcadas en el daemon.
+
+    [Fact]
+    public async Task Up_PoneAlDiaLosSitiosConSuRoostToml_YConLasCarpetasAparcadas()
+    {
+        AddSite("blog");
+        File.WriteAllText(ProjectFile.PathIn(Path.Combine(_paths.Www, "blog")), "php = \"7.4\"\n");
+        var parked = Path.Combine(_root, "proyectos");
+        Directory.CreateDirectory(Path.Combine(parked, "alfa"));
+        Directory.CreateDirectory(Path.Combine(parked, "Mal Nombre"));
+        new ParkedFolders(_paths).Add(parked);
+
+        var up = await Service().UpAsync();
+
+        Assert.True(up.Ok, up.Error);
+        Assert.Contains("php-7.4-0", up.Status.Services.Select(s => s.Name));
+        Assert.Equal(["alfa", "blog"], up.Status.Sites.Select(s => s.Name));
+        Assert.Equal("7.4", new SiteRegistry(_paths).Find("blog")!.Php);
+        Assert.True(Logged(l => l == ".roost.toml: blog.test pasa a PHP 7.4"));
+        Assert.True(Logged(l => l.StartsWith("aparcado: alfa.test nuevo", StringComparison.Ordinal)));
+        Assert.True(Logged(l => l.StartsWith("aparcado: se salta", StringComparison.Ordinal) && l.Contains("Mal Nombre")));
+        Assert.True(Logged(l => l.StartsWith("faltan en el hosts: alfa.test", StringComparison.Ordinal)));
+    }
+
+    [Fact]
+    public async Task ParkedChanged_ConElStackEnMarcha_SoloRecargaElServidorWeb_YParadoNoHaceNada()
+    {
+        var parked = Path.Combine(_root, "proyectos");
+        Directory.CreateDirectory(Path.Combine(parked, "alfa"));
+        new ParkedFolders(_paths).Add(parked);
+        var stack = Service();
+
+        // Parado: lo hará el siguiente up (o la app).
+        Directory.CreateDirectory(Path.Combine(parked, "beta"));
+        Assert.False(await stack.ParkedChangedAsync());
+        Assert.Null(new SiteRegistry(_paths).Find("beta"));
+
+        var first = await stack.UpAsync();
+        Assert.True(first.Ok, first.Error);
+        HoldPorts(first.Status);
+        Assert.Equal(["alfa", "beta"], first.Status.Sites.Select(s => s.Name));
+        Assert.False(await stack.ParkedChangedAsync());   // nada nuevo: ni recarga
+
+        Directory.CreateDirectory(Path.Combine(parked, "gamma"));
+        Directory.Delete(Path.Combine(parked, "alfa"));
+        Assert.True(await stack.ParkedChangedAsync());
+
+        Assert.Equal(["beta", "gamma"], stack.Status().Sites.Select(s => s.Name));
+        Assert.Equal(1, _runner.Reloads);                // nginx -s reload, sin cortar
+        Assert.Equal(1, _launcher.StartsOf("nginx"));
+        Assert.True(File.Exists(Path.Combine(_paths.NginxSites, "alfa.conf.removed")));
+        Assert.True(Logged(l => l.StartsWith("aparcado: gamma.test nuevo", StringComparison.Ordinal)));
+        Assert.True(Logged(l => l == "aparcado: alfa.test quitado (su carpeta ya no esta)"));
+    }
 }
