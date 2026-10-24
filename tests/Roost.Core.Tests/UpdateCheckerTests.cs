@@ -347,6 +347,25 @@ public class UpdateCheckerTests : IDisposable
     }
 
     [Fact]
+    public void Parse_LosFicheros_SoloPorHttps_SalvoEnLoopbackParaProbar()
+    {
+        var json = """
+            {
+              "tag_name": "v0.2.0", "html_url": "https://github.com/get-roost/roost/releases/tag/v0.2.0",
+              "assets": [
+                { "name": "roost-0.2.0-win-x64-setup.exe", "size": 1, "browser_download_url": "http://127.0.0.1:8767/roost-0.2.0-win-x64-setup.exe" },
+                { "name": "SHA256SUMS.txt", "size": 1, "browser_download_url": "http://localhost:8767/SHA256SUMS.txt" },
+                { "name": "roost-0.2.0-win-x64.zip", "size": 1, "browser_download_url": "http://descargas.example.com/roost-0.2.0-win-x64.zip" },
+                { "name": "roost-0.2.0-linux-x64.tar.gz", "size": 1, "browser_download_url": "ftp://github.com/x.tar.gz" }
+              ]
+            }
+            """;
+
+        Assert.True(GitHubReleases.TryParse(json, out var release, out _));
+        Assert.Equal(["roost-0.2.0-win-x64-setup.exe", "SHA256SUMS.txt"], release!.Assets.Select(a => a.Name));
+    }
+
+    [Fact]
     public void Parse_ListaDeReleases_SeQuedaConLaEstableMasNueva()
     {
         var json = "[" + string.Join(",", Release("v0.4.0", draft: true), Release("v0.3.0-beta.1", prerelease: true),

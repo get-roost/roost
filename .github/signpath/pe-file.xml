@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Segunda configuración de artefacto para SignPath, con el slug «pe-file» (o el de la variable
+  SIGNPATH_PE_ARTIFACT_CONFIGURATION_SLUG): UN solo ejecutable, sin zip alrededor. La usa
+  build/sign.ps1, que ISCC llama mientras compila el instalador, para firmar el desinstalador
+  (unins000.exe, que ISCC presenta como uninst.e32.tmp) y el propio roost-<versión>-win-x64-setup.exe.
+  Son dos solicitudes más por release; con SignPath Foundation, cada una la aprueba una persona.
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <pe-file>
+    <authenticode-sign />
+  </pe-file>
+</artifact-configuration>

@@ -53,6 +53,10 @@
         </Grid>
       </Button>
     </DataTemplate>
+
+    <!-- Actualizador -->
+    <DataTemplate DataType="vm:UpdateDialogViewModel"><v:UpdateDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:UpdateProgressDialogViewModel"><v:UpdateProgressDialogView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="40,*,28">
@@ -113,7 +117,7 @@
           <!-- Una Roost nueva: discreto, encima del estado del stack; lleva a Ajustes (novedades y cómo actualizar) -->
           <Button DockPanel.Dock="Bottom" Classes="sideupdate" Margin="0,0,0,10" IsVisible="{Binding Updates.HasUpdate}"
                   Command="{Binding OpenUpdatesCommand}" AutomationProperties.Name="{Binding Updates.SideText}"
-                  ToolTip.Tip="Ver las novedades y cómo actualizar">
+                  ToolTip.Tip="Ver las novedades y actualizar">
             <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
               <Border Width="26" Height="26" CornerRadius="7" Background="{DynamicResource AccentBrush}" VerticalAlignment="Center">
                 <ctl:Icon Data="{StaticResource IcDownload}" Size="14" StrokeThickness="2" Foreground="#FFFFFF"
@@ -121,7 +125,7 @@
               </Border>
               <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Updates.SideText}" FontSize="12.5" FontWeight="SemiBold" Foreground="#FFFFFF" TextTrimming="CharacterEllipsis" />
-                <TextBlock Text="Ver cómo actualizar" FontSize="11.5" Foreground="{DynamicResource SideMutedBrush}" />
+                <TextBlock Text="Novedades y actualizar" FontSize="11.5" Foreground="{DynamicResource SideMutedBrush}" />
               </StackPanel>
             </Grid>
           </Button>

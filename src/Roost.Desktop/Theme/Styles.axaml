@@ -640,4 +640,20 @@
     <Setter Property="FontWeight" Value="Normal" />
     <Setter Property="Background" Value="{DynamicResource NeutralBgBrush}" />
   </Style>
+
+  <!-- Actualizador: las novedades de la release en el modal «Roost X disponible» -->
+  <Style Selector="SelectableTextBlock.notes">
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="LineHeight" Value="18" />
+    <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+  </Style>
+  <Style Selector="SelectableTextBlock.notes.heading">
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="SelectableTextBlock.notes.code">
+    <Setter Property="FontFamily" Value="{StaticResource MonoFont}" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource LogTextBrush}" />
+  </Style>
 </Styles>

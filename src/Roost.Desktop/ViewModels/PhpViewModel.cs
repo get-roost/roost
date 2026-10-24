@@ -399,6 +399,8 @@ public sealed partial class PhpViewModel : PageViewModel
             await Main.InfoAsync("Ya hay una instalación en curso", $"Espera a que termine {Installing}.");
             return;
         }
+        // Sin el VC++ Redistributable, php.exe no arranca: avisar antes, con el enlace.
+        if (!await VcRedistGuard.ConfirmAsync(Main, $"PHP {build.Version}", forApache: false)) return;
 
         var paths = Main.App.Paths;
         var installer = new PhpInstaller(paths, Main.App.Http);

@@ -15,7 +15,12 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 - **Sitios:** si cancelas el permiso de Windows, el mensaje dice la verdad (el sitio está creado o quitado; falta el hosts) y cómo arreglarlo; cambiar el PHP de un sitio pide confirmación; botones para copiar la URL y la ruta, y aviso si la carpeta ya no existe.
 - **Certificados:** al crear un sitio, Roost ofrece confiar en su CA antes de abrir el navegador, así que lo primero que ves ya no es un error de certificado.
 - **Firefox:** también confía en tus sitios `.test`. «Configurar Firefox» en Ajustes, la casilla del diálogo de la CA y `roost cert trust` lo preparan en todos tus perfiles; reinicia Firefox para que lo aplique.
-- **Actualizar Roost desde la app:** «Roost X disponible → Actualizar ahora» descarga la versión nueva, la verifica y Roost vuelve a abrirse solo.
+- **Actualizar Roost desde la app:** el aviso de versión nueva abre «Roost X disponible» con las novedades y lo que pesa. «Actualizar ahora» descarga el instalador, comprueba su SHA-256 con el de la release y cierra Roost un momento; Windows pide permiso una vez y Roost vuelve sola, con el stack en marcha si lo estaba. Si cancelas el permiso, vuelve y te dice que no se ha actualizado. Con Scoop o winget abre una terminal que actualiza y la vuelve a abrir; desde la CLI, `roost update --install`.
+- **Visual C++ Redistributable:** el instalador lo pone si falta o es antiguo, y la app y la CLI avisan antes de instalar PHP o el servidor web si falta.
+- **Desinstalar limpio:** desinstalar Roost quita también lo que puso en Windows (la regla de DNS de `.test`, su bloque del `hosts`, los shims del PATH y el arranque con Windows) y pregunta si quitar la CA de tus certificados de confianza. Tus proyectos y bases de datos se quedan. Y `roost cert untrust` deja de confiar en la CA cuando quieras.
+- **Scoop:** actualizar y desinstalar paran el stack (`roost down`).
+- **php de la terminal:** tras actualizar Roost, la app renueva el shim si es de otra versión.
+- **Servidor web:** si instalar nginx o Apache en segundo plano falla, la app te lo dice.
 - **Novedades:** esta pestaña, debajo de Ajustes, con lo que cambia cada versión.
 - **Proyectos en `C:\roost\www`:** la carpeta de proyectos por defecto pasa a estar dentro de la raíz de Roost. Los sitios que ya tenías siguen donde están.
 - **PHP y HTTPS:** la extensión curl de PHP (Guzzle, Laravel, WordPress) ya confía en los certificados de internet y en los de tus sitios `.test`.

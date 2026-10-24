@@ -126,7 +126,31 @@ internal sealed class FakeUpstream : HttpMessageHandler
 {
     public const string RoostLatestUrl = "https://api.github.com/repos/get-roost/roost/releases/latest";
 
-    private const string RoostLatest = """
+    // Actualizador: el «instalador» de la 0.2.0 es un fichero cualquiera (nada lo ejecuta), con su SHA-256 en el SHA256SUMS.txt.
+    public const string RoostSetupUrl = "https://github.com/get-roost/roost/releases/download/v0.2.0/roost-0.2.0-win-x64-setup.exe";
+    public const string RoostSumsUrl = "https://github.com/get-roost/roost/releases/download/v0.2.0/SHA256SUMS.txt";
+    public const string RoostSetup = "MZ esto no es un instalador: es el setup de mentira de los tests del actualizador de Roost\n";
+    public static string RoostSetupSha => Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(RoostSetup)));
+
+    /// <summary>Actualizador: el SHA256SUMS.txt miente sobre el setup (para ver que entonces no se ejecuta nada).</summary>
+    public bool CorruptSums { get; set; }
+
+    /// <summary>
+    /// Actualizador (A6): mientras no se complete, lo que daría 404 (el zip de nginx…) espera. Así
+    /// da tiempo a pasar una instalación a segundo plano antes de que falle.
+    /// </summary>
+    public TaskCompletionSource? HoldMissing { get; set; }
+
+    private static async Task<HttpResponseMessage> Held404Async(HttpRequestMessage request, Task hold)
+    {
+        await hold;
+        return new HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { RequestMessage = request };
+    }
+
+    private string Sums => $"{(CorruptSums ? new string('0', 64) : RoostSetupSha)}  roost-0.2.0-win-x64-setup.exe\n"
+        + $"{new string('a', 64)}  roost-0.2.0-win-x64.zip\n{new string('b', 64)}  roost-0.2.0-linux-x64.tar.gz\n";
+
+    private static readonly string RoostLatest = $$"""
         {
           "html_url": "https://github.com/get-roost/roost/releases/tag/v0.2.0",
           "tag_name": "v0.2.0",
@@ -135,9 +159,10 @@ internal sealed class FakeUpstream : HttpMessageHandler
           "prerelease": false,
           "published_at": "2026-11-02T10:05:00Z",
           "assets": [
+            { "name": "roost-0.2.0-win-x64-setup.exe", "size": {{System.Text.Encoding.UTF8.GetByteCount(RoostSetup)}}, "browser_download_url": "{{RoostSetupUrl}}" },
             { "name": "roost-0.2.0-win-x64.zip", "size": 52428800, "browser_download_url": "https://github.com/get-roost/roost/releases/download/v0.2.0/roost-0.2.0-win-x64.zip" },
             { "name": "roost-0.2.0-linux-x64.tar.gz", "size": 31457280, "browser_download_url": "https://github.com/get-roost/roost/releases/download/v0.2.0/roost-0.2.0-linux-x64.tar.gz" },
-            { "name": "SHA256SUMS.txt", "size": 256, "browser_download_url": "https://github.com/get-roost/roost/releases/download/v0.2.0/SHA256SUMS.txt" }
+            { "name": "SHA256SUMS.txt", "size": 256, "browser_download_url": "{{RoostSumsUrl}}" }
           ],
           "body": "## Novedades\r\n\r\n- **nginx 1.30.7**, con el arreglo de [CVE-2026-1234](https://nginx.org/).\r\n- MySQL 8.4.12 y el dataset de avisos de noviembre.\r\n- `roost update` y el aviso de versiones nuevas en la app.\r\n"
         }
@@ -188,9 +213,12 @@ internal sealed class FakeUpstream : HttpMessageHandler
         if (url == RoostLatestUrl) RoostLatestRequests++;
         var body = url.EndsWith("releases.json", StringComparison.Ordinal) ? Releases
             : url == RoostLatestUrl ? RoostLatest
+            : url == RoostSetupUrl ? RoostSetup
+            : url == RoostSumsUrl ? Sums
             : url == "https://downloads.mariadb.org/rest-api/mariadb/" ? MajorsJson
             : MariaDb.FirstOrDefault(m => url == $"https://downloads.mariadb.org/rest-api/mariadb/{m.Branch}/latest/") is { Branch: not null } major ? LatestJson(major.Branch)
             : null;
+        if (body is null && HoldMissing is { } hold) return Held404Async(request, hold.Task);
         var response = body is null
             ? new HttpResponseMessage(System.Net.HttpStatusCode.NotFound)
             : new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) };

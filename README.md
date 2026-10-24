@@ -17,7 +17,7 @@ El 21-oct-2026 se publicaron los parches de PHP2Shell (CVE-2026-109618 y CVE-202
 
 Todo sale de las [releases de GitHub](https://github.com/get-roost/roost/releases), que son autocontenidas (no hace falta .NET). En Windows hay dos formas:
 
-- **Con el instalador (lo recomendado):** descarga y ejecuta `roost-<versión>-win-x64-setup.exe`. Instala Roost en `Program Files` (pide permiso de administrador una vez), con su acceso directo en el menú Inicio y, si lo marcas, `roost` en la línea de comandos. Para actualizar, ejecuta el instalador de la versión nueva. Para desinstalar, desde «Aplicaciones instaladas» de Windows.
+- **Con el instalador (lo recomendado):** descarga y ejecuta `roost-<versión>-win-x64-setup.exe`. Instala Roost en `Program Files` (pide permiso de administrador una vez), con su acceso directo en el menú Inicio y, si lo marcas, `roost` en la línea de comandos. Pone también el Visual C++ Redistributable x64 si falta o es anterior al 14.50. Para actualizar, «Actualizar ahora» en la app (ver [`roost update`](#roost-update-saber-si-hay-una-roost-nueva-y-actualizar)). Para desinstalar, desde «Aplicaciones instaladas» de Windows: además de los ficheros de Roost, quita lo que puso en el sistema (la regla de DNS de `.test`, su bloque del `hosts`, los shims del PATH y el arranque con Windows) y pregunta si quitar también la CA de tus certificados de confianza. Tus datos y proyectos se quedan.
 - **Desde la línea de comandos, con Scoop** (el bucket es este mismo repositorio):
 
   ```powershell
@@ -30,7 +30,7 @@ En Linux, descarga `roost-<versión>-linux-x64.tar.gz` (solo la CLI). Sin instal
 - Scoop pone `roost` en el `PATH` y un acceso directo «Roost» a la app en el menú Inicio.
 - Los datos no viven en la carpeta de Roost, sino en `C:\roost` (tus proyectos incluidos, en `C:\roost\www`) y `%APPDATA%\Roost` (ver [Dónde vive todo](#dónde-vive-todo-windows)), así que actualizar o desinstalar no los borra. El instalador para el stack él solo antes de actualizar o desinstalar; con Scoop o el zip, ejecuta antes `roost down` y cierra la app: los ficheros en uso no se pueden sustituir.
 - **Por qué el instalador es lo recomendado.** `roost-helper.exe` se ejecuta como administrador (UAC) para editar el `hosts` y la regla DNS de `.test`. Con el instalador vive en `Program Files`, donde no puede escribir un programa sin permisos; con Scoop o el zip vive en una carpeta que puede escribir cualquier programa de tu usuario, así que acepta su UAC solo cuando lo hayas pedido tú.
-- Los PHP, MariaDB y MySQL oficiales de Windows necesitan el Visual C++ Redistributable 2015-2022 (`winget install Microsoft.VCRedist.2015+.x64` o `scoop install extras/vcredist2022`).
+- Los PHP, MariaDB, MySQL y Apache oficiales de Windows necesitan el Visual C++ Redistributable (Apache, el 14.50 o posterior). El instalador lo pone; con Scoop o el zip, `winget install Microsoft.VCRedist.2015+.x64` o `scoop install extras/vcredist2022`. La app y la CLI avisan antes de instalar PHP o el servidor web si falta.
 
 ## Uso
 
@@ -253,6 +253,7 @@ roost site root tienda public                            # cambia la raíz web (
 roost site list                                          # carpeta, PHP, caducidad del certificado, si está en el hosts (o DNS)
 roost site remove legacy                                 # la carpeta del proyecto no se toca
 roost cert trust                                         # que Chrome y Edge confíen en la CA de Roost (una vez)
+roost cert untrust                                       # deja de confiar en ella (y quita lo de Firefox)
 roost cert renew                                         # vuelve a emitir los certificados (up ya los renueva solo)
 ```
 
@@ -307,17 +308,22 @@ Windows solo le pregunta por `.test`, gracias a una regla NRPT con el comentario
 
 Es opcional (`[sites] resolver` en `roost.toml`): por defecto se usa el `hosts`, que también funciona con el stack parado. En la app, está en Ajustes › Nombres .test.
 
-### `roost update`: saber si hay una Roost nueva
+### `roost update`: saber si hay una Roost nueva y actualizar
 
-nginx, las versiones de MySQL y el dataset de avisos van fijados dentro de Roost, así que lo nuevo de ellos solo llega con una Roost nueva. Roost te avisa, pero no se actualiza solo (eso llegará con el instalador):
+nginx, las versiones de MySQL y el dataset de avisos van fijados dentro de Roost, así que lo nuevo de ellos solo llega con una Roost nueva.
 
 ```sh
-roost update          # pregunta ya a GitHub: la versión que tienes, la última, sus novedades y cómo actualizar
-roost update --json   # lo mismo para scripts (código 0 si se pudo comprobar, 1 si no)
+roost update             # pregunta ya a GitHub: la versión que tienes, la última, sus novedades y cómo actualizar
+roost update --json      # lo mismo para scripts (código 0 si se pudo comprobar, 1 si no)
+roost update --install   # con el instalador de Windows: descarga el setup nuevo, lo verifica y lo lanza
 ```
 
-- **Cómo actualizar** depende de cómo instalaste Roost, y `roost update` lo detecta: con Scoop, `scoop update roost`; con winget, `winget upgrade Roost.Roost`; desde el zip, baja el de la release (`roost-<versión>-win-x64.zip`) y sustituye con él la carpeta. Antes, sal de la app y para el stack (`roost down`): mientras corren, sus ficheros están en uso.
-- **La app** lo mira sola al abrirse y, si sigue en la bandeja, una vez al día. Si hay una versión nueva, lo dice al pie de la barra lateral, en el menú de la bandeja y arriba en Ajustes, con las novedades y el comando para actualizar. Se apaga con la casilla de Ajustes › Acerca de Roost.
+- **Desde la app**, el aviso de la barra lateral, la bandeja, «Actualizar ahora…» de Ajustes y Novedades abren «Roost X disponible»: la versión que tienes y la nueva, las novedades, lo que pesa la descarga, y **Actualizar ahora** o **Más tarde**.
+  - Con el **instalador**, descarga `roost-<versión>-win-x64-setup.exe` y comprueba su SHA-256 con el `SHA256SUMS.txt` de la misma release: si no cuadra, o la release no trae las sumas, no ejecuta nada. Si va firmado, la firma tiene que ser válida. Después Roost se cierra y Windows pide permiso una vez; el instalador para el stack, actualiza y vuelve a abrir Roost, que dice «Roost actualizado a X» y arranca el stack si estaba en marcha. Si cancelas el permiso o algo falla, Roost vuelve sola y dice «No se ha actualizado».
+  - Con **Scoop o winget**, para el stack, se cierra y abre una terminal con `scoop update roost` (o `winget upgrade Roost.Roost`) que la vuelve a abrir.
+  - Con el **zip**, lo descarga verificado y te dice dónde está: sustituye con él la carpeta, con la app cerrada y el stack parado (`roost down`).
+- **`roost update --install`** hace lo mismo que la app con el instalador, sin la app. Si el stack estaba en marcha, el instalador lo vuelve a levantar con `roost up`.
+- **La app** lo mira sola al abrirse y, si sigue en la bandeja, una vez al día. Se apaga con la casilla de Ajustes › Acerca de Roost.
 - **`roost status` y `roost up`** añaden una línea si la última comprobación encontró una versión nueva. Para eso no van a la red: la comprobación la hace `roost update`, la app o, mientras el stack está en marcha, el propio daemon (al minuto de arrancar y luego cada 6 h, respetando la caché de 24 h). Así se entera también quien usa solo la CLI.
 - **Una consulta al día como mucho.** La respuesta se guarda 24 h en `%LOCALAPPDATA%\Roost\cache\update-check.json`. Solo se pregunta a `api.github.com`, sin cuenta y sin más datos que la versión de Roost en el User-Agent. Las prereleases (`v0.2.0-beta.1`) no se anuncian.
 - **`ROOST_NO_UPDATE_CHECK=1`** apaga lo automático (la app, el daemon y la línea de `roost status` y `roost up`). En CI (`CI` o `GITHUB_ACTIONS` definidas) el daemon y esa línea se apagan solos. `roost update` y el botón «Buscar actualizaciones» de Ajustes siguen funcionando, porque los pides tú.
@@ -406,17 +412,18 @@ Con el stack en marcha, el daemon (`roost.exe daemon`) tiene bloqueada la dll de
 
 La versión sale de un solo sitio, `<Version>` en [Directory.Build.props](Directory.Build.props). La llevan los ejecutables, `roost --version`, la app (en Ajustes) y los paquetes NuGet.
 
-1. Sube `<Version>` (semver: `0.2.0`, o `0.2.0-beta.1` para una prerelease) y haz commit.
+1. Escribe en [CHANGELOG.md](CHANGELOG.md) la sección `## <versión> — <fecha>` con sus novedades (las notas de la release y la pestaña Novedades salen de ahí), sube `<Version>` (semver: `0.2.0`, o `0.2.0-beta.1` para una prerelease) y haz commit. Sin esa sección, un test y el workflow fallan.
 2. Etiqueta ese commit con la misma versión y sube la etiqueta: `git tag v0.2.0` y `git push origin v0.2.0`.
 
 La etiqueta dispara [release.yml](.github/workflows/release.yml), que hace esto:
 
-- Comprueba que la etiqueta coincide con `<Version>`. Si no coincide, falla sin publicar nada.
+- Comprueba que la etiqueta coincide con `<Version>` y que `CHANGELOG.md` tiene su sección (`build/changelog-notes.py`). Si no, falla sin compilar nada.
 - Compila y pasa los tests en Windows.
 - Publica para Windows con `build/publish-windows.ps1`. La CLI, la app, `roost-helper.exe` y `roost-shim.exe` (este con NativeAOT) van autocontenidos en una sola carpeta y comparten el runtime de .NET. No son single-file, porque cada exe llevaría su propia copia del runtime. El resultado es `roost-<versión>-win-x64.zip`, unos 64 MB.
 - Publica la CLI para Linux con `build/publish-linux.sh`. Es un solo ejecutable, `roost`, y el resultado es `roost-<versión>-linux-x64.tar.gz`, unos 45 MB.
 - Prueba lo publicado (`--version`, `scan`, `audit` y el shim) antes de empaquetarlo.
-- Crea la release «Roost \<versión\>» con los dos ficheros, `SHA256SUMS.txt`, attestations de procedencia de GitHub y notas generadas. Si la versión lleva guion, la marca como prerelease.
+- Compila el instalador con el Visual C++ Redistributable dentro (bajado de aka.ms, con la firma de Microsoft comprobada) y lo prueba en el runner: instala en silencio, desinstala (con la limpieza de `roost uninstall-cleanup`) y actualiza encima de la 0.1.2 con la misma línea que usa la app.
+- Crea la release «Roost \<versión\>» con los ficheros, `SHA256SUMS.txt`, attestations de procedencia de GitHub y, como notas, la sección de `CHANGELOG.md`. Si la versión lleva guion, la marca como prerelease.
 
 Si se lanza a mano (Actions → Release → Run workflow), hace todo menos publicar y deja el resultado en el artefacto `release-preview`. Los mismos scripts sirven en local:
 
@@ -432,7 +439,7 @@ bash build/publish-linux.sh                  # en artifacts/linux-x64; también 
 | Azure Artifact Signing (antes Trusted Signing) | `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_CERTIFICATE_PROFILE` | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` y `AZURE_SUBSCRIPTION_ID`, de una aplicación de Entra ID con una credencial federada (OIDC) para este repositorio |
 | SignPath (gratis para open source con SignPath Foundation) | `SIGNPATH_ORGANIZATION_ID` y, si no valen los de por defecto, `SIGNPATH_PROJECT_SLUG` (`roost`), `SIGNPATH_SIGNING_POLICY_SLUG` (`release-signing`) y `SIGNPATH_ARTIFACT_CONFIGURATION_SLUG` | `SIGNPATH_API_TOKEN` |
 
-La configuración de artefacto que hay que dar de alta en SignPath está en [.github/signpath/artifact-configuration.xml](.github/signpath/artifact-configuration.xml).
+La configuración de artefacto que hay que dar de alta en SignPath está en [.github/signpath/artifact-configuration.xml](.github/signpath/artifact-configuration.xml). El setup y su desinstalador (`unins000.exe`) los firma ISCC al compilar, con el mismo servicio (`build/sign.ps1`); con SignPath hace falta además la configuración de un solo PE, [.github/signpath/pe-file.xml](.github/signpath/pe-file.xml) (slug `pe-file` o `SIGNPATH_PE_ARTIFACT_CONFIGURATION_SLUG`): son dos aprobaciones más por release. En local: `ISCC … [/DVcRedist=<vc_redist.x64.exe>] [/DSignTool=<n> "/S<n>=<orden> $f"] build\roost.iss`.
 
 **Paquetes NuGet.** `Roost.Core`, `Roost.Daemon` y `Roost.Extensibility` son paquetes, para que las extensiones compilen contra ellos; el resto de proyectos no se empaqueta. Para generarlos en local: `dotnet pack Roost.slnx -c Release -o artifacts/nuget`. Se publican a mano con [nuget.yml](.github/workflows/nuget.yml): se lanza sobre la etiqueta de la versión, marcando «Publicar». Usa el trusted publishing de nuget.org (la variable o el secreto `NUGET_USER` y una política para `nuget.yml`) o, si no, el secreto `NUGET_API_KEY`.
 

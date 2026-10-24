@@ -1,10 +1,13 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Roost.Cli.Net;
 using Roost.Cli.Rendering;
+using Roost.Core;
 using Roost.Core.Platform;
 using Roost.Core.Updates;
+using Roost.Daemon;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -13,7 +16,10 @@ namespace Roost.Cli.Commands;
 /// <summary>
 /// <c>roost update</c>: pregunta ya a GitHub (sin mirar la cache) si hay una Roost nueva, y dice
 /// cual tienes, cual es la ultima, sus novedades en corto y como actualizar segun como la
-/// instalaste. No descarga ni cambia nada. Codigo de salida: 0 si se pudo comprobar, 1 si no.
+/// instalaste. Con <c>--install</c>, si Roost se instalo con el instalador de Windows, hace lo
+/// mismo que la app: descarga el setup nuevo, verifica su SHA-256 con el SHA256SUMS.txt de la
+/// release (y su firma, si lleva) y lo lanza en silencio; roost sale para dejarle sustituir sus
+/// ficheros. Codigo de salida: 0 si se pudo comprobar (o instalar), 1 si no.
 /// </summary>
 public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
 {
@@ -22,6 +28,10 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
         [CommandOption("--json")]
         [Description("Salida JSON para maquinas / CI.")]
         public bool Json { get; init; }
+
+        [CommandOption("--install")]
+        [Description("Si hay una nueva y Roost se instalo con el instalador de Windows: la descarga, la verifica y lanza el instalador (silencioso, un solo permiso de administrador).")]
+        public bool Install { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
@@ -34,7 +44,8 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
             await AnsiConsole.Status().StartAsync("Buscando la ultima version de Roost...", async _ =>
                 check = await checker.CheckAsync(force: true, cancellation));
 
-        var advice = UpdateInstructions.For(UpdateInstructions.DetectCurrent(), check.Latest, OperatingSystem.IsWindows());
+        var channel = UpdateInstructions.DetectCurrent();
+        var advice = UpdateInstructions.For(channel, check.Latest, OperatingSystem.IsWindows());
         if (settings.Json)
         {
             Console.WriteLine(JsonSerializer.Serialize(Json(check, advice), JsonOutput.Options));
@@ -42,7 +53,95 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
         }
 
         Write(check, advice);
-        return check.Status == UpdateStatus.Failed ? 1 : 0;
+        if (check.Status == UpdateStatus.Failed) return 1;
+        return settings.Install ? await InstallAsync(check, channel, advice, cancellation) : 0;
+    }
+
+    /// <summary><c>--install</c>: lo mismo que «Actualizar ahora» en la app, para el canal del instalador.</summary>
+    private static async Task<int> InstallAsync(UpdateCheck check, InstallChannel channel, UpdateAdvice advice, CancellationToken cancellation)
+    {
+        if (!check.UpdateAvailable || check.Latest is not { } latest) return 0;
+        AnsiConsole.WriteLine();
+        if (!OperatingSystem.IsWindows())
+        {
+            AnsiConsole.MarkupLine("[red]roost update --install solo funciona en Windows:[/] en Linux no hay instalador todavia.");
+            return 1;
+        }
+        if (channel != InstallChannel.Installer)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[yellow]roost update --install solo vale para la Roost del instalador de Windows.[/] {advice.Text}.");
+            return 1;
+        }
+        if (latest.Installer is not { } setup)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]La release {latest.Name} no trae el instalador de Windows:[/] mira que ha pasado en {latest.Page}");
+            return 1;
+        }
+        if (AppIsOpen())
+        {
+            AnsiConsole.MarkupLine("[yellow]La app de Roost esta abierta.[/] Actualiza desde ella (el aviso de la barra lateral: Actualizar ahora), "
+                + "o cierrala del todo (clic derecho en el icono de la bandeja > Salir de Roost) y repite.");
+            return 1;
+        }
+
+        var paths = RoostPaths.Default();
+        var installer = new UpdateInstaller(paths, RoostHttp.Client);
+        try
+        {
+            using var daemon = new DaemonClient(paths);
+            var running = await daemon.TryStatusAsync(cancellation) is { Running: true };
+
+            VerifiedDownload download = null!;
+            await AnsiConsole.Progress()
+                .Columns(new TaskDescriptionColumn(), new ProgressBarColumn(), new PercentageColumn(), new DownloadedColumn(), new TransferSpeedColumn())
+                .StartAsync(async ctx =>
+                {
+                    var task = ctx.AddTask($"Descargando {setup.Name}", maxValue: setup.Size > 0 ? setup.Size : 1);
+                    var expected = await installer.ExpectedSha256Async(latest, setup, cancellation);
+                    download = await installer.DownloadAsync(setup, expected, new Progress<long>(b => task.Value = Math.Min(b, task.MaxValue)), cancellation);
+                    task.Value = task.MaxValue;
+                });
+            AnsiConsole.MarkupLineInterpolated($"[green]Verificado[/] {setup.Name}: SHA-256 el de SHA256SUMS.txt, {UpdateInstaller.DescribeSignature(download.Signature)}.");
+
+            Directory.CreateDirectory(paths.Logs);
+            UpdateMarker.Write(paths, new UpdateMarker(check.Installed, latest.Version.ToString(), running, DateTimeOffset.Now, installer.SetupLogFile));
+            var pid = UpdateLauncher.Default.StartSetup(download.Path, UpdateInstaller.SetupArguments(relaunchApp: false, startStack: running, installer.SetupLogFile));
+
+            AnsiConsole.MarkupLineInterpolated($"[bold]Instalador en marcha[/] (pid {pid}): Windows pedira permiso de administrador una vez.");
+            AnsiConsole.MarkupLineInterpolated($"  roost sale ahora para que pueda sustituir sus ficheros{(running ? "; el stack se para y el instalador lo vuelve a arrancar al terminar" : "")}.");
+            AnsiConsole.MarkupLineInterpolated($"  Cuando acabe, roost --version dira {latest.Version}. Registro del instalador: {installer.SetupLogFile}");
+            return 0;
+        }
+        catch (RoostException ex)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]{ex.Message}[/]");
+            return 1;
+        }
+    }
+
+    /// <summary>
+    /// Si la app de ESTA instalacion esta abierta (un roost-desktop.exe de la misma carpeta que este
+    /// roost.exe): el instalador la cerraria y no volveria. Otra Roost (otra carpeta) no cuenta.
+    /// </summary>
+    private static bool AppIsOpen()
+    {
+        var here = Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory);
+        foreach (var process in Process.GetProcessesByName("roost-desktop"))
+        {
+            using (process)
+            {
+                try
+                {
+                    var dir = Path.GetDirectoryName(process.MainModule?.FileName);
+                    if (dir is not null && string.Equals(Path.TrimEndingDirectorySeparator(dir), here, StringComparison.OrdinalIgnoreCase)) return true;
+                }
+                catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+                {
+                    // De otro usuario o ya cerrado: no es la nuestra.
+                }
+            }
+        }
+        return false;
     }
 
     private static void Write(UpdateCheck check, UpdateAdvice advice)
@@ -85,7 +184,10 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[bold]Para actualizar[/]");
         AnsiConsole.MarkupLineInterpolated($"  {advice.Text}");
-        AnsiConsole.MarkupLine("  [grey]Antes, cierra la app y para el stack (roost down): mientras corren, los ficheros de Roost estan en uso.[/]");
+        if (advice.Channel == InstallChannel.Installer)
+            AnsiConsole.MarkupLine("  [grey]Con roost update --install (o Actualizar ahora en la app), el instalador para el stack, actualiza y lo vuelve a arrancar: tus datos y tus sitios no se tocan.[/]");
+        else
+            AnsiConsole.MarkupLine("  [grey]Antes, cierra la app y para el stack (roost down): mientras corren, los ficheros de Roost estan en uso.[/]");
     }
 
     private static string Date(DateTimeOffset? at) =>
@@ -124,6 +226,7 @@ public sealed class UpdateCommand : AsyncCommand<UpdateCommand.Settings>
             url = advice.Url?.ToString(),
             package = advice.Package,
             text = advice.Text,
+            canInstall = advice.Channel == InstallChannel.Installer && check.Latest?.Installer is not null,
         },
     };
 }

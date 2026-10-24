@@ -18,7 +18,7 @@
         <ctl:Note Tone="Accent" IsVisible="{Binding HasUpdate}">
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
             <TextBlock Text="{Binding UpdateText}" TextWrapping="Wrap" VerticalAlignment="Center" />
-            <Button Grid.Column="1" Classes="sm primary" Content="Ver cómo actualizar" Command="{Binding OpenUpdatesCommand}" />
+            <Button Grid.Column="1" Classes="sm primary" Content="Actualizar…" Command="{Binding OpenUpdatesCommand}" />
           </Grid>
         </ctl:Note>
 

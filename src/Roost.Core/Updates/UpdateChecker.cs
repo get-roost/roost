@@ -54,9 +54,9 @@ public sealed record UpdateCheck
 }
 
 /// <summary>
-/// Comprueba si hay una Roost nueva en las releases de GitHub. No descarga ni sustituye nada
-/// (eso llegará con el instalador): solo avisa. <b>Nunca lanza</b>: todo lo que pueda fallar
-/// acaba en un <see cref="UpdateCheck"/> con su motivo.
+/// Comprueba si hay una Roost nueva en las releases de GitHub. Solo avisa: descargar, verificar
+/// y lanzar el instalador es cosa de <see cref="UpdateInstaller"/>. <b>Nunca lanza</b>: todo lo
+/// que pueda fallar acaba en un <see cref="UpdateCheck"/> con su motivo.
 /// <list type="bullet">
 /// <item>La respuesta se guarda en <c>&lt;caché&gt;/update-check.json</c> y vale 24 h, para no
 /// preguntar en cada arranque; <c>force</c> pregunta igualmente.</item>

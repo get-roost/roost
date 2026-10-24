@@ -2,6 +2,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Roost.Core.Updates;
 using Roost.Desktop.Controls;
+using Roost.Desktop.ViewModels;
 
 namespace Roost.Desktop.Services;
 
@@ -9,7 +10,8 @@ namespace Roost.Desktop.Services;
 /// Si hay una Roost nueva: lo mismo que <c>roost update</c>, comprobado en segundo plano al abrir
 /// la app y cada pocas horas (con la caché de 24 h, si no se ha desactivado en Ajustes ni con
 /// <c>ROOST_NO_UPDATE_CHECK</c>) y cuando se pide. De aquí salen el aviso de la barra lateral, la
-/// línea de la bandeja y lo que cuenta Ajustes. No descarga ni sustituye nada: solo avisa.
+/// línea de la bandeja y lo que cuenta Ajustes; los tres abren el modal «Roost X disponible»
+/// (<see cref="OpenAsync"/>), desde el que se actualiza (<see cref="UpdateFlow"/>).
 /// </summary>
 public sealed partial class UpdateState : ObservableObject
 {
@@ -22,6 +24,7 @@ public sealed partial class UpdateState : ObservableObject
     {
         _app = app;
         _checker = new UpdateChecker(app.Paths, app.Http, app.Version);
+        Installer = new UpdateInstaller(app.Paths, app.Http);
         Channel = UpdateInstructions.DetectCurrent();
         // Lo que ya se sabía (sin red): el aviso sale nada más abrir, aunque luego no haya conexión.
         Result = _checker.Cached();
@@ -30,16 +33,25 @@ public sealed partial class UpdateState : ObservableObject
     /// <summary>La versión que se está ejecutando.</summary>
     public string Installed => _checker.Installed;
 
-    /// <summary>Cómo se instaló esta Roost (Scoop, winget, un zip, compilada). Los tests de vistas lo cambian.</summary>
+    /// <summary>Descarga, verifica y compone la línea del instalador (Core).</summary>
+    public UpdateInstaller Installer { get; }
+
+    /// <summary>Quien lanza el setup, el vigilante y la terminal. Los tests ponen uno de mentira.</summary>
+    internal UpdateLauncher Launcher { get; set; } = UpdateLauncher.Default;
+
+    /// <summary>Cómo sale la app de verdad para dejar paso al instalador; null = la salida normal de Avalonia (los tests ponen otra).</summary>
+    internal Action? ExitApp { get; set; }
+
+    /// <summary>Cómo se instaló esta Roost (Scoop, winget, un zip, el instalador, compilada). Los tests de vistas lo cambian.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Advice), nameof(HowText), nameof(Command), nameof(HasCommand),
-        nameof(DownloadUrl), nameof(DownloadText), nameof(HasDownload))]
+        nameof(DownloadUrl), nameof(DownloadText), nameof(HasDownload), nameof(CanInstall), nameof(UpdateLabel))]
     public partial InstallChannel Channel { get; internal set; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasUpdate), nameof(Latest), nameof(LatestVersion), nameof(SideText), nameof(BannerTitle),
         nameof(NotesLines), nameof(HasNotes), nameof(Advice), nameof(HowText), nameof(Command), nameof(HasCommand),
-        nameof(DownloadUrl), nameof(DownloadText), nameof(HasDownload), nameof(StatusText), nameof(StatusTone))]
+        nameof(DownloadUrl), nameof(DownloadText), nameof(HasDownload), nameof(StatusText), nameof(StatusTone), nameof(CanInstall), nameof(UpdateLabel))]
     public partial UpdateCheck? Result { get; private set; }
 
     [ObservableProperty]
@@ -59,22 +71,33 @@ public sealed partial class UpdateState : ObservableObject
         ? $"Roost {l.Version} ya está disponible{(l.PublishedAt is { } at ? $" desde el {at.ToLocalTime().ToString("d-MMM-yyyy", Es)}" : "")}"
         : "";
 
-    /// <summary>Las notas de la release en corto (las enteras, en su página).</summary>
+    /// <summary>Las notas de la release en corto (las enteras, en el modal y en su página).</summary>
     public IReadOnlyList<string> NotesLines => HasUpdate ? GitHubReleases.Summarize(Latest?.Notes, maxLines: 4) : [];
 
     public bool HasNotes => NotesLines.Count > 0;
 
     public UpdateAdvice Advice => UpdateInstructions.For(Channel, Latest, OperatingSystem.IsWindows());
 
+    /// <summary>Con el instalador y una release que lo trae, «Actualizar ahora» lo hace todo desde la app.</summary>
+    public bool CanInstall => HasUpdate && UpdateInstaller.InstallsFromApp(Channel) && Latest?.Installer is not null;
+
+    /// <summary>El botón del aviso de Ajustes: lo que hará el modal en este canal.</summary>
+    public string UpdateLabel => Channel switch
+    {
+        InstallChannel.Manual => "Descargar y verificar…",
+        InstallChannel.Source => "Ver cómo actualizar",
+        _ => "Actualizar ahora…",
+    };
+
     /// <summary>Cómo actualizar, según cómo se instaló.</summary>
     public string HowText => Advice switch
     {
-        { Channel: InstallChannel.Scoop } => "La instalaste con Scoop. Para actualizarla, sal de Roost (con el stack parado) y ejecuta en una terminal:",
-        { Channel: InstallChannel.Winget } => "La instalaste con winget. Para actualizarla, sal de Roost (con el stack parado) y ejecuta en una terminal:",
+        { Channel: InstallChannel.Scoop } => "La instalaste con Scoop. «Actualizar ahora» para el stack, cierra Roost y abre una terminal que ejecuta esto y vuelve a abrir Roost:",
+        { Channel: InstallChannel.Winget } => "La instalaste con winget. «Actualizar ahora» para el stack, cierra Roost y abre una terminal que ejecuta esto y vuelve a abrir Roost:",
         { Channel: InstallChannel.Source } => "La compilaste desde el código. Para actualizarla, para el stack y ejecuta en la carpeta del repositorio:",
-        { Channel: InstallChannel.Installer, Package: { } setup } => $"La instalaste con el instalador. Descarga {setup} y ejecútalo: actualiza Roost sin tocar tus datos ni tus sitios.",
-        { Channel: InstallChannel.Installer } => "La instalaste con el instalador. Descarga el nuevo de su página y ejecútalo: actualiza Roost sin tocar tus datos ni tus sitios.",
-        { Package: { } package } => $"Descarga {package} y, con Roost cerrado y el stack parado, sustituye con su contenido la carpeta de Roost.",
+        { Channel: InstallChannel.Installer, Package: not null } => "La instalaste con el instalador. «Actualizar ahora» descarga el nuevo, lo verifica y lo ejecuta: Roost se cierra un momento, Windows pide permiso una vez y vuelve solo. Tus datos y tus sitios no se tocan.",
+        { Channel: InstallChannel.Installer } => "La instalaste con el instalador. Esta versión no trae instalador: descarga el nuevo de su página y ejecútalo. Tus datos y tus sitios no se tocan.",
+        { Package: { } package } => $"La descomprimiste de un zip. Roost descarga {package} y lo verifica; después, con Roost cerrado y el stack parado, sustituye con su contenido la carpeta de Roost.",
         _ => "Descárgala de su página y, con Roost cerrado y el stack parado, sustituye con ella la carpeta de Roost.",
     };
 
@@ -82,13 +105,8 @@ public sealed partial class UpdateState : ObservableObject
 
     public bool HasCommand => HasUpdate && Command is not null;
 
-    /// <summary>Lo que hay que bajar: el instalador nuevo, o el zip de esta release si se instaló a mano.</summary>
-    public Uri? DownloadUrl => Advice.Channel switch
-    {
-        InstallChannel.Manual => Latest?.PackageFor(OperatingSystem.IsWindows())?.Url,
-        InstallChannel.Installer => Latest?.Installer?.Url,
-        _ => null,
-    };
+    /// <summary>Lo que hay que bajar a mano: el zip de esta release si Roost se descomprimió de uno (el instalador lo baja la app).</summary>
+    public Uri? DownloadUrl => Advice.Channel == InstallChannel.Manual ? Latest?.PackageFor(OperatingSystem.IsWindows())?.Url : null;
 
     public string DownloadText => Advice.Package is { } package ? $"Descargar {package}" : "Descargar";
 
@@ -150,6 +168,12 @@ public sealed partial class UpdateState : ObservableObject
             Checking = false;
         }
     }
+
+    /// <summary>El modal «Roost X disponible» y, si se acepta, la actualización del canal que toque.</summary>
+    public Task OpenAsync(MainViewModel main) => new UpdateFlow(main).OpenAsync();
+
+    /// <summary>Al abrir la app: «Roost actualizado a X» o «No se ha actualizado», según cómo vuelva.</summary>
+    public Task HandleStartupAsync(MainViewModel main, StartupArgs args) => new UpdateFlow(main).HandleStartupAsync(args);
 
     /// <summary>«ahora mismo», «hace 5 min», «hace 3 h», «ayer», «hace 4 días».</summary>
     public static string Ago(DateTimeOffset at, DateTimeOffset now)

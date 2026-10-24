@@ -280,8 +280,9 @@ app.Configure(config =>
         .WithExample("extensions");
 
     config.AddCommand<UpdateCommand>("update")
-        .WithDescription("Comprueba si hay una Roost nueva en GitHub y dice como actualizar (no descarga nada).")
+        .WithDescription("Comprueba si hay una Roost nueva en GitHub y dice como actualizar. Con --install (Windows, instalada con el instalador) la descarga, la verifica y lanza el instalador.")
         .WithExample("update")
+        .WithExample("update", "--install")
         .WithExample("update", "--json");
 
     // roostd: lo lanza la CLI cuando hace falta, no el usuario.
