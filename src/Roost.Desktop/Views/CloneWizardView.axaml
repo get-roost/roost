@@ -98,7 +98,7 @@
               </Grid>
               <TextBlock Classes="faint" Text="{Binding TokenUserHint}" TextWrapping="Wrap" />
               <StackPanel Orientation="Horizontal" Spacing="8">
-                <Button Classes="sm" Command="{Binding CreateTokenCommand}" IsVisible="{Binding HasNewTokenUrl}">
+                <Button Classes="sm" Command="{Binding CreateTokenCommand}" IsVisible="{Binding HasNewTokenUrl}" AutomationProperties.Name="Crear un token">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBlock Text="{Binding NewTokenText}" VerticalAlignment="Center" />
                     <ctl:Icon Data="{StaticResource IcExternal}" Size="13" VerticalAlignment="Center" />
@@ -127,7 +127,7 @@
               </Border>
               <WrapPanel ItemSpacing="8" LineSpacing="8">
                 <Button Classes="sm" Content="Copiar clave pública" Command="{Binding CopyKeyCommand}" IsEnabled="{Binding HasPublicKey}" />
-                <Button Classes="sm" Command="{Binding OpenDeployKeysCommand}" IsVisible="{Binding HasDeployKeysUrl}">
+                <Button Classes="sm" Command="{Binding OpenDeployKeysCommand}" IsVisible="{Binding HasDeployKeysUrl}" AutomationProperties.Name="Abrir las deploy keys del repositorio">
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBlock Text="Abrir las deploy keys del repositorio" VerticalAlignment="Center" />
                     <ctl:Icon Data="{StaticResource IcExternal}" Size="13" VerticalAlignment="Center" />
@@ -158,7 +158,7 @@
                   <TextBlock Classes="strong" Text="{Binding OwnFound}" TextWrapping="Wrap" />
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <TextBlock Classes="faint" Text="{Binding OwnHint}" TextWrapping="Wrap" MaxWidth="520" />
-                    <Button Classes="link" FontSize="12" Command="{Binding OwnHelpCommand}" VerticalAlignment="Top">
+                    <Button Classes="link" FontSize="12" Command="{Binding OwnHelpCommand}" VerticalAlignment="Top" AutomationProperties.Name="Cómo usar tus claves con el ssh-agent">
                       <StackPanel Orientation="Horizontal" Spacing="4">
                         <TextBlock Text="Cómo" />
                         <ctl:Icon Data="{StaticResource IcExternal}" Size="12" VerticalAlignment="Center" />

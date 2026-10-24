@@ -817,6 +817,8 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
         finally
         {
             Busy = false;
+            // Si el servidor rechazó el token, git le pide al helper que lo borre (erase): lo que se ve, lo que hay.
+            if (Tab == GitAccessTab.Token) LoadToken();
         }
     }
 

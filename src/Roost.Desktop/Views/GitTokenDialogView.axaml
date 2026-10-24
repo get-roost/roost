@@ -45,7 +45,7 @@
           </StackPanel>
         </Grid>
         <StackPanel Orientation="Horizontal" Spacing="8">
-          <Button Classes="sm" Command="{Binding CreateTokenCommand}" IsVisible="{Binding HasNewTokenUrl}">
+          <Button Classes="sm" Command="{Binding CreateTokenCommand}" IsVisible="{Binding HasNewTokenUrl}" AutomationProperties.Name="Crear un token">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <TextBlock Text="Crear un token" VerticalAlignment="Center" />
               <ctl:Icon Data="{StaticResource IcExternal}" Size="13" VerticalAlignment="Center" />

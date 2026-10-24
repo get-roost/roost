@@ -13,7 +13,7 @@
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
           <!-- Git-app: un sitio desde un repositorio git -->
-          <Button Command="{Binding FromGitCommand}" ToolTip.Tip="Clonar un repositorio de GitHub, GitLab, Bitbucket o tu servidor como sitio nuevo">
+          <Button Command="{Binding FromGitCommand}" AutomationProperties.Name="Desde git…" ToolTip.Tip="Clonar un repositorio de GitHub, GitLab, Bitbucket o tu servidor como sitio nuevo">
             <StackPanel Orientation="Horizontal" Spacing="6">
               <ctl:Icon Data="{StaticResource IcGitBranch}" Size="15" VerticalAlignment="Center" />
               <TextBlock Text="Desde git…" VerticalAlignment="Center" />
@@ -176,7 +176,7 @@
                     <Button Classes="sm" Content="Historial" Command="{Binding GitHistoryCommand}" ToolTip.Tip="Lo que Roost ha hecho con el repositorio" />
                     <Button Classes="sm" Classes.primary="{Binding GitAccessPrimary}" Content="Acceso…" Command="{Binding GitAccessCommand}" IsEnabled="{Binding GitIdle}"
                             ToolTip.Tip="Ver, cambiar o probar cómo entra el sitio en su repositorio" />
-                    <Button Classes="sm ghost" Content="Comprobar ahora" Command="{Binding GitCheckNowCommand}" IsVisible="{Binding GitShowCheckNow}" IsEnabled="{Binding GitIdle}"
+                    <Button Classes="sm" Classes.ghost="{Binding !GitShowCheckNow}" Content="Comprobar ahora" Command="{Binding GitCheckNowCommand}" IsEnabled="{Binding GitIdle}"
                             ToolTip.Tip="Trae lo nuevo del remoto (fetch) sin tocar la carpeta y cuenta los commits que faltan" />
                   </WrapPanel>
                   <TextBlock Classes="faint" Text="{Binding GitCheckHint}" TextWrapping="Wrap" />

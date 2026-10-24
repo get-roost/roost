@@ -34,7 +34,7 @@
             <TextBlock Classes="faint" Text="{Binding KeyText}" TextWrapping="Wrap" />
             <WrapPanel ItemSpacing="6" LineSpacing="6">
               <Button Classes="sm" Content="Copiar" Command="{Binding CopyKeyCommand}" IsVisible="{Binding HasPublicKey}" />
-              <Button Classes="sm" Command="{Binding OpenDeployKeysCommand}" IsVisible="{Binding HasDeployKeysUrl}">
+              <Button Classes="sm" Command="{Binding OpenDeployKeysCommand}" IsVisible="{Binding HasDeployKeysUrl}" AutomationProperties.Name="Abrir las deploy keys del repositorio">
                 <StackPanel Orientation="Horizontal" Spacing="6">
                   <TextBlock Text="{Binding DeployKeysText}" VerticalAlignment="Center" />
                   <ctl:Icon Data="{StaticResource IcExternal}" Size="13" VerticalAlignment="Center" />

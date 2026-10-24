@@ -293,7 +293,7 @@ public sealed partial class SitesViewModel
         if (behind > 0)
             return new GitLook(behind == 1 ? "1 commit por detrás" : $"{behind} commits por detrás", Tone.Warn, $"{behind} ↓", null, Tone.Warn) { Behind = true };
         if (check is { HasNews: true })
-            return new GitLook("hay novedades", Tone.Warn, "nuevo ↓", "El remoto tiene commits nuevos: Actualizar los trae (solo fast-forward).", Tone.Accent) { Behind = true };
+            return new GitLook("hay novedades", Tone.Warn, "nuevo ↓", "El remoto tiene commits nuevos: Comprobar ahora los cuenta (los trae sin tocar la carpeta) y Actualizar los aplica (solo fast-forward).", Tone.Accent) { Behind = true };
         if (status is { Ahead: > 0 })
             return new GitLook(status.Ahead == 1 ? "1 commit por delante" : $"{status.Ahead} commits por delante", Tone.Accent, $"{status.Ahead} ↑",
                 "Tienes commits que no están en el remoto: súbelos con tu git (git push).", Tone.Accent);
