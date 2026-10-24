@@ -210,6 +210,7 @@ public sealed partial class SitesViewModel : PageViewModel
         ConfPath = new SiteManager(paths).ConfFile(site, config);
         PickDatabase(site, config);
         PickComposer(site);
+        PickNode(site);
 
         // La carpeta o la raíz web pueden haber desaparecido desde que se registró el sitio.
         var folderExists = Directory.Exists(site.Folder);

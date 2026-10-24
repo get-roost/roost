@@ -2101,8 +2101,8 @@ public class ViewSnapshotTests
         Assert.Equal(["composer", "env", "key", "migrate", "storage-link", "npm"], dialog.Rows.Select(r => r.Step.Id));
         Assert.All(dialog.Rows.Take(5), r => Assert.True(r.IsChecked));
         Assert.False(dialog.Rows[^1].IsChecked);
-        Assert.False(dialog.Rows[^1].Editable);   // npm: llega con Node en Roost
-        Assert.Equal("Llega con Node en Roost.", dialog.Rows[^1].Hint);
+        Assert.False(dialog.Rows[^1].Editable);   // npm: sin un Node de Roost no se puede
+        Assert.StartsWith("Hace falta Node 24 en Roost: instálalo desde el bloque Node del panel", dialog.Rows[^1].Hint);
         Assert.Equal("Instala las dependencias (hay composer.lock).", dialog.Rows[0].Hint);
         Assert.Equal("Con la base de datos de Roost: 127.0.0.1:3308, root sin contraseña, shop; APP_URL=https://shop.test.", dialog.Rows[1].Hint);
         Assert.Equal("La base de datos shop está vacía.", dialog.Rows[3].Hint);

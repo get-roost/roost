@@ -75,6 +75,8 @@
     <DataTemplate DataType="vm:GitTokenDialogViewModel"><v:GitTokenDialogView /></DataTemplate>
     <DataTemplate DataType="vm:RemoveSiteDialogViewModel"><v:RemoveSiteDialogView /></DataTemplate>
     <DataTemplate DataType="vm:GitSettingsViewModel"><v:GitSettingsView /></DataTemplate>
+    <!-- Node -->
+    <DataTemplate DataType="vm:NodeDevServerDialogViewModel"><v:NodeDevServerDialogView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="40,*,28">
