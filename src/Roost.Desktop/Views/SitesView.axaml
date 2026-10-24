@@ -12,6 +12,14 @@
           <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+          <!-- Sitios avanzados (C3): aparcar una carpeta, como el valet park de Valet -->
+          <Button Command="{Binding ParkFolderCommand}" AutomationProperties.Name="Aparcar carpeta…"
+                  ToolTip.Tip="Cada subcarpeta de la carpeta elegida será un sitio &lt;subcarpeta&gt;.test; las nuevas entran solas">
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <ctl:Icon Data="{StaticResource IcFolder}" Size="15" VerticalAlignment="Center" />
+              <TextBlock Text="Aparcar carpeta…" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
           <!-- Git-app: un sitio desde un repositorio git -->
           <Button Command="{Binding FromGitCommand}" AutomationProperties.Name="Desde git…" ToolTip.Tip="Clonar un repositorio de GitHub, GitLab, Bitbucket o tu servidor como sitio nuevo">
             <StackPanel Orientation="Horizontal" Spacing="6">
@@ -30,6 +38,21 @@
 
       <Grid Margin="24,0,24,24" ColumnDefinitions="*,360" ColumnSpacing="16">
         <!-- Lista -->
+        <StackPanel Spacing="16" VerticalAlignment="Top">
+        <!-- Sitios avanzados: lo que falta en el hosts, junto (un solo permiso), y los avisos de .roost.toml y aparcadas -->
+        <ctl:Note Tone="Warn" IsVisible="{Binding HasHostsPending}">
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Classes="sm" Content="Añadir al hosts" Command="{Binding SyncHostsCommand}" VerticalAlignment="Center" Margin="12,0,0,0"
+                    ToolTip.Tip="Todos de una vez: Windows pide permiso de administrador una sola vez" />
+            <TextBlock TextWrapping="Wrap" Text="{Binding HostsPending}" VerticalAlignment="Center" />
+          </DockPanel>
+        </ctl:Note>
+        <ctl:Note Tone="Warn" IsVisible="{Binding HasSourcesWarning}">
+          <DockPanel>
+            <Button DockPanel.Dock="Right" Classes="sm ghost" Content="Entendido" Command="{Binding DismissSourcesWarningCommand}" VerticalAlignment="Top" Margin="12,0,0,0" />
+            <TextBlock TextWrapping="Wrap" Text="{Binding SourcesWarning}" />
+          </DockPanel>
+        </ctl:Note>
         <Border Classes="card" VerticalAlignment="Top">
           <StackPanel>
             <Border Classes="card-h">
@@ -61,7 +84,10 @@
                     <Border Classes="tr" Padding="16,10">
                       <Grid ColumnDefinitions="2*,*,1.4*,76,64" ColumnSpacing="12">
                         <StackPanel VerticalAlignment="Center">
-                          <TextBlock Classes="mono strong" Text="{Binding Host}" />
+                          <StackPanel Orientation="Horizontal" Spacing="6">
+                            <TextBlock Classes="mono strong" Text="{Binding Host}" VerticalAlignment="Center" />
+                            <ctl:Chip Text="aparcado" Tone="Neutral" IsVisible="{Binding IsParked}" ToolTip.Tip="Sale de una carpeta aparcada" />
+                          </StackPanel>
                           <TextBlock Classes="faint" Text="{Binding DocumentRoot}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding DocumentRoot}" />
                         </StackPanel>
                         <ctl:Chip Grid.Column="1" Text="{Binding Php}" Tone="{Binding PhpTone}" />
@@ -77,12 +103,45 @@
           </StackPanel>
         </Border>
 
+        <!-- Sitios avanzados (C3): las carpetas aparcadas -->
+        <Border Classes="card" VerticalAlignment="Top" IsVisible="{Binding HasParked}">
+          <StackPanel>
+            <Border Classes="card-h">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <ctl:Icon Data="{StaticResource IcFolder}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                <TextBlock Classes="h2" Text="Carpetas aparcadas" VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+            <ItemsControl ItemsSource="{Binding ParkedRows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ParkedRow">
+                  <Border Classes="tr" Padding="16,10">
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="12">
+                      <TextBlock Classes="mono" Text="{Binding Folder}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding Folder}" VerticalAlignment="Center" />
+                      <ctl:Chip Grid.Column="1" Text="{Binding Detail}" Tone="{Binding Tone}" />
+                      <Button Grid.Column="2" Classes="sm ghost" Content="Dejar de aparcar"
+                              Command="{Binding $parent[ItemsControl].((vm:SitesViewModel)DataContext).UnparkCommand}" CommandParameter="{Binding}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="faint" Margin="16,8,16,12" TextWrapping="Wrap"
+                       Text="Cada subcarpeta es un sitio &lt;subcarpeta&gt;.test. Con la app abierta (o el stack en marcha), una carpeta nueva da un sitio nuevo y una borrada lo quita; las que tienen un nombre que no vale se saltan y se dice." />
+          </StackPanel>
+        </Border>
+        </StackPanel>
+
         <!-- Detalle -->
         <Border Grid.Column="1" Classes="card" VerticalAlignment="Top" IsVisible="{Binding HasSelection}">
           <StackPanel>
             <Border Classes="card-h">
               <DockPanel>
-                <Button DockPanel.Dock="Right" Classes="sm" Content="Abrir" Command="{Binding OpenCommand}" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
+                  <!-- Sitios avanzados (C2): renombrar y mover -->
+                  <Button Classes="sm" Content="Editar…" Command="{Binding EditCommand}" ToolTip.Tip="Cambiar el nombre o la carpeta del sitio" />
+                  <Button Classes="sm" Content="Abrir" Command="{Binding OpenCommand}" />
+                </StackPanel>
                 <TextBlock Classes="h2 mono" Text="{Binding Selected.Host, FallbackValue=''}" TextTrimming="CharacterEllipsis" />
               </DockPanel>
             </Border>
@@ -96,7 +155,7 @@
               <ctl:Note Tone="Warn" IsVisible="{Binding HasPathWarning}">
                 <TextBlock TextWrapping="Wrap" Text="{Binding PathWarning}" />
               </ctl:Note>
-              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
                 <TextBlock Classes="muted" Text="Direcciones" Margin="0,2,0,0" />
                 <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
                   <TextBlock Classes="mono" Text="{Binding Urls}" TextWrapping="Wrap" />
@@ -105,17 +164,28 @@
                     <ctl:Icon Data="{StaticResource IcCopy}" Size="14" />
                   </Button>
                 </Grid>
-                <TextBlock Grid.Row="1" Classes="muted" Text="Carpeta" VerticalAlignment="Center" />
-                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                  <TextBlock Classes="mono" Text="{Binding Selected.Site.Folder, FallbackValue=''}" TextTrimming="LeadingCharacterEllipsis" VerticalAlignment="Center"
-                             ToolTip.Tip="{Binding Selected.Site.Folder, FallbackValue=''}" />
-                  <Button Grid.Column="1" Classes="sm icon ghost" Command="{Binding CopyPathCommand}"
-                          ToolTip.Tip="Copiar la ruta" AutomationProperties.Name="Copiar la ruta">
-                    <ctl:Icon Data="{StaticResource IcCopy}" Size="14" />
-                  </Button>
-                </Grid>
-                <TextBlock Grid.Row="2" Classes="muted" Text="Raíz web" Margin="0,2,0,0" />
-                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="8">
+                <!-- Sitios avanzados (C7): alias y subdominios -->
+                <TextBlock Grid.Row="1" Classes="muted" Text="Alias" Margin="0,2,0,0" />
+                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                  <TextBlock Classes="mono" Text="{Binding AliasesText}" TextWrapping="Wrap" IsVisible="{Binding HasAliases}" />
+                  <TextBlock Classes="faint" Text="{Binding AliasesHint}" TextWrapping="Wrap" />
+                  <Button Classes="sm" Content="Alias…" Command="{Binding AliasesCommand}" HorizontalAlignment="Left"
+                          ToolTip.Tip="Otros nombres .test para este sitio, o subdominios con nombre (api.…)" />
+                </StackPanel>
+                <TextBlock Grid.Row="2" Classes="muted" Text="Carpeta" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Spacing="2">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                    <TextBlock Classes="mono" Text="{Binding Selected.Site.Folder, FallbackValue=''}" TextTrimming="LeadingCharacterEllipsis" VerticalAlignment="Center"
+                               ToolTip.Tip="{Binding Selected.Site.Folder, FallbackValue=''}" />
+                    <Button Grid.Column="1" Classes="sm icon ghost" Command="{Binding CopyPathCommand}"
+                            ToolTip.Tip="Copiar la ruta" AutomationProperties.Name="Copiar la ruta">
+                      <ctl:Icon Data="{StaticResource IcCopy}" Size="14" />
+                    </Button>
+                  </Grid>
+                  <TextBlock Classes="faint" Text="{Binding ParkedText}" TextWrapping="Wrap" IsVisible="{Binding IsParkedSite}" />
+                </StackPanel>
+                <TextBlock Grid.Row="3" Classes="muted" Text="Raíz web" Margin="0,2,0,0" />
+                <StackPanel Grid.Row="3" Grid.Column="1" Spacing="8">
                   <TextBlock Classes="mono" Text="{Binding RootText}" />
                   <WrapPanel ItemSpacing="6" LineSpacing="6">
                     <Button Classes="sm" Content="Cambiar…" Command="{Binding ChangeRootCommand}" IsEnabled="{Binding FolderExists}"
@@ -143,6 +213,26 @@
                 <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding SelectedPhp}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
                 <TextBlock Classes="faint" TextWrapping="Wrap" Text="Se aplica sin cortar: Roost arranca el PHP de esa rama antes de mandarle nada. Cada rama en uso tiene su propio pool de php-cgi." />
               </StackPanel>
+
+              <!-- Sitios avanzados (C11): el .roost.toml del proyecto -->
+              <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10">
+                <StackPanel Spacing="8">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ctl:Icon Data="{StaticResource IcFile}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                    <TextBlock Classes="lbl" Text=".roost.toml" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock Classes="small" Text="{Binding ProjectFileText}" TextWrapping="Wrap" IsVisible="{Binding HasProjectFile}" />
+                  <TextBlock Classes="faint" TextWrapping="Wrap" IsVisible="{Binding !HasProjectFile}"
+                             Text="Guárdalo en la carpeta para versionar con el proyecto su PHP, su raíz web, su base de datos y sus alias: Roost lo lee al dar de alta el sitio, al iniciar y al abrir la app." />
+                  <TextBlock Classes="faint" TextWrapping="Wrap" IsVisible="{Binding HasProjectFile}"
+                             Text="Lo que cambies aquí se guarda también en él; lo que cambies en él se aplica al iniciar o al abrir la app." />
+                  <WrapPanel ItemSpacing="6" LineSpacing="6" IsEnabled="{Binding FolderExists}">
+                    <Button Classes="sm" Content="Guardar en .roost.toml" Command="{Binding SaveProjectFileCommand}"
+                            ToolTip.Tip="PHP, raíz web, base de datos y alias del sitio, tal como están ahora" />
+                    <Button Classes="sm" Content="Abrir" Command="{Binding OpenProjectFileCommand}" IsVisible="{Binding HasProjectFile}" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
 
               <!-- Git-app: el repositorio del sitio (maqueta F del diseño de git) -->
               <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10" IsVisible="{Binding HasGit}">
@@ -342,6 +432,8 @@
                 <Button Classes="sm" Content="Abrir en el editor" Command="{Binding OpenInEditorCommand}" ToolTip.Tip="El editor se elige en Ajustes › Programas" />
                 <Button Classes="sm" Content="Terminal aquí" Command="{Binding OpenTerminalCommand}" />
                 <Button Classes="sm" Content="Editar vhost" Command="{Binding EditConfCommand}" />
+                <!-- Sitios avanzados (C5): sus registros de accesos y errores -->
+                <Button Classes="sm" Content="Registros" Command="{Binding ViewLogsCommand}" ToolTip.Tip="Los accesos y los errores de este sitio, en Registros" />
                 <Button Classes="sm" Content="Renovar certificado" Command="{Binding RenewCertCommand}" />
               </WrapPanel>
               <ctl:Note Tone="Accent">

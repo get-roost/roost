@@ -6,7 +6,11 @@ using Roost.Core.Stack;
 namespace Roost.Core.Sites;
 
 /// <summary>El resultado de <see cref="SiteManager.Add"/>: el sitio y si es nuevo y si se creó su carpeta.</summary>
-public sealed record SiteChange(Site Site, bool Created, bool FolderCreated);
+public sealed record SiteChange(Site Site, bool Created, bool FolderCreated)
+{
+    /// <summary>Sitios avanzados (C11): lo que se ha leído del <c>.roost.toml</c> de la carpeta; null si no tiene.</summary>
+    public ProjectSettings? Project { get; init; }
+}
 
 /// <summary>
 /// Dar de alta y de baja sitios, como <c>roost site add / remove</c> (los usan la CLI y la app).
@@ -47,22 +51,47 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
     /// <c>public</c> si existe; si se da, pasa por <see cref="NormalizeRoot"/>. <paramref name="php"/>
     /// null: el que tenía; <c>"global"</c>: ninguno propio; si no, tiene que casar con un PHP de Roost.
     /// </summary>
-    public SiteChange Add(string name, string? folder = null, string? root = null, string? php = null)
+    public SiteChange Add(string name, string? folder = null, string? root = null, string? php = null) =>
+        AddCore(name, folder, root, php, parkedIn: null);
+
+    /// <summary>
+    /// <see cref="Add(string, string?, string?, string?)"/> con lo que no se pide a mano: lo del
+    /// <c>.roost.toml</c> de la carpeta (C11) vale cuando no se dice otra cosa (lo de los argumentos
+    /// manda) y <paramref name="parkedIn"/> es la carpeta aparcada de la que sale (C3).
+    /// </summary>
+    private SiteChange AddCore(string name, string? folder, string? root, string? php, string? parkedIn)
     {
         name = name.Trim().ToLowerInvariant();
         if (!Site.IsValidName(name))
             throw new RoostException($"'{name}' no vale como nombre de sitio: usa minusculas, numeros y guiones (por ejemplo tienda o mi-blog).");
 
-        var existing = Registry.Find(name);
+        var all = Registry.Load();
+        var existing = all.FirstOrDefault(s => s.Name == name);
+        if (SiteAliases.WhyNotName(name, all) is { } taken)
+            throw new RoostException(taken);
         // Una carpeta en relativo es relativa a la www, no a donde se ejecute el comando.
         var dir = folder is { } f ? Path.GetFullPath(f, paths.Www) : existing?.Folder ?? Path.Combine(paths.Www, name);
         var sameFolder = existing is not null && SamePath(existing.Folder, dir);
+
+        // El .roost.toml del proyecto: lo que diga vale salvo que se pida otra cosa.
+        var project = Directory.Exists(dir) ? ProjectFile.Read(dir) : null;
+        php ??= project?.Php;
+        root ??= project?.Root;
 
         var sitePhp = php is { } wanted
             ? (wanted.Equals("global", StringComparison.OrdinalIgnoreCase) ? null : wanted)
             : existing?.Php;
         if (sitePhp is not null && PhpInstaller.Match(new PhpInstaller(paths).ListInstalled(), sitePhp).Count == 0)
-            throw new RoostException($"No hay ningun PHP de Roost que case con '{sitePhp}'. Instalalo: roost php install {sitePhp}");
+            throw new RoostException($"No hay ningun PHP de Roost que case con '{sitePhp}'{(project?.Php == sitePhp ? $" (lo pide {ProjectFile.PathIn(dir)})" : "")}. Instalalo: roost php install {sitePhp}");
+
+        var database = project?.Db ?? existing?.Database;
+        if (database is not null && (!DbAdmin.IsValidName(database) || DbAdmin.SystemSchemas.Contains(database)))
+            throw new RoostException($"'{database}' no vale como base de datos de un sitio ({ProjectFile.PathIn(dir)}): usa solo letras, numeros y _ (hasta 64), y ninguna del sistema.");
+
+        // Los alias van con el nombre (los del .roost.toml mandan), validados contra los demás sitios.
+        var aliases = project?.Aliases is { } wantedAliases
+            ? ValidAliases(new Site { Name = name, Folder = dir }, wantedAliases, all, ProjectFile.PathIn(dir))
+            : existing?.Aliases;
 
         // Una raíz pedida se valida antes de crear nada: si no vale, no queda ni carpeta ni registro.
         var webRoot = root is not null ? NormalizeRoot(dir, root) : null;
@@ -81,10 +110,21 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
             webRoot = sameFolder ? existing!.Root : (Directory.Exists(Path.Combine(dir, "public")) ? "public" : null);
 
         // El repositorio del que vino el sitio va con su carpeta: si la carpeta cambia, ya no es ese checkout.
-        var site = new Site { Name = name, Folder = dir, Root = webRoot, Php = sitePhp, Database = existing?.Database, Git = sameFolder ? existing!.Git : null };
+        // Lo mismo lo aparcado: dado de alta a mano en otra carpeta, ya no es de la carpeta aparcada.
+        var site = new Site
+        {
+            Name = name,
+            Folder = dir,
+            Root = webRoot,
+            Php = sitePhp,
+            Database = database,
+            Git = sameFolder ? existing!.Git : null,
+            Aliases = aliases is { Count: > 0 } ? aliases : null,
+            ParkedIn = parkedIn ?? (sameFolder ? existing!.ParkedIn : null),
+        };
         Registry.Upsert(site);
         new LocalCa(paths).LoadOrCreate();
-        return new SiteChange(site, existing is null, folderCreated);
+        return new SiteChange(site, existing is null, folderCreated) { Project = project };
     }
 
     /// <summary>
@@ -99,6 +139,7 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
             ?? throw new RoostException($"No hay ningun sitio '{name}'. Mira los registrados con: roost site list");
         var changed = site with { Root = NormalizeRoot(site.Folder, root) };
         Registry.Upsert(changed);
+        KeepProjectFile(changed, ProjectKeys.Root);
         return changed;
     }
 
@@ -116,6 +157,7 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
             throw new RoostException($"'{database}' no vale como base de datos de un sitio: usa solo letras, numeros y _ (hasta 64), y ninguna del sistema.");
         var changed = site with { Database = database };
         Registry.Upsert(changed);
+        KeepProjectFile(changed, ProjectKeys.Db);
         return changed;
     }
 
@@ -184,8 +226,12 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
     public bool SyncHosts(string helperExe)
     {
         if (RoostConfig.Load(paths.ConfigFile).UsesLocalDns) return false;
-        return new HostsUpdater().Sync(Registry.Load().Select(s => s.Host), helperExe, HostsRequestFile);
+        return new HostsUpdater().Sync(HostNames(Registry.Load()), helperExe, HostsRequestFile);
     }
+
+    /// <summary>Lo que va en el bloque del hosts: cada sitio, sus alias y sus subdominios con nombre (C7).</summary>
+    public static IReadOnlyList<string> HostNames(IEnumerable<Site> sites) =>
+        sites.SelectMany(s => s.HostNames).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
 
     /// <summary>Acepta <c>tienda</c> y <c>tienda.test</c>, en cualquier caja.</summary>
     private static string NormalizeName(string name)

@@ -30,6 +30,9 @@ public sealed partial class SiteRow(Site site) : ObservableObject
 
     /// <summary>Con el DNS local, el nombre resuelve sin estar en el hosts.</summary>
     public required bool ByDns { get; init; }
+
+    /// <summary>Sitios avanzados (C3): sale de una carpeta aparcada.</summary>
+    public bool IsParked => Site.ParkedIn is not null;
     public string Hosts => ByDns ? "DNS" : InHosts ? "sí" : "no";
     public Tone HostsTone => ByDns || InHosts ? Tone.Ok : Tone.Warn;
 
@@ -157,10 +160,12 @@ public sealed partial class SitesViewModel : PageViewModel
                 PhpName = phpName,
                 Cert = cert,
                 CertTone = certTone,
-                InHosts = inHosts.Contains(site.Host),
+                // Sitios avanzados (C7): también sus alias y subdominios.
+                InHosts = site.HostNames.All(inHosts.Contains),
                 ByDns = config.UsesLocalDns,
             };
         }).ToList();
+        BuildAdvanced(sites, config, inHosts);
 
         // Las opciones de PHP: el global y cada instalación (por su rama si es la mejor de ella).
         var options = new List<PhpOption> { new($"Global (ahora {global?.Version?.ToString() ?? "ninguno"})", null) };
@@ -206,11 +211,12 @@ public sealed partial class SitesViewModel : PageViewModel
         var http = config.HttpPort == 80 ? $"http://{site.Host}" : $"http://{site.Host}:{config.HttpPort}";
         Urls = StackPlanner.SiteUrl(site, config.HttpsPort).TrimEnd('/') + Environment.NewLine + http;
         RootText = RootLabel(site);
-        CertDetail = $"Roost Local CA · {site.Host}, *.{site.Host}";
+        CertDetail = $"Roost Local CA · {string.Join(", ", SiteAliases.CertNames(site))}";
         ConfPath = new SiteManager(paths).ConfFile(site, config);
         PickDatabase(site, config);
         PickComposer(site);
         PickNode(site);
+        PickAdvanced(site);
 
         // La carpeta o la raíz web pueden haber desaparecido desde que se registró el sitio.
         var folderExists = Directory.Exists(site.Folder);
@@ -302,10 +308,17 @@ public sealed partial class SitesViewModel : PageViewModel
         await Main.RunAsync($"No se pudo cambiar el PHP de {row.Host}", async () =>
         {
             var registry = new SiteRegistry(Main.App.Paths);
+            var sites = new SiteManager(Main.App.Paths);
             registry.Upsert(row.Site with { Php = option.Spec });
+            // Sitios avanzados (C11): con .roost.toml, también ahí (si no, el siguiente up lo desharía).
+            sites.KeepProjectFile(row.Site with { Php = option.Spec }, ProjectKeys.Php);
             applied = await Main.ApplyAsync();
             // El rearranque no fue (el diálogo ya lo ha contado): el registro vuelve a como estaba.
-            if (!applied) registry.Upsert(row.Site);
+            if (!applied)
+            {
+                registry.Upsert(row.Site);
+                sites.KeepProjectFile(row.Site, ProjectKeys.Php);
+            }
         });
         Main.NotifyConfigChanged();
         if (applied) Main.Flash(Main.Stack.IsRunning ? $"{row.Host} usa ahora PHP {label}" : $"{row.Host} usará PHP {label} al iniciar");
@@ -446,7 +459,11 @@ public sealed partial class SitesViewModel : PageViewModel
     {
         var paths = Main.App.Paths;
         var sites = new SiteManager(paths);
-        var change = sites.Add(request.Name, request.Folder, request.Root, request.Php ?? "global");
+        // Sitios avanzados (C11): con «Global» y un .roost.toml que pide PHP, manda el del proyecto.
+        var projectPhp = false;
+        try { projectPhp = request.Php is null && request.Folder is { } folder && Directory.Exists(folder) && ProjectFile.Read(folder)?.Php is not null; }
+        catch (RoostException) { /* Add dirá qué le pasa al fichero */ }
+        var change = sites.Add(request.Name, request.Folder, request.Root, request.Php ?? (projectPhp ? null : "global"));
         // La base de datos elegida (nueva o una que ya existe) queda como la del sitio, para su panel.
         if (request.Database is { } chosen) change = change with { Site = sites.SetDatabase(change.Site.Name, chosen) };
         var host = change.Site.Host;

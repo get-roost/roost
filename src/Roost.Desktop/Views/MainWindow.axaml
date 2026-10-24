@@ -80,6 +80,9 @@
     <!-- BD-2 -->
     <DataTemplate DataType="vm:DbTransferDialogViewModel"><v:DbTransferDialogView /></DataTemplate>
     <DataTemplate DataType="vm:DbImportDialogViewModel"><v:DbImportDialogView /></DataTemplate>
+    <!-- Sitios avanzados -->
+    <DataTemplate DataType="vm:EditSiteDialogViewModel"><v:EditSiteDialogView /></DataTemplate>
+    <DataTemplate DataType="vm:SiteAliasesDialogViewModel"><v:SiteAliasesDialogView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="40,*,28">

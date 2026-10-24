@@ -273,7 +273,40 @@ app.Configure(config =>
             .WithExample("site", "setup", "tienda", "--yes")
             .WithExample("site", "setup", "tienda", "--steps", "env,key", "--yes")
             .WithExample("site", "setup", "tienda", "--json");
+
+        // Sitios avanzados (oleada 6): renombrar, mover, alias y el hosts.
+        site.AddCommand<SiteRenameCommand>("rename")
+            .WithDescription("Cambia el nombre de un sitio (vhost, certificado, hosts, subdominios, git y registros). Su base de datos se queda, o con --db copy se copia al nombre nuevo (la de antes no se borra).")
+            .WithExample("site", "rename", "tienda", "shop")
+            .WithExample("site", "rename", "tienda", "shop", "--db", "copy");
+
+        site.AddCommand<SiteMoveCommand>("move")
+            .WithDescription("El sitio pasa a servirse desde otra carpeta: solo apunta a una que ya existe o, con --move-files, mueve alli la del proyecto.")
+            .WithExample("site", "move", "tienda", "C:\\proyectos\\tienda")
+            .WithExample("site", "move", "tienda", "D:\\web\\tienda", "--move-files");
+
+        site.AddCommand<SiteAliasCommand>("alias")
+            .WithDescription("Los alias de un sitio (otros nombres .test) y sus subdominios con nombre: en el vhost, el certificado y el hosts. Sin accion, los lista.")
+            .WithExample("site", "alias", "tienda")
+            .WithExample("site", "alias", "tienda", "add", "tienda-alias.test")
+            .WithExample("site", "alias", "tienda", "add", "api.tienda.test")
+            .WithExample("site", "alias", "tienda", "remove", "api.tienda.test");
+
+        site.AddCommand<SiteHostsCommand>("hosts")
+            .WithDescription("Deja en el hosts los nombres de todos los sitios (pide permiso de administrador una vez, y solo si cambia).")
+            .WithExample("site", "hosts");
     });
+
+    // Sitios avanzados (oleada 6): carpetas aparcadas, como el valet park de Valet.
+    config.AddCommand<ParkCommand>("park")
+        .WithDescription("Aparca una carpeta: cada subcarpeta es un sitio <subcarpeta>.test (con su .roost.toml, si tiene). Con la app o el stack en marcha, las nuevas entran solas y las borradas se quitan.")
+        .WithExample("park", "C:\\proyectos");
+    config.AddCommand<UnparkCommand>("unpark")
+        .WithDescription("Deja de aparcar una carpeta y quita sus sitios. Las carpetas no se tocan.")
+        .WithExample("unpark", "C:\\proyectos");
+    config.AddCommand<ParkedCommand>("parked")
+        .WithDescription("Las carpetas aparcadas y sus sitios.")
+        .WithExample("parked");
 
     // Pasos y plantillas (oleada 4): un proyecto nuevo con una plantilla.
     config.AddCommand<NewCommand>("new")

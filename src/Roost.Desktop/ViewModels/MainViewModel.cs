@@ -201,6 +201,7 @@ public sealed partial class MainViewModel : ObservableObject
         _ = Updates.AutoCheckAsync();
         _updatePoll.Start();
         Sites.StartGitChecks();   // Git-app: las novedades de los sitios de git, cada N minutos
+        Sites.StartParkWatch();   // Sitios avanzados: .roost.toml y carpetas aparcadas al abrir, y su vigilante
         await Current.ShownAsync();
         if (App.Prefs.StartStackOnLaunch && !Stack.IsRunning)
             await StartStackAsync();
@@ -228,9 +229,10 @@ public sealed partial class MainViewModel : ObservableObject
                 HostsText = Roost.Core.Dns.LocalDns.IsRuleInstalled() ? "DNS local" : "DNS local: falta la regla";
                 return;
             }
-            var hosts = new SiteRegistry(App.Paths).Load().Select(s => s.Host).ToList();
+            var sites = new SiteRegistry(App.Paths).Load();
+            var hosts = SiteManager.HostNames(sites);   // con sus alias (C7)
             HostsText = hosts.Count == 0 ? "hosts: sin sitios"
-                : new HostsUpdater().InSync(hosts) ? $"hosts: {hosts.Count} sitio{(hosts.Count == 1 ? "" : "s")}"
+                : new HostsUpdater().InSync(hosts) ? $"hosts: {sites.Count} sitio{(sites.Count == 1 ? "" : "s")}"
                 : "hosts: sin sincronizar";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or RoostException)

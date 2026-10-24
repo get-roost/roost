@@ -34,7 +34,8 @@ internal static class SiteSupport
         }
 
         var hosts = new HostsUpdater();
-        var names = sites.Select(s => s.Host).ToList();
+        // Cada sitio, sus alias y sus subdominios con nombre (C7).
+        var names = SiteManager.HostNames(sites);
         if (hosts.InSync(names))
         {
             AnsiConsole.MarkupLineInterpolated($"[grey]hosts al dia ({hosts.HostsFile})[/]");
@@ -77,6 +78,10 @@ public sealed class SiteAddCommand : AsyncCommand<SiteAddCommand.Settings>
         [CommandOption("--php <VERSION>")]
         [Description("PHP del sitio (rama, version o instalacion), o global para volver al PHP global. Por defecto, el global.")]
         public string? Php { get; init; }
+
+        [CommandOption("--save")]
+        [Description("Guarda el PHP, la raiz, la base de datos y los alias del sitio en el .roost.toml de la carpeta (lo crea si no existe), para versionarlo con el proyecto.")]
+        public bool Save { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
@@ -95,7 +100,16 @@ public sealed class SiteAddCommand : AsyncCommand<SiteAddCommand.Settings>
             var site = change.Site;
             if (change.FolderCreated)
                 AnsiConsole.MarkupLineInterpolated($"[grey]Carpeta creada: {site.Folder}[/]");
+            if (change.Project is { IsEmpty: false })
+                AnsiConsole.MarkupLineInterpolated($"[grey]Lee {ProjectFile.PathIn(site.Folder)}[/]");
             AnsiConsole.MarkupLineInterpolated($"[green]{(change.Created ? "Sitio registrado" : "Sitio actualizado")}:[/] [bold]{site.Host}[/] -> {site.DocumentRoot} [grey](PHP {site.Php ?? "global"})[/]");
+            if (site.Aliases is { Count: > 0 } aliases)
+                AnsiConsole.MarkupLineInterpolated($"[grey]Alias: {string.Join(", ", aliases)}[/]");
+            // Lo que se ha pedido a mano tambien va al .roost.toml, si lo tiene (o si se pide --save).
+            if (settings.Save)
+                AnsiConsole.MarkupLineInterpolated($"[green]Guardado[/] en {sites.SaveProjectFile(site.Name)}");
+            else
+                sites.KeepProjectFile(site, (settings.Php is null ? ProjectKeys.None : ProjectKeys.Php) | (settings.Root is null ? ProjectKeys.None : ProjectKeys.Root));
 
             SiteSupport.SyncHosts(paths, sites.Registry.Load());
             SiteSupport.TrustHint(new LocalCa(paths));
@@ -305,7 +319,10 @@ public sealed class SiteListCommand : Command<SiteListCommand.Settings>
                     phpFixed = site.Php is not null,
                     database = SiteManager.DatabaseOf(site),
                     certExpires = expires,
-                    inHosts = inHosts.Contains(site.Host),
+                    inHosts = site.HostNames.All(inHosts.Contains),
+                    aliases = site.Aliases ?? [],
+                    parkedIn = site.ParkedIn,
+                    projectFile = ProjectFile.ExistsIn(site.Folder) ? ProjectFile.PathIn(site.Folder) : null,
                 };
             }).ToList();
 
@@ -326,8 +343,8 @@ public sealed class SiteListCommand : Command<SiteListCommand.Settings>
             foreach (var r in rows)
             {
                 table.AddRow(
-                    Markup.Escape(r.url),
-                    Markup.Escape(r.documentRoot),
+                    Markup.Escape(r.url) + string.Concat(r.aliases.Select(a => $"\n[grey]+ {Markup.Escape(a)}[/]")),
+                    Markup.Escape(r.documentRoot) + (r.parkedIn is null ? "" : "\n[grey](aparcado)[/]"),
                     Markup.Escape(r.php + (r.phpFixed ? "" : " (global)")),
                     r.certExpires is null ? "[grey]se emite en roost up[/]" : $"hasta {r.certExpires}",
                     config.UsesLocalDns ? "[green]DNS[/]" : r.inHosts ? "[green]si[/]" : "[red]no[/]");

@@ -18,6 +18,9 @@
       <Border Classes="card">
         <DockPanel>
           <Border DockPanel.Dock="Top" Classes="card-h"><TextBlock Classes="h2" Text="Ficheros" /></Border>
+          <!-- Sitios avanzados (C5): los registros de un solo sitio -->
+          <ComboBox DockPanel.Dock="Top" Margin="12,10,12,4" HorizontalAlignment="Stretch" ItemsSource="{Binding SiteFilters}" SelectedItem="{Binding SiteFilter}"
+                    AutomationProperties.Name="Registros de un sitio" ToolTip.Tip="Solo los registros (accesos y errores) de un sitio" />
           <ScrollViewer>
             <StackPanel>
               <TextBlock Classes="muted" Margin="16,12" TextWrapping="Wrap" Text="{Binding Empty}" IsVisible="{Binding HasEmpty}" />

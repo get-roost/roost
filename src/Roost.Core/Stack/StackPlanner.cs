@@ -326,7 +326,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
     /// <summary>nginx.conf, un .conf por sitio, <c>nginx -t</c> y su servicio.</summary>
     private ServiceDefinition PrepareNginx(RoostConfig config, InstalledNginx nginx, List<NginxUpstream> upstreams, List<SitePlan> sitePlans, LocalCa? ca)
     {
-        foreach (var dir in new[] { Path.Combine(paths.Etc, "nginx"), paths.NginxSites, Path.Combine(paths.Run, "nginx-temp") })
+        foreach (var dir in new[] { Path.Combine(paths.Etc, "nginx"), paths.NginxSites, Path.Combine(paths.Run, "nginx-temp"), SiteLogs.Directory(paths) })
             Directory.CreateDirectory(dir);
         RetireOrphanConfs(paths.NginxSites, sitePlans);
 
@@ -336,7 +336,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             var (certFile, keyFile) = ca!.EnsureSiteCert(plan.Site);
             var input = new SiteConf.Input(
                 plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort,
-                certFile, keyFile, nginx.FastCgiParams, Loopback.HasIpv6);
+                certFile, keyFile, nginx.FastCgiParams, Loopback.HasIpv6) { LogsDirectory = SiteLogs.Directory(paths) };
             var file = Path.Combine(paths.NginxSites, plan.Site.Name + ".conf");
             File.WriteAllText(file, File.Exists(file) ? SiteConf.Merge(File.ReadAllText(file), input, file) : SiteConf.RenderNew(input));
         }
@@ -375,7 +375,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
     /// </summary>
     private ServiceDefinition PrepareApache(RoostConfig config, InstalledApache apache, List<NginxUpstream> pools, List<SitePlan> sitePlans, LocalCa? ca)
     {
-        foreach (var dir in new[] { Path.Combine(paths.Etc, "apache"), paths.ApacheSites })
+        foreach (var dir in new[] { Path.Combine(paths.Etc, "apache"), paths.ApacheSites, SiteLogs.Directory(paths) })
             Directory.CreateDirectory(dir);
         RetireOrphanConfs(paths.ApacheSites, sitePlans);
 
@@ -383,7 +383,8 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         {
             var (certFile, keyFile) = ca!.EnsureSiteCert(plan.Site);
             var input = new ApacheSiteConf.Input(
-                plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort, certFile, keyFile, Loopback.HasIpv6);
+                plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort, certFile, keyFile, Loopback.HasIpv6)
+            { LogsDirectory = SiteLogs.Directory(paths) };
             var file = Path.Combine(paths.ApacheSites, plan.Site.Name + ".conf");
             File.WriteAllText(file, File.Exists(file) ? ApacheSiteConf.Merge(File.ReadAllText(file), input, file) : ApacheSiteConf.RenderNew(input));
         }
