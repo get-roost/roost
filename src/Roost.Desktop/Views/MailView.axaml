@@ -66,7 +66,8 @@
                 <StackPanel Spacing="6">
                   <TextBlock Classes="lbl" Text="Para tu .env (Laravel)" />
                   <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                    <Border Classes="field">
+                    <!-- Varias líneas: el campo crece con ellas (Height=NaN deshace el alto fijo de .field). -->
+                    <Border Classes="field" Height="NaN" Padding="10,7">
                       <SelectableTextBlock Classes="mono" Text="{Binding EnvText}" TextWrapping="Wrap" />
                     </Border>
                     <Button Grid.Column="1" Classes="icon" VerticalAlignment="Top" Command="{Binding CopyEnvCommand}" ToolTip.Tip="Copiar" AutomationProperties.Name="Copiar las variables del correo">
@@ -114,7 +115,7 @@
                   <ctl:Dot Tone="Ok" VerticalAlignment="Center" />
                   <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Classes="mono strong" Text="{Binding CatalogVersion}" />
-                    <TextBlock Classes="faint" Text="{Binding CatalogSha, StringFormat='Windows amd64 · SHA-256 {0}'}" />
+                    <TextBlock Classes="faint" Text="Windows amd64 · SHA-256 fijado" ToolTip.Tip="{Binding CatalogSha}" />
                   </StackPanel>
                   <ctl:Chip Grid.Column="2" Text="instalada" IsVisible="{Binding Installed}" />
                   <Button Grid.Column="2" Classes="sm" Content="Instalar" Command="{Binding InstallCommand}" IsVisible="{Binding NotInstalled}"

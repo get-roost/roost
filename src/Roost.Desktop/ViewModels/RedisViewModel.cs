@@ -21,6 +21,7 @@ public sealed partial class RedisViewModel : PageViewModel
     private RoostConfig _config = new();
     private InstalledRedis? _redis;
     private bool _loading;
+    private string? _shownPort;
 
     public RedisViewModel(MainViewModel main) : base(main)
     {
@@ -64,7 +65,7 @@ public sealed partial class RedisViewModel : PageViewModel
     public bool HasPing => PingText is not null;
     public bool NotInstalled => !Installed;
     public string CatalogVersion => RedisCatalog.Windows.Version;
-    public string CatalogSha => RedisCatalog.Windows.Sha256[..16] + "…";
+    public string CatalogSha => $"SHA-256 {RedisCatalog.Windows.Sha256}";
     public string ConfPath => RedisConf.ConfPath(Main.App.Paths);
     public string UserConfPath => RedisConf.UserFragmentPath(Main.App.Paths);
     public string DataPath => Main.App.Paths.RedisData;
@@ -121,7 +122,9 @@ public sealed partial class RedisViewModel : PageViewModel
         };
         (HeaderChip, HeaderTone) = (StateText, StateTone);
         EnvText = RedisConf.EnvLines(_config.RedisPort);
-        if (PortText.Length == 0) PortText = _config.RedisPort.ToString(CultureInfo.InvariantCulture);
+        // Lo tecleado se respeta; si no se ha tocado, sigue al de roost.toml (cambiado desde la CLI, por ejemplo).
+        if (PortText.Length == 0 || PortText == _shownPort) PortText = _config.RedisPort.ToString(CultureInfo.InvariantCulture);
+        _shownPort = _config.RedisPort.ToString(CultureInfo.InvariantCulture);
         CheckPort();
         BuildOthers();
     }
@@ -129,7 +132,7 @@ public sealed partial class RedisViewModel : PageViewModel
     private void BuildOthers() =>
         Others = Main.MachineServices.Found
             .Where(s => s.Kind == "Redis")
-            .Select(s => $"{s.DisplayName} ({s.Name}): {MachineServices.StateText(s).ToLowerInvariant()}. Roost no lo usa ni lo toca; si se queda el {_config.RedisPort}, cambia aquí el puerto o déjalo en Manual en Servicios de Windows.")
+            .Select(s => $"{s.DisplayName} ({s.Name}): {MachineServices.StateInSentence(s)}. Roost no lo usa ni lo toca; si se queda el {_config.RedisPort}, cambia aquí el puerto o déjalo en Manual en Servicios de Windows.")
             .ToList();
 
     private async Task PingAsync()

@@ -245,7 +245,7 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
         // Con la base de datos de Roost en otro puerto, ese servicio ya no le molesta a ella.
         var dbPort = _dbPort ?? config.DbPort;
         ServiceWarnings = _main.MachineServices.ConflictsWith(config with { DbPort = dbPort }, withSites: true, withDb: InstallDb || new DbInstaller(_main.App.Paths).ListInstalled().Count > 0)
-            .Select(c => $"{c.Service.DisplayName} ({c.Service.Name}): {Services.MachineServices.StateText(c.Service).ToLowerInvariant()} y suele usar el {string.Join(" y el ", c.Ports)}, "
+            .Select(c => $"{c.Service.DisplayName} ({c.Service.Name}): {Services.MachineServices.StateInSentence(c.Service)} y suele usar el {string.Join(" y el ", c.Ports)}, "
                          + $"{(c.Ports.Count == 1 ? "que es" : "que son")} {string.Join(" y ", c.Ports.Select(p => AuditViewModel.RoleOf(p, config with { DbPort = dbPort })))} de Roost. Déjalo en Manual en Servicios de Windows para que no se lo quede.")
             .ToList();
         Ready = true;

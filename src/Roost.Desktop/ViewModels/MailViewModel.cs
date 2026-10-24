@@ -21,6 +21,8 @@ public sealed partial class MailViewModel : PageViewModel
     private RoostConfig _config = new();
     private InstalledMailpit? _mailpit;
     private bool _loading;
+    private string? _shownSmtp;
+    private string? _shownWeb;
 
     public MailViewModel(MainViewModel main) : base(main)
     {
@@ -55,7 +57,7 @@ public sealed partial class MailViewModel : PageViewModel
 
     public bool NotInstalled => !Installed;
     public string CatalogVersion => MailpitCatalog.Windows.Version;
-    public string CatalogSha => MailpitCatalog.Windows.Sha256[..16] + "…";
+    public string CatalogSha => $"SHA-256 {MailpitCatalog.Windows.Sha256}";
     public string DataPath => Main.App.Paths.MailpitData;
     public string PhpIniPath => Path.Combine(Main.App.Paths.Etc, "php", "conf.d", MailConf.PhpIniName);
 
@@ -107,8 +109,12 @@ public sealed partial class MailViewModel : PageViewModel
             ? ($"mail() de PHP va a Mailpit (SMTP 127.0.0.1:{_config.MailSmtpPort}), en todas las versiones y también en la terminal.", Tone.Ok)
             : _config.MailEnabled ? ("mail() de PHP irá a Mailpit en cuanto arranque el stack.", Tone.Accent)
             : ("Con Mailpit fuera del stack, mail() de PHP vuelve a como venía (en Windows, sin servidor de correo, falla).", Tone.Neutral);
-        if (SmtpText.Length == 0) SmtpText = _config.MailSmtpPort.ToString(CultureInfo.InvariantCulture);
-        if (WebText.Length == 0) WebText = _config.MailWebPort.ToString(CultureInfo.InvariantCulture);
+        // Lo tecleado se respeta; si no se ha tocado, sigue a roost.toml (cambiado desde la CLI, por ejemplo).
+        var smtp = _config.MailSmtpPort.ToString(CultureInfo.InvariantCulture);
+        var web = _config.MailWebPort.ToString(CultureInfo.InvariantCulture);
+        if (SmtpText.Length == 0 || SmtpText == _shownSmtp) SmtpText = smtp;
+        if (WebText.Length == 0 || WebText == _shownWeb) WebText = web;
+        (_shownSmtp, _shownWeb) = (smtp, web);
         CheckPorts();
     }
 

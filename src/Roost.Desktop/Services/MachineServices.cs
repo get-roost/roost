@@ -57,7 +57,7 @@ public sealed partial class MachineServices : ObservableObject
     /// <summary>«Servicios» de Windows (services.msc), donde el usuario los deja en Manual.</summary>
     public static void OpenServicesPanel() => Shell.OpenUrl("services.msc");
 
-    /// <summary>«arranca con Windows y está en marcha»: el estado, con tildes, para la app.</summary>
+    /// <summary>«Arranca con Windows y está en marcha»: el estado, con tildes, para la app.</summary>
     public static string StateText(WindowsService service) => (service.StartsWithWindows, service.Running) switch
     {
         (true, true) => "Arranca con Windows y está en marcha",
@@ -65,4 +65,11 @@ public sealed partial class MachineServices : ObservableObject
         (false, true) => "Está en marcha",
         _ => service.Start == ServiceStartMode.Disabled ? "Deshabilitado" : "Manual y parado",
     };
+
+    /// <summary>El mismo estado para ir en medio de una frase («…: arranca con Windows…»).</summary>
+    public static string StateInSentence(WindowsService service)
+    {
+        var text = StateText(service);
+        return char.ToLowerInvariant(text[0]) + text[1..];
+    }
 }
