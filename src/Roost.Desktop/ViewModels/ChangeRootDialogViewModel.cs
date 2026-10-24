@@ -282,6 +282,10 @@ public sealed partial class ChangeRootDialogViewModel : DialogViewModel
             pointed = true;
             // El roost.toml y la caché se quedan donde estaban (con ROOST_HOME, en su carpeta).
             var moved = new RoostPaths(target, paths.Cache, Path.GetDirectoryName(Path.GetFullPath(paths.ConfigFile)));
+            // Empezando de cero, las preferencias de la app (tema, programas, bandeja) siguen siendo
+            // las mismas; la bienvenida, sí, se vuelve a ofrecer (no hay PHP).
+            if (!move && !File.Exists(DesktopPrefs.FilePath(moved)))
+                (_main.App.Prefs with { WelcomeDone = false }).Save(moved);
             var sites = move ? RootMover.Rebase(moved, From, target) : 0;
             if (move) AuditHistory.Rebase(moved, From, target);   // los PHP de Roost cambian de ruta: no son «nuevos»
             FixShims(paths, moved, move);

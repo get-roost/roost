@@ -504,7 +504,11 @@ public class AjustesSistemaTests
         await dialog.StartCommand.ExecuteAsync(null);
         Assert.True(dialog.Done);
         Assert.True(Directory.Exists(target));
-        Assert.Equal(["state"], Directory.EnumerateFileSystemEntries(target).Select(Path.GetFileName));   // solo el marcador
+        Assert.Equal(["state"], Directory.EnumerateFileSystemEntries(target).Select(Path.GetFileName));   // el marcador y las preferencias
+        // Las preferencias de la app pasan (tema, programas…), pero la bienvenida se vuelve a ofrecer: no hay PHP.
+        var prefs = DesktopPrefs.Load(new Roost.Core.Platform.RoostPaths(target, fake.Paths.Cache));
+        Assert.True(File.Exists(Path.Combine(target, "state", "desktop.json")));
+        Assert.False(prefs.WelcomeDone);
         Assert.Equal(target, Roost.Core.Config.RoostConfig.ReadRoot(fake.Paths.ConfigFile));
         Assert.True(File.Exists(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe")));   // la de antes, intacta
         Assert.StartsWith($"Roost usará {target}", dialog.ResultText);
