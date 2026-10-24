@@ -38,8 +38,10 @@ public sealed class ShimsInstallCommand : Command<EmptyCommandSettings>
             else
                 AnsiConsole.MarkupLine("[grey]El PATH del usuario ya lo tenia.[/]");
 
-            ShimSupport.WarnAboutShadowing(shims.Directory);
+            foreach (var tool in ShimInstaller.Tools) ShimSupport.WarnAboutShadowing(shims.Directory, tool);
             AnsiConsole.MarkupLine("[grey]Para fijar un PHP en un proyecto: roost php use 7.4 --here (escribe un .php-version).[/]");
+            if (Roost.Core.Composer.ComposerTool.Locate(paths) is null)
+                AnsiConsole.MarkupLine("[grey]composer necesita el Composer de Roost: roost composer install (la app lo instala sola la primera vez).[/]");
             return 0;
         }
         catch (RoostException ex)
@@ -80,13 +82,18 @@ public sealed class ShimsStatusCommand : Command<EmptyCommandSettings>
     {
         var paths = RoostPaths.Default();
         var shims = new ShimInstaller(paths);
-        AnsiConsole.MarkupLineInterpolated($"Shims: {(shims.IsInstalled ? "[green]puestos[/]" : "[yellow]no puestos[/]")} [grey]({shims.Directory})[/]");
+        var tools = ShimInstaller.Tools.Where(shims.Has).ToList();
+        AnsiConsole.MarkupLineInterpolated($"Shims: {(shims.IsInstalled ? "[green]puestos[/]" : "[yellow]no puestos[/]")} [grey]({shims.Directory}{(tools.Count > 0 ? ": " + string.Join(", ", tools) : "")})[/]");
+        if (shims.IsInstalled && !shims.Has("composer"))
+            AnsiConsole.MarkupLine("[yellow]Falta el de composer[/] (son de una version anterior de Roost): [grey]roost composer install lo anade, o roost shims install los pone de nuevo.[/]");
         if (OperatingSystem.IsWindows())
         {
             var inPath = UserPath.Contains(UserPath.Read(), shims.Directory);
             AnsiConsole.MarkupLineInterpolated($"PATH del usuario: {(inPath ? "[green]la incluye[/]" : "[yellow]no la incluye[/]")}");
-            if (shims.IsInstalled) ShimSupport.WarnAboutShadowing(shims.Directory);
+            foreach (var tool in tools) ShimSupport.WarnAboutShadowing(shims.Directory, tool);
         }
+        if (shims.Has("composer") && Roost.Core.Composer.ComposerTool.Locate(paths) is null)
+            AnsiConsole.MarkupLine("[grey]El shim de composer necesita el Composer de Roost: roost composer install[/]");
         if (!shims.IsInstalled) AnsiConsole.MarkupLine("[grey]Para ponerlos: roost shims install[/]");
         return 0;
     }
@@ -124,18 +131,25 @@ public sealed class PhpWhichCommand : Command<PhpWhichCommand.Settings>
 internal static class ShimSupport
 {
     /// <summary>
-    /// Windows pone el PATH del sistema antes que el del usuario: un php.exe que esté en el del
-    /// sistema (Laragon, XAMPP...) gana al shim. Roost no puede cambiar eso sin ser administrador:
-    /// lo dice.
+    /// Windows pone el PATH del sistema antes que el del usuario: un php.exe (Laragon, XAMPP...) o un
+    /// composer.bat (ComposerSetup) que esté en el del sistema gana al shim. Roost no puede cambiar
+    /// eso sin ser administrador: lo dice, con qué hacer.
     /// </summary>
-    public static void WarnAboutShadowing(string shimDirectory)
+    public static void WarnAboutShadowing(string shimDirectory, string tool = "php")
     {
-        var machine = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.Machine) ?? "";
-        var before = machine.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(Environment.ExpandEnvironmentVariables)
-            .FirstOrDefault(dir => File.Exists(Path.Combine(dir, "php.exe")));
-        if (before is null) return;
-        AnsiConsole.MarkupLineInterpolated($"[yellow]Ojo:[/] {Path.Combine(before, "php.exe")} esta en el PATH del sistema, que Windows mira antes que el del usuario.");
-        AnsiConsole.MarkupLineInterpolated($"[yellow]Ese php ganara al de Roost.[/] Quitalo del PATH del sistema (hace falta ser administrador) o pon {shimDirectory} delante en el del sistema.");
+        if (ShimShadowing.Find(tool, shimDirectory) is not { } shadow) return;
+        if (!shadow.InSystemPath)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[yellow]Ojo:[/] {shadow.Path} esta en el PATH de tu usuario antes que los shims: ese {tool} ganara al de Roost.");
+            AnsiConsole.MarkupLine("[grey]roost shims install vuelve a poner los shims los primeros.[/]");
+            return;
+        }
+
+        AnsiConsole.MarkupLineInterpolated($"[yellow]Ojo:[/] {shadow.Path} esta en el PATH del sistema, que Windows mira antes que el del usuario.");
+        if (tool == "composer" && shadow.Path.Contains("ComposerSetup", StringComparison.OrdinalIgnoreCase))
+            AnsiConsole.MarkupLine("[yellow]Es el de Composer-Setup y ganara al de Roost.[/] Desinstalalo (Configuracion > Aplicaciones > Composer) o quita su carpeta del PATH del sistema (hace falta ser administrador); tu cache y tu auth.json se quedan.");
+        else
+            AnsiConsole.MarkupLineInterpolated($"[yellow]Ese {tool} ganara al de Roost.[/] Quita su carpeta del PATH del sistema (hace falta ser administrador) o pon {shimDirectory} delante en el del sistema.");
+        AnsiConsole.MarkupLineInterpolated($"[grey]Mientras tanto, el de Roost se puede llamar por su ruta: {Path.Combine(shimDirectory, tool + ".exe")}[/]");
     }
 }

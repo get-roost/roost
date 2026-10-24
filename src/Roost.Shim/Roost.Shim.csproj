@@ -2,8 +2,9 @@
 
   <!--
     roost-shim: el `php` de la terminal (ROOST.md §5.9). `roost shims install` lo copia como
-    bin/shims/php.exe; en cada llamada decide qué PHP toca en esa carpeta (TerminalPhp, en Core)
-    y lo ejecuta con los mismos argumentos. Para las releases se publica con NativeAOT: un solo
+    bin/shims/php.exe y bin/shims/composer.exe; en cada llamada decide qué PHP toca en esa carpeta
+    (TerminalPhp, en Core) y lo ejecuta con los mismos argumentos (como composer, delante va el
+    composer.phar de Roost). Para las releases se publica con NativeAOT: un solo
     ejecutable que arranca en milisegundos. En una compilación normal funciona igual, con su dll.
   -->
   <PropertyGroup>

@@ -6,20 +6,61 @@ namespace Roost.Core.Shims;
 
 /// <summary>
 /// Pone y quita los shims en <see cref="RoostPaths.Shims"/>. El shim es <c>roost-shim.exe</c>
-/// (va junto a <c>roost.exe</c>) copiado como <c>php.exe</c>. Publicado con NativeAOT es un solo
-/// fichero; en una compilación normal lleva al lado su dll y sus dependencias, y se copian también.
-/// Se cambia la carpeta entera de una vez: si un <c>php.exe</c> está en uso, falla sin tocar nada.
+/// (va junto a <c>roost.exe</c>) copiado como <c>php.exe</c> y como <c>composer.exe</c>. Publicado
+/// con NativeAOT es un solo fichero; en una compilación normal lleva al lado su dll y sus
+/// dependencias, y se copian también. Se cambia la carpeta entera de una vez: si un <c>php.exe</c>
+/// está en uso, falla sin tocar nada.
 /// </summary>
 public sealed class ShimInstaller(RoostPaths paths)
 {
     public const string ShimName = "roost-shim";
 
-    /// <summary>Los nombres con los que se instala el shim (decide qué ejecutar por su propio nombre).</summary>
-    public static readonly IReadOnlyList<string> Tools = ["php"];
+    /// <summary>
+    /// Los nombres con los que se instala el shim (decide qué ejecutar por su propio nombre):
+    /// <c>php</c> y <c>composer</c>, que es <c>php composer.phar</c> con el PHP de la carpeta.
+    /// </summary>
+    public static readonly IReadOnlyList<string> Tools = ["php", "composer"];
 
     public string Directory => paths.Shims;
 
     public bool IsInstalled => File.Exists(Path.Combine(Directory, "php.exe")) || File.Exists(Path.Combine(Directory, "php"));
+
+    /// <summary>El fichero de un shim (<c>composer.exe</c> en Windows).</summary>
+    public string ToolPath(string tool) => Path.Combine(Directory, OperatingSystem.IsWindows() ? tool + ".exe" : tool);
+
+    /// <summary>true si el shim de <paramref name="tool"/> está puesto.</summary>
+    public bool Has(string tool) => File.Exists(ToolPath(tool));
+
+    /// <summary>
+    /// Con los shims ya puestos, añade los que falten (los de una versión de Roost anterior no
+    /// tenían <c>composer</c>) sin tocar los demás ni el PATH. Sin shims puestos no hace nada: ponerlos
+    /// es decisión del usuario (<c>roost shims install</c>). Devuelve los que ha añadido.
+    /// </summary>
+    public IReadOnlyList<string> AddMissing(string sourceDirectory)
+    {
+        if (!IsInstalled) return [];
+        var missing = Tools.Where(tool => !Has(tool)).ToList();
+        if (missing.Count == 0) return [];
+
+        var exe = Path.Combine(sourceDirectory, OperatingSystem.IsWindows() ? ShimName + ".exe" : ShimName);
+        if (!File.Exists(exe))
+            throw new RoostException($"No se encuentra {exe}, que es el shim. Vuelve a instalar Roost.");
+        try
+        {
+            foreach (var tool in missing) File.Copy(exe, ToolPath(tool));
+            // En una compilación normal, el shim necesita su dll al lado (con NativeAOT no hay ninguna).
+            foreach (var file in Companions(sourceDirectory))
+            {
+                var target = Path.Combine(Directory, file);
+                if (!File.Exists(target)) File.Copy(Path.Combine(sourceDirectory, file), target);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new RoostException($"No se pudo poner el shim en {Directory}: {ex.Message}");
+        }
+        return missing;
+    }
 
     /// <summary>Copia el shim de <paramref name="sourceDirectory"/> (la carpeta de roost.exe).</summary>
     public void Install(string sourceDirectory)
