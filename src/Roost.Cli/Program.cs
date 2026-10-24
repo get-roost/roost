@@ -80,10 +80,10 @@ app.Configure(config =>
 
     config.AddBranch("shims", shims =>
     {
-        shims.SetDescription("El php de la terminal segun la carpeta del proyecto (de momento, solo en Windows).");
+        shims.SetDescription("php y composer en la terminal con el PHP de la carpeta del proyecto (de momento, solo en Windows).");
 
         shims.AddCommand<ShimsInstallCommand>("install")
-            .WithDescription("Pone el shim de php y su carpeta delante en el PATH de tu usuario (sin administrador).")
+            .WithDescription("Pone los shims de php y composer y su carpeta delante en el PATH de tu usuario (sin administrador).")
             .WithExample("shims", "install");
 
         shims.AddCommand<ShimsRemoveCommand>("remove")
@@ -91,7 +91,7 @@ app.Configure(config =>
             .WithExample("shims", "remove");
 
         shims.AddCommand<ShimsStatusCommand>("status")
-            .WithDescription("Si estan puestos y en el PATH, y si otro php del PATH del sistema les gana.")
+            .WithDescription("Si estan puestos y en el PATH, y si otro php o composer (el del PATH del sistema) les gana.")
             .WithExample("shims", "status");
     });
 
@@ -195,6 +195,12 @@ app.Configure(config =>
             .WithExample("site", "git", "tienda")
             .WithExample("site", "git", "tienda", "--check")
             .WithExample("site", "git", "legacy", "--adopt");
+
+        site.AddCommand<SiteComposerCommand>("composer")
+            .WithDescription("Composer en la carpeta de un sitio, con su PHP y el php.ini de Roost: install, update o require <paquete> (la primera vez instala Composer).")
+            .WithExample("site", "composer", "tienda", "install")
+            .WithExample("site", "composer", "tienda", "require", "monolog/monolog:^3")
+            .WithExample("site", "composer", "tienda", "require", "phpunit/phpunit", "--dev");
     });
 
     config.AddBranch("dns", dns =>
@@ -228,6 +234,20 @@ app.Configure(config =>
             .WithExample("git", "status", "--json");
     });
 
+    config.AddBranch("composer", composer =>
+    {
+        composer.SetDescription("El Composer de Roost: un composer.phar verificado en bin/composer, que se ejecuta con el PHP de cada carpeta (en la terminal, con el shim composer).");
+
+        composer.AddCommand<Roost.Cli.Commands.Composer.ComposerInstallCommand>("install")
+            .WithDescription("Descarga composer.phar de getcomposer.org, verifica su SHA-256 y lo instala en bin/composer (la app lo hace sola la primera vez).")
+            .WithExample("composer", "install");
+
+        composer.AddCommand<Roost.Cli.Commands.Composer.ComposerStatusCommand>("status")
+            .WithDescription("Que Composer usa Roost, con que PHP en esta carpeta, y si el shim composer esta puesto y otro le gana.")
+            .WithExample("composer", "status")
+            .WithExample("composer", "status", "--json");
+    });
+
     config.AddBranch("cert", cert =>
     {
         cert.SetDescription("La CA local que firma los certificados de los sitios .test.");
@@ -239,6 +259,11 @@ app.Configure(config =>
         cert.AddCommand<CertRenewCommand>("renew")
             .WithDescription("Vuelve a emitir el certificado de todos los sitios (roost up ya los renueva solo antes de caducar).")
             .WithExample("cert", "renew");
+
+        cert.AddCommand<CertPathCommand>("path")
+            .WithDescription("Las rutas del certificado y de la clave de un sitio (y de la CA), para servir en HTTPS el servidor de desarrollo de Vite u otro.")
+            .WithExample("cert", "path", "tienda")
+            .WithExample("cert", "path", "tienda", "--json");
     });
 
     config.AddCommand<UpCommand>("up")
