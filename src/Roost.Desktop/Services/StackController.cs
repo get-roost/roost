@@ -152,7 +152,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         if (server == RoostConfig.WebApache)
         {
             var installer = new ApacheInstaller(app.Paths, app.Http);
-            var build = ApacheCatalog.Windows;
+            var build = ApacheCatalog.Current;
             if (installer.Find(build) is not null) return;
             progress?.Report($"Instalando Apache {build.Version} (la primera vez)...");
             await installer.InstallAsync(build, new Progress<long>(b => progress?.Report($"Instalando Apache {build.Version}... {b / 1048576.0:0.0} MB")));
@@ -160,7 +160,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         else
         {
             var installer = new NginxInstaller(app.Paths, app.Http);
-            var build = NginxCatalog.Windows;
+            var build = NginxCatalog.Current;
             if (installer.Find(build) is not null) return;
             progress?.Report($"Instalando nginx {build.Version} (la primera vez)...");
             await installer.InstallAsync(build, new Progress<long>(b => progress?.Report($"Instalando nginx {build.Version}... {b / 1048576.0:0.0} MB")));

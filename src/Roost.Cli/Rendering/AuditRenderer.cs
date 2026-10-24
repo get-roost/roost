@@ -58,8 +58,8 @@ public static class AuditRenderer
             var c = f.Component;
             table.AddRow(
                 Dot(f.Color),
-                Markup.Escape(c.Kind.ToString()) + (c.IsOnPath ? " [green]*[/]" : ""),
-                Markup.Escape(c.Version.Raw),
+                Markup.Escape(ScanRenderer.KindTitle(c.Kind)) + (c.IsOnPath ? " [green]*[/]" : ""),
+                Markup.Escape(c.Version.ToString()),
                 VerdictMarkup(f),
                 Markup.Escape(c.Source),
                 Markup.Escape(f.Headline));
@@ -79,7 +79,7 @@ public static class AuditRenderer
     {
         var rows = new List<string>();
         var c = f.Component;
-        rows.Add($"[bold]{Markup.Escape(c.Kind.ToString())} {Markup.Escape(c.Version.Raw)}[/]  [grey]{Markup.Escape(c.ExecutablePath)}[/]");
+        rows.Add($"[bold]{Markup.Escape(ScanRenderer.KindTitle(c.Kind))} {Markup.Escape(c.Version.ToString())}[/]  [grey]{Markup.Escape(c.ExecutablePath)}[/]");
         rows.Add(Markup.Escape(f.Headline));
 
         foreach (var a in f.MatchedAdvisories)

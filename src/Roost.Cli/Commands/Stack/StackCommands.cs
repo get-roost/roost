@@ -24,7 +24,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("up")) return 1;
+        if (!PlatformGate.Require("up")) return 1;
 
         var paths = RoostPaths.Default();
         try
@@ -124,7 +124,7 @@ public sealed class DownCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check(context.Name)) return 1;
+        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is null)
         {
@@ -164,7 +164,7 @@ public sealed class RestartCommand : AsyncCommand<RestartCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check(context.Name)) return 1;
+        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is not { Running: true })
         {
@@ -199,7 +199,7 @@ public sealed class StopServiceCommand : AsyncCommand<ServiceSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, ServiceSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check(context.Name)) return 1;
+        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is not { Running: true })
         {
@@ -223,7 +223,7 @@ public sealed class StartServiceCommand : AsyncCommand<ServiceSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, ServiceSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check(context.Name)) return 1;
+        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is not { Running: true })
         {
@@ -254,7 +254,7 @@ public sealed class StatusCommand : AsyncCommand<StatusCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check(context.Name)) return 1;
+        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         var status = await client.TryStatusAsync(cancellation);
 

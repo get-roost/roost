@@ -189,6 +189,9 @@ public static class MariaDbCatalog
 /// </summary>
 public static class MySqlCatalog
 {
+    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
+    public static IReadOnlyList<DbBuild> Current => Windows;
+
     // Verificado el 22-oct-2026. 8.4.11 y 8.0.46: clave BCA4 3417 C3B4 85DD 128E C6D4 B7B3 B788 A8D3 785C
     // (RPM-GPG-KEY-mysql-2023). 5.7.44: clave 859B E8D7 C586 F538 430B 19C2 467B 942D 3A79 BD29 (RPM-GPG-KEY-mysql-2022).
     public static readonly IReadOnlyList<DbBuild> Windows =

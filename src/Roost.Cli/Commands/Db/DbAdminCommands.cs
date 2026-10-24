@@ -21,7 +21,7 @@ internal static class DbSession
         var status = await client.TryStatusAsync(cancellation);
         if (status is not { Running: true, Db: not null })
         {
-            AnsiConsole.MarkupLine("[red]La base de datos no esta en marcha.[/] Arranca el stack con: roost up");
+            AnsiConsole.MarkupLine("[red]La base de datos no esta en marcha.[/]" + PlatformGate.WindowsHint(" Arranca el stack con: roost up"));
             return null;
         }
 

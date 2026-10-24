@@ -21,11 +21,11 @@ public sealed class MailInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("mail install")) return 1;
+        if (!PlatformGate.Require("mail install")) return 1;
         var paths = RoostPaths.Default();
         try
         {
-            var build = MailpitCatalog.Windows;
+            var build = MailpitCatalog.Current;
             var installer = new MailpitInstaller(paths, RoostHttp.Client);
             var mailpit = installer.Find(build);
             if (mailpit is null)
@@ -48,7 +48,7 @@ public sealed class MailRemoveCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("mail remove")) return 1;
+        if (!PlatformGate.Require("mail remove")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -87,7 +87,7 @@ public sealed class MailEnableCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("mail " + context.Name)) return 1;
+        if (!PlatformGate.Require("mail " + context.Name)) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -122,7 +122,7 @@ public sealed class MailPortCommand : AsyncCommand<MailPortCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("mail port")) return 1;
+        if (!PlatformGate.Require("mail port")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -150,7 +150,7 @@ public sealed class MailOpenCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("mail open")) return 1;
+        if (!PlatformGate.Require("mail open")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -203,7 +203,7 @@ public sealed class MailStatusCommand : AsyncCommand<MailStatusCommand.Settings>
             return 1;
         }
 
-        var build = MailpitCatalog.Windows;
+        var build = MailpitCatalog.Current;
         var installer = new MailpitInstaller(paths);
         var mailpit = installer.Locate();
         var service = OperatingSystem.IsWindows() ? await ServiceSetup.ServiceAsync(paths, "mailpit", cancellation) : null;
@@ -231,7 +231,7 @@ public sealed class MailStatusCommand : AsyncCommand<MailStatusCommand.Settings>
 
         if (mailpit is null)
         {
-            AnsiConsole.MarkupLine("[yellow]Mailpit no esta instalado.[/] Instalalo (y ponlo en el stack) con: roost mail install");
+            AnsiConsole.MarkupLine("[yellow]Mailpit no esta instalado.[/]" + PlatformGate.WindowsHint(" Instalalo (y ponlo en el stack) con: roost mail install"));
             AnsiConsole.MarkupLineInterpolated($"[grey]Sera {build.Label} (SHA-256 {build.Sha256[..12]}...), en {paths.MailpitBin}. El correo de PHP se queda en su bandeja: no sale del equipo.[/]");
             return 0;
         }

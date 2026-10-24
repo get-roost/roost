@@ -21,7 +21,7 @@ internal static class WebServerSetup
         if (server == RoostConfig.WebApache)
         {
             var installer = new ApacheInstaller(paths, RoostHttp.Client);
-            var build = ApacheCatalog.Windows;
+            var build = ApacheCatalog.Current;
             if (installer.Find(build) is not null) return;
             // Apache de Apache Lounge no arranca sin el VC++ 14.50 o posterior: avisar antes, con el enlace.
             WarnVcRedist(forApache: true);
@@ -30,7 +30,7 @@ internal static class WebServerSetup
         else
         {
             var installer = new NginxInstaller(paths, RoostHttp.Client);
-            var build = NginxCatalog.Windows;
+            var build = NginxCatalog.Current;
             if (installer.Find(build) is not null) return;
             // nginx no lo necesita, pero el PHP que va a servir si.
             WarnVcRedist(forApache: false);
@@ -72,11 +72,7 @@ public sealed class WebUseCommand : AsyncCommand<WebUseCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            AnsiConsole.MarkupLine("[red]roost web solo funciona en Windows por ahora[/] (ROOST.md: fase 1, Windows primero).");
-            return 1;
-        }
+        if (!PlatformGate.Require("web use")) return 1;
         var server = settings.Server.Trim().ToLowerInvariant();
         if (server is not (RoostConfig.WebNginx or RoostConfig.WebApache))
         {

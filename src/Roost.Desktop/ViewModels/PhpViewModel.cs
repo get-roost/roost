@@ -186,7 +186,7 @@ public sealed partial class PhpViewModel : PageViewModel
         CatalogError = null;
         try
         {
-            _catalog = await WindowsPhpCatalog.FetchAsync(Main.App.Http);
+            _catalog = await PhpCatalog.FetchAsync(Main.App.Http);
             CatalogHint = $"windows.php.net · hoy {DateTime.Now:HH:mm}";
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or RoostException or System.Text.Json.JsonException)

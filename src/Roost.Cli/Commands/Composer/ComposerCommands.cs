@@ -92,7 +92,7 @@ public sealed class ComposerInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("composer install")) return 1;
+        if (!PlatformGate.Require("composer install")) return 1;
 
         var paths = RoostPaths.Default();
         try
@@ -182,7 +182,7 @@ public sealed class ComposerStatusCommand : AsyncCommand<ComposerStatusCommand.S
 
         if (composer is null)
         {
-            AnsiConsole.MarkupLine("[yellow]Composer no esta instalado.[/] Roost lo instala la primera vez que lo usas desde la app, o ahora con: roost composer install");
+            AnsiConsole.MarkupLine("[yellow]Composer no esta instalado.[/]" + PlatformGate.WindowsHint(" Roost lo instala la primera vez que lo usas desde la app, o ahora con: roost composer install"));
             AnsiConsole.MarkupLineInterpolated($"[grey]Sera {build.Label} (SHA-256 {build.Sha256[..12]}...), en {paths.ComposerBin}.[/]");
             return 0;
         }

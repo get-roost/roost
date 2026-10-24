@@ -35,7 +35,7 @@ public sealed partial class RedisViewModel : PageViewModel
     public override string Title => "Redis";
 
     [ObservableProperty] public partial bool Installed { get; private set; }
-    [ObservableProperty] public partial string Version { get; private set; } = RedisCatalog.Windows.Version;
+    [ObservableProperty] public partial string Version { get; private set; } = RedisCatalog.Current.Version;
     [ObservableProperty] public partial string Folder { get; private set; } = "";
     [ObservableProperty] public partial bool Running { get; private set; }
     [ObservableProperty] public partial string StateText { get; private set; } = "";
@@ -64,8 +64,8 @@ public sealed partial class RedisViewModel : PageViewModel
     public bool HasOthers => Others.Count > 0;
     public bool HasPing => PingText is not null;
     public bool NotInstalled => !Installed;
-    public string CatalogVersion => RedisCatalog.Windows.Version;
-    public string CatalogSha => $"SHA-256 {RedisCatalog.Windows.Sha256}";
+    public string CatalogVersion => RedisCatalog.Current.Version;
+    public string CatalogSha => $"SHA-256 {RedisCatalog.Current.Sha256}";
     public string ConfPath => RedisConf.ConfPath(Main.App.Paths);
     public string UserConfPath => RedisConf.UserFragmentPath(Main.App.Paths);
     public string DataPath => Main.App.Paths.RedisData;
@@ -106,8 +106,8 @@ public sealed partial class RedisViewModel : PageViewModel
         _loading = false;
 
         Installed = _redis is not null;
-        Version = _redis?.Version ?? RedisCatalog.Windows.Version;
-        Folder = _redis?.Directory ?? Path.Combine(paths.RedisBin, RedisCatalog.Windows.Version);
+        Version = _redis?.Version ?? RedisCatalog.Current.Version;
+        Folder = _redis?.Directory ?? Path.Combine(paths.RedisBin, RedisCatalog.Current.Version);
         Port = _config.RedisPort;
         Running = service?.State == "Running";
         (StateText, StateTone) = service?.State switch

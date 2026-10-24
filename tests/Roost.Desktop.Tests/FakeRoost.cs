@@ -17,13 +17,13 @@ public sealed class FakeRoost : IDisposable
 
         foreach (var php in new[] { "8.4.27-nts-x64", "8.3.36-nts-x64", "7.4.33-nts-x64" })
         {
-            Touch(Path.Combine(Paths.PhpBin, php, "php.exe"));
-            Touch(Path.Combine(Paths.PhpBin, php, "php-cgi.exe"));
+            Touch(Path.Combine(Paths.PhpBin, php, OsNames.Exe("php")));
+            Touch(Path.Combine(Paths.PhpBin, php, OsNames.Exe("php-cgi")));
             foreach (var ext in new[] { "bz2", "curl", "exif", "fileinfo", "gd", "gettext", "intl", "ldap", "mbstring", "mysqli", "opcache", "openssl", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "pgsql", "soap", "sodium", "sqlite3", "xsl", "zip" })
                 Touch(Path.Combine(Paths.PhpBin, php, "ext", $"php_{ext}.dll"));
         }
-        Touch(Path.Combine(Paths.DbBin("mariadb"), "11.4.13", "bin", "mariadbd.exe"));
-        Touch(Path.Combine(Paths.NginxBin, "1.30.6", "nginx.exe"));
+        Touch(Path.Combine(Paths.DbBin("mariadb"), "11.4.13", "bin", OsNames.Exe("mariadbd")));
+        Touch(Path.Combine(Paths.NginxBin, "1.30.6", OsNames.Exe("nginx")));
         Write(Path.Combine(Paths.Logs, "roostd.log"), """
             2026-10-22 21:31:47 roostd en marcha (pid 69264)
             2026-10-22 21:31:48 mariadb-11.4: en marcha (pid 43988)
@@ -129,9 +129,9 @@ public sealed class FakeRoost : IDisposable
     /// <summary>Redis y Mailpit «instalados» (de pega) y en el stack, con estos puertos.</summary>
     public void InstallFakeServices(int redisPort = 6379, int smtpPort = 1025, int webPort = 8025)
     {
-        Touch(Path.Combine(Paths.RedisBin, "8.10.2", "redis-server.exe"));
-        Touch(Path.Combine(Paths.RedisBin, "8.10.2", "redis-cli.exe"));
-        Touch(Path.Combine(Paths.MailpitBin, "1.32.0", "mailpit.exe"));
+        Touch(Path.Combine(Paths.RedisBin, "8.10.2", OsNames.Exe("redis-server")));
+        Touch(Path.Combine(Paths.RedisBin, "8.10.2", OsNames.Exe("redis-cli")));
+        Touch(Path.Combine(Paths.MailpitBin, "1.32.0", OsNames.Exe("mailpit")));
         File.AppendAllText(Paths.ConfigFile, $"\n[redis]\nenabled = true\nport = {redisPort}\n\n[mail]\nenabled = true\nsmtp_port = {smtpPort}\nweb_port = {webPort}\n");
     }
 

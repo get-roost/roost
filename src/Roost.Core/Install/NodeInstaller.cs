@@ -12,7 +12,7 @@ namespace Roost.Core.Install;
 /// </summary>
 public sealed record InstalledNode(string Version, string Directory)
 {
-    public const string ExecutableName = "node.exe";
+    public static string ExecutableName => OsNames.Exe("node");
 
     public ComponentVersion ParsedVersion => ComponentVersion.TryParse(Version, out var v) ? v : default;
 

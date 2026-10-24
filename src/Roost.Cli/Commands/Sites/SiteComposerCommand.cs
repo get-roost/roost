@@ -62,7 +62,7 @@ public sealed class SiteComposerCommand : AsyncCommand<SiteComposerCommand.Setti
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("site composer")) return 1;
+        if (!PlatformGate.Require("site composer")) return 1;
 
         var paths = RoostPaths.Default();
         try

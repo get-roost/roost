@@ -140,7 +140,7 @@ Ocho proyectos: `Roost.Cli` → `Roost.Daemon` → `Roost.Extensibility` → `Ro
 - `RoostException` (namespace raíz) es el error para el usuario de cualquier operación (instalar, configuración, stack). Lleva un mensaje para enseñarlo tal cual, y quien la lanza no deja nada a medias.
 - **Instalación** (`Install/`, sigue ROOST.md §5.4). `InstallFiles` tiene las reglas comunes:
   - descarga a un `.part-…` y verifica el SHA-256 **antes** de extraer, con caché que se reutiliza si el hash cuadra;
-  - `ExtractAtomic` extrae a una carpeta `.tmp-…` y la renombra al final (con `stripSingleRoot` para zips que lo meten todo en una carpeta);
+  - `ExtractAtomic` extrae a una carpeta `.tmp-…` y la renombra al final (con `stripSingleRoot` para zips que lo meten todo en una carpeta); acepta también `.tar.gz` (`System.Formats.Tar`, conserva permisos y enlaces) para Linux, y `MarkExecutable` deja ejecutable un binario suelto;
   - `RemoveAtomic` primero renombra a `.trash-…`, así que si hay un fichero en uso falla sin tocar nada;
   - las carpetas con punto inicial son de trabajo: las ignoran los listados y el scanner, y `CleanLeftovers` las limpia.
   - `WindowsPhpCatalog`:
@@ -433,6 +433,13 @@ Ocho proyectos: `Roost.Cli` → `Roost.Daemon` → `Roost.Extensibility` → `Ro
   - o un `IProcessRunner` falso que da por bueno el `nginx -t` (o el `httpd -t`), para probar un `Prepare` entero sobre ficheros falsos (ver `SitesTests` y `ApacheTests`, que tampoco tocan el `hosts` real ni el almacén de certificados).
 
   El daemon tiene tests (`tests/Roost.Daemon.Tests`, `StackService` con lanzador, runner y sondas falsas). La CLI de `up` y la inicialización real de los datadirs no tienen tests automáticos. Se prueban a mano con `ROOST_HOME`, puertos libres, peticiones HTTP (también una página PHP que se conecta por mysqli) y matando procesos.
+- **Linux (plan de `planes/2026-10-24-17-plan-linux.md` del repo privado):**
+  - los nombres de los binarios que instala Roost pasan por `Platform/OsNames.Exe("php")` (`.exe` solo en Windows), también en `FakeRoost`;
+  - cada catálogo tiene `Current` (el de este sistema; hoy = `Windows`) y el de PHP se pide con `PhpCatalog.FetchAsync`/`Resolve`: el código usa esos, no `Windows` (los tests sí pueden);
+  - `ServiceDefinition.StopSignal` (`Kill|Term|Quit|Int`) es cómo se le pide a un proceso que pare en POSIX, y cuenta en `Equals`;
+  - `StackPlanner` es `partial`: núcleo, `.Php`, `.Web`, `.Db` y `.Services`, uno por dueño;
+  - lo que aún no funciona fuera de Windows se corta con `PlatformGate.Require("<comando>")` (un solo texto); **abrir un comando en Linux es quitar esa llamada en el comando**, y `PlatformGate.WindowsHint(...)` quita en Linux las sugerencias de comandos que allí no van;
+  - tests de un solo sistema con `[WindowsFact]`/`[LinuxFact]` (y `Theory`) en Core, Daemon, Catalog y Extensibility; en la app (xUnit v3), `[AvaloniaFact(Skip = "Solo en Windows.", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]`.
 - Los textos que ve el usuario (incluidos los mensajes de `RoostException`, aunque vivan en Core, y los ficheros que genera Roost: `roost.toml`, `php.ini`, `nginx.conf`) van sin tildes, como el resto de la salida del CLI. **Excepción: los textos propios de Roost.Desktop llevan tildes**, como el mockup (no pasan por una consola).
 - Los puntos de enganche se prueban con una extensión de muestra compilada aparte (`tests/Roost.Extensibility.Sample`): `Roost.Extensibility.Tests` no la referencia, la copia a `bin/sample-extension/` al compilar y la carga desde una carpeta, como una de verdad.
 - En XAML de la app, todo `<Run Text="{Binding …}">` lleva `Mode=OneWay`: en Avalonia 12 `Run.Text` es TwoWay por defecto y, con un `StringFormat` sobre una propiedad `init` de un record, el texto formateado se reescribe en la fuente sin fin (desbordamiento de pila al dibujar).

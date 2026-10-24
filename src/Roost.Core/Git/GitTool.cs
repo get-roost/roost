@@ -37,7 +37,7 @@ public static class GitTool
             return new GitLocation(Path.GetFullPath(exe), GitSource.Configured, null);
         }
 
-        var installed = new GitInstaller(paths).Find(GitCatalog.Windows);
+        var installed = new GitInstaller(paths).Find(GitCatalog.Current);
         return installed is null ? null : new GitLocation(installed.Executable, GitSource.Roost, installed.Version);
     }
 
@@ -49,7 +49,7 @@ public static class GitTool
         if (!OperatingSystem.IsWindows())
             throw new RoostException("Roost solo instala git en Windows por ahora. Indica el tuyo en roost.toml: [git] exe = \"/usr/bin/git\".");
 
-        var installed = await new GitInstaller(paths, http).InstallAsync(GitCatalog.Windows, downloaded, cancellation);
+        var installed = await new GitInstaller(paths, http).InstallAsync(GitCatalog.Current, downloaded, cancellation);
         return new GitLocation(installed.Executable, GitSource.Roost, installed.Version);
     }
 }

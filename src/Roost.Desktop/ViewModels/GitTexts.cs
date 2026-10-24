@@ -139,7 +139,7 @@ public static partial class GitTexts
     /// <summary>Texto 13: no se pudo preparar git (lo de Core trae el motivo sin tildes).</summary>
     public static string GitSetupFailed(string coreMessage) =>
         coreMessage.Contains("SHA-256", StringComparison.Ordinal)
-            ? $"No se pudo preparar git: el SHA-256 de {GitCatalog.Windows.FileName} no coincide con el esperado. No se instala nada. Prueba de nuevo o indica otro git en Ajustes › Git."
+            ? $"No se pudo preparar git: el SHA-256 de {GitCatalog.Current.FileName} no coincide con el esperado. No se instala nada. Prueba de nuevo o indica otro git en Ajustes › Git."
             : $"No se pudo preparar git ({Trim(coreMessage)}). No se instala nada. Prueba de nuevo o indica otro git en Ajustes › Git.";
 
     private static string Trim(string message)

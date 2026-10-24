@@ -1,4 +1,5 @@
 using Roost.Core.Models;
+using Roost.Core.Platform;
 
 namespace Roost.Core.Install;
 
@@ -22,16 +23,16 @@ public static class DbEngines
     public static ComponentKind Kind(this DbEngine engine) => engine == DbEngine.MariaDb ? ComponentKind.MariaDb : ComponentKind.MySql;
 
     /// <summary>El servidor: <c>mariadbd.exe</c> (nombre moderno, desde la 10.5) o <c>mysqld.exe</c>.</summary>
-    public static string ServerExe(this DbEngine engine) => engine == DbEngine.MariaDb ? "mariadbd.exe" : "mysqld.exe";
+    public static string ServerExe(this DbEngine engine) => OsNames.Exe(engine == DbEngine.MariaDb ? "mariadbd" : "mysqld");
 
     /// <summary>La herramienta con la que se le pide un apagado limpio (<c>shutdown</c>).</summary>
-    public static string AdminExe(this DbEngine engine) => engine == DbEngine.MariaDb ? "mariadb-admin.exe" : "mysqladmin.exe";
+    public static string AdminExe(this DbEngine engine) => OsNames.Exe(engine == DbEngine.MariaDb ? "mariadb-admin" : "mysqladmin");
 
     /// <summary>El cliente de línea de comandos.</summary>
-    public static string ClientExe(this DbEngine engine) => engine == DbEngine.MariaDb ? "mariadb.exe" : "mysql.exe";
+    public static string ClientExe(this DbEngine engine) => OsNames.Exe(engine == DbEngine.MariaDb ? "mariadb" : "mysql");
 
     /// <summary>El que vuelca una base de datos a SQL (BD-2): <c>mariadb-dump.exe</c> o <c>mysqldump.exe</c>.</summary>
-    public static string DumpExe(this DbEngine engine) => engine == DbEngine.MariaDb ? "mariadb-dump.exe" : "mysqldump.exe";
+    public static string DumpExe(this DbEngine engine) => OsNames.Exe(engine == DbEngine.MariaDb ? "mariadb-dump" : "mysqldump");
 
     public static bool TryParse(string? text, out DbEngine engine)
     {

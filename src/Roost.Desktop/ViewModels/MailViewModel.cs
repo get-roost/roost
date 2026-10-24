@@ -32,7 +32,7 @@ public sealed partial class MailViewModel : PageViewModel
     public override string Title => "Correo";
 
     [ObservableProperty] public partial bool Installed { get; private set; }
-    [ObservableProperty] public partial string Version { get; private set; } = MailpitCatalog.Windows.Version;
+    [ObservableProperty] public partial string Version { get; private set; } = MailpitCatalog.Current.Version;
     [ObservableProperty] public partial bool Running { get; private set; }
     [ObservableProperty] public partial string StateText { get; private set; } = "";
     [ObservableProperty] public partial Tone StateTone { get; private set; } = Tone.Off;
@@ -56,8 +56,8 @@ public sealed partial class MailViewModel : PageViewModel
     [ObservableProperty] public partial Tone PhpTone { get; private set; } = Tone.Neutral;
 
     public bool NotInstalled => !Installed;
-    public string CatalogVersion => MailpitCatalog.Windows.Version;
-    public string CatalogSha => $"SHA-256 {MailpitCatalog.Windows.Sha256}";
+    public string CatalogVersion => MailpitCatalog.Current.Version;
+    public string CatalogSha => $"SHA-256 {MailpitCatalog.Current.Sha256}";
     public string DataPath => Main.App.Paths.MailpitData;
     public string PhpIniPath => Path.Combine(Main.App.Paths.Etc, "php", "conf.d", MailConf.PhpIniName);
 
@@ -91,7 +91,7 @@ public sealed partial class MailViewModel : PageViewModel
         _loading = false;
 
         Installed = _mailpit is not null;
-        Version = _mailpit?.Version ?? MailpitCatalog.Windows.Version;
+        Version = _mailpit?.Version ?? MailpitCatalog.Current.Version;
         Running = service?.State == "Running";
         (StateText, StateTone) = service?.State switch
         {

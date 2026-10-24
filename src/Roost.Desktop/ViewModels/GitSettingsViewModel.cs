@@ -65,7 +65,7 @@ public sealed partial class GitSettingsViewModel : PageViewModel
 
     public bool HasGitError => GitError is not null;
 
-    public string GitBuildText => $"{GitCatalog.Windows.Label} · de github.com/git-for-windows · SHA-256 fijado en Roost";
+    public string GitBuildText => $"{GitCatalog.Current.Label} · de github.com/git-for-windows · SHA-256 fijado en Roost";
 
     // SSH
 
@@ -123,7 +123,7 @@ public sealed partial class GitSettingsViewModel : PageViewModel
             UseRoostGit = config.GitExe is null;
             OtherGit = config.GitExe ?? "";
             GitError = null;
-            var installed = new GitInstaller(Main.App.Paths).Find(GitCatalog.Windows);
+            var installed = new GitInstaller(Main.App.Paths).Find(GitCatalog.Current);
             GitInstalled = installed is not null;
             if (config.GitExe is { } exe)
             {
@@ -134,8 +134,8 @@ public sealed partial class GitSettingsViewModel : PageViewModel
             else
             {
                 (GitText, GitTone) = installed is not null
-                    ? ($"{GitCatalog.Windows.Label} · {installed.Directory} · SHA-256 verificado", Tone.Ok)
-                    : ($"Aún no está: {GitCatalog.Windows.Label} se instala la primera vez que hace falta (verificado con su SHA-256).", Tone.Neutral);
+                    ? ($"{GitCatalog.Current.Label} · {installed.Directory} · SHA-256 verificado", Tone.Ok)
+                    : ($"Aún no está: {GitCatalog.Current.Label} se instala la primera vez que hace falta (verificado con su SHA-256).", Tone.Neutral);
             }
 
             var prefs = Main.App.Prefs;
@@ -258,7 +258,7 @@ public sealed partial class GitSettingsViewModel : PageViewModel
     [RelayCommand]
     private async Task InstallGitAsync()
     {
-        if (await Main.Sites.EnsureGitAsync() is not null) Main.Flash($"{GitCatalog.Windows.Label} listo");
+        if (await Main.Sites.EnsureGitAsync() is not null) Main.Flash($"{GitCatalog.Current.Label} listo");
         Load();
     }
 
@@ -299,7 +299,7 @@ public sealed partial class GitSettingsViewModel : PageViewModel
             return Task.CompletedTask;
         });
         Load();
-        Main.Flash(exe is null ? $"Roost usa su {GitCatalog.Windows.Label}" : $"Roost usa {exe}");
+        Main.Flash(exe is null ? $"Roost usa su {GitCatalog.Current.Label}" : $"Roost usa {exe}");
     }
 
     [RelayCommand]

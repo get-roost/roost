@@ -582,7 +582,7 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
         InstallChoicesHint = "Leyendo el catálogo de windows.php.net…";
         try
         {
-            var catalog = await WindowsPhpCatalog.FetchAsync(_main.App.Http);
+            var catalog = await PhpCatalog.FetchAsync(_main.App.Http);
             var installed = _installed.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
             // Con una plantilla, solo las que valen para ella.
             var min = Template.Project?.MinPhp;

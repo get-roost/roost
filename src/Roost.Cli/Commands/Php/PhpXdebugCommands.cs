@@ -78,7 +78,7 @@ public sealed class PhpXdebugOnCommand : AsyncCommand<PhpXdebugSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, PhpXdebugSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("php xdebug on")) return 1;
+        if (!PlatformGate.Require("php xdebug on")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -97,7 +97,7 @@ public sealed class PhpXdebugOffCommand : AsyncCommand<PhpXdebugSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, PhpXdebugSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("php xdebug off")) return 1;
+        if (!PlatformGate.Require("php xdebug off")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -129,7 +129,7 @@ public sealed class PhpXdebugStatusCommand : AsyncCommand<PhpXdebugStatusCommand
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("php xdebug status")) return 1;
+        if (!PlatformGate.Require("php xdebug status")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -168,7 +168,7 @@ public sealed class PhpXdebugStatusCommand : AsyncCommand<PhpXdebugStatusCommand
 
             if (rows.Count == 0)
             {
-                AnsiConsole.MarkupLine("No hay ningun PHP instalado por Roost. Instala uno: roost php install 8.4");
+                AnsiConsole.MarkupLine("No hay ningun PHP instalado por Roost." + PlatformGate.WindowsHint(" Instala uno: roost php install 8.4"));
                 return 0;
             }
             var table = new Table().Border(TableBorder.Rounded)

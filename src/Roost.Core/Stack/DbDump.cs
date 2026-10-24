@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using Roost.Core.Install;
 using Roost.Core.Models;
 using Roost.Core.Scanning;
+using Roost.Core.Platform;
 
 namespace Roost.Core.Stack;
 
@@ -26,8 +27,8 @@ public sealed record DbTool(DbEngine Engine, ComponentVersion? Version, string C
     public static DbTool? InFolder(DbEngine engine, ComponentVersion? version, string binDir, string defaultsFile)
     {
         string? Pick(params string[] names) => names.Select(n => Path.Combine(binDir, n)).FirstOrDefault(File.Exists);
-        var client = engine == DbEngine.MariaDb ? Pick("mariadb.exe", "mysql.exe") : Pick("mysql.exe");
-        var dump = engine == DbEngine.MariaDb ? Pick("mariadb-dump.exe", "mysqldump.exe") : Pick("mysqldump.exe");
+        var client = engine == DbEngine.MariaDb ? Pick(OsNames.Exe("mariadb"), OsNames.Exe("mysql")) : Pick(OsNames.Exe("mysql"));
+        var dump = engine == DbEngine.MariaDb ? Pick(OsNames.Exe("mariadb-dump"), OsNames.Exe("mysqldump")) : Pick(OsNames.Exe("mysqldump"));
         return client is null || dump is null ? null : new DbTool(engine, version, client, dump, defaultsFile);
     }
 

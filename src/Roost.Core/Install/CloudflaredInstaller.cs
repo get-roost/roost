@@ -28,6 +28,9 @@ public sealed record CloudflaredBuild(string Version, Uri Url, string Sha256)
 /// </remarks>
 public static class CloudflaredCatalog
 {
+    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
+    public static CloudflaredBuild Current => Windows;
+
     // cloudflared-windows-amd64.exe (55.329.336 bytes) de la release 2026.10.3 del 21-oct-2026, verificado
     // el 24-oct-2026: el digest de la API de GitHub, la lista del cuerpo de la release y el SHA-256 del
     // exe descargado coinciden, y su firma Authenticode es válida (Cloudflare, Inc., DigiCert).
@@ -51,7 +54,7 @@ public sealed record InstalledCloudflared(string Version, string Directory)
 /// </summary>
 public sealed class CloudflaredInstaller
 {
-    public const string ExecutableName = "cloudflared.exe";
+    public static string ExecutableName => OsNames.Exe("cloudflared");
 
     private readonly RoostPaths _paths;
     private readonly HttpClient? _http;
@@ -86,7 +89,7 @@ public sealed class CloudflaredInstaller
     }
 
     /// <summary>El que usa <c>roost share</c>: el de esta versión de Roost o, si no está, el más nuevo instalado.</summary>
-    public InstalledCloudflared? Locate() => Find(CloudflaredCatalog.Windows) ?? ListInstalled().FirstOrDefault();
+    public InstalledCloudflared? Locate() => Find(CloudflaredCatalog.Current) ?? ListInstalled().FirstOrDefault();
 
     public async Task<InstalledCloudflared> InstallAsync(
         CloudflaredBuild build,

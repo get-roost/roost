@@ -1,3 +1,4 @@
+using System.Formats.Tar;
 using System.IO.Compression;
 using System.Security.Cryptography;
 
@@ -89,9 +90,9 @@ internal static class InstallFiles
     }
 
     /// <summary>
-    /// Extrae <paramref name="zip"/> en <paramref name="target"/> sin dejar nunca una carpeta
-    /// a medias. Con <paramref name="stripSingleRoot"/>, si el zip lo mete todo en una única
-    /// carpeta (nginx-1.30.6/…), se instala su contenido. Con <paramref name="fromFolder"/>, solo
+    /// Extrae <paramref name="zip"/> (un .zip o, en Linux, un .tar.gz) en <paramref name="target"/> sin
+    /// dejar nunca una carpeta a medias. Con <paramref name="stripSingleRoot"/>, si el zip lo mete todo
+    /// en una única carpeta (nginx-1.30.6/…), se instala su contenido. Con <paramref name="fromFolder"/>, solo
     /// se instala esa carpeta del zip (el de Apache Lounge trae <c>Apache24/</c> y, al lado, un
     /// ReadMe). Exige <paramref name="requiredFile"/>.
     /// </summary>
@@ -102,15 +103,14 @@ internal static class InstallFiles
         var temp = Path.Combine(parent, TempPrefix + Guid.NewGuid().ToString("N"));
         try
         {
-            // ExtractToDirectory rechaza entradas que se salgan de la carpeta (zip slip).
-            ZipFile.ExtractToDirectory(zip, temp);
+            Extract(zip, temp);
 
             var source = temp;
             if (fromFolder is not null)
             {
                 source = Path.Combine(temp, fromFolder);
                 if (!Directory.Exists(source))
-                    throw new RoostException($"El zip {label} no trae la carpeta {fromFolder}; no se instala.");
+                    throw new RoostException($"{Kind(zip)} {label} no trae la carpeta {fromFolder}; no se instala.");
             }
             else if (stripSingleRoot
                 && Directory.GetFiles(temp).Length == 0
@@ -120,7 +120,7 @@ internal static class InstallFiles
             }
 
             if (!File.Exists(Path.Combine(source, requiredFile)))
-                throw new RoostException($"El zip {label} no trae {requiredFile}; no se instala.");
+                throw new RoostException($"{Kind(zip)} {label} no trae {requiredFile}; no se instala.");
 
             // Renombrar es atómico dentro del mismo volumen: o queda instalado entero o no queda.
             MoveDirectory(source, target);
@@ -134,6 +134,39 @@ internal static class InstallFiles
         {
             TryDeleteDirectory(temp);
         }
+    }
+
+    /// <summary>¿Es un .tar.gz (los paquetes de Linux)? Si no, se trata como un zip.</summary>
+    public static bool IsTarGz(string archive) =>
+        archive.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase) || archive.EndsWith(".tgz", StringComparison.OrdinalIgnoreCase);
+
+    private static string Kind(string archive) => IsTarGz(archive) ? "El tar.gz" : "El zip";
+
+    // Los dos rechazan entradas que se salgan de la carpeta (zip slip); el tar conserva además los
+    // permisos y los enlaces simbólicos, que en Linux hacen falta (bin/php ejecutable, lib/*.so.N).
+    private static void Extract(string archive, string destination)
+    {
+        if (!IsTarGz(archive))
+        {
+            ZipFile.ExtractToDirectory(archive, destination);
+            return;
+        }
+        Directory.CreateDirectory(destination);
+        using var file = File.OpenRead(archive);
+        using var gzip = new GZipStream(file, CompressionMode.Decompress);
+        TarFile.ExtractToDirectory(gzip, destination, overwriteFiles: false);
+    }
+
+    /// <summary>
+    /// En Linux y macOS, deja <paramref name="path"/> ejecutable (rwxr-xr-x): para los binarios que se
+    /// bajan sueltos, sin un tar que traiga sus permisos (cloudflared). En Windows no hace nada.
+    /// </summary>
+    public static void MarkExecutable(string path)
+    {
+        if (OperatingSystem.IsWindows()) return;
+        File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+                                   | UnixFileMode.GroupRead | UnixFileMode.GroupExecute
+                                   | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
     }
 
     /// <summary>

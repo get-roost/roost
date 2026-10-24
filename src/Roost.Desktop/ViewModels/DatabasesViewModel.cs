@@ -320,7 +320,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
     private void BuildCatalog()
     {
         var installed = Installed.Select(r => (r.Db.Engine, r.Db.Name)).ToHashSet();
-        var builds = ShowMariaDb ? _mariaDb ?? [] : MySqlCatalog.Windows;
+        var builds = ShowMariaDb ? _mariaDb ?? [] : MySqlCatalog.Current;
         Catalog = builds
             .OrderByDescending(b => b.Version)
             .Select(b =>
@@ -355,7 +355,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
         if (info.Status == "eol" || info.Eol is { } e && e <= today)
             return (info.Eol is { } eol ? $"EOL desde {eol.ToString("MMM-yyyy", es)}" : "EOL", Tone.Bad);
         var isLts = lts ?? (_mariaDb?.FirstOrDefault(b => b.Engine == engine && b.Branch == branch)?.Lts
-                            ?? MySqlCatalog.Windows.FirstOrDefault(b => b.Engine == engine && b.Branch == branch)?.Lts ?? false);
+                            ?? MySqlCatalog.Current.FirstOrDefault(b => b.Engine == engine && b.Branch == branch)?.Lts ?? false);
         return (info.Eol is { } end ? $"{(isLts ? "LTS hasta" : "Hasta")} {end.ToString("MMM-yyyy", es)}" : "Con soporte", Tone.Ok);
     }
 

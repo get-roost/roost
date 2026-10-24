@@ -26,6 +26,9 @@ public sealed record MailpitBuild(string Version, Uri Url, string Sha256)
 /// </remarks>
 public static class MailpitCatalog
 {
+    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
+    public static MailpitBuild Current => Windows;
+
     // mailpit-windows-amd64.zip (10.632.291 bytes) de la release v1.32.0 del 22-oct-2026, verificado el
     // 24-oct-2026: el digest de la API de GitHub y el SHA-256 del zip descargado coinciden.
     public static readonly MailpitBuild Windows = new(
@@ -48,7 +51,7 @@ public sealed record InstalledMailpit(string Version, string Directory)
 /// </summary>
 public sealed class MailpitInstaller
 {
-    public const string ExecutableName = "mailpit.exe";
+    public static string ExecutableName => OsNames.Exe("mailpit");
 
     private readonly RoostPaths _paths;
     private readonly HttpClient? _http;
@@ -81,7 +84,7 @@ public sealed class MailpitInstaller
     }
 
     /// <summary>El que usa el stack: el de esta versión de Roost o, si no está, el más nuevo instalado.</summary>
-    public InstalledMailpit? Locate() => Find(MailpitCatalog.Windows) ?? ListInstalled().FirstOrDefault();
+    public InstalledMailpit? Locate() => Find(MailpitCatalog.Current) ?? ListInstalled().FirstOrDefault();
 
     public async Task<InstalledMailpit> InstallAsync(
         MailpitBuild build,

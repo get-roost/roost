@@ -47,7 +47,7 @@ switch (args)
 
 static int HostsSync(string requestFile)
 {
-    var hostsFile = Path.Combine(Environment.SystemDirectory, "drivers", "etc", "hosts");
+    var hostsFile = OperatingSystem.IsWindows() ? Path.Combine(Environment.SystemDirectory, "drivers", "etc", "hosts") : "/etc/hosts";
 
     List<string> names;
     try

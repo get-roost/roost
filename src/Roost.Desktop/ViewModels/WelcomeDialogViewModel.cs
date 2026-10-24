@@ -224,7 +224,7 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
     {
         try
         {
-            var catalog = await WindowsPhpCatalog.FetchAsync(_main.App.Http);
+            var catalog = await PhpCatalog.FetchAsync(_main.App.Http);
             var nts = catalog.Where(b => !b.ThreadSafe && b.Architecture == "x64").GroupBy(b => b.Branch).ToDictionary(g => g.Key, g => g.First());
             // También las ramas EOL que se usan: los proyectos viejos de Laragon las necesitan, y si no
             // se traen se servirían con la global y se romperían. Se marcan, y nunca son la global.

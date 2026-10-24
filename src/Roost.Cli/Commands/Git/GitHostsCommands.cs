@@ -98,7 +98,7 @@ public sealed class GitHostsAddCommand : AsyncCommand<GitHostsAddCommand.Setting
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("git hosts")) return 1;
+        if (!PlatformGate.Require("git hosts")) return 1;
         var paths = RoostPaths.Default();
         try
         {

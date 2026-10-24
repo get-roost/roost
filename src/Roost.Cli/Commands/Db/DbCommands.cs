@@ -39,7 +39,7 @@ internal static class DbCatalogs
         {
             error = $"No se pudo leer el catalogo de MariaDB (downloads.mariadb.org): {ex.Message}";
         }
-        builds.AddRange(MySqlCatalog.Windows);
+        builds.AddRange(MySqlCatalog.Current);
         return (builds, error);
     }
 
@@ -76,7 +76,7 @@ public sealed class DbListCommand : AsyncCommand<DbListCommand.Settings>
         // Los catalogos son zips de Windows: fuera de Windows no se ofrecen como «disponibles».
         var (catalog, error) = OperatingSystem.IsWindows()
             ? await DbCatalogs.LoadAsync(cancellation)
-            : ([], "Instalar bases de datos solo funciona en Windows por ahora (ROOST.md: fase 1, Windows primero).");
+            : ([], "Instalar bases de datos solo funciona en Windows por ahora.");
 
         if (settings.Json)
         {
@@ -100,7 +100,7 @@ public sealed class DbListCommand : AsyncCommand<DbListCommand.Settings>
         AnsiConsole.MarkupLineInterpolated($"[bold]Bases de datos instaladas por Roost[/]  [grey](* = la global, la que arranca roost up)[/]");
         if (installed.Count == 0)
         {
-            AnsiConsole.MarkupLine("[grey]Ninguna todavia. Prueba: roost db install mariadb@11.4  o  roost db install mysql@8.4[/]");
+            AnsiConsole.MarkupLine("[grey]Ninguna todavia." + PlatformGate.WindowsHint(" Prueba: roost db install mariadb@11.4  o  roost db install mysql@8.4") + "[/]");
         }
         else
         {
@@ -139,11 +139,7 @@ public sealed class DbInstallCommand : AsyncCommand<DbSpecSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, DbSpecSettings settings, CancellationToken cancellation)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            AnsiConsole.MarkupLine("[red]roost db install solo funciona en Windows por ahora[/] (ROOST.md: fase 1, Windows primero).");
-            return 1;
-        }
+        if (!PlatformGate.Require("db install")) return 1;
 
         var paths = RoostPaths.Default();
         var installer = new DbInstaller(paths, RoostHttp.Client);
@@ -302,7 +298,7 @@ public sealed class DbCreateCommand : AsyncCommand<DbCreateCommand.Settings>
         var status = await client.TryStatusAsync(cancellation);
         if (status is not { Running: true, Db: not null })
         {
-            AnsiConsole.MarkupLine("[red]La base de datos no esta en marcha.[/] Arranca el stack con: roost up");
+            AnsiConsole.MarkupLine("[red]La base de datos no esta en marcha.[/]" + PlatformGate.WindowsHint(" Arranca el stack con: roost up"));
             return 1;
         }
 

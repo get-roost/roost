@@ -21,6 +21,9 @@ public sealed record GitBuild(string Version, Uri Url, string Sha256)
 /// </summary>
 public static class GitCatalog
 {
+    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
+    public static GitBuild Current => Windows;
+
     // MinGit-2.55.0.3-64-bit.zip, release v2.55.0.windows.3 (Git for Windows 2.55.0(3)), verificado el 24-oct-2026:
     // el digest de la API de GitHub y el SHA-256 del zip descargado coinciden.
     public static readonly GitBuild Windows = new(

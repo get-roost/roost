@@ -29,6 +29,9 @@ public sealed record RedisBuild(string Version, Uri Url, string Sha256)
 /// </remarks>
 public static class RedisCatalog
 {
+    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
+    public static RedisBuild Current => Windows;
+
     // Redis-8.10.2-Windows-x64-msys2.zip (13.938.657 bytes), release 8.10.2 del 18-sep-2026, verificado
     // el 24-oct-2026: el digest de la API de GitHub, el hash del cuerpo de la release (run de Actions
     // 35294974076) y el SHA-256 del zip descargado coinciden.
@@ -43,7 +46,7 @@ public sealed record InstalledRedis(string Version, string Directory)
 {
     public string Server => Path.Combine(Directory, RedisInstaller.ServerName);
 
-    public string Cli => Path.Combine(Directory, "redis-cli.exe");
+    public string Cli => Path.Combine(Directory, RedisInstaller.CliName);
 
     public string Label => $"Redis {Version}";
 }
@@ -55,7 +58,9 @@ public sealed record InstalledRedis(string Version, string Directory)
 /// </summary>
 public sealed class RedisInstaller
 {
-    public const string ServerName = "redis-server.exe";
+    public static string ServerName => OsNames.Exe("redis-server");
+
+    public static string CliName => OsNames.Exe("redis-cli");
 
     private readonly RoostPaths _paths;
     private readonly HttpClient? _http;
@@ -70,7 +75,7 @@ public sealed class RedisInstaller
     public InstalledRedis? Find(RedisBuild build)
     {
         var dir = Path.Combine(_paths.RedisBin, build.Version);
-        return File.Exists(Path.Combine(dir, ServerName)) && File.Exists(Path.Combine(dir, "redis-cli.exe")) ? new InstalledRedis(build.Version, dir) : null;
+        return File.Exists(Path.Combine(dir, ServerName)) && File.Exists(Path.Combine(dir, CliName)) ? new InstalledRedis(build.Version, dir) : null;
     }
 
     /// <summary>Los Redis instalados, el más nuevo primero. Las carpetas de trabajo (con punto) no cuentan.</summary>
@@ -91,7 +96,7 @@ public sealed class RedisInstaller
     /// El que usa el stack: el de esta versión de Roost o, si no está, el más nuevo instalado. Así
     /// una Roost nueva con otro Redis fijado no deja el stack sin arrancar hasta que se instale.
     /// </summary>
-    public InstalledRedis? Locate() => Find(RedisCatalog.Windows) ?? ListInstalled().FirstOrDefault();
+    public InstalledRedis? Locate() => Find(RedisCatalog.Current) ?? ListInstalled().FirstOrDefault();
 
     public async Task<InstalledRedis> InstallAsync(
         RedisBuild build,
@@ -113,7 +118,7 @@ public sealed class RedisInstaller
 
         // El zip lo mete todo en Redis-<versión>-Windows-x64-msys2/: se instala su contenido.
         InstallFiles.ExtractAtomic(zip, target, ServerName, stripSingleRoot: true, build.FileName);
-        if (!File.Exists(Path.Combine(target, "redis-cli.exe")))
+        if (!File.Exists(Path.Combine(target, CliName)))
         {
             InstallFiles.RemoveAtomic(target, _paths.RedisBin, build.Label);
             throw new RoostException($"El zip {build.FileName} no trae redis-cli.exe (lo necesita la parada limpia); no se instala.");

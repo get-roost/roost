@@ -30,6 +30,13 @@ public sealed record ServiceDefinition
     public TimeSpan StopTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// En Linux y macOS, la señal con la que se le pide que se pare limpio antes de matarlo (nginx y
+    /// php-fpm: <see cref="StopSignal.Quit"/>). <see cref="StopSignal.Kill"/> = se mata directamente,
+    /// como en Windows, donde no hay señales.
+    /// </summary>
+    public StopSignal StopSignal { get; init; } = StopSignal.Kill;
+
+    /// <summary>
     /// Iguales si lanzan el mismo proceso de la misma forma, con el entorno comparado por contenido:
     /// la igualdad de serie de un record compararía el diccionario por referencia, y cada <c>up</c>
     /// crea uno nuevo. Así compara la recarga selectiva (E2) el plan nuevo con el que está en marcha:
@@ -44,11 +51,21 @@ public sealed record ServiceDefinition
         && LogFile == other.LogFile
         && Port == other.Port
         && StopTimeout == other.StopTimeout
+        && StopSignal == other.StopSignal
         && Equals(StopCommand, other.StopCommand)
         && Environment.Count == other.Environment.Count
         && Environment.All(e => other.Environment.TryGetValue(e.Key, out var value) && value == e.Value);
 
     public override int GetHashCode() => HashCode.Combine(Name, Executable, Arguments, WorkingDirectory, Port);
+}
+
+/// <summary>Cómo se le pide a un proceso que se pare (POSIX); en Windows siempre se mata.</summary>
+public enum StopSignal
+{
+    Kill,   // SIGKILL al árbol, sin aviso (lo de siempre)
+    Term,   // SIGTERM: «termina»
+    Quit,   // SIGQUIT: parada ordenada (nginx, php-fpm: acaban lo que están sirviendo)
+    Int,    // SIGINT: como Ctrl+C
 }
 
 public enum ServiceState

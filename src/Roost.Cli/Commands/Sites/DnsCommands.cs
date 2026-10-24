@@ -17,7 +17,7 @@ public sealed class DnsInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("dns install")) return 1;
+        if (!PlatformGate.Require("dns install")) return 1;
 
         var paths = RoostPaths.Default();
         try
@@ -53,7 +53,7 @@ public sealed class DnsRemoveCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("dns remove")) return 1;
+        if (!PlatformGate.Require("dns remove")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -82,7 +82,7 @@ public sealed class DnsStatusCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("dns status")) return 1;
+        if (!PlatformGate.Require("dns status")) return 1;
         var paths = RoostPaths.Default();
         var config = RoostConfig.Load(paths.ConfigFile);
         var rules = LocalDns.ReadRules();

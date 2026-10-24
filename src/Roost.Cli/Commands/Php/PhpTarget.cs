@@ -24,7 +24,7 @@ internal static class PhpTarget
 
         var candidates = PhpInstaller.Match(installed, spec);
         if (candidates.Count == 0)
-            throw new RoostException($"No hay ningun PHP de Roost que case con '{spec.Trim()}'. Instalalo: roost php install {spec.Trim()}");
+            throw new RoostException($"No hay ningun PHP de Roost que case con '{spec.Trim()}'.{PlatformGate.WindowsHint($" Instalalo: roost php install {spec.Trim()}")}");
         return PhpInstaller.Best(candidates);
     }
 

@@ -60,7 +60,7 @@ public sealed class GitTokenSetCommand : Command<GitTokenSetCommand.Settings>
 
     public override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("git token")) return 1;
+        if (!PlatformGate.Require("git token")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -96,7 +96,7 @@ public sealed class GitTokenRemoveCommand : Command<GitTokenSettings>
 {
     public override int Execute(CommandContext context, GitTokenSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("git token")) return 1;
+        if (!PlatformGate.Require("git token")) return 1;
         var paths = RoostPaths.Default();
         try
         {

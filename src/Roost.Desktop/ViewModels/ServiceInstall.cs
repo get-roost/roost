@@ -12,7 +12,7 @@ internal static class ServiceInstall
     /// <summary>Redis de esta versión de Roost. true si ha quedado instalado.</summary>
     public static Task<bool> RedisAsync(MainViewModel main)
     {
-        var build = RedisCatalog.Windows;
+        var build = RedisCatalog.Current;
         var installer = new RedisInstaller(main.App.Paths, main.App.Http);
         var target = Path.Combine(main.App.Paths.RedisBin, build.Version);
         return RunAsync(main, build.Label, target, new InstallDialogViewModel(
@@ -36,7 +36,7 @@ internal static class ServiceInstall
     /// <summary>Mailpit de esta versión de Roost. true si ha quedado instalado.</summary>
     public static Task<bool> MailpitAsync(MainViewModel main)
     {
-        var build = MailpitCatalog.Windows;
+        var build = MailpitCatalog.Current;
         var installer = new MailpitInstaller(main.App.Paths, main.App.Http);
         var target = Path.Combine(main.App.Paths.MailpitBin, build.Version);
         return RunAsync(main, build.Label, target, new InstallDialogViewModel(

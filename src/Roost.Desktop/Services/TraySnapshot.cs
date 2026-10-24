@@ -114,7 +114,7 @@ public sealed record TraySnapshot(
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or RoostException) { }
 
         var apache = false;
-        try { apache = new ApacheInstaller(paths).Find(ApacheCatalog.Windows) is not null; }
+        try { apache = new ApacheInstaller(paths).Find(ApacheCatalog.Current) is not null; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
 
         var webUrl = ui.Status?.Url ?? (config.HttpPort == 80 ? "http://localhost/" : $"http://localhost:{config.HttpPort}/");

@@ -26,7 +26,7 @@ internal static class ShareSupport
     public static async Task<InstalledCloudflared> EnsureCloudflaredAsync(RoostPaths paths, CancellationToken cancellation)
     {
         if (new CloudflaredInstaller(paths).Locate() is { } found) return found;
-        var build = CloudflaredCatalog.Windows;
+        var build = CloudflaredCatalog.Current;
         var installer = new CloudflaredInstaller(paths, RoostHttp.Client);
         return await ServiceSetup.InstallAsync(build.Label, build.Url, (p, ct) => installer.InstallAsync(build, p, ct), cancellation);
     }
@@ -178,7 +178,7 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("share")) return 1;
+        if (!PlatformGate.Require("share")) return 1;
         var paths = RoostPaths.Default();
         if (string.IsNullOrWhiteSpace(settings.Site))
         {
@@ -429,7 +429,7 @@ public sealed class ShareStopCommand : AsyncCommand<ShareStopCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("share stop")) return 1;
+        if (!PlatformGate.Require("share stop")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -499,7 +499,7 @@ public sealed class ShareStatusCommand : AsyncCommand<ShareStatusCommand.Setting
                     installed = cloudflared is not null,
                     version = cloudflared?.Version,
                     executable = cloudflared?.Executable,
-                    roost = new { version = CloudflaredCatalog.Windows.Version, url = CloudflaredCatalog.Windows.Url.ToString(), sha256 = CloudflaredCatalog.Windows.Sha256 },
+                    roost = new { version = CloudflaredCatalog.Current.Version, url = CloudflaredCatalog.Current.Url.ToString(), sha256 = CloudflaredCatalog.Current.Sha256 },
                 },
                 firewallRules = rules.Select(p => new { port = p, name = LanFirewall.RuleName(p) }),
             }, JsonOutput.Options));
@@ -514,7 +514,7 @@ public sealed class ShareStatusCommand : AsyncCommand<ShareStatusCommand.Setting
             AnsiConsole.MarkupLineInterpolated($"[yellow]{share.Site}[/] {where}: [bold]{share.Url}[/] [grey](desde {share.Since:HH:mm}{connecting})[/]");
         }
         if (cloudflared is null)
-            AnsiConsole.MarkupLineInterpolated($"[grey]cloudflared: sin instalar (roost share lo instala la primera vez: {CloudflaredCatalog.Windows.Label}).[/]");
+            AnsiConsole.MarkupLineInterpolated($"[grey]cloudflared: sin instalar{PlatformGate.WindowsHint($" (roost share lo instala la primera vez: {CloudflaredCatalog.Current.Label})")}.[/]");
         else
             AnsiConsole.MarkupLineInterpolated($"[grey]cloudflared: {cloudflared.Label} ({cloudflared.Executable}).[/]");
         if (rules.Count > 0)
@@ -532,11 +532,11 @@ public sealed class ShareInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("share install")) return 1;
+        if (!PlatformGate.Require("share install")) return 1;
         var paths = RoostPaths.Default();
         try
         {
-            var build = CloudflaredCatalog.Windows;
+            var build = CloudflaredCatalog.Current;
             var installer = new CloudflaredInstaller(paths, RoostHttp.Client);
             if (installer.Find(build) is { } found)
             {

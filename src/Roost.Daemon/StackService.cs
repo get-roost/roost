@@ -145,8 +145,8 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
             var installedPhp = new PhpInstaller(paths).ListInstalled();
             var php = planner.ResolvePhp(config, installedPhp);
             // El servidor web de [web] server; si falta, Prepare lo dice (roost up lo instala antes).
-            var nginx = new NginxInstaller(paths).Find(NginxCatalog.Windows);
-            var apache = new ApacheInstaller(paths).Find(ApacheCatalog.Windows);
+            var nginx = new NginxInstaller(paths).Find(NginxCatalog.Current);
+            var apache = new ApacheInstaller(paths).Find(ApacheCatalog.Current);
             var db = planner.ResolveDb(config, new DbInstaller(paths).ListInstalled());
             SyncSiteSources();   // Sitios avanzados: el .roost.toml de cada sitio y las carpetas aparcadas
             var sites = new SiteRegistry(paths).Load();

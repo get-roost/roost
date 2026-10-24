@@ -22,7 +22,7 @@ internal static class DbDumpSupport
         using var client = new DaemonClient(paths);
         var status = await client.TryStatusAsync(cancellation);
         if (status is not { Running: true, Db: not null })
-            return (null, "La base de datos no esta en marcha. Arranca el stack con: roost up");
+            return (null, "La base de datos no esta en marcha." + PlatformGate.WindowsHint(" Arranca el stack con: roost up"));
         var planner = new StackPlanner(paths, ProcessRunner.Default);
         var db = planner.ResolveDb(RoostConfig.Load(paths.ConfigFile), new DbInstaller(paths).ListInstalled());
         if (db is null) return (null, "No hay base de datos global: elige una con roost db use <motor@version>.");

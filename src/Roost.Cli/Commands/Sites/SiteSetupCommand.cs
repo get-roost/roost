@@ -171,7 +171,7 @@ public sealed class SiteSetupCommand : AsyncCommand<SiteSetupCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("site setup")) return 1;
+        if (!PlatformGate.Require("site setup")) return 1;
 
         var paths = RoostPaths.Default();
         DeployStep? current = null;

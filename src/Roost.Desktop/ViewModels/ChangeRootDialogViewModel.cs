@@ -178,7 +178,7 @@ public sealed partial class ChangeRootDialogViewModel : DialogViewModel
             return ("No puede estar dentro de la de ahora, ni al revés.", null);
         foreach (var system in new[] { Environment.GetFolderPath(Environment.SpecialFolder.Windows), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) })
             if (system.Length > 0 && (string.Equals(full, system, StringComparison.OrdinalIgnoreCase) || full.StartsWith(system.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)))
-                return ("Ni en Windows ni en Archivos de programa (ROOST.md §6: Roost escribe en su raíz).", null);
+                return ("Ni en Windows ni en Archivos de programa: Roost escribe en su raíz, y ahí haría falta ser administrador.", null);
 
         if (exists(full) && hasEntries(full))
         {

@@ -35,7 +35,7 @@ internal static class ServiceSetup
     public static async Task<InstalledRedis> EnsureRedisAsync(RoostPaths paths, CancellationToken cancellation)
     {
         if (new RedisInstaller(paths).Locate() is { } found) return found;
-        var build = RedisCatalog.Windows;
+        var build = RedisCatalog.Current;
         var installer = new RedisInstaller(paths, RoostHttp.Client);
         return await InstallAsync(build.Label, build.Url, (p, ct) => installer.InstallAsync(build, p, ct), cancellation);
     }
@@ -44,7 +44,7 @@ internal static class ServiceSetup
     public static async Task<InstalledMailpit> EnsureMailpitAsync(RoostPaths paths, CancellationToken cancellation)
     {
         if (new MailpitInstaller(paths).Locate() is { } found) return found;
-        var build = MailpitCatalog.Windows;
+        var build = MailpitCatalog.Current;
         var installer = new MailpitInstaller(paths, RoostHttp.Client);
         return await InstallAsync(build.Label, build.Url, (p, ct) => installer.InstallAsync(build, p, ct), cancellation);
     }
@@ -71,11 +71,11 @@ public sealed class RedisInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("redis install")) return 1;
+        if (!PlatformGate.Require("redis install")) return 1;
         var paths = RoostPaths.Default();
         try
         {
-            var build = RedisCatalog.Windows;
+            var build = RedisCatalog.Current;
             var installer = new RedisInstaller(paths, RoostHttp.Client);
             var redis = installer.Find(build);
             if (redis is null)
@@ -102,7 +102,7 @@ public sealed class RedisRemoveCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("redis remove")) return 1;
+        if (!PlatformGate.Require("redis remove")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -144,7 +144,7 @@ public sealed class RedisEnableCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("redis " + context.Name)) return 1;
+        if (!PlatformGate.Require("redis " + context.Name)) return 1;
         var paths = RoostPaths.Default();
         var enable = context.Name == "enable";
         try
@@ -175,7 +175,7 @@ public sealed class RedisPortCommand : AsyncCommand<RedisPortCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("redis port")) return 1;
+        if (!PlatformGate.Require("redis port")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -217,7 +217,7 @@ public sealed class RedisStatusCommand : AsyncCommand<RedisStatusCommand.Setting
             return 1;
         }
 
-        var build = RedisCatalog.Windows;
+        var build = RedisCatalog.Current;
         var installer = new RedisInstaller(paths);
         var redis = installer.Locate();
         var service = OperatingSystem.IsWindows() ? await ServiceSetup.ServiceAsync(paths, "redis", cancellation) : null;
@@ -248,7 +248,7 @@ public sealed class RedisStatusCommand : AsyncCommand<RedisStatusCommand.Setting
 
         if (redis is null)
         {
-            AnsiConsole.MarkupLine("[yellow]Redis no esta instalado.[/] Instalalo (y ponlo en el stack) con: roost redis install");
+            AnsiConsole.MarkupLine("[yellow]Redis no esta instalado.[/]" + PlatformGate.WindowsHint(" Instalalo (y ponlo en el stack) con: roost redis install"));
             AnsiConsole.MarkupLineInterpolated($"[grey]Sera {build.Label} (build MSYS2 de redis-windows, SHA-256 {build.Sha256[..12]}...), en {paths.RedisBin}.[/]");
         }
         else

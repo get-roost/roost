@@ -86,11 +86,7 @@ public sealed class SiteAddCommand : AsyncCommand<SiteAddCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            AnsiConsole.MarkupLine("[red]roost site solo funciona en Windows por ahora[/] (ROOST.md: fase 1, Windows primero).");
-            return 1;
-        }
+        if (!PlatformGate.Require("site add")) return 1;
 
         var paths = RoostPaths.Default();
         var sites = new SiteManager(paths);
@@ -334,7 +330,7 @@ public sealed class SiteListCommand : Command<SiteListCommand.Settings>
 
             if (rows.Count == 0)
             {
-                AnsiConsole.MarkupLine("Ningun sitio todavia. Prueba: roost site add tienda");
+                AnsiConsole.MarkupLine("Ningun sitio todavia." + PlatformGate.WindowsHint(" Prueba: roost site add tienda"));
                 return 0;
             }
 
@@ -366,11 +362,7 @@ public sealed class CertTrustCommand : Command<EmptyCommandSettings>
 {
     public override int Execute(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            AnsiConsole.MarkupLine("[red]roost cert trust solo funciona en Windows por ahora.[/]");
-            return 1;
-        }
+        if (!PlatformGate.Require("cert trust")) return 1;
 
         var paths = RoostPaths.Default();
         var ca = new LocalCa(paths);
@@ -427,7 +419,7 @@ public sealed class CertUntrustCommand : Command<EmptyCommandSettings>
 {
     public override int Execute(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("cert untrust")) return 1;
+        if (!PlatformGate.Require("cert untrust")) return 1;
         var ca = new LocalCa(RoostPaths.Default());
         try
         {

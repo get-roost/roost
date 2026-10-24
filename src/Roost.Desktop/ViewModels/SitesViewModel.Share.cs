@@ -216,7 +216,7 @@ public sealed partial class SitesViewModel
     /// <summary>cloudflared con el diálogo Instalando de siempre (descarga, SHA-256 antes de nada, carpeta atómica).</summary>
     private async Task<bool> InstallCloudflaredAsync()
     {
-        var build = CloudflaredCatalog.Windows;
+        var build = CloudflaredCatalog.Current;
         var installer = new CloudflaredInstaller(Main.App.Paths, Main.App.Http);
         var target = installer.InstallDirectory(build);
         var dialog = new InstallDialogViewModel(

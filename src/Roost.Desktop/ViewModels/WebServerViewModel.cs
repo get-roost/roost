@@ -45,7 +45,7 @@ public sealed partial class WebServerViewModel : PageViewModel
     [ObservableProperty] public partial bool NginxRunning { get; private set; }
     [ObservableProperty] public partial string NginxState { get; private set; } = "";
     [ObservableProperty] public partial Tone NginxStateTone { get; private set; } = Tone.Off;
-    [ObservableProperty] public partial string NginxVersion { get; private set; } = NginxCatalog.Windows.Version;
+    [ObservableProperty] public partial string NginxVersion { get; private set; } = NginxCatalog.Current.Version;
     [ObservableProperty] public partial string NginxFolder { get; private set; } = "";
     [ObservableProperty] public partial string Listen { get; private set; } = "";
     [ObservableProperty] public partial string Modules { get; private set; } = "";
@@ -64,8 +64,8 @@ public sealed partial class WebServerViewModel : PageViewModel
     [ObservableProperty] public partial bool UseNginx { get; set; } = true;
     [ObservableProperty] public partial bool UseApache { get; set; }
 
-    public string ApacheVersion => ApacheCatalog.Windows.Version;
-    public string ApacheRedistributable => ApacheCatalog.Windows.Redistributable;
+    public string ApacheVersion => ApacheCatalog.Current.Version;
+    public string ApacheRedistributable => ApacheCatalog.Current.Redistributable;
     public string ApacheModules => string.Join(", ", ApacheConf.Modules.Where(m => m is "rewrite" or "ssl" or "http2" or "proxy_fcgi" or "headers" or "expires" or "deflate"))
                                    + $" y {ApacheConf.Modules.Count - 7} más";
     public bool HasApacheTestOutput => ApacheTestOutput is not null;
@@ -78,7 +78,7 @@ public sealed partial class WebServerViewModel : PageViewModel
 
     public bool HasTestOutput => TestOutput is not null;
 
-    public string CatalogVersion => NginxCatalog.Windows.Version;
+    public string CatalogVersion => NginxCatalog.Current.Version;
 
     partial void OnHttpTextChanged(string value) => CheckPorts();
     partial void OnHttpsTextChanged(string value) => CheckPorts();
@@ -104,8 +104,8 @@ public sealed partial class WebServerViewModel : PageViewModel
         var paths = Main.App.Paths;
         var status = Main.Stack.Status;
         try { _config = RoostConfig.Load(paths.ConfigFile); } catch (RoostException) { _config = new RoostConfig(); }
-        _nginx = new NginxInstaller(paths).Find(NginxCatalog.Windows);
-        _apache = new ApacheInstaller(paths).Find(ApacheCatalog.Windows);
+        _nginx = new NginxInstaller(paths).Find(NginxCatalog.Current);
+        _apache = new ApacheInstaller(paths).Find(ApacheCatalog.Current);
 
         _loading = true;
         UseApache = _config.UsesApache;
@@ -123,15 +123,15 @@ public sealed partial class WebServerViewModel : PageViewModel
         (ApacheState, ApacheStateTone) = ApacheRunning ? ("en marcha", Tone.Ok)
             : !ApacheInstalled ? ("se instala al elegirlo", Tone.Neutral)
             : _config.UsesApache ? ("parado", Tone.Neutral) : ("instalado", Tone.Neutral);
-        ApacheFolder = _apache?.Directory ?? Path.Combine(paths.ApacheBin, ApacheCatalog.Windows.Version);
+        ApacheFolder = _apache?.Directory ?? Path.Combine(paths.ApacheBin, ApacheCatalog.Current.Version);
         if (!_tabChosen && ShowNginx == _config.UsesApache)
         {
             _loading = true;
             ShowNginx = !_config.UsesApache;
             _loading = false;
         }
-        NginxVersion = _nginx?.Version ?? NginxCatalog.Windows.Version;
-        NginxFolder = _nginx?.Directory ?? Path.Combine(paths.NginxBin, NginxCatalog.Windows.Version);
+        NginxVersion = _nginx?.Version ?? NginxCatalog.Current.Version;
+        NginxFolder = _nginx?.Directory ?? Path.Combine(paths.NginxBin, NginxCatalog.Current.Version);
         var hasSites = SafeSites().Count > 0;
         Listen = hasSites
             ? $"127.0.0.1:{_config.HttpPort} · 127.0.0.1:{_config.HttpsPort} (solo este equipo)"
@@ -286,8 +286,8 @@ public sealed partial class WebServerViewModel : PageViewModel
         if (apache && _apache is null) await InstallApacheAsync();
         if (!apache && _nginx is null) await InstallNginxAsync();
         var installed = apache
-            ? new ApacheInstaller(Main.App.Paths).Find(ApacheCatalog.Windows) is not null
-            : new NginxInstaller(Main.App.Paths).Find(NginxCatalog.Windows) is not null;
+            ? new ApacheInstaller(Main.App.Paths).Find(ApacheCatalog.Current) is not null
+            : new NginxInstaller(Main.App.Paths).Find(NginxCatalog.Current) is not null;
         if (installed)
         {
             await Main.RunAsync("No se pudo cambiar el servidor web", async () =>
@@ -357,7 +357,7 @@ public sealed partial class WebServerViewModel : PageViewModel
     [RelayCommand]
     private async Task InstallApacheAsync()
     {
-        var build = ApacheCatalog.Windows;
+        var build = ApacheCatalog.Current;
         // Apache de Apache Lounge no arranca sin el VC++ 14.50 o posterior: avisar antes, con el enlace.
         if (!await VcRedistGuard.ConfirmAsync(Main, $"Apache {build.Version}", forApache: true)) return;
         var installer = new ApacheInstaller(Main.App.Paths, Main.App.Http);
@@ -383,7 +383,7 @@ public sealed partial class WebServerViewModel : PageViewModel
     [RelayCommand]
     private async Task InstallNginxAsync()
     {
-        var build = NginxCatalog.Windows;
+        var build = NginxCatalog.Current;
         // nginx no lo necesita, pero el PHP que va a servir sí: mejor saberlo antes de empezar.
         if (!await VcRedistGuard.ConfirmAsync(Main, $"nginx {build.Version}", forApache: false, who: "El PHP que sirve nginx")) return;
         var installer = new NginxInstaller(Main.App.Paths, Main.App.Http);

@@ -135,7 +135,7 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("site clone")) return 1;
+        if (!PlatformGate.Require("site clone")) return 1;
 
         var paths = RoostPaths.Default();
         var undo = new Undo();
@@ -473,7 +473,7 @@ public sealed class SitePullCommand : AsyncCommand<SitePullCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("site pull")) return 1;
+        if (!PlatformGate.Require("site pull")) return 1;
 
         var paths = RoostPaths.Default();
         try
@@ -547,7 +547,7 @@ public sealed class SiteBranchCommand : AsyncCommand<SiteBranchCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("site branch")) return 1;
+        if (!PlatformGate.Require("site branch")) return 1;
 
         var paths = RoostPaths.Default();
         try
@@ -618,7 +618,7 @@ public sealed class SiteGitCommand : AsyncCommand<SiteGitCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("site git")) return 1;
+        if (!PlatformGate.Require("site git")) return 1;
 
         var paths = RoostPaths.Default();
         try

@@ -37,7 +37,7 @@ public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
         {
             try
             {
-                catalog = await WindowsPhpCatalog.FetchAsync(RoostHttp.Client, cancellation);
+                catalog = await PhpCatalog.FetchAsync(RoostHttp.Client, cancellation);
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException
                                        && !cancellation.IsCancellationRequested)
@@ -60,7 +60,7 @@ public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
         AnsiConsole.MarkupLineInterpolated($"[bold]PHP instalados por Roost[/]  [grey]({paths.PhpBin})[/]");
         if (installed.Count == 0)
         {
-            AnsiConsole.MarkupLine("[grey]Ninguno todavia. Prueba: roost php install 8.4[/]");
+            AnsiConsole.MarkupLine("[grey]Ninguno todavia." + PlatformGate.WindowsHint(" Prueba: roost php install 8.4") + "[/]");
         }
         else
         {

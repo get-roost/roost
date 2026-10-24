@@ -14,7 +14,7 @@ public sealed record InstalledPhp(string Name, string Directory, string Executab
     public bool ThreadSafe => Name.Contains("-ts-", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>El binario FastCGI que sirve las peticiones web (Windows no tiene php-fpm).</summary>
-    public string CgiExecutable => Path.Combine(Directory, "php-cgi.exe");
+    public string CgiExecutable => Path.Combine(Directory, OsNames.Exe("php-cgi"));
 }
 
 /// <summary>
@@ -25,7 +25,7 @@ public sealed record InstalledPhp(string Name, string Directory, string Executab
 public sealed partial class PhpInstaller
 {
     /// <summary>Lo que se instala son los zips de Windows: el ejecutable es siempre php.exe.</summary>
-    public const string ExecutableName = "php.exe";
+    public static string ExecutableName => OsNames.Exe("php");
 
     private readonly RoostPaths _paths;
     private readonly HttpClient? _http;

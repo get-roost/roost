@@ -16,7 +16,9 @@ public sealed class HostsUpdater
 {
     public const string HostsFileVariable = "ROOST_HOSTS_FILE";
 
-    public static string SystemHostsFile => Path.Combine(Environment.SystemDirectory, "drivers", "etc", "hosts");
+    /// <summary>El hosts del sistema: en Windows, el de <c>System32\drivers\etc</c>; en Linux y macOS, <c>/etc/hosts</c>.</summary>
+    public static string SystemHostsFile =>
+        OperatingSystem.IsWindows() ? Path.Combine(Environment.SystemDirectory, "drivers", "etc", "hosts") : "/etc/hosts";
 
     public HostsUpdater()
     {

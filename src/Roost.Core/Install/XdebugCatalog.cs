@@ -45,6 +45,9 @@ public sealed record XdebugBuild(string Version, string PhpBranch, string Compil
 /// </remarks>
 public static class XdebugCatalog
 {
+    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
+    public static IReadOnlyList<XdebugBuild> Current => Windows;
+
     // Verificado el 24-oct-2026: el SHA-256 del title de xdebug.org/download (y /download/historical
     // para la 3.1.6) y el del fichero bajado a una carpeta vacía coinciden en las siete. Xdebug 3.5.3
     // es del 8-jun-2026; la 3.1.6 es la última que soporta PHP 7.4.
@@ -61,7 +64,7 @@ public static class XdebugCatalog
 
     /// <summary>La DLL de una instalación, o null si Roost no tiene ninguna para ella (TS, x86 o una rama sin DLL).</summary>
     public static XdebugBuild? For(InstalledPhp php) =>
-        WhyNot(php) is null ? Windows.FirstOrDefault(b => b.PhpBranch == BranchOf(php)) : null;
+        WhyNot(php) is null ? Current.FirstOrDefault(b => b.PhpBranch == BranchOf(php)) : null;
 
     /// <summary>Por qué Roost no puede poner Xdebug en una instalación, o null si puede.</summary>
     public static string? WhyNot(InstalledPhp php)
@@ -71,8 +74,8 @@ public static class XdebugCatalog
         if (!php.Name.EndsWith("-x64", StringComparison.OrdinalIgnoreCase))
             return $"{php.Name} no es de 64 bits: Roost pone Xdebug en las NTS x64.";
         var branch = BranchOf(php);
-        if (branch is null || !Windows.Any(b => b.PhpBranch == branch))
-            return $"Roost no tiene Xdebug para PHP {branch ?? php.Name}: lo tiene de la {Windows[0].PhpBranch} a la {Windows[^1].PhpBranch}.";
+        if (branch is null || !Current.Any(b => b.PhpBranch == branch))
+            return $"Roost no tiene Xdebug para PHP {branch ?? php.Name}: lo tiene de la {Current[0].PhpBranch} a la {Current[^1].PhpBranch}.";
         return null;
     }
 

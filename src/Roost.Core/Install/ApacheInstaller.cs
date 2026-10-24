@@ -15,6 +15,9 @@ public sealed record ApacheBuild(string Version, Uri Url, string Sha256, string 
 /// </summary>
 public static class ApacheCatalog
 {
+    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
+    public static ApacheBuild Current => Windows;
+
     // httpd-2.4.69-261002-Win64-VS18.zip: firma PGP verificada el 23-oct-2026 con la clave de
     // Steffen Land (Apache Lounge), 3D49 885E ADE8 BC39 9F46 D5DD BEE8 8A78 29C1 7558, la misma
     // en apachelounge.com/download/Steffen_Land.asc y en keyserver.ubuntu.com. Para cambiar de

@@ -18,7 +18,7 @@ public sealed class ShimsInstallCommand : Command<EmptyCommandSettings>
 {
     public override int Execute(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("shims install")) return 1;
+        if (!PlatformGate.Require("shims install")) return 1;
 
         var paths = RoostPaths.Default();
         try
@@ -107,7 +107,7 @@ public sealed class ShimsStatusCommand : Command<EmptyCommandSettings>
             AnsiConsole.MarkupLine("[grey]El shim de composer necesita el Composer de Roost: roost composer install[/]");
         if (shims.Has("node") && new NodeInstaller(paths).ListInstalled().Count == 0)
             AnsiConsole.MarkupLine("[yellow]Los shims de node no tienen ningun Node de Roost detras:[/] [grey]roost node install 24, o roost shims install para quitarlos.[/]");
-        if (!shims.IsInstalled) AnsiConsole.MarkupLine("[grey]Para ponerlos: roost shims install[/]");
+        if (!shims.IsInstalled && OperatingSystem.IsWindows()) AnsiConsole.MarkupLine("[grey]Para ponerlos: roost shims install[/]");
         return 0;
     }
 }

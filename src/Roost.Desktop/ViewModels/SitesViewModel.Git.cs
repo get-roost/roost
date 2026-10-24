@@ -411,7 +411,7 @@ public sealed partial class SitesViewModel
         }
 
         var paths = Main.App.Paths;
-        var build = GitCatalog.Windows;
+        var build = GitCatalog.Current;
         GitLocation? installed = null;
         var steps = new List<InstallStep>
         {
@@ -497,7 +497,7 @@ public sealed partial class SitesViewModel
         var dialog = new GitTaskDialogViewModel($"Clonando {url.Label}", $"{branch} → {folder}", steps, async (d, cancel) =>
         {
             d.Step(0, "Preparando git");
-            steps[0].Hint = git.Source == GitSource.Roost ? $"{GitCatalog.Windows.Label}, SHA-256 verificado" : $"el tuyo: {git.Executable}";
+            steps[0].Hint = git.Source == GitSource.Roost ? $"{GitCatalog.Current.Label}, SHA-256 verificado" : $"el tuyo: {git.Executable}";
             d.Step(1, "Comprobando el servidor");
             steps[1].Hint = ServerHint(url, request.Access);
             d.Step(2, "Clonando");

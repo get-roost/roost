@@ -21,7 +21,7 @@ internal static class GitSetup
         var config = RoostConfig.Load(paths.ConfigFile);
         if (GitTool.Locate(paths, config) is { } found) return found;
 
-        var build = GitCatalog.Windows;
+        var build = GitCatalog.Current;
         AnsiConsole.MarkupLineInterpolated($"Instalando git (la primera vez): {build.Label} de {build.Url.Host}...");
         GitLocation? location = null;
         await AnsiConsole.Status().StartAsync($"Instalando {build.Label}...", async ctx =>
@@ -50,7 +50,7 @@ internal static class GitSetup
     }
 
     public static string SourceLabel(GitLocation git) =>
-        git.Source == GitSource.Configured ? "el de roost.toml ([[git]] exe)" : $"el de Roost ({GitCatalog.Windows.Label})";
+        git.Source == GitSource.Configured ? "el de roost.toml ([[git]] exe)" : $"el de Roost ({GitCatalog.Current.Label})";
 }
 
 /// <summary><c>roost git install</c>: el MinGit de Roost, verificado, en bin/git.</summary>
@@ -58,7 +58,7 @@ public sealed class GitInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("git install")) return 1;
+        if (!PlatformGate.Require("git install")) return 1;
 
         var paths = RoostPaths.Default();
         try
@@ -110,7 +110,7 @@ public sealed class GitStatusCommand : AsyncCommand<GitStatusCommand.Settings>
             var config = RoostConfig.Load(paths.ConfigFile);
             var git = GitTool.Locate(paths, config);
             var version = git is null ? null : await GitSetup.VersionAsync(git, cancellation);
-            var roostGit = new GitInstaller(paths).Find(GitCatalog.Windows);
+            var roostGit = new GitInstaller(paths).Find(GitCatalog.Current);
             var env = new GitEnvironment(paths);
             var access = GitAccessSupport.Factory(paths);
             var ssh = OpenSsh.TryLocate();
@@ -127,7 +127,7 @@ public sealed class GitStatusCommand : AsyncCommand<GitStatusCommand.Settings>
                     source = git?.Source switch { GitSource.Roost => "roost", GitSource.Configured => "configured", _ => null },
                     version,
                     configuredExe = config.GitExe,
-                    roost = new { build = GitCatalog.Windows.Version, installed = roostGit is not null, directory = roostGit?.Directory, sha256 = GitCatalog.Windows.Sha256 },
+                    roost = new { build = GitCatalog.Current.Version, installed = roostGit is not null, directory = roostGit?.Directory, sha256 = GitCatalog.Current.Sha256 },
                     gitconfig = env.ConfigFile,
                     ssh = new { found = ssh is not null, directory = OpenSsh.DefaultDirectory(), knownHosts = env.KnownHostsFile, trustedHosts = trusted },
                     keys = keys.Select(k => k.Name),
@@ -138,8 +138,8 @@ public sealed class GitStatusCommand : AsyncCommand<GitStatusCommand.Settings>
 
             if (git is null)
             {
-                AnsiConsole.MarkupLine("[yellow]git no esta instalado.[/] Roost lo instala solo la primera vez que clonas un sitio, o ahora con: roost git install");
-                AnsiConsole.MarkupLineInterpolated($"[grey]Sera {GitCatalog.Windows.Label} (SHA-256 {GitCatalog.Windows.Sha256[..12]}...), en {paths.GitBin}. Para usar otro: [[git]] exe en {paths.ConfigFile}[/]");
+                AnsiConsole.MarkupLine("[yellow]git no esta instalado.[/]" + PlatformGate.WindowsHint(" Roost lo instala solo la primera vez que clonas un sitio, o ahora con: roost git install"));
+                AnsiConsole.MarkupLineInterpolated($"[grey]Sera {GitCatalog.Current.Label} (SHA-256 {GitCatalog.Current.Sha256[..12]}...), en {paths.GitBin}. Para usar otro: [[git]] exe en {paths.ConfigFile}[/]");
                 return 0;
             }
 

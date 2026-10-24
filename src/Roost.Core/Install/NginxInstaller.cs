@@ -15,6 +15,9 @@ public sealed record NginxBuild(string Version, Uri Url, string Sha256)
 /// </summary>
 public static class NginxCatalog
 {
+    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
+    public static NginxBuild Current => Windows;
+
     // nginx-1.30.6.zip (rama estable): firma PGP verificada el 22-oct-2026 con la clave de Sergey
     // Kandaurov (D678 6CE3 03D9 A902 2998 DC6C C846 4D54 9AF7 5C0A, nginx.org/keys/pluknet.key).
     public static readonly NginxBuild Windows = new(
@@ -34,7 +37,7 @@ public sealed record InstalledNginx(string Version, string Directory)
 /// <summary>Instala nginx con las mismas reglas que PHP (ver <see cref="InstallFiles"/>).</summary>
 public sealed class NginxInstaller
 {
-    public const string ExecutableName = "nginx.exe";
+    public static string ExecutableName => OsNames.Exe("nginx");
 
     private readonly RoostPaths _paths;
     private readonly HttpClient? _http;

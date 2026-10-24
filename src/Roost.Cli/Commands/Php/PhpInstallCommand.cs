@@ -35,18 +35,13 @@ public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            AnsiConsole.MarkupLine("[red]roost php install solo funciona en Windows por ahora:[/] en Linux no hay "
-                + "binarios oficiales de PHP y los builds propios aun no existen (ROOST.md seccion 5.4).");
-            return 1;
-        }
+        if (!PlatformGate.Require("php install")) return 1;
 
         var installer = new PhpInstaller(RoostPaths.Default(), RoostHttp.Client);
         try
         {
-            var catalog = await WindowsPhpCatalog.FetchAsync(RoostHttp.Client, cancellation);
-            var build = WindowsPhpCatalog.Resolve(catalog, settings.Version, settings.ThreadSafe, settings.Architecture);
+            var catalog = await PhpCatalog.FetchAsync(RoostHttp.Client, cancellation);
+            var build = PhpCatalog.Resolve(catalog, settings.Version, settings.ThreadSafe, settings.Architecture);
 
             if (installer.IsInstalled(build))
             {

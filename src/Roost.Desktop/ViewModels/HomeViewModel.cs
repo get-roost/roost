@@ -234,12 +234,12 @@ public sealed partial class HomeViewModel : PageViewModel
 
     private ServiceRow RedisRow(RoostConfig config, string state, Tone tone, int restarts, string? key, bool alive) =>
         new("Redis", null, Tone.Neutral, "Caché y colas · datos en data\\redis",
-            new RedisInstaller(Main.App.Paths).Locate()?.Version ?? RedisCatalog.Windows.Version,
+            new RedisInstaller(Main.App.Paths).Locate()?.Version ?? RedisCatalog.Current.Version,
             $"127.0.0.1:{config.RedisPort}", state, tone, restarts, key, alive);
 
     private ServiceRow MailRow(RoostConfig config, string state, Tone tone, int restarts, string? key, bool alive) =>
         new("Mailpit", null, Tone.Neutral, $"Correo de PHP · bandeja en {config.MailWebUrl.TrimEnd('/')}",
-            new MailpitInstaller(Main.App.Paths).Locate()?.Version ?? MailpitCatalog.Windows.Version,
+            new MailpitInstaller(Main.App.Paths).Locate()?.Version ?? MailpitCatalog.Current.Version,
             $":{config.MailSmtpPort} · :{config.MailWebPort}", state, tone, restarts, key, alive);
 
     private IReadOnlyList<ServiceRow> PlannedRows(
@@ -281,11 +281,11 @@ public sealed partial class HomeViewModel : PageViewModel
 
         // El servidor web que arrancará: el de [web] server.
         var (webName, webVersion) = config.UsesApache
-            ? ("Apache", new ApacheInstaller(Main.App.Paths).Find(ApacheCatalog.Windows)?.Version)
-            : ("nginx", new NginxInstaller(Main.App.Paths).Find(NginxCatalog.Windows)?.Version);
+            ? ("Apache", new ApacheInstaller(Main.App.Paths).Find(ApacheCatalog.Current)?.Version)
+            : ("nginx", new NginxInstaller(Main.App.Paths).Find(NginxCatalog.Current)?.Version);
         rows.Add(new ServiceRow(webName, null, Tone.Neutral,
             webVersion is null ? "Se instala solo al iniciar por primera vez" : sites.Count == 0 ? "localhost" : $"localhost y {Count(sites.Count, "sitio .test", "sitios .test")}",
-            webVersion ?? (config.UsesApache ? ApacheCatalog.Windows.Version : NginxCatalog.Windows.Version),
+            webVersion ?? (config.UsesApache ? ApacheCatalog.Current.Version : NginxCatalog.Current.Version),
             sites.Count > 0 ? $":{config.HttpPort} · :{config.HttpsPort}" : $":{config.HttpPort}", "Parado", Tone.Off, 0, null));
         return rows;
     }

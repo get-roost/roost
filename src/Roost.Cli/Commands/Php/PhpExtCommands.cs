@@ -31,7 +31,7 @@ public sealed class PhpExtListCommand : Command<PhpExtListCommand.Settings>
 
     public override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("php ext list")) return 1;
+        if (!PlatformGate.Require("php ext list")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -91,7 +91,7 @@ public abstract class PhpExtToggleCommand(bool enable) : AsyncCommand<PhpExtTogg
 {
     public override async Task<int> ExecuteAsync(CommandContext context, PhpExtToggleSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check(enable ? "php ext enable" : "php ext disable")) return 1;
+        if (!PlatformGate.Require(enable ? "php ext enable" : "php ext disable")) return 1;
         var paths = RoostPaths.Default();
         try
         {

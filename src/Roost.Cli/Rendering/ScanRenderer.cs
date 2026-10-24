@@ -14,7 +14,8 @@ public static class ScanRenderer
         ComponentKind.Nginx, ComponentKind.Apache,
     ];
 
-    private static string KindTitle(ComponentKind kind) => kind switch
+    /// <summary>El nombre que se enseña de cada tipo («PHP», «MariaDB», «nginx»); lo usa también <c>roost audit</c>.</summary>
+    internal static string KindTitle(ComponentKind kind) => kind switch
     {
         ComponentKind.Php => "PHP",
         ComponentKind.MySql => "MySQL",
@@ -33,9 +34,8 @@ public static class ScanRenderer
 
         if (result.Components.Count == 0)
         {
-            console.MarkupLine("[yellow]No se encontro ningun componente.[/] "
-                + "El catalogo de scanners aun no esta conectado (lo rellena el otro agente) "
-                + "o no hay stacks instalados.");
+            console.MarkupLine("[yellow]No se encontro ningun componente:[/] "
+                + "no hay PHP, MySQL, MariaDB, nginx ni Apache en las rutas que mira Roost ni en el PATH.");
             return;
         }
 

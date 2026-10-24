@@ -196,7 +196,7 @@ public sealed class NodeInstallCommand : AsyncCommand<NodeInstallCommand.Setting
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("node install")) return 1;
+        if (!PlatformGate.Require("node install")) return 1;
         var paths = RoostPaths.Default();
         if (NodeSetup.Parse(settings.Version ?? "lts") is not { } spec) return 1;
         try
@@ -316,7 +316,7 @@ public sealed class NodeUseCommand : Command<NodeUseCommand.Settings>
         var matches = NodeInstaller.Match(new NodeInstaller(paths).ListInstalled(), spec);
         if (matches.Count == 0)
         {
-            AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun Node de Roost que case con '{text}'.[/] Instalalo: roost node install {text}");
+            AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun Node de Roost que case con '{text}'.[/]{PlatformGate.WindowsHint($" Instalalo: roost node install {text}")}");
             return 1;
         }
 
@@ -452,7 +452,7 @@ public sealed class NodeStatusCommand : AsyncCommand<NodeStatusCommand.Settings>
 
         if (installed.Count == 0)
         {
-            AnsiConsole.MarkupLineInterpolated($"[yellow]No hay ningun Node de Roost.[/] Instala la LTS: roost node install {NodeCatalog.Default.Major}");
+            AnsiConsole.MarkupLineInterpolated($"[yellow]No hay ningun Node de Roost.[/]{PlatformGate.WindowsHint($" Instala la LTS: roost node install {NodeCatalog.Default.Major}")}");
         }
         else
         {

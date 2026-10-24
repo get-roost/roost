@@ -30,7 +30,7 @@ public sealed class AutostartOnCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("autostart on")) return 1;
+        if (!PlatformGate.Require("autostart on")) return 1;
         if (LogonTask.WhyNot() is { } why)
         {
             AnsiConsole.MarkupLineInterpolated($"[yellow]{why}[/]");
@@ -60,7 +60,7 @@ public sealed class AutostartOffCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("autostart off")) return 1;
+        if (!PlatformGate.Require("autostart off")) return 1;
         try
         {
             await Autostart.Task.DisableAsync(cancellation);
@@ -86,7 +86,7 @@ public sealed class AutostartStatusCommand : AsyncCommand<AutostartStatusCommand
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!WindowsOnly.Check("autostart status")) return 1;
+        if (!PlatformGate.Require("autostart status")) return 1;
         var status = await Autostart.Task.StatusAsync(cancellation);
         var stale = status.IsStale(File.Exists);
         if (settings.Json)
