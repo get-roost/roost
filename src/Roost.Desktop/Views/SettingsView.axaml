@@ -77,6 +77,13 @@
               <Border Classes="card-h"><TextBlock Classes="h2" Text="General" /></Border>
               <StackPanel Margin="16,14" Spacing="10">
                 <CheckBox IsChecked="{Binding StartWithWindows}" Content="Abrir Roost al iniciar sesión (en la bandeja)" />
+                <!-- Ajustes y sistema (E4): la tarea programada que arranca el stack sin la app -->
+                <CheckBox IsChecked="{Binding StackAtLogon}" IsEnabled="{Binding CanStackAtLogon}">
+                  <StackPanel>
+                    <TextBlock Text="Iniciar todo al iniciar sesión, sin abrir la app" TextWrapping="Wrap" />
+                    <TextBlock Classes="faint" TextWrapping="Wrap" Text="{Binding StackAtLogonHint}" />
+                  </StackPanel>
+                </CheckBox>
                 <CheckBox IsChecked="{Binding StartStackOnLaunch}" Content="Iniciar todo al abrir Roost" />
                 <CheckBox IsChecked="{Binding CloseToTray}" Content="Cerrar la ventana deja Roost en la bandeja" />
                 <CheckBox IsChecked="{Binding ShimsEnabled}">

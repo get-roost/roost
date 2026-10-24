@@ -257,6 +257,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         // Ajustes y sistema: los programas del equipo, roostd, el DNS local y la tarea al iniciar sesión.
         StackChanged();
         await LoadProgramsAsync();
+        await LoadStackAtLogonAsync();
         await ProbeDnsAsync(force: false);
     }
 

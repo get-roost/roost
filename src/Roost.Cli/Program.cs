@@ -516,6 +516,25 @@ app.Configure(config =>
     config.AddCommand<DaemonCommand>("daemon").IsHidden();
 
     // Lo lanza el desinstalador (ya elevado): quita lo que Roost puso fuera de su carpeta.
+    // Ajustes y sistema (E4): arrancar el stack al iniciar sesion, sin la app.
+    config.AddBranch("autostart", autostart =>
+    {
+        autostart.SetDescription("Arrancar el stack al iniciar sesion sin abrir la app: una tarea programada de tu usuario, sin permisos de administrador (solo en Windows).");
+
+        autostart.AddCommand<AutostartOnCommand>("on")
+            .WithDescription("Crea la tarea: al iniciar sesion lanza roost up (el daemon y el stack), sin ventanas.")
+            .WithExample("autostart", "on");
+
+        autostart.AddCommand<AutostartOffCommand>("off")
+            .WithDescription("Quita la tarea.")
+            .WithExample("autostart", "off");
+
+        autostart.AddCommand<AutostartStatusCommand>("status")
+            .WithDescription("Si la tarea esta puesta y que lanza (solo lee).")
+            .WithExample("autostart", "status")
+            .WithExample("autostart", "status", "--json");
+    });
+
     config.AddCommand<UninstallCleanupCommand>("uninstall-cleanup").IsHidden();
 
     // Lo ultimo: los comandos de las extensiones no pueden pisar los de Roost.

@@ -17,7 +17,7 @@ namespace Roost.Cli.Commands;
 /// <c>roost uninstall-cleanup</c> (oculto): lo lanza el desinstalador, ya elevado, antes de borrar
 /// los ficheros. Quita lo que Roost puso FUERA de su carpeta: la regla NRPT (sin ella, los .test de
 /// otras herramientas dejarian de resolver), el bloque del hosts, los shims del PATH del usuario,
-/// el arranque con Windows y, salvo <c>--keep-ca</c>, la CA de los certificados de confianza y lo
+/// el arranque con Windows (la app y la tarea que arranca el stack) y, salvo <c>--keep-ca</c>, la CA de los certificados de confianza y lo
 /// de Firefox. Nunca toca los datos, los proyectos ni la configuracion (salvo volver a
 /// <c>[sites] resolver = "hosts"</c> si quita la regla). Cada paso va por su cuenta: si uno falla,
 /// se apunta y se sigue; siempre sale con 0, para no dejar el desinstalador a medias.
@@ -70,6 +70,15 @@ public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Se
                 return "no estaba";
             run.DeleteValue("Roost", throwOnMissingValue: false);
             return "quitado de HKCU\\...\\Run";
+        });
+
+        // E4: la tarea que arranca el stack al iniciar sesion lanzaria un roost.exe que ya no esta.
+        Step(log, "tarea al iniciar sesion", () =>
+        {
+            var task = new LogonTask(Roost.Core.Scanning.CommandRunner.Default);
+            if (!task.StatusAsync().GetAwaiter().GetResult().Exists) return "no estaba";
+            task.DisableAsync().GetAwaiter().GetResult();
+            return $"quitada ({LogonTask.TaskName})";
         });
 
         if (settings.KeepCa)

@@ -352,6 +352,88 @@ public class AjustesSistemaTests
         Assert.Equal("roostd no está en marcha: arranca con Iniciar todo (o roost up).", settings.DaemonText);
     }
 
+    // E4: la tarea al iniciar sesión
+
+    /// <summary>Un schtasks de pega: recuerda si la tarea «está» y apunta lo que se le pide.</summary>
+    private sealed class FakeSchtasks : Roost.Core.Scanning.ICommandRunner
+    {
+        public bool Exists { get; set; }
+        public bool Deny { get; set; }
+        public List<string> Calls { get; } = [];
+
+        public Task<Roost.Core.Scanning.CommandResult> RunAsync(Roost.Core.Scanning.CommandSpec spec, IProgress<string>? lines, CancellationToken cancellation)
+        {
+            Calls.Add(spec.Arguments[0]);
+            var result = spec.Arguments[0] switch
+            {
+                "/query" => Exists ? new Roost.Core.Scanning.CommandResult(0, Roost.Core.Platform.LogonTask.Xml(@"C:\Program Files\Roost\roost.exe", "PC\\ana", "conhost.exe"), "", false) : new(1, "", "ERROR: no existe", false),
+                "/create" when Deny => new(1, "", "ERROR: Acceso denegado.", false),
+                "/create" => Ok(() => Exists = true),
+                "/delete" => Ok(() => Exists = false),
+                _ => new Roost.Core.Scanning.CommandResult(1, "", "", false),
+            };
+            return Task.FromResult(result);
+        }
+
+        private static Roost.Core.Scanning.CommandResult Ok(Action action)
+        {
+            action();
+            return new(0, "CORRECTO", "", false);
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Ajustes_IniciarTodoAlIniciarSesion_ConLaTareaProgramada()
+    {
+        var (main, window, fake) = await OpenAsync();
+        using var _ = fake;
+        var schtasks = new FakeSchtasks();
+        main.App.LogonTask = new Roost.Core.Platform.LogonTask(schtasks, "schtasks.exe", _ => null);
+
+        await main.NavigateToAsync(main.Settings);
+        var settings = main.Settings;
+        Assert.True(settings.CanStackAtLogon);
+        Assert.False(settings.StackAtLogon);
+        Assert.StartsWith("Una tarea programada de tu usuario", settings.StackAtLogonHint);
+
+        settings.StackAtLogon = true;
+        await WaitAsync(() => schtasks.Exists && settings.StackAtLogonHint.StartsWith("Lanza roost up", StringComparison.Ordinal));
+        Assert.Contains("/create", schtasks.Calls);
+        Assert.True(settings.StackAtLogon);
+
+        settings.StackAtLogon = false;
+        await WaitAsync(() => !schtasks.Exists && settings.StackAtLogonHint.StartsWith("Una tarea", StringComparison.Ordinal));
+        Assert.Contains("/delete", schtasks.Calls);
+
+        // Si Windows no la deja crear, lo dice y la casilla vuelve atrás.
+        schtasks.Deny = true;
+        settings.StackAtLogon = true;
+        await WaitAsync(() => main.Dialog is MessageDialogViewModel);
+        var error = Assert.IsType<MessageDialogViewModel>(main.Dialog);
+        Assert.Equal("No se pudo crear la tarea al iniciar sesión", error.Title);
+        Assert.Contains("Acceso denegado", error.Text);
+        error.Close(null);
+        await WaitAsync(() => !settings.StackAtLogon);
+
+        // Con ROOST_HOME no se puede (la tarea arrancaría la Roost de siempre).
+        main.App.LogonTask = new Roost.Core.Platform.LogonTask(schtasks, "schtasks.exe", name => name == "ROOST_HOME" ? @"C:\pruebas" : null);
+        await main.NavigateToAsync(main.Home);
+        await main.NavigateToAsync(main.Settings);
+        Assert.False(settings.CanStackAtLogon);
+        Assert.Contains("ROOST_HOME", settings.StackAtLogonHint);
+        Snapshot(window, "ajustes-sistema-tarea");
+    }
+
+    private static async Task WaitAsync(Func<bool> condition)
+    {
+        for (var i = 0; i < 100 && !condition(); i++)
+        {
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(10);
+        }
+        Assert.True(condition());
+    }
+
     [AvaloniaFact]
     public async Task Sitios_AbrirEnElEditor_ConLaCarpetaDelSitio()
     {
