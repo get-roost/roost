@@ -378,7 +378,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
         Refreshing = true;
         try
         {
-            var names = await Task.Run(() => DbAdmin.List(db, ini, ProcessRunner.Default));
+            var names = await Task.Run(() => DbAdmin.List(db, ini, DbClient));
             IReadOnlyList<Site> sites = [];
             try { sites = new SiteRegistry(Main.App.Paths).Load(); } catch (Exception ex) when (ex is IOException or RoostException) { }
             Databases = names.Select(n => new DatabaseLine(n,
@@ -392,7 +392,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
 
         try
         {
-            var users = await Task.Run(() => DbAdmin.ListUsers(db, ini, ProcessRunner.Default));
+            var users = await Task.Run(() => DbAdmin.ListUsers(db, ini, DbClient));
             Users = users.Select(u => new DbUserRow(u)).ToList();
         }
         catch (RoostException ex)

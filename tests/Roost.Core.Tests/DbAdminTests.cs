@@ -349,4 +349,42 @@ public class DbAdminTests
         Assert.Equal("https://aka.ms/vc14/vc_redist.x64.exe", modern.RedistributableUrl);
         Assert.Equal("Visual C++ 2013 (x64)", old.MissingRedistributable);
     }
+
+    // --- Exportar e importar (BD-2) ---
+
+    [Fact]
+    public void Inspect_DiceSiExisteYCuantasTablasTiene()
+    {
+        var client = new FakeClient("1\r\n12\r\nroost-ok\r\n");
+
+        var info = DbAdmin.Inspect(MariaDb, "my.ini", "tienda", client);
+
+        Assert.Equal(new DbSchemaInfo(true, 12), info);
+        Assert.False(info.IsEmpty);
+        Assert.Contains("SCHEMA_NAME = 'tienda'", Assert.Single(client.Calls));
+        Assert.Contains("TABLE_SCHEMA = 'tienda'", client.Calls[0]);
+        Assert.Equal(new DbSchemaInfo(false, 0), DbAdmin.Inspect(MariaDb, "my.ini", "nueva", new FakeClient("0\n0\nroost-ok\n")));
+    }
+
+    [Fact]
+    public void Inspect_NombreRaroOSinRespuesta_Lanza()
+    {
+        var client = new FakeClient("1\n2\nroost-ok");
+
+        Assert.Throws<RoostException>(() => DbAdmin.Inspect(MariaDb, "my.ini", "x' OR '1'='1", client));
+        Assert.Empty(client.Calls);
+        Assert.Throws<RoostException>(() => DbAdmin.Inspect(MariaDb, "my.ini", "tienda", new FakeClient("roost-ok\n")));
+    }
+
+    [Fact]
+    public void Collations_LaPrimeraColumnaDeShowCollation()
+    {
+        var client = new FakeClient("utf8mb4_0900_ai_ci\tutf8mb4\t255\t\tYes\t8\r\nutf8mb4_unicode_ci\tutf8mb4\t224\t\tYes\t8\r\nroost-ok\r\n");
+
+        var collations = DbAdmin.Collations(MariaDb, "my.ini", client);
+
+        Assert.Equal(2, collations.Count);
+        Assert.Contains("UTF8MB4_0900_AI_CI", collations);   // sin distinguir mayúsculas
+        Assert.Contains("SHOW COLLATION", Assert.Single(client.Calls));
+    }
 }

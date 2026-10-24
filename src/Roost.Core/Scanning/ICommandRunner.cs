@@ -22,6 +22,21 @@ public sealed record CommandSpec(
     TimeSpan? Timeout = null,
     string? Stdin = null)
 {
+    /// <summary>
+    /// Lo que se le da por stdin en streaming, en bytes y por bloques (un .sql de varios GB, que no
+    /// cabe en un string): se lee hasta el final y se cierra stdin. Si leerlo falla (un .gz roto,
+    /// un filtro que se niega a seguir), la orden se mata y <see cref="ICommandRunner.RunAsync"/>
+    /// lanza ese error. No va con <see cref="Stdin"/>. Quien lo pasa lo cierra.
+    /// </summary>
+    public Stream? StdinStream { get; init; }
+
+    /// <summary>
+    /// Adónde va stdout tal cual, en bytes (un volcado, comprimido o no): entonces stdout ni se
+    /// guarda en <see cref="CommandResult.Stdout"/> ni se da por líneas (stderr sí). Si escribir
+    /// falla (disco lleno), la orden se mata y se lanza ese error. Quien lo pasa lo cierra.
+    /// </summary>
+    public Stream? StdoutStream { get; init; }
+
     /// <summary>La orden tal como se enseña en un log: el ejecutable y sus argumentos, con comillas donde hay espacios.</summary>
     public string Display => string.Join(' ', new[] { Exe }.Concat(Arguments).Select(Quote));
 
