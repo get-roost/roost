@@ -21,10 +21,28 @@ namespace Roost.Desktop.ViewModels;
 /// </summary>
 public class ShareSystem
 {
-    public virtual async Task<IReadOnlyList<ShareDto>> ListAsync(DaemonClient daemon, CancellationToken cancellation = default)
+    /// <summary>
+    /// Lo que se está compartiendo. Si la tubería del daemon no existe, ni se le pregunta: conectar a
+    /// una que no está espera un segundo entero, y esto se mira cada vez que se vuelve a Sitios.
+    /// </summary>
+    public virtual async Task<IReadOnlyList<ShareDto>> ListAsync(DaemonClient daemon, Roost.Core.Platform.RoostPaths paths, CancellationToken cancellation = default)
     {
+        if (OperatingSystem.IsWindows() && !PipeExists(DaemonHost.PipeName(paths))) return [];
         try { return (await daemon.SharesAsync(cancellation)).Shares; }
-        catch (Exception ex) when (ex is HttpRequestException or IOException or TimeoutException or TaskCanceledException or RoostException) { return []; }
+        catch (Exception ex) when (ex is HttpRequestException or IOException or TimeoutException or TaskCanceledException or ObjectDisposedException or RoostException) { return []; }
+    }
+
+    /// <summary>Si hay una tubería con ese nombre (se listan las de <c>\\.\pipe\</c>, sin conectar a ninguna).</summary>
+    private static bool PipeExists(string name)
+    {
+        try
+        {
+            return Directory.EnumerateFiles(@"\\.\pipe\").Any(p => string.Equals(Path.GetFileName(p), name, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return true;   // si no se puede mirar, se pregunta
+        }
     }
 
     public virtual Task<ShareResponse> TunnelAsync(DaemonClient daemon, string site) => daemon.ShareTunnelAsync(site);
@@ -147,7 +165,7 @@ public sealed partial class SitesViewModel
         }
         else
         {
-            _shares = await Sharing.ListAsync(Main.App.Daemon);
+            _shares = await Sharing.ListAsync(Main.App.Daemon, Main.App.Paths);
         }
         _sharesLoaded = true;
         if (Selected is { } row) PickShare(row.Site);

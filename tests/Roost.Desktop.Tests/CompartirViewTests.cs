@@ -358,7 +358,7 @@ public class CompartirViewTests
         public List<int> FirewallRemoved { get; } = [];
         public List<CancellationToken> Holds { get; } = [];
 
-        public override Task<IReadOnlyList<ShareDto>> ListAsync(DaemonClient daemon, CancellationToken cancellation = default)
+        public override Task<IReadOnlyList<ShareDto>> ListAsync(DaemonClient daemon, Roost.Core.Platform.RoostPaths paths, CancellationToken cancellation = default)
         {
             Lists++;
             return Task.FromResult<IReadOnlyList<ShareDto>>([.. _shares]);
