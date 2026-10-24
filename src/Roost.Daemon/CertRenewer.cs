@@ -4,9 +4,8 @@ namespace Roost.Daemon;
 /// Mientras roostd está en marcha, renueva los certificados de los sitios que caducan pronto
 /// (<c>LocalCa.RenewBefore</c>, 30 días) sin esperar al siguiente <c>up</c>: cada <c>up</c> ya
 /// los renueva al preparar el plan, pero un daemon puede llevar semanas en marcha. Mira una vez
-/// al día; si renueva alguno, <see cref="StackService.RenewCertificatesAsync"/> reinicia solo el
-/// servidor web (la recarga en caliente llegará con la recarga selectiva). Nunca lanza: lo que
-/// pase, al log.
+/// al día; si renueva alguno, <see cref="StackService.RenewCertificatesAsync"/> recarga el servidor
+/// web en caliente, sin cortar nada. Nunca lanza: lo que pase, al log.
 /// </summary>
 internal static class CertRenewer
 {

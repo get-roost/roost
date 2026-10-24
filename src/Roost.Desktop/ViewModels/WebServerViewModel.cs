@@ -233,14 +233,25 @@ public sealed partial class WebServerViewModel : PageViewModel
         TestTone = output?.Contains("test is successful", StringComparison.OrdinalIgnoreCase) == true ? Tone.Ok : Tone.Bad;
     });
 
-    [RelayCommand]
-    private Task ReloadAsync() => Main.RunAsync("No se pudo recargar nginx", async () =>
+    /// <summary>
+    /// «Recargar»: el daemon valida la configuración (el mismo <c>-t</c> que «Validar») y el
+    /// servidor web la lee otra vez en caliente, sin cortar las conexiones (<c>POST /reload</c>). Si
+    /// no vale, sigue con la que tenía y el diálogo dice por qué. Sirve para lo editado a mano
+    /// fuera de las marcas de un vhost.
+    /// </summary>
+    private async Task ReloadWebAsync(string server, string label)
     {
-        var response = await Main.App.Daemon.RestartAsync("nginx");
+        var response = await Main.App.Daemon.ReloadAsync(server);
         if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
         await Main.Stack.RefreshAsync();
-        Main.Flash("nginx recargado");
-    });
+        var done = response.Applied.FirstOrDefault() ?? "";
+        Main.Flash(done.StartsWith("recargado", StringComparison.Ordinal) ? $"{label} recargado sin cortar"
+            : done.StartsWith("arrancado", StringComparison.Ordinal) ? $"{label} arrancado"
+            : $"{label} reiniciado (no se pudo recargar en caliente)");
+    }
+
+    [RelayCommand]
+    private Task ReloadAsync() => Main.RunAsync("No se pudo recargar nginx", () => ReloadWebAsync(RoostConfig.WebNginx, "nginx"));
 
     [RelayCommand]
     private Task OpenConfAsync() => Main.RunAsync("No se pudo abrir nginx.conf", () =>
@@ -304,13 +315,7 @@ public sealed partial class WebServerViewModel : PageViewModel
     });
 
     [RelayCommand]
-    private Task ReloadApacheAsync() => Main.RunAsync("No se pudo recargar Apache", async () =>
-    {
-        var response = await Main.App.Daemon.RestartAsync("apache");
-        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
-        await Main.Stack.RefreshAsync();
-        Main.Flash("Apache recargado");
-    });
+    private Task ReloadApacheAsync() => Main.RunAsync("No se pudo recargar Apache", () => ReloadWebAsync(RoostConfig.WebApache, "Apache"));
 
     [RelayCommand]
     private Task OpenApacheConfAsync() => Main.RunAsync("No se pudo abrir httpd.conf", () =>
