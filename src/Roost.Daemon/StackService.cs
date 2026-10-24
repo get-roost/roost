@@ -275,12 +275,13 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
         // Lo que sigue igual pero estaba parado a mano (o dejó de relanzarse): up lo arranca todo.
         var stopped = supervisor.Status()
             .Where(s => reload.Unchanged.Contains(s.Name) && s.State is ServiceState.Stopped or ServiceState.Failed)
-            .Select(s => s.Name)
-            .ToHashSet(StringComparer.Ordinal);
+            .ToList();
         if (stopped.Count > 0)
         {
-            await supervisor.StartAsync(stopped.Contains);
-            done.AddRange(stopped.Select(ReloadPlan.Pool).Distinct().Select(name => $"arrancado {name} (estaba parado)"));
+            await supervisor.StartAsync(name => stopped.Any(s => s.Name == name));
+            done.AddRange(stopped
+                .Select(s => $"arrancado {ReloadPlan.Pool(s.Name)} ({(s.State == ServiceState.Failed ? "no arrancaba" : "estaba parado")})")
+                .Distinct());
         }
 
         // 2. La base de datos, Redis, Mailpit y los de las extensiones que se van o cambian: lo viejo se
