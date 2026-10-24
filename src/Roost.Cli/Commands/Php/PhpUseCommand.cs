@@ -39,7 +39,7 @@ public sealed class PhpUseCommand : AsyncCommand<PhpUseCommand.Settings>
             var installed = new PhpInstaller(paths).ListInstalled();
             if (PhpInstaller.Match(installed, settings.Version).Count == 0)
             {
-                AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun PHP de Roost que case con '{settings.Version}'.[/]{PlatformGate.WindowsHint($" Instalalo: roost php install {settings.Version}")}");
+                AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun PHP de Roost que case con '{settings.Version}'.[/] Instalalo: roost php install {settings.Version}");
                 return 1;
             }
             var wanted = RoostConfig.Load(paths.ConfigFile) with { PhpVersion = settings.Version };
@@ -79,7 +79,7 @@ public sealed class PhpUseCommand : AsyncCommand<PhpUseCommand.Settings>
         var installed = new PhpInstaller(paths).ListInstalled();
         if (PhpInstaller.Match(installed, version).Count == 0)
         {
-            AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun PHP de Roost que case con '{version}'.[/]{PlatformGate.WindowsHint($" Instalalo: roost php install {version}")}");
+            AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun PHP de Roost que case con '{version}'.[/] Instalalo: roost php install {version}");
             return 1;
         }
 

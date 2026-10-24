@@ -68,6 +68,10 @@ public sealed partial class PhpScanner : ComponentScannerBase
 
     private static IEnumerable<Candidate> PosixCandidates()
     {
+        // Lo instalado por el propio Roost (roost php install): bin/php en los tar.gz de roost-builds.
+        foreach (var c in RoostCandidates("php", Path.Combine("bin", "php")))
+            yield return c;
+
         // Rutas típicas primero: Debian/Ondřej y remi (de la distro), Homebrew, y lo compilado a
         // mano o las imágenes Docker php:* (/usr/local, /opt). Homebrew va antes que /opt/*/bin
         // para que /opt/homebrew/bin/php conserve su origen. Cada una con el suyo (PosixOrigin).

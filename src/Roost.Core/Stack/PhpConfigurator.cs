@@ -7,7 +7,11 @@ using Roost.Core.Shims;
 namespace Roost.Core.Stack;
 
 /// <summary>Una extensión de una instalación: si se carga, si va de serie y si es zend (OPcache, Xdebug).</summary>
-public sealed record PhpExtensionState(string Name, bool On, bool ByDefault, bool Zend);
+public sealed record PhpExtensionState(string Name, bool On, bool ByDefault, bool Zend)
+{
+    /// <summary>true si va integrada en el binario (los PHP de roost-builds, en Linux): siempre activa y no se puede quitar.</summary>
+    public bool BuiltIn { get; init; }
+}
 
 /// <summary>Lo que dijo <c>php -v</c> después de un cambio: su primera línea, la versión de Xdebug si cargó, y los avisos de arranque.</summary>
 public sealed record PhpCheck(string? Banner, string? XdebugVersion, IReadOnlyList<string> Warnings)
@@ -33,16 +37,22 @@ public sealed partial class PhpConfigurator(RoostPaths paths, ICommandRunner run
     public StackPlanner Planner => _planner;
 
     /// <summary>
-    /// Las extensiones de la instalación (las DLL de su <c>ext/</c> y Xdebug si Roost tiene la suya),
-    /// por nombre, con si se cargan. OPcache sin DLL (PHP 8.5, que la lleva dentro) no sale.
+    /// Las extensiones de la instalación (las DLL de su <c>ext/</c> y Xdebug si Roost tiene la suya;
+    /// en Linux, las integradas en el binario y el <c>xdebug.so</c> que trae), por nombre, con si se
+    /// cargan. OPcache sin DLL (PHP 8.5 en Windows, que la lleva dentro) no sale.
     /// </summary>
     public IReadOnlyList<PhpExtensionState> Extensions(InstalledPhp php)
     {
+        var builtIn = _planner.BuiltInExtensions(php);
         var available = new HashSet<string>(PhpIni.AvailableExtensions(php.Directory), StringComparer.OrdinalIgnoreCase);
+        available.UnionWith(builtIn);
         if (new XdebugInstaller(paths).Locate(php) is not null) available.Add(PhpIni.Xdebug);
-        var enabled = PhpIni.Enabled(available, Choice(php));
+        var enabled = PhpIni.Enabled(available, Choice(php), builtIn);
         return available.Order(StringComparer.Ordinal)
-            .Select(name => new PhpExtensionState(name, enabled.Contains(name), PhpIni.EnabledByDefault(name), PhpIni.IsZendExtension(name)))
+            .Select(name => new PhpExtensionState(name, enabled.Contains(name), PhpIni.EnabledByDefault(name) || builtIn.Contains(name), PhpIni.IsZendExtension(name))
+            {
+                BuiltIn = builtIn.Contains(name),
+            })
             .ToList();
     }
 
@@ -63,12 +73,22 @@ public sealed partial class PhpConfigurator(RoostPaths paths, ICommandRunner run
     {
         name = NormalizeName(name);
         if (name.Equals(PhpIni.Xdebug, StringComparison.OrdinalIgnoreCase))
-            throw new RoostException("Xdebug tiene su propio comando: roost php xdebug on|off (baja la DLL que toca la primera vez).");
+            throw new RoostException("Xdebug tiene su propio comando: roost php xdebug on|off" + (OperatingSystem.IsWindows() ? " (baja la DLL que toca la primera vez)." : "."));
+        var builtIn = _planner.BuiltInExtensions(php);
+        if (builtIn.Contains(name))
+        {
+            // Compilada dentro del binario (los PHP de roost-builds): no hay nada que cargar ni que quitar.
+            throw new RoostException(enabled
+                ? $"La extension {name} va integrada en PHP {php.Name} (compilado estatico) y siempre esta activa: no hay que activarla."
+                : $"La extension {name} va integrada en PHP {php.Name} (compilado estatico): no se puede quitar. "
+                  + $"Si te estorba, desactivala con su ajuste (por ejemplo {name}.enable = 0) en {Path.Combine(_planner.PhpBranchConfD(php), PhpIni.UserFragmentName)}.");
+        }
         var available = PhpIni.AvailableExtensions(php.Directory);
         if (!available.Contains(name))
         {
-            throw new RoostException($"PHP {php.Name} no trae la extension '{name}' (no hay ext\\php_{name}.dll). "
-                + $"Las que trae: {string.Join(", ", available.Order(StringComparer.Ordinal))}.");
+            var where = OperatingSystem.IsWindows() ? $"no hay ext\\php_{name}.dll" : $"ni va integrada ni hay ext/{name}.so";
+            throw new RoostException($"PHP {php.Name} no trae la extension '{name}' ({where}). "
+                + $"Las que trae: {string.Join(", ", available.Concat(builtIn).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal))}.");
         }
         return await ApplyChoiceAsync(php, Choice(php).With(name, enabled), enabled ? name : null, cancellation);
     }
@@ -83,7 +103,7 @@ public sealed partial class PhpConfigurator(RoostPaths paths, ICommandRunner run
         {
             if (XdebugCatalog.WhyNot(php) is { } why) throw new RoostException(why);
             if (new XdebugInstaller(paths).Locate(php) is null)
-                throw new RoostException($"Xdebug no esta instalado para PHP {php.Name}: roost php xdebug on lo baja.");
+                throw new RoostException($"Xdebug no esta instalado para PHP {php.Name}: roost php xdebug on lo baja.");   // en Linux WhyNot ya lo habría dicho
         }
         var check = await ApplyChoiceAsync(php, Choice(php).With(PhpIni.Xdebug, enabled), enabled ? PhpIni.Xdebug : null, cancellation);
         if (enabled && check.Ran && check.XdebugVersion is null)
@@ -247,7 +267,8 @@ public sealed partial class PhpConfigurator(RoostPaths paths, ICommandRunner run
         extension == PhpIni.Xdebug
             ? warning.Contains("xdebug", StringComparison.OrdinalIgnoreCase)
             : warning.Contains($"'{extension}'", StringComparison.OrdinalIgnoreCase)
-              || warning.Contains($"php_{extension}.dll", StringComparison.OrdinalIgnoreCase);
+              || warning.Contains($"php_{extension}.dll", StringComparison.OrdinalIgnoreCase)
+              || warning.Contains($"{extension}.so", StringComparison.OrdinalIgnoreCase);
 
     [GeneratedRegex(@"with Xdebug v([0-9][^\s,]*)")]
     private static partial Regex XdebugPattern();

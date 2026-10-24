@@ -76,8 +76,8 @@ public static partial class PhpMitigations
         sb.Append($"""
             ; Mitigaciones de la auditoria de Roost para PHP {branch} (roost audit --apply-mitigations,
             ; o "Aplicar" en la pantalla Auditoria). NO lo edites: Roost lo reescribe al aplicar o deshacer
-            ; (roost audit --undo-mitigations). Se lee despues de conf.d\99-usuario.ini y antes de
-            ; conf.d\{branch}\99-usuario.ini, que manda sobre esto. Son un tapon: actualizar PHP es el arreglo.
+            ; (roost audit --undo-mitigations). Se lee despues de {Path.Combine("conf.d", PhpIni.UserFragmentName)} y antes de
+            ; {Path.Combine("conf.d", branch, PhpIni.UserFragmentName)}, que manda sobre esto. Son un tapon: actualizar PHP es el arreglo.
 
             """);
         foreach (var e in entries)

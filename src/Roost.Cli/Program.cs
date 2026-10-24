@@ -56,10 +56,10 @@ app.Configure(config =>
 
     config.AddBranch("php", php =>
     {
-        php.SetDescription("Instala y quita PHP oficiales en la raiz de Roost (de momento, solo en Windows).");
+        php.SetDescription("Instala y quita PHP en la raiz de Roost: los oficiales de windows.php.net en Windows, los de get-roost/roost-builds (8.1 a 8.5) en Linux.");
 
         php.AddCommand<PhpListCommand>("list")
-            .WithDescription("Lista los PHP instalados por Roost y los disponibles en windows.php.net, con su estado de seguridad.")
+            .WithDescription("Lista los PHP instalados por Roost y los disponibles en el catalogo (windows.php.net o roost-builds), con su estado de seguridad.")
             .WithExample("php", "list")
             .WithExample("php", "list", "--json");
 

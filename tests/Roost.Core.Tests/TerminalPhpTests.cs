@@ -139,6 +139,18 @@ public class TerminalPhpTests : IDisposable
         Assert.Equal(expected, TerminalPhp.ArgumentsAfterProgram(commandLine));
     }
 
+    [Theory]
+    [InlineData(null, "php")]
+    [InlineData("", "php")]
+    [InlineData("php", "php")]
+    [InlineData("./php", "php")]
+    [InlineData("/home/ana/.local/bin/composer", "composer")]
+    [InlineData(@"C:\roost\bin\shims\NPM.exe", "npm")]
+    [InlineData("roost-shim", "roost-shim")]
+    public void ToolName_EsElNombreConElQueSeLlamoAlShim_SinCarpetaNiExe(string? argv0, string expected) =>
+        // En Linux los shims son enlaces a un mismo roost-shim: ProcessPath resuelve el enlace y argv[0] no.
+        Assert.Equal(expected, TerminalPhp.ToolName(argv0));
+
     [Fact]
     public void UserPath_PoneLaCarpetaLaPrimera_SinRepetirla_YLaQuita()
     {
@@ -151,12 +163,13 @@ public class TerminalPhpTests : IDisposable
         Assert.True(UserPath.Contains(path, @"C:\roost\bin\shims"));
     }
 
-    [WindowsFact("Pendiente en Linux: Builds y PHP (L1).")]
+    [Fact]
     public void ShimInstaller_CopiaElShimComoPhpConLoQueNecesitaAlLado()
     {
         var source = Path.Combine(_root, "app");
         Directory.CreateDirectory(source);
-        foreach (var file in new[] { "roost-shim.exe", "roost-shim.dll", "roost-shim.runtimeconfig.json", "Roost.Core.dll", "Tomlyn.dll", "Otra.dll" })
+        var shim = OperatingSystem.IsWindows() ? "roost-shim.exe" : "roost-shim";
+        foreach (var file in new[] { shim, "roost-shim.dll", "roost-shim.runtimeconfig.json", "Roost.Core.dll", "Tomlyn.dll", "Otra.dll" })
             File.WriteAllText(Path.Combine(source, file), file);
         File.WriteAllText(Path.Combine(source, "roost-shim.deps.json"), """
             { "targets": { ".NETCoreApp,Version=v10.0": {
@@ -170,7 +183,7 @@ public class TerminalPhpTests : IDisposable
         shims.Install(source);   // repetirlo sustituye la carpeta entera
 
         Assert.True(shims.IsInstalled);
-        Assert.Equal("roost-shim.exe", File.ReadAllText(Path.Combine(Paths.Shims, OperatingSystem.IsWindows() ? OsNames.Exe("php") : "php")));
+        Assert.Equal(shim, File.ReadAllText(Path.Combine(Paths.Shims, OperatingSystem.IsWindows() ? OsNames.Exe("php") : "php")));
         Assert.True(File.Exists(Path.Combine(Paths.Shims, "Tomlyn.dll")));
         Assert.True(File.Exists(Path.Combine(Paths.Shims, "roost-shim.runtimeconfig.json")));
         Assert.False(File.Exists(Path.Combine(Paths.Shims, "Otra.dll")));   // no la pide el deps.json

@@ -30,9 +30,9 @@ internal static class XdebugActions
             return 1;
         }
 
-        var build = XdebugCatalog.For(php)!;
+        // En Windows la DLL se baja la primera vez; en Linux viene dentro de cada PHP (For da null).
         var installer = new XdebugInstaller(paths, RoostHttp.Client);
-        if (installer.Find(build) is null)
+        if (XdebugCatalog.For(php) is { } build && installer.Find(build) is null)
         {
             AnsiConsole.MarkupLineInterpolated($"Bajando {build.FileName} de {build.Url.Host} ({build.Size / 1024} KB, la primera vez para la {build.PhpBranch})...");
             string? dll = null;
@@ -63,7 +63,8 @@ internal static class XdebugActions
             return 0;
         }
         var check = await configurator.SetXdebugAsync(php, enabled: false, cancellation);
-        AnsiConsole.MarkupLineInterpolated($"[green]Xdebug apagado en PHP {php.Name}[/] [grey](la DLL se queda en bin\\xdebug para cuando lo vuelvas a encender)[/]");
+        var keeps = XdebugCatalog.IsBundled(php) ? "el xdebug.so sigue en su ext/ para cuando lo vuelvas a encender" : "la DLL se queda en bin\\xdebug para cuando lo vuelvas a encender";
+        AnsiConsole.MarkupLineInterpolated($"[green]Xdebug apagado en PHP {php.Name}[/] [grey]({keeps})[/]");
         PhpTarget.PrintWarnings(check);
         return await PhpTarget.ApplyAsync(paths, php, cancellation);
     }
@@ -71,14 +72,13 @@ internal static class XdebugActions
 
 /// <summary>
 /// <c>roost php xdebug on [&lt;php&gt;]</c>: baja la DLL de Xdebug que toca a esa rama (verificada, la
-/// primera vez), la activa en su php.ini con <c>zend_extension</c>, comprueba con <c>php -v</c> que
-/// carga y, si el stack esta en marcha, reinicia solo su pool.
+/// primera vez; en Linux viene dentro del PHP), la activa en su php.ini con <c>zend_extension</c>,
+/// comprueba con <c>php -v</c> que carga y, si el stack esta en marcha, reinicia solo su pool.
 /// </summary>
 public sealed class PhpXdebugOnCommand : AsyncCommand<PhpXdebugSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, PhpXdebugSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("php xdebug on")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -97,7 +97,6 @@ public sealed class PhpXdebugOffCommand : AsyncCommand<PhpXdebugSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, PhpXdebugSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("php xdebug off")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -111,7 +110,7 @@ public sealed class PhpXdebugOffCommand : AsyncCommand<PhpXdebugSettings>
     }
 }
 
-/// <summary><c>roost php xdebug status [&lt;php&gt;]</c>: en que instalaciones esta encendido, que DLL usa y, si esta encendido, si carga.</summary>
+/// <summary><c>roost php xdebug status [&lt;php&gt;]</c>: en que instalaciones esta encendido, que modulo usa y, si esta encendido, si carga.</summary>
 public sealed class PhpXdebugStatusCommand : AsyncCommand<PhpXdebugStatusCommand.Settings>
 {
     public sealed class Settings : CommandSettings
@@ -125,11 +124,10 @@ public sealed class PhpXdebugStatusCommand : AsyncCommand<PhpXdebugStatusCommand
         public bool Json { get; init; }
     }
 
-    private sealed record Row(string Php, string Branch, bool On, bool? Loads, string? Version, string? Dll, string? Available, string? Unsupported);
+    private sealed record Row(string Php, string Branch, bool On, bool? Loads, string? Version, string? Dll, string? Available, string? Unsupported, bool Bundled);
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("php xdebug status")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -141,8 +139,10 @@ public sealed class PhpXdebugStatusCommand : AsyncCommand<PhpXdebugStatusCommand
             {
                 var on = configurator.Choice(php).On.Contains(PhpIni.Xdebug);
                 var dll = installer.Locate(php);
+                var bundled = XdebugCatalog.IsBundled(php);
                 bool? loads = null;
-                string? version = dll is null ? null : Path.GetFileName(Path.GetDirectoryName(dll));
+                // La version: en Windows, la carpeta de la DLL (bin/xdebug/3.5.3); en Linux, la del BUILD.json.
+                string? version = dll is null ? null : bundled ? XdebugInstaller.BundledVersion(php) : Path.GetFileName(Path.GetDirectoryName(dll));
                 if (on)
                 {
                     var check = await configurator.CheckAsync(php, cancellation);
@@ -152,7 +152,8 @@ public sealed class PhpXdebugStatusCommand : AsyncCommand<PhpXdebugStatusCommand
                         version = check.XdebugVersion ?? version;
                     }
                 }
-                rows.Add(new Row(php.Name, PhpTarget.Branch(php), on, loads, version, dll, XdebugCatalog.For(php)?.Version, XdebugCatalog.WhyNot(php)));
+                var available = bundled ? XdebugInstaller.BundledVersion(php) : XdebugCatalog.For(php)?.Version;
+                rows.Add(new Row(php.Name, PhpTarget.Branch(php), on, loads, version, dll, available, XdebugCatalog.WhyNot(php), bundled));
             }
 
             if (settings.Json)
@@ -160,7 +161,7 @@ public sealed class PhpXdebugStatusCommand : AsyncCommand<PhpXdebugStatusCommand
                 Console.WriteLine(JsonSerializer.Serialize(rows.Select(r => new
                 {
                     php = r.Php, branch = r.Branch, on = r.On, loads = r.Loads, version = r.Version, dll = r.Dll,
-                    available = r.Available, unsupported = r.Unsupported,
+                    available = r.Available, unsupported = r.Unsupported, bundled = r.Bundled,
                     mode = r.On ? "debug,develop" : null, startWithRequest = r.On ? "trigger" : null, client = r.On ? "127.0.0.1:9003" : null,
                 }), JsonOutput.Options));
                 return 0;
@@ -168,18 +169,19 @@ public sealed class PhpXdebugStatusCommand : AsyncCommand<PhpXdebugStatusCommand
 
             if (rows.Count == 0)
             {
-                AnsiConsole.MarkupLine("No hay ningun PHP instalado por Roost." + PlatformGate.WindowsHint(" Instala uno: roost php install 8.4"));
+                AnsiConsole.MarkupLine("No hay ningun PHP instalado por Roost. Instala uno: roost php install 8.4");
                 return 0;
             }
             var table = new Table().Border(TableBorder.Rounded)
-                .AddColumn("PHP").AddColumn("Xdebug").AddColumn("Version").AddColumn("DLL");
+                .AddColumn("PHP").AddColumn("Xdebug").AddColumn("Version").AddColumn(OperatingSystem.IsWindows() ? "DLL" : "Modulo");
             foreach (var r in rows)
             {
                 var state = r.Unsupported is not null ? "[grey]no disponible[/]"
                     : !r.On ? "[grey]apagado[/]"
                     : r.Loads == false ? "[red]encendido, pero no carga[/]"
                     : "[green]encendido[/]";
-                var dll = r.Dll is null ? (r.Unsupported is null ? "[grey](se baja al encenderlo)[/]" : $"[grey]{Markup.Escape(r.Unsupported)}[/]") : Markup.Escape(r.Dll);
+                var missing = r.Bundled ? "[grey](viene dentro del PHP)[/]" : "[grey](se baja al encenderlo)[/]";
+                var dll = r.Dll is null ? (r.Unsupported is null ? missing : $"[grey]{Markup.Escape(r.Unsupported)}[/]") : Markup.Escape(r.Dll);
                 table.AddRow(Markup.Escape(r.Php), state, Markup.Escape(r.Version ?? r.Available ?? "-"), dll);
             }
             AnsiConsole.Write(table);

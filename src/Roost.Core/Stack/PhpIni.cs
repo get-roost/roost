@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Roost.Core.Install;
 
 namespace Roost.Core.Stack;
 
@@ -69,6 +70,12 @@ internal sealed partial class PhpExtensionJson : JsonSerializerContext;
 /// <c>roost up</c>; lo del usuario va en <c>conf.d/99-usuario.ini</c> (todas las versiones) y en
 /// <c>conf.d/&lt;rama&gt;/</c> (solo esa rama), que PHP lee vía <c>PHP_INI_SCAN_DIR</c>, después de este,
 /// y que sobreviven a las actualizaciones.
+/// <para>
+/// <b>En Linux</b> (los PHP de roost-builds, compilados estáticos) las extensiones van integradas en el
+/// binario: no se escribe <c>extension=</c> de ninguna integrada (ni <c>zend_extension=opcache</c>) y
+/// solo se cargan las compartidas de <c>ext/</c> (Xdebug). Las integradas las dice su <c>BUILD.json</c>
+/// (<see cref="BuiltInExtensions"/>) y no se pueden quitar.
+/// </para>
 /// </summary>
 public static class PhpIni
 {
@@ -96,16 +103,47 @@ public static class PhpIni
     /// <summary>Las que trae el build para los tests de PHP mismo: ni se ofrecen ni se cargan.</summary>
     private static readonly string[] TestExtensions = ["dl_test", "zend_test"];
 
-    /// <summary>Nombres de las DLL de <c>ext/</c> (<c>php_curl.dll</c> → <c>curl</c>).</summary>
+    /// <summary>
+    /// Las extensiones que se pueden cargar en una instalación: en Windows, las DLL de <c>ext/</c>
+    /// (<c>php_curl.dll</c> → <c>curl</c>); en Linux, las integradas de su <c>BUILD.json</c> más las
+    /// compartidas de <c>ext/</c> (<c>xdebug.so</c> → <c>xdebug</c>).
+    /// </summary>
     public static IReadOnlySet<string> AvailableExtensions(string installDirectory)
     {
-        var ext = Path.Combine(installDirectory, "ext");
-        if (!Directory.Exists(ext)) return new HashSet<string>();
+        var all = new HashSet<string>(BuiltInExtensions(installDirectory), StringComparer.OrdinalIgnoreCase);
+        all.UnionWith(SharedExtensions(installDirectory));
+        return all;
+    }
 
-        return Directory.EnumerateFiles(ext, "php_*.dll")
-            .Select(f => Path.GetFileNameWithoutExtension(f)["php_".Length..])
+    /// <summary>Las integradas en el binario (compilado estático): las de su <c>BUILD.json</c>. Vacío en Windows, donde todas son DLL.</summary>
+    public static IReadOnlySet<string> BuiltInExtensions(string installDirectory) =>
+        PhpBuildInfo.Read(installDirectory)?.Extensions ?? new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Las que son un fichero en <c>ext/</c>: <c>php_*.dll</c> en Windows y <c>*.so</c> en Linux.</summary>
+    public static IReadOnlySet<string> SharedExtensions(string installDirectory)
+    {
+        var ext = Path.Combine(installDirectory, "ext");
+        if (!Directory.Exists(ext)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var dlls = Directory.EnumerateFiles(ext, "php_*.dll")
+            .Select(f => Path.GetFileNameWithoutExtension(f)["php_".Length..]);
+        var sos = Directory.EnumerateFiles(ext, "*.so")
+            .Select(Path.GetFileNameWithoutExtension)
+            .Select(name => name!.StartsWith("php_", StringComparison.OrdinalIgnoreCase) ? name[4..] : name);
+        return dlls.Concat(sos)
             .Where(name => !TestExtensions.Contains(name, StringComparer.OrdinalIgnoreCase))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// PURO: el nombre de una extensión tal como lo lista <c>php -m</c> («Zend OPcache», «PDO»,
+    /// «SimpleXML») en el nombre con el que se configura (<c>opcache</c>, <c>pdo</c>, <c>simplexml</c>).
+    /// </summary>
+    public static string ModuleName(string module)
+    {
+        var name = module.Trim();
+        if (name.Equals("Zend OPcache", StringComparison.OrdinalIgnoreCase)) return "opcache";
+        return name.ToLowerInvariant();
     }
 
     /// <summary>true si la extensión se activa de serie (sin elección del usuario) cuando el build la trae.</summary>
@@ -117,8 +155,16 @@ public static class PhpIni
     /// usuario activa y menos las que quita; nunca una cuya DLL no está.
     /// </summary>
     public static IReadOnlySet<string> Enabled(IReadOnlySet<string> availableExtensions, PhpExtensionChoice choice) =>
+        Enabled(availableExtensions, choice, builtIn: null);
+
+    /// <summary>
+    /// PURO: lo mismo, con las integradas (<paramref name="builtIn"/>) siempre dentro: van en el
+    /// binario y la elección del usuario no puede quitarlas.
+    /// </summary>
+    public static IReadOnlySet<string> Enabled(IReadOnlySet<string> availableExtensions, PhpExtensionChoice choice, IReadOnlySet<string>? builtIn) =>
         availableExtensions
-            .Where(name => (EnabledByDefault(name) || choice.On.Contains(name)) && !choice.Off.Contains(name))
+            .Where(name => (builtIn is not null && builtIn.Contains(name))
+                           || ((EnabledByDefault(name) || choice.On.Contains(name)) && !choice.Off.Contains(name)))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Lo que lleva la sección <c>[xdebug]</c> además de la DLL (ver <see cref="Render"/>).</summary>
@@ -135,11 +181,20 @@ public static class PhpIni
     /// </summary>
     /// <param name="settings">Los ajustes rápidos; null son los de serie.</param>
     /// <param name="xdebugDll">
-    /// La DLL de Xdebug de Roost (<c>bin/xdebug/…</c>), con la que Xdebug cuenta como disponible. Si es
-    /// null y el build trae <c>ext/php_xdebug.dll</c> (puesta a mano), se carga esa por su nombre.
-    /// Solo se carga si el usuario la ha activado (<paramref name="choice"/>).
+    /// El módulo de Xdebug (la DLL de Roost en <c>bin/xdebug/…</c>, o el <c>ext/xdebug.so</c> del propio
+    /// PHP en Linux), con el que Xdebug cuenta como disponible. Si es null y el build trae
+    /// <c>ext/php_xdebug.dll</c> (puesta a mano), se carga esa por su nombre. Solo se carga si el
+    /// usuario la ha activado (<paramref name="choice"/>).
     /// </param>
     /// <param name="branchConfD">La carpeta conf.d de su rama, para decirlo en la cabecera.</param>
+    /// <param name="builtIn">
+    /// Las extensiones integradas en el binario (Linux, del <c>BUILD.json</c>): siempre activas y nunca
+    /// escritas como <c>extension=</c> ni <c>zend_extension=</c>.
+    /// </param>
+    /// <param name="opensslCaFile">
+    /// Poner también <c>openssl.cafile</c> (Linux): sin él, los streams (<c>file_get_contents</c> con https)
+    /// de un PHP estático no se fían de nada, porque no hay almacén del sistema que consultar.
+    /// </param>
     public static string Render(
         string installName,
         string installDirectory,
@@ -150,13 +205,16 @@ public static class PhpIni
         string? caBundle = null,
         PhpSettings? settings = null,
         string? xdebugDll = null,
-        string? branchConfD = null)
+        string? branchConfD = null,
+        IReadOnlySet<string>? builtIn = null,
+        bool opensslCaFile = false)
     {
         choice ??= PhpExtensionChoice.None;
+        builtIn ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         settings = (settings ?? PhpSettings.Default).Normalized();
         if (xdebugDll is not null && !availableExtensions.Contains(Xdebug))
             availableExtensions = availableExtensions.Append(Xdebug).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var enabled = Enabled(availableExtensions, choice);
+        var enabled = Enabled(availableExtensions, choice, builtIn);
         var userFiles = branchConfD is null
             ? $"; Tus ajustes van en {Path.Combine(confD, UserFragmentName)}, que vale para todas las versiones."
             : $"""
@@ -182,22 +240,28 @@ public static class PhpIni
 
             """);
         // Sin esto, la extensión curl (Guzzle, Laravel, WordPress) no confía en nada (ver CaBundle).
-        // openssl.cafile no se pone: sin él, los streams (file_get_contents) usan el almacén de
-        // Windows, que también tiene la CA de Roost si se confía en ella y las de una empresa.
+        // En Windows openssl.cafile no se pone: sin él, los streams (file_get_contents) usan el almacén
+        // de Windows, que también tiene la CA de Roost si se confía en ella y las de una empresa. En
+        // Linux no hay almacén que consultar desde un PHP estático: se pone también.
         if (caBundle is not null)
+        {
             sb.Append($"curl.cainfo = \"{caBundle}\"\n");
+            if (opensslCaFile) sb.Append($"openssl.cafile = \"{caBundle}\"\n");
+        }
         sb.Append('\n');
 
         // Primero las de serie, en su orden; luego las que ha activado el usuario. Las zend
-        // (OPcache, Xdebug) nunca aquí: van en su sección, con zend_extension.
-        var extensions = WantedExtensions.Where(enabled.Contains)
-            .Concat(enabled.Where(name => !EnabledByDefault(name) && !IsZendExtension(name)).Order(StringComparer.Ordinal));
+        // (OPcache, Xdebug) nunca aquí: van en su sección, con zend_extension. Las integradas en el
+        // binario (Linux) tampoco: ya están dentro.
+        var loadable = enabled.Where(name => !builtIn.Contains(name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var extensions = WantedExtensions.Where(loadable.Contains)
+            .Concat(loadable.Where(name => !EnabledByDefault(name) && !IsZendExtension(name)).Order(StringComparer.Ordinal));
         foreach (var name in extensions)
             sb.Append($"extension={name}\n");
 
         sb.Append("\n[opcache]\n");
-        // Desde PHP 8.5 OPcache va dentro del binario y no hay DLL que cargar.
-        if (enabled.Contains("opcache"))
+        // Desde PHP 8.5 OPcache va dentro del binario y no hay DLL que cargar; en los builds estáticos de Linux, siempre.
+        if (loadable.Contains("opcache"))
             sb.Append("zend_extension=opcache\n");
         sb.Append(choice.Off.Contains("opcache") ? "opcache.enable = 0\n" : "opcache.enable = 1\n");
         sb.Append("opcache.validate_timestamps = 1\n");
@@ -217,11 +281,11 @@ public static class PhpIni
     }
 
     /// <summary>Contenido inicial del fragmento del usuario (solo se escribe si no existe).</summary>
-    public const string UserFragmentTemplate = """
+    public static string UserFragmentTemplate => $"""
         ; Tus ajustes de PHP. Roost no toca este fichero y lo carga en TODAS las versiones
         ; (va despues del php.ini generado, asi que lo que pongas aqui manda).
-        ; Lo que solo valga para una rama (un zend_extension, una DLL de PECL) va en su carpeta:
-        ; conf.d\8.4\99-usuario.ini, conf.d\7.4\99-usuario.ini...
+        ; Lo que solo valga para una rama (un zend_extension, una extension de PECL) va en su carpeta:
+        ; {Path.Combine("conf.d", "8.4", UserFragmentName)}, {Path.Combine("conf.d", "7.4", UserFragmentName)}...
         ; Ejemplo:
         ; memory_limit = 1G
         ; date.timezone = Europe/Madrid
@@ -231,8 +295,8 @@ public static class PhpIni
     /// <summary>Contenido inicial del fragmento del usuario de una rama (<c>conf.d/&lt;rama&gt;/99-usuario.ini</c>).</summary>
     public static string BranchFragmentTemplate(string branch) => $"""
         ; Tus ajustes solo para PHP {branch}. Roost no toca este fichero: lo carga en las instalaciones
-        ; de la {branch}, despues del php.ini generado y de conf.d\99-usuario.ini (lo de aqui manda).
-        ; Es el sitio para lo que no vale en otras ramas: una DLL de PECL compilada para la {branch}...
+        ; de la {branch}, despues del php.ini generado y de {Path.Combine("conf.d", UserFragmentName)} (lo de aqui manda).
+        ; Es el sitio para lo que no vale en otras ramas: una extension de PECL compilada para la {branch}...
         ; Ejemplo:
         ; extension=redis
         ; memory_limit = 2G

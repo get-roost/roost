@@ -184,21 +184,57 @@ public class StackConfigTests : IDisposable
         Assert.Equal(max.Count, max.Distinct().Count());
     }
 
-    [WindowsFact("Pendiente en Linux: Builds y PHP (L1).")]
+    [Fact]
     public void PhpIni_SoloActivaLasExtensionesQueTraeElBuild()
     {
         var available = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "curl", "mbstring", "opcache", "xdebug" };
+        var install = Path.Combine(Path.GetTempPath(), "roost", "bin", "php", "8.4.27-nts-x64");
+        var log = Path.Combine(Path.GetTempPath(), "roost", "logs", "php-8.4-error.log");
 
-        var ini = PhpIni.Render("8.4.27-nts-x64", @"C:\roost\bin\php\8.4.27-nts-x64", available, @"C:\roost\etc\php\conf.d", @"C:\roost\logs\php-8.4-error.log");
+        var ini = PhpIni.Render("8.4.27-nts-x64", install, available, Path.Combine(Path.GetTempPath(), "roost", "etc", "php", "conf.d"), log);
 
         Assert.Contains("extension=curl\n", ini);
         Assert.Contains("extension=mbstring\n", ini);
         Assert.DoesNotContain("extension=intl", ini);   // el build no la trae
         Assert.DoesNotContain("xdebug", ini);           // la trae, pero no se activa sola
         Assert.Contains("zend_extension=opcache", ini);
-        Assert.Contains(@"extension_dir = ""C:\roost\bin\php\8.4.27-nts-x64\ext""", ini);
-        Assert.Contains(@"error_log = ""C:\roost\logs\php-8.4-error.log""", ini);
+        Assert.Contains($"extension_dir = \"{Path.Combine(install, "ext")}\"", ini);
+        Assert.Contains($"error_log = \"{log}\"", ini);
     }
+
+    [Fact]
+    public void PhpIni_ConExtensionesIntegradas_NoLasCarga_YPoneOpensslCafile()
+    {
+        // Un PHP de roost-builds (Linux): curl, mbstring y opcache van dentro del binario; xdebug es el
+        // ext/xdebug.so que trae. Nada de extension= para las integradas, ni zend_extension=opcache.
+        var builtIn = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "curl", "mbstring", "opcache", "intl" };
+        var available = new HashSet<string>(builtIn, StringComparer.OrdinalIgnoreCase) { "xdebug" };
+        var so = Path.Combine("/", "casa", "bin", "php", "8.4.27-nts-x64", "ext", "xdebug.so");
+        var bundle = Path.Combine("/", "casa", "etc", "php", "cacert.pem");
+
+        var ini = PhpIni.Render("8.4.27-nts-x64", Path.Combine("/", "casa", "bin", "php", "8.4.27-nts-x64"), available, "/casa/etc/php/conf.d", "/casa/logs/php-8.4-error.log",
+            PhpExtensionChoice.None.With("xdebug", enabled: true).With("mbstring", enabled: false), bundle, xdebugDll: so, builtIn: builtIn, opensslCaFile: true);
+
+        Assert.DoesNotContain("\nextension=", ini);               // ninguna integrada se carga con extension=
+        Assert.DoesNotContain("zend_extension=opcache", ini);     // OPcache va dentro
+        Assert.Contains("opcache.enable = 1", ini);               // pero se configura
+        Assert.Contains($"zend_extension=\"{so}\"\n", ini);        // el .so de la propia instalacion
+        Assert.Contains($"curl.cainfo = \"{bundle}\"\n", ini);
+        Assert.Contains($"openssl.cafile = \"{bundle}\"\n", ini);  // los streams de un PHP estatico no tienen almacen del sistema
+        // Quitar una integrada no se puede: la eleccion no la saca de las activas.
+        Assert.Contains("mbstring", PhpIni.Enabled(available, PhpExtensionChoice.None.With("mbstring", enabled: false), builtIn));
+        Assert.DoesNotContain("mbstring", PhpIni.Enabled(new HashSet<string>(["mbstring"], StringComparer.OrdinalIgnoreCase), PhpExtensionChoice.None.With("mbstring", enabled: false)));
+        // Sin la bandera (Windows), openssl.cafile no se escribe.
+        Assert.DoesNotContain("openssl.cafile", PhpIni.Render("8.4.27-nts-x64", "/x", available, "/x", "/x.log", caBundle: bundle, builtIn: builtIn));
+    }
+
+    [Theory]
+    [InlineData("Zend OPcache", "opcache")]
+    [InlineData("PDO", "pdo")]
+    [InlineData("SimpleXML", "simplexml")]
+    [InlineData(" curl ", "curl")]
+    public void PhpIni_ModuleName_PasaLoQueListaPhpMAlNombreDeConfiguracion(string module, string expected) =>
+        Assert.Equal(expected, PhpIni.ModuleName(module));
 
     [Fact]
     public void PhpIni_SinDllDeOpcache_NoLaCarga_PeroLaConfigura()

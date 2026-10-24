@@ -10,8 +10,9 @@ using Spectre.Console.Cli;
 namespace Roost.Cli.Commands.Php;
 
 /// <summary>
-/// <c>roost php list</c>: los PHP instalados por Roost y los que hay en el catalogo de
-/// windows.php.net, cada uno con su estado de seguridad. Sin red sigue listando lo instalado.
+/// <c>roost php list</c>: los PHP instalados por Roost y los que hay en el catalogo (windows.php.net
+/// en Windows; los builds de roost-builds fijados en Roost, en Linux), cada uno con su estado de
+/// seguridad. Sin red sigue listando lo instalado.
 /// </summary>
 public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
 {
@@ -29,21 +30,14 @@ public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
 
         IReadOnlyList<PhpBuild> catalog = [];
         string? catalogError = null;
-        if (!OperatingSystem.IsWindows())
+        try
         {
-            catalogError = "El catalogo de PHP solo existe para Windows por ahora: en Linux no hay binarios oficiales.";
+            catalog = await PhpCatalog.FetchAsync(RoostHttp.Client, cancellation);
         }
-        else
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException
+                                   && !cancellation.IsCancellationRequested)
         {
-            try
-            {
-                catalog = await PhpCatalog.FetchAsync(RoostHttp.Client, cancellation);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException
-                                       && !cancellation.IsCancellationRequested)
-            {
-                catalogError = $"No se pudo leer el catalogo de windows.php.net: {ex.Message}";
-            }
+            catalogError = $"No se pudo leer el catalogo de {PhpCatalog.SourceName}: {ex.Message}";
         }
 
         if (settings.Json)
@@ -60,7 +54,7 @@ public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
         AnsiConsole.MarkupLineInterpolated($"[bold]PHP instalados por Roost[/]  [grey]({paths.PhpBin})[/]");
         if (installed.Count == 0)
         {
-            AnsiConsole.MarkupLine("[grey]Ninguno todavia." + PlatformGate.WindowsHint(" Prueba: roost php install 8.4") + "[/]");
+            AnsiConsole.MarkupLine("[grey]Ninguno todavia. Prueba: roost php install 8.4[/]");
         }
         else
         {
@@ -83,7 +77,8 @@ public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
         }
 
         AnsiConsole.WriteLine();
-        AnsiConsole.MarkupLine("[bold]Disponibles en windows.php.net[/]  [grey](solo la ultima de cada rama)[/]");
+        var scope = PhpCatalog.IsOnline ? "solo la ultima de cada rama" : "una por rama, verificadas y fijadas en esta version de Roost";
+        AnsiConsole.MarkupLineInterpolated($"[bold]Disponibles en {PhpCatalog.SourceName}[/]  [grey]({scope})[/]");
         if (catalogError is not null)
         {
             AnsiConsole.MarkupLineInterpolated($"[yellow]{catalogError}[/]");
@@ -98,7 +93,7 @@ public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
         available.AddColumn("Instalada");
         foreach (var branch in Branches(catalog))
         {
-            var f = CatalogAudit.Evaluate(branch.Version, branch.FileName, "windows.php.net");
+            var f = CatalogAudit.Evaluate(branch.Version, branch.FileName, PhpCatalog.SourceName);
             var mine = installed.Where(p => p.Version is { } v && v.CompareTo(branch.Version) == 0).Select(p => p.Name);
             available.AddRow(
                 CatalogAudit.Dot(f.Color),
@@ -108,7 +103,10 @@ public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
                 Markup.Escape(string.Join(", ", mine)));
         }
         AnsiConsole.Write(available);
-        AnsiConsole.MarkupLine("[grey]Instalar: roost php install <rama|version> [[--ts]] [[--arch x86]][/]");
+        if (OperatingSystem.IsWindows())
+            AnsiConsole.MarkupLine("[grey]Instalar: roost php install <rama|version> [[--ts]] [[--arch x86]][/]");
+        else
+            AnsiConsole.MarkupLineInterpolated($"[grey]Instalar: roost php install <rama|version>. PHP {string.Join(" y ", LinuxPhpCatalog.WindowsOnlyBranches)} solo estan en Windows (static-php-cli no los compila).[/]");
     }
 
     private static void RenderJson(
@@ -129,10 +127,12 @@ public sealed class PhpListCommand : AsyncCommand<PhpListCommand.Settings>
                     color = f?.Color.ToString().ToLowerInvariant(),
                 };
             }),
+            source = PhpCatalog.SourceName,
+            windowsOnly = OperatingSystem.IsWindows() ? [] : LinuxPhpCatalog.WindowsOnlyBranches,
             catalogError,
             catalog = Branches(catalog).Select(b =>
             {
-                var f = CatalogAudit.Evaluate(b.Version, b.FileName, "windows.php.net");
+                var f = CatalogAudit.Evaluate(b.Version, b.FileName, PhpCatalog.SourceName);
                 return new
                 {
                     branch = b.Branch,

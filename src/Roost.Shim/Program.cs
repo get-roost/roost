@@ -15,19 +15,27 @@ namespace Roost.Shim;
 /// <c>&lt;ese php&gt; &lt;composer.phar de Roost&gt; &lt;argumentos&gt;</c>. Copiado como
 /// <c>node.exe</c>, <c>npm.exe</c> o <c>npx.exe</c>, hace lo mismo con el Node de la carpeta
 /// (<see cref="TerminalNode"/>: <c>.nvmrc</c>, <c>.node-version</c>, <c>engines.node</c> o el global).
+/// <para>
+/// Qué herramienta es lo dice <c>argv[0]</c> (<see cref="TerminalPhp.ToolName"/>), no la ruta del
+/// ejecutable: en Linux los shims son enlaces simbólicos y <c>Environment.ProcessPath</c> resuelve el
+/// enlace al <c>roost-shim</c> de verdad. La raíz de Roost sí sale de la ubicación real
+/// (<see cref="PathsFor"/>). Los argumentos: en Windows, la línea de órdenes tal cual (volver a
+/// entrecomillar argv no es reversible); en Linux, el <c>argv</c> de verdad por <c>ArgumentList</c>
+/// (<c>Environment.CommandLine</c> ahí es una reconstrucción que pierde las comillas).
+/// </para>
 /// </summary>
 internal static class Program
 {
-    public static int Main()
+    public static int Main(string[] args)
     {
-        var self = Environment.ProcessPath ?? "php";
-        var tool = Path.GetFileNameWithoutExtension(self).ToLowerInvariant();
+        var argv = Environment.GetCommandLineArgs();
+        var self = Environment.ProcessPath ?? (argv.Length > 0 ? argv[0] : "php");
+        var tool = TerminalPhp.ToolName(argv.Length > 0 ? argv[0] : null);
         var node = ShimInstaller.NodeTools.Contains(tool);
         try
         {
             var paths = PathsFor(self);
-            var rest = TerminalPhp.ArgumentsAfterProgram(Environment.CommandLine);
-            var start = node ? NodeStart(paths, tool, rest) : PhpStart(paths, tool, rest);
+            var start = node ? NodeStart(paths, tool, args) : PhpStart(paths, tool, args);
 
             Console.CancelKeyPress += (_, e) => e.Cancel = true;
             using var child = Process.Start(start) ?? throw new RoostException($"No se pudo lanzar {start.FileName}.");
@@ -47,10 +55,11 @@ internal static class Program
     }
 
     /// <summary><c>php</c>, <c>php-cgi</c> o <c>composer</c>, con el PHP de la carpeta y su php.ini.</summary>
-    private static ProcessStartInfo PhpStart(RoostPaths paths, string tool, string rest)
+    private static ProcessStartInfo PhpStart(RoostPaths paths, string tool, string[] args)
     {
         var choice = TerminalPhp.Resolve(paths, Environment.CurrentDirectory, Environment.GetEnvironmentVariable(TerminalPhp.VersionVariable));
-        string target, arguments;
+        string target;
+        string[] leading = [];
         if (tool == "composer")
         {
             // Desde la terminal Composer puede preguntar (no se pone COMPOSER_NO_INTERACTION).
@@ -58,15 +67,15 @@ internal static class Program
                 ?? throw new RoostException("Composer no esta instalado en Roost. Instalalo con: roost composer install");
             ComposerTool.CheckPhp(choice.Php);
             target = choice.Php.Executable;
-            arguments = ComposerTool.ShimArguments(composer.Phar, rest);
+            leading = [composer.Phar];
         }
         else
         {
             target = tool == "php-cgi" ? choice.Php.CgiExecutable : choice.Php.Executable;
-            arguments = rest;
         }
 
-        var start = new ProcessStartInfo(target, arguments) { UseShellExecute = false };
+        var start = new ProcessStartInfo(target) { UseShellExecute = false };
+        WithArguments(start, leading, args);
         foreach (var (name, value) in TerminalPhp.Environment(paths, choice.Php))
             start.Environment[name] = value;
         return start;
@@ -79,28 +88,47 @@ internal static class Program
     /// <c>.npmrc</c> del usuario, ese sería el npm de otro Node. Un <c>npm install -g npm</c> con el Node
     /// de Roost actualiza el de su carpeta, que es el que usa el shim.
     /// </summary>
-    private static ProcessStartInfo NodeStart(RoostPaths paths, string tool, string rest)
+    private static ProcessStartInfo NodeStart(RoostPaths paths, string tool, string[] args)
     {
         var choice = TerminalNode.Resolve(paths, Environment.CurrentDirectory, Environment.GetEnvironmentVariable(TerminalNode.VersionVariable));
         var node = choice.Node;
-        var arguments = tool switch
+        string[] leading = tool switch
         {
-            "npm" => TerminalNode.ShimArguments(Script(node, node.NpmCli, "npm"), rest),
-            "npx" => TerminalNode.ShimArguments(Script(node, node.NpxCli, "npx"), rest),
-            _ => rest,
+            "npm" => [Script(node, node.NpmCli, "npm")],
+            "npx" => [Script(node, node.NpxCli, "npx")],
+            _ => [],
         };
-        var start = new ProcessStartInfo(node.Executable, arguments) { UseShellExecute = false };
+        var start = new ProcessStartInfo(node.Executable) { UseShellExecute = false };
+        WithArguments(start, leading, args);
         foreach (var (name, value) in TerminalNode.Environment(paths, node))
             start.Environment[name] = value;
         return start;
+    }
+
+    /// <summary>
+    /// Los argumentos del hijo: lo que va delante (el phar de Composer, el <c>npm-cli.js</c>) y lo que
+    /// llegó al shim. En Windows, la línea de órdenes tal cual (<see cref="TerminalPhp.ArgumentsAfterProgram"/>:
+    /// comillas dentro de <c>-r</c>, rutas con espacios…); en Linux, cada argumento por separado.
+    /// </summary>
+    private static void WithArguments(ProcessStartInfo start, string[] leading, string[] args)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var rest = TerminalPhp.ArgumentsAfterProgram(Environment.CommandLine);
+            start.Arguments = leading.Length == 0 ? rest : ComposerTool.ShimArguments(leading[0], rest);
+            return;
+        }
+        foreach (var arg in leading) start.ArgumentList.Add(arg);
+        foreach (var arg in args) start.ArgumentList.Add(arg);
     }
 
     private static string Script(InstalledNode node, string script, string tool) =>
         File.Exists(script) ? script : throw new RoostException($"{node.Label} no trae {tool} ({script}). Vuelve a instalarlo: roost node remove {node.Version} y roost node install {node.Version}");
 
     /// <summary>
-    /// Las rutas de Roost: si el shim está en <c>&lt;raíz&gt;/bin/shims</c>, las de esa raíz (así un
-    /// Roost de pruebas con ROOST_HOME tiene sus propios shims); si no, las de siempre.
+    /// Las rutas de Roost: si el shim está en <c>&lt;raíz&gt;/bin/shims</c> (su ubicación real, resuelto
+    /// cualquier enlace), las de esa raíz (así un Roost de pruebas con ROOST_HOME tiene sus propios
+    /// shims); si no, las de siempre.
     /// </summary>
     private static RoostPaths PathsFor(string self)
     {

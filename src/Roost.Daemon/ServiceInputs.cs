@@ -82,6 +82,8 @@ internal static class ServiceInputs
         else if (ReloadPlan.IsPhpMember(service.Name) && PhpOf(plan, service) is { } php)
         {
             yield return planner.PhpIniPath(php);
+            // En Linux el pool es un php-fpm, que lee además su php-fpm.conf.
+            if (php.HasFpm) yield return planner.PhpFpmConfPath(php);
             foreach (var ini in Sorted(planner.PhpConfD, "*.ini", ".ini")) yield return ini;
             foreach (var ini in Sorted(planner.PhpBranchConfD(php), "*.ini", ".ini")) yield return ini;
         }
@@ -97,10 +99,11 @@ internal static class ServiceInputs
         }
     }
 
-    /// <summary>La instalación de PHP de un php-cgi del plan: la que tiene ese php-cgi.exe.</summary>
+    /// <summary>La instalación de PHP de un miembro de un pool del plan: la que tiene ese php-cgi (Windows) o ese php-fpm (Linux).</summary>
     private static InstalledPhp? PhpOf(StackPlan plan, ServiceDefinition service) =>
         new[] { plan.Php }.Concat(plan.Sites.Select(s => s.Php))
-            .FirstOrDefault(p => string.Equals(p.CgiExecutable, service.Executable, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(p => string.Equals(p.CgiExecutable, service.Executable, StringComparison.OrdinalIgnoreCase)
+                                 || string.Equals(p.FpmExecutable, service.Executable, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Los ficheros con esa extensión de una carpeta (sin bajar a las de dentro), ordenados; nada si no existe.</summary>
     private static IEnumerable<string> Sorted(string directory, string pattern, string extension)
