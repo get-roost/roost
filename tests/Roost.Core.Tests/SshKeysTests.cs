@@ -152,9 +152,10 @@ public class SshKeysTests : IDisposable
         File.WriteAllText(file, "x");
 
         // Lo que se crea dentro hereda la ACL solo del usuario, sin haber hecho nada mas.
+        var me = System.Security.Principal.WindowsIdentity.GetCurrent().User;
         var rules = new FileInfo(file).GetAccessControl().GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier));
-        Assert.All(rules.Cast<System.Security.AccessControl.FileSystemAccessRule>(),
-            r => Assert.Equal(System.Security.Principal.WindowsIdentity.GetCurrent().User, r.IdentityReference));
+        Assert.NotEmpty(rules);
+        foreach (System.Security.AccessControl.FileSystemAccessRule rule in rules) Assert.Equal(me, rule.IdentityReference);
     }
 
     public void Dispose()
