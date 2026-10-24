@@ -19,27 +19,37 @@ internal sealed class GitFakeRunner : ICommandRunner
     private sealed record Step(string Prefix, int ExitCode, string Stdout, string Stderr, Action<CommandSpec>? OnRun, TaskCompletionSource? Hold, string[] Lines);
 
     private readonly List<Step> _steps = [];
+    private readonly List<CommandSpec> _calls = [];
+    private readonly Lock _gate = new();   // la app lanza órdenes desde dos hilos a la vez (poner al día y mirar novedades)
 
-    public List<CommandSpec> Calls { get; } = [];
+    /// <summary>Las órdenes recibidas hasta ahora (una copia).</summary>
+    public IReadOnlyList<CommandSpec> Calls
+    {
+        get { lock (_gate) return _calls.ToList(); }
+    }
 
     public IEnumerable<string> Commands => Calls.Select(c => string.Join(' ', c.Arguments));
 
     public GitFakeRunner On(string prefix, int exitCode = 0, string stdout = "", string stderr = "", Action<CommandSpec>? onRun = null,
         TaskCompletionSource? hold = null, params string[] lines)
     {
-        _steps.Add(new Step(prefix, exitCode, stdout, stderr, onRun, hold, lines));
+        lock (_gate) _steps.Add(new Step(prefix, exitCode, stdout, stderr, onRun, hold, lines));
         return this;
     }
 
     public async Task<CommandResult> RunAsync(CommandSpec spec, IProgress<string>? lines, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
-        Calls.Add(spec);
         var joined = string.Join(' ', spec.Arguments);
-        var matches = _steps.Where(s => joined.StartsWith(s.Prefix, StringComparison.Ordinal)).ToList();
-        if (matches.Count == 0) throw new InvalidOperationException($"GitFakeRunner sin guion para: {spec.Exe} {joined}");
-        var longest = matches.Max(s => s.Prefix.Length);
-        var step = matches.Last(s => s.Prefix.Length == longest);
+        Step step;
+        lock (_gate)
+        {
+            _calls.Add(spec);
+            var matches = _steps.Where(s => joined.StartsWith(s.Prefix, StringComparison.Ordinal)).ToList();
+            if (matches.Count == 0) throw new InvalidOperationException($"GitFakeRunner sin guion para: {spec.Exe} {joined}");
+            var longest = matches.Max(s => s.Prefix.Length);
+            step = matches.Last(s => s.Prefix.Length == longest);
+        }
 
         foreach (var line in step.Lines) lines?.Report(line);
         if (step.Hold is { } hold)

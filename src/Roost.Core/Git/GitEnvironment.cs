@@ -102,13 +102,44 @@ public sealed class GitEnvironment(RoostPaths paths)
         return env;
     }
 
+    // Cada orden de git pasa por aquí, y la app lanza varias a la vez (pone al día el git de un sitio
+    // mientras mira las novedades de otro): dentro del proceso, por turnos. Entre procesos (la CLI y la
+    // app) el temporal es único y basta con que, al acabar, el gitconfig diga lo que tiene que decir.
+    private static readonly Lock Gate = new();
+
     /// <summary>Deja el gitconfig de Roost como dice la plantilla (escritura atómica).</summary>
     public void EnsureConfig()
     {
-        Directory.CreateDirectory(paths.GitState);
-        if (File.Exists(ConfigFile) && File.ReadAllText(ConfigFile) == ConfigTemplate) return;
-        var temp = ConfigFile + ".tmp";
-        File.WriteAllText(temp, ConfigTemplate);
-        File.Move(temp, ConfigFile, overwrite: true);
+        lock (Gate)
+        {
+            Directory.CreateDirectory(paths.GitState);
+            if (IsCurrent()) return;
+            var temp = $"{ConfigFile}.{Guid.NewGuid():N}.tmp";
+            File.WriteAllText(temp, ConfigTemplate);
+            try
+            {
+                File.Move(temp, ConfigFile, overwrite: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                try { File.Delete(temp); } catch (IOException) { /* lo limpia la siguiente vez */ }
+                if (!IsCurrent()) throw;   // otro proceso lo estaba sustituyendo por lo mismo
+            }
+        }
+    }
+
+    // Leído dejando que otro lo sustituya mientras tanto (sin FileShare.Delete, ese otro fallaría).
+    private bool IsCurrent()
+    {
+        try
+        {
+            using var stream = new FileStream(ConfigFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd() == ConfigTemplate;
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return false;
+        }
     }
 }

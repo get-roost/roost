@@ -197,9 +197,11 @@ public sealed partial class KnownHosts(string file, ICommandRunner runner, OpenS
     /// <summary>Lo que hay en el fichero (lo que no se entiende se salta).</summary>
     public IReadOnlyList<KnownHostEntry> Load()
     {
-        if (!File.Exists(file)) return [];
-        return File.ReadAllLines(file).Select(ParseLine).OfType<KnownHostEntry>().ToList();
+        lock (Gate) return LoadUnlocked();
     }
+
+    private List<KnownHostEntry> LoadUnlocked() =>
+        File.Exists(file) ? ReadShared().Select(ParseLine).OfType<KnownHostEntry>().ToList() : [];
 
     /// <summary>Las líneas guardadas para ese servidor.</summary>
     public IReadOnlyList<KnownHostEntry> For(string host, int? port = null)
@@ -216,13 +218,16 @@ public sealed partial class KnownHosts(string file, ICommandRunner runner, OpenS
     /// </summary>
     public void EnsurePublished()
     {
-        var entries = Load();
-        var missing = BuiltIn.Where(b => !entries.Any(e => e.Matches(b.Host))).ToList();
-        if (missing.Count == 0 && File.Exists(file)) return;
-        var lines = ReadLines();
-        foreach (var host in missing)
-            lines.AddRange(host.Keys.Select(k => new KnownHostEntry([host.Host], k, null).ToLine()));
-        Save(lines);
+        lock (Gate)
+        {
+            var entries = LoadUnlocked();
+            var missing = BuiltIn.Where(b => !entries.Any(e => e.Matches(b.Host))).ToList();
+            if (missing.Count == 0 && File.Exists(file)) return;
+            var lines = ReadLines();
+            foreach (var host in missing)
+                lines.AddRange(host.Keys.Select(k => new KnownHostEntry([host.Host], k, null).ToLine()));
+            Save(lines);
+        }
     }
 
     /// <summary>Qué sabe Roost de ese servidor sin conectar.</summary>
@@ -323,24 +328,30 @@ public sealed partial class KnownHosts(string file, ICommandRunner runner, OpenS
         ValidateHost(host);
         if (keys.Count == 0) throw new ArgumentException("Sin claves que aceptar.", nameof(keys));
         var token = HostToken(host, port);
-        var lines = ReadLines().Where(l => ParseLine(l) is not { } e || !e.Matches(token)).ToList();
         var published = PublishedFor(host, port);
         var comment = published is not null && keys.All(k => published.Keys.Any(p => p.Base64 == k.Base64))
             ? null
             : $"roost:aceptada-{DateTime.Now:yyyy-MM-dd}";
-        lines.AddRange(keys.Select(k => new KnownHostEntry([token], k, comment).ToLine()));
-        Save(lines);
+        lock (Gate)
+        {
+            var lines = ReadLines().Where(l => ParseLine(l) is not { } e || !e.Matches(token)).ToList();
+            lines.AddRange(keys.Select(k => new KnownHostEntry([token], k, comment).ToLine()));
+            Save(lines);
+        }
     }
 
     /// <summary>Olvida el servidor: quita sus líneas. Uno de serie vuelve a tener la publicada la próxima vez. Devuelve cuántas quitó.</summary>
     public int Forget(string host, int? port)
     {
         var token = HostToken(host, port);
-        var lines = ReadLines();
-        var kept = lines.Where(l => ParseLine(l) is not { } e || !e.Matches(token)).ToList();
-        var removed = lines.Count - kept.Count;
-        if (removed > 0) Save(kept);
-        return removed;
+        lock (Gate)
+        {
+            var lines = ReadLines();
+            var kept = lines.Where(l => ParseLine(l) is not { } e || !e.Matches(token)).ToList();
+            var removed = lines.Count - kept.Count;
+            if (removed > 0) Save(kept);
+            return removed;
+        }
     }
 
     /// <summary>La fecha en que se aceptó, si la apuntó Roost en el comentario.</summary>
@@ -355,19 +366,38 @@ public sealed partial class KnownHosts(string file, ICommandRunner runner, OpenS
         if (!IsValidHost(host)) throw new RoostException($"'{host}' no vale como nombre de servidor.");
     }
 
-    private List<string> ReadLines()
+    // Leer y escribir van por turnos dentro del proceso (cada acceso por clave pasa por
+    // EnsurePublished, y la app puede lanzar dos a la vez); el fichero se lee dejando que otro proceso
+    // lo sustituya mientras tanto, y el temporal es único.
+    private static readonly Lock Gate = new();
+
+    private List<string> ReadLines() =>
+        File.Exists(file) ? ReadShared() : Header.TrimEnd().Split('\n').Select(l => l.TrimEnd('\r')).ToList();
+
+    private List<string> ReadShared()
     {
-        if (!File.Exists(file)) return Header.TrimEnd().Split('\n').Select(l => l.TrimEnd('\r')).ToList();
-        return File.ReadAllLines(file).ToList();
+        using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        var lines = new List<string>();
+        while (reader.ReadLine() is { } line) lines.Add(line);
+        return lines;
     }
 
     private void Save(IEnumerable<string> lines)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(file)!);
-        var temp = file + ".tmp";
+        var temp = $"{file}.{Guid.NewGuid():N}.tmp";
         // LF: lo lee OpenSSH, que acepta los dos, y así es igual en todas partes.
         File.WriteAllText(temp, string.Join('\n', lines) + "\n");
-        File.Move(temp, file, overwrite: true);
+        try
+        {
+            File.Move(temp, file, overwrite: true);
+        }
+        catch
+        {
+            try { File.Delete(temp); } catch (IOException) { /* lo limpia la siguiente vez */ }
+            throw;
+        }
     }
 
     [GeneratedRegex(@"\s+")]

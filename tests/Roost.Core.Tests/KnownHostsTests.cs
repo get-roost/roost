@@ -200,6 +200,36 @@ public class KnownHostsTests : IDisposable
         Assert.Throws<RoostException>(() => Hosts.Trust(host, null, [new SshHostKey("ssh-ed25519", FakeEd25519)]));
     }
 
+    [Fact]
+    public void EnsurePublished_VariosAccesosALaVez_NoSePisan()
+    {
+        // Cada acceso por clave pasa por EnsurePublished, y la app lanza dos a la vez (poner al día un
+        // sitio y mirar las novedades de otro): ninguno puede fallar ni dejar el fichero a medias.
+        var errors = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        using var start = new ManualResetEventSlim();
+        var threads = Enumerable.Range(0, 8).Select(i => new Thread(() =>
+        {
+            start.Wait();
+            try
+            {
+                for (var n = 0; n < 10; n++)
+                {
+                    Hosts.EnsurePublished();
+                    if (i == 0) Hosts.Trust("git.acme.es", null, [new SshHostKey("ssh-ed25519", FakeEd25519)]);
+                    if (i == 1) Hosts.Forget("git.acme.es", null);
+                }
+            }
+            catch (Exception ex) { errors.Add(ex); }
+        })).ToList();
+        threads.ForEach(t => t.Start());
+        start.Set();
+        threads.ForEach(t => t.Join());
+
+        Assert.Empty(errors);
+        Assert.All(KnownHosts.BuiltIn, b => Assert.NotEmpty(Hosts.For(b.Host)));
+        Assert.Empty(Directory.EnumerateFiles(_root, "*.tmp"));
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch (DirectoryNotFoundException) { }

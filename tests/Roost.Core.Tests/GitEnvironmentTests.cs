@@ -60,6 +60,33 @@ public class GitEnvironmentTests : IDisposable
         Assert.Equal("ssh -i clave", variables["GIT_SSH_COMMAND"]);
     }
 
+    [Fact]
+    public void Build_VariasOrdenesALaVez_NoSePisanAlEscribirElGitconfig()
+    {
+        // La app pone al día el git de un sitio mientras mira las novedades de otro: las dos primeras
+        // órdenes de un ROOST_HOME nuevo escriben el gitconfig a la vez. Ninguna puede fallar por eso.
+        for (var round = 0; round < 20; round++)
+        {
+            var paths = new RoostPaths(Path.Combine(_root, round.ToString(System.Globalization.CultureInfo.InvariantCulture)), Path.Combine(_root, "cache"));
+            var errors = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+            using var start = new ManualResetEventSlim();
+            var threads = Enumerable.Range(0, 8).Select(_ => new Thread(() =>
+            {
+                start.Wait();
+                try { new GitEnvironment(paths).Build(); }
+                catch (Exception ex) { errors.Add(ex); }
+            })).ToList();
+            threads.ForEach(t => t.Start());
+            start.Set();
+            threads.ForEach(t => t.Join());
+
+            Assert.Empty(errors);
+            var env = new GitEnvironment(paths);
+            Assert.Equal(GitEnvironment.ConfigTemplate, File.ReadAllText(env.ConfigFile));
+            Assert.Empty(Directory.EnumerateFiles(paths.GitState, "*.tmp"));
+        }
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { /* best effort */ }
