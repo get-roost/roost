@@ -127,6 +127,66 @@ public sealed class DaemonClient : IDisposable
     public Task<CommandResponse> StartServiceAsync(string service, CancellationToken cancellation = default) =>
         PostAsync("start/" + Uri.EscapeDataString(service), cancellation);
 
+    // Compartir (oleada 6)
+
+    /// <summary>Lo que se está compartiendo ahora (<c>GET /shares</c>).</summary>
+    public async Task<SharesResponse> SharesAsync(CancellationToken cancellation = default) =>
+        await _http.GetFromJsonAsync<SharesResponse>("shares", cancellation)
+        ?? throw new RoostException("El daemon no devolvio nada en /shares.");
+
+    /// <summary>Comparte un sitio por internet con un túnel rápido: espera a la URL (hasta medio minuto).</summary>
+    public Task<ShareResponse> ShareTunnelAsync(string site, CancellationToken cancellation = default) =>
+        PostShareAsync($"share/{Uri.EscapeDataString(site)}/tunnel", null, cancellation);
+
+    /// <summary>Comparte un sitio en la red local en esa IP y ese puerto (la regla del cortafuegos va antes, aparte).</summary>
+    public Task<ShareResponse> ShareLanAsync(string site, string address, int port, CancellationToken cancellation = default) =>
+        PostShareAsync($"share/{Uri.EscapeDataString(site)}/lan", new ShareLanRequest(address, port), cancellation);
+
+    /// <summary>Deja de compartir (<paramref name="kind"/>: «tunnel» o «lan»).</summary>
+    public Task<ShareResponse> StopShareAsync(string site, string kind, CancellationToken cancellation = default) =>
+        PostShareAsync($"share/{Uri.EscapeDataString(site)}/{Uri.EscapeDataString(kind)}/stop", null, cancellation);
+
+    /// <summary>
+    /// Espera, sin límite de tiempo, a que se deje de compartir, y devuelve el motivo. Si se cancela
+    /// (o este proceso termina), el daemon deja de compartirlo: así nada se queda público porque
+    /// quien lo abrió ya no está.
+    /// </summary>
+    public async Task<ShareResponse> HoldShareAsync(string site, string kind, CancellationToken cancellation = default)
+    {
+        using var response = await HoldClient.PostAsync($"share/{Uri.EscapeDataString(site)}/{Uri.EscapeDataString(kind)}/hold", content: null, cancellation);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ShareResponse>(cancellation)
+               ?? throw new RoostException("El daemon no devolvio nada al dejar de compartir.");
+    }
+
+    private HttpClient? _hold;
+
+    /// <summary>Otro cliente para las esperas largas: el normal corta a los 90 s.</summary>
+    private HttpClient HoldClient
+    {
+        get
+        {
+            lock (_http)
+            {
+                return _hold ??= new HttpClient(new SocketsHttpHandler { ConnectCallback = (_, cancellation) => ConnectAsync(_paths, cancellation) })
+                {
+                    BaseAddress = new Uri("http://roost/"),
+                    Timeout = Timeout.InfiniteTimeSpan,
+                };
+            }
+        }
+    }
+
+    private async Task<ShareResponse> PostShareAsync(string path, ShareLanRequest? body, CancellationToken cancellation)
+    {
+        using var response = body is null
+            ? await _http.PostAsync(path, content: null, cancellation)
+            : await _http.PostAsJsonAsync(path, body, cancellation);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ShareResponse>(cancellation)
+               ?? throw new RoostException($"El daemon no devolvio nada en /{path}.");
+    }
+
     private async Task<CommandResponse> PostAsync(string path, CancellationToken cancellation)
     {
         using var response = await _http.PostAsync(path, content: null, cancellation);
@@ -135,5 +195,9 @@ public sealed class DaemonClient : IDisposable
                ?? throw new RoostException($"El daemon no devolvio nada en /{path}.");
     }
 
-    public void Dispose() => _http.Dispose();
+    public void Dispose()
+    {
+        _http.Dispose();
+        _hold?.Dispose();
+    }
 }

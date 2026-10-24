@@ -106,7 +106,8 @@ public sealed partial class QuickTunnelOutput
             _created = true;
             return false;
         }
-        if (Url is null && UrlPattern().Match(text) is { Success: true } match && (_created || IsQuickTunnelHost(match.Value)))
+        // Solo la del recuadro: antes salen otras (las condiciones de uso, la API de trycloudflare en un error).
+        if (Url is null && _created && UrlPattern().Match(text) is { Success: true } match && IsQuickTunnelHost(match.Value))
         {
             Url = match.Value.TrimEnd('/');
             return true;
