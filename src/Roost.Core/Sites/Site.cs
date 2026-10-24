@@ -95,14 +95,29 @@ public sealed class SiteRegistry(RoostPaths paths)
 {
     public string FilePath => Path.Combine(paths.State, "sites.json");
 
+    // Dentro de un mismo proceso, leer y escribir van por turnos (leer es instantáneo): un Upsert es «leer
+    // y escribir», y dos a la vez (la app pone al día el git de un sitio mientras comprueba novedades)
+    // perderían uno; y Windows no deja sustituir el fichero mientras alguien lo tiene abierto. Entre
+    // procesos (la CLI, el shim) quedan los reintentos de ReadShared y Save.
+    private static readonly Lock Gate = new();
+
     /// <summary>Los sitios, por nombre.</summary>
     public IReadOnlyList<Site> Load()
+    {
+        lock (Gate) return LoadUnlocked();
+    }
+
+    private List<Site> LoadUnlocked()
     {
         if (!File.Exists(FilePath)) return [];
         try
         {
-            var sites = JsonSerializer.Deserialize(File.ReadAllText(FilePath), SiteJson.Default.ListSite) ?? [];
+            var sites = JsonSerializer.Deserialize(ReadShared(FilePath), SiteJson.Default.ListSite) ?? [];
             return sites.OrderBy(s => s.Name, StringComparer.Ordinal).ToList();
+        }
+        catch (FileNotFoundException)
+        {
+            return [];
         }
         catch (JsonException ex)
         {
@@ -113,23 +128,71 @@ public sealed class SiteRegistry(RoostPaths paths)
     public Site? Find(string name) => Load().FirstOrDefault(s => s.Name == name);
 
     /// <summary>Añade el sitio o, si ya existe uno con ese nombre, lo sustituye (repetir <c>site add</c> no rompe nada).</summary>
-    public void Upsert(Site site) => Save(Load().Where(s => s.Name != site.Name).Append(site));
+    public void Upsert(Site site)
+    {
+        lock (Gate) Save(LoadUnlocked().Where(s => s.Name != site.Name).Append(site));
+    }
 
     public bool Remove(string name)
     {
-        var sites = Load();
-        if (sites.All(s => s.Name != name)) return false;
-        Save(sites.Where(s => s.Name != name));
-        return true;
+        lock (Gate)
+        {
+            var sites = LoadUnlocked();
+            if (sites.All(s => s.Name != name)) return false;
+            Save(sites.Where(s => s.Name != name));
+            return true;
+        }
     }
 
     private void Save(IEnumerable<Site> sites)
     {
         Directory.CreateDirectory(paths.State);
-        // Escritura atómica: un corte a medias no deja un sites.json roto.
-        var temp = FilePath + ".tmp";
+        // Escritura atómica: un corte a medias no deja un sites.json roto. El temporal es único (dos
+        // procesos no se lo pisan) y el renombrado reintenta si alguien está leyendo justo entonces.
+        var temp = $"{FilePath}.{Guid.NewGuid():N}.tmp";
         File.WriteAllText(temp, JsonSerializer.Serialize(sites.OrderBy(s => s.Name, StringComparer.Ordinal).ToList(), SiteJson.Default.ListSite));
-        File.Move(temp, FilePath, overwrite: true);
+        try
+        {
+            Retry(() => File.Move(temp, FilePath, overwrite: true));
+        }
+        catch
+        {
+            try { File.Delete(temp); } catch { /* lo limpia el siguiente intento */ }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Lee el fichero dejando que otro lo sustituya a la vez (en Windows, sustituir un fichero que
+    /// alguien tiene abierto sin <c>FileShare.Delete</c> falla) y reintenta si lo pilla en ese momento.
+    /// </summary>
+    private static string ReadShared(string path)
+    {
+        string text = "";
+        Retry(() =>
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            text = reader.ReadToEnd();
+        });
+        return text;
+    }
+
+    private static void Retry(Action action)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                action();
+                return;
+            }
+            catch (Exception ex) when (ex is IOException and not FileNotFoundException and not DirectoryNotFoundException
+                                       or UnauthorizedAccessException && attempt < 10)
+            {
+                Thread.Sleep(20 * attempt);
+            }
+        }
     }
 }
 
