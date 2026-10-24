@@ -191,6 +191,15 @@ public sealed partial class HomeViewModel : PageViewModel
                 rows.Add(new ServiceRow("DNS local", null, Tone.Neutral, "Responde *.test con 127.0.0.1 y ::1 (dentro de roostd)", "",
                     $"{Roost.Core.Dns.LocalDns.Address}:{Roost.Core.Dns.LocalDns.Port}", state, tone, restarts, "dns", alive));
             }
+            else if (group.Key == "redis")
+            {
+                // Servicios (oleada 3): Redis y Mailpit son de Roost, no de una extensión.
+                rows.Add(RedisRow(config, state, tone, restarts, group.Key, alive));
+            }
+            else if (group.Key == "mailpit")
+            {
+                rows.Add(MailRow(config, state, tone, restarts, group.Key, alive));
+            }
             else if (!group.Key.StartsWith("mariadb-", StringComparison.Ordinal) && !group.Key.StartsWith("mysql-", StringComparison.Ordinal))
             {
                 // Un servicio de una extensión (un Redis, un Mailpit): con su nombre y su puerto.
@@ -208,9 +217,30 @@ public sealed partial class HomeViewModel : PageViewModel
             }
         }
 
-        // Mismo orden que el arranque: base de datos, extensiones, PHP, servidor web.
-        return rows.OrderBy(r => r.Name is "nginx" or "Apache" ? 3 : r.Name.StartsWith("PHP", StringComparison.Ordinal) ? 2 : r.Tag == "extensión" ? 1 : r.Name == "DNS local" ? -1 : 0).ToList();
+        // Mismo orden que el arranque: base de datos, Redis, Mailpit, extensiones, PHP, servidor web.
+        return rows.OrderBy(RowOrder).ToList();
     }
+
+    private static int RowOrder(ServiceRow r) =>
+        r.Name is "nginx" or "Apache" ? 5
+        : r.Name.StartsWith("PHP", StringComparison.Ordinal) ? 4
+        : r.Tag == "extensión" ? 3
+        : r.Name == "Mailpit" ? 2
+        : r.Name == "Redis" ? 1
+        : r.Name == "DNS local" ? -1
+        : 0;
+
+    // Servicios (oleada 3): las filas de Redis y Mailpit, en marcha o paradas.
+
+    private ServiceRow RedisRow(RoostConfig config, string state, Tone tone, int restarts, string? key, bool alive) =>
+        new("Redis", null, Tone.Neutral, "Caché y colas · datos en data\\redis",
+            new RedisInstaller(Main.App.Paths).Locate()?.Version ?? RedisCatalog.Windows.Version,
+            $"127.0.0.1:{config.RedisPort}", state, tone, restarts, key, alive);
+
+    private ServiceRow MailRow(RoostConfig config, string state, Tone tone, int restarts, string? key, bool alive) =>
+        new("Mailpit", null, Tone.Neutral, $"Correo de PHP · bandeja en {config.MailWebUrl.TrimEnd('/')}",
+            new MailpitInstaller(Main.App.Paths).Locate()?.Version ?? MailpitCatalog.Windows.Version,
+            $":{config.MailSmtpPort} · :{config.MailWebPort}", state, tone, restarts, key, alive);
 
     private IReadOnlyList<ServiceRow> PlannedRows(
         RoostConfig config, InstalledPhp? php, InstalledDb? db, IReadOnlyList<Site> sites,
@@ -223,6 +253,8 @@ public sealed partial class HomeViewModel : PageViewModel
                 $"Base de datos global · datos en data\\{db.Engine.Key()}\\{db.Branch}",
                 db.Name, $"127.0.0.1:{config.DbPort}", "Parado", Tone.Off, 0, null));
         }
+        if (config.RedisEnabled) rows.Add(RedisRow(config, "Parado", Tone.Off, 0, null, alive: false));
+        if (config.MailEnabled) rows.Add(MailRow(config, "Parado", Tone.Off, 0, null, alive: false));
 
         if (php is not null)
         {

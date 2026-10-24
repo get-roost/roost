@@ -167,6 +167,56 @@
             </StackPanel>
           </StackPanel>
         </Border>
+
+        <!-- Servicios (oleada 3): servicios de Windows que se quedan los puertos (E7) -->
+        <Border Classes="card">
+          <StackPanel>
+            <Border Classes="card-h">
+              <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm ghost" Content="Volver a mirar" Command="{Binding RecheckServicesCommand}" />
+                  <Button Classes="sm" Content="Abrir Servicios de Windows" Command="{Binding OpenServicesPanelCommand}"
+                          ToolTip.Tip="services.msc: ahí se deja un servicio en Manual (Tipo de inicio) y se detiene" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Servicios de Windows" />
+                  <ctl:Chip Text="{Binding ServicesSummary}" Tone="{Binding ServicesTone}" ShowDot="True" />
+                </StackPanel>
+              </DockPanel>
+            </Border>
+            <StackPanel Margin="16,14" Spacing="12">
+              <TextBlock Classes="muted" TextWrapping="Wrap"
+                         Text="Un MySQL o una MariaDB instalados con su instalador, Apache, IIS u otro Redis arrancan con Windows y se quedan el puerto antes que Roost. Roost no cambia servicios de Windows: te dice cuáles son y cómo dejarlos en Manual." />
+              <ItemsControl ItemsSource="{Binding ServiceRows}" IsVisible="{Binding HasServiceRows}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:WindowsServiceRow">
+                    <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8" Padding="14,10">
+                      <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="10" RowSpacing="4">
+                        <ctl:Dot Tone="{Binding Tone}" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                          <TextBlock Classes="strong" Text="{Binding Title}" VerticalAlignment="Center" />
+                          <ctl:Chip Text="{Binding Kind}" />
+                        </StackPanel>
+                        <ctl:Chip Grid.Column="2" Text="{Binding State}" Tone="{Binding Tone}" />
+                        <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="small" Text="{Binding Detail}" TextWrapping="Wrap" />
+                        <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                          <TextBlock Classes="faint" Text="En Manual:" VerticalAlignment="Center" />
+                          <SelectableTextBlock Grid.Column="1" Classes="mono" FontSize="12" Text="{Binding Command}" VerticalAlignment="Center" />
+                          <Button Grid.Column="2" Classes="sm ghost" Content="Copiar"
+                                  Command="{Binding $parent[ItemsControl].((vm:AuditViewModel)DataContext).CopyServiceCommandCommand}" CommandParameter="{Binding}"
+                                  ToolTip.Tip="Para una consola de administrador; o hazlo en Servicios de Windows (Tipo de inicio: Manual)" />
+                        </Grid>
+                      </Grid>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </StackPanel>
+        </Border>
       </StackPanel>
     </StackPanel>
   </ScrollViewer>

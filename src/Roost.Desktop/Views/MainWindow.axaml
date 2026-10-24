@@ -60,6 +60,9 @@
     <!-- Actualizador -->
     <DataTemplate DataType="vm:UpdateDialogViewModel"><v:UpdateDialogView /></DataTemplate>
     <DataTemplate DataType="vm:UpdateProgressDialogViewModel"><v:UpdateProgressDialogView /></DataTemplate>
+    <!-- Servicios (oleada 3) -->
+    <DataTemplate DataType="vm:RedisViewModel"><v:RedisView /></DataTemplate>
+    <DataTemplate DataType="vm:MailViewModel"><v:MailView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="40,*,28">

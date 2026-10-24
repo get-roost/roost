@@ -107,6 +107,18 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
     [ObservableProperty] public partial bool PhpAvailable { get; private set; }
     [ObservableProperty] public partial bool DbAvailable { get; private set; }
 
+    // Servicios (oleada 3): los servicios de Windows que le quitarían un puerto a Roost (E7).
+
+    /// <summary>Un aviso por cada servicio de Windows que choca con los puertos que va a usar Roost.</summary>
+    [ObservableProperty] public partial IReadOnlyList<string> ServiceWarnings { get; private set; } = [];
+
+    public bool HasServiceWarnings => ServiceWarnings.Count > 0;
+
+    partial void OnServiceWarningsChanged(IReadOnlyList<string> value) => OnPropertyChanged(nameof(HasServiceWarnings));
+
+    [RelayCommand]
+    private void OpenServicesPanel() => Services.MachineServices.OpenServicesPanel();
+
     public bool IsStep1 => Step == 1;
     public bool IsStep2 => Step == 2;
     public bool HasStep2 => RegisterSites && HasFolders;
@@ -187,6 +199,14 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
             InstallPhp = false;
         }
 
+        // Los servicios de Windows (solo leyendo): un MySQL o una MariaDB que arrancan con Windows se
+        // quedan el 3306 al encender el equipo aunque ahora esté libre.
+        await _main.MachineServices.LoadAsync();
+        var config = new Roost.Core.Config.RoostConfig();
+        try { config = Roost.Core.Config.RoostConfig.Load(_main.App.Paths.ConfigFile); } catch (RoostException) { }
+        var conflicts = _main.MachineServices.ConflictsWith(config, withSites: true, withDb: true);
+        var dbService = conflicts.FirstOrDefault(c => c.Ports.Contains(config.DbPort) && c.Service.StartsWithWindows)?.Service;
+
         try
         {
             var mariadb = await MariaDbCatalog.FetchAsync(_main.App.Http);
@@ -202,10 +222,12 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
             {
                 DbText = $"Instalar MariaDB {_db.Branch} (LTS)";
                 DbAvailable = true;
-                if (StackPlanner.BusyPorts([3306]).Count > 0)
+                if (StackPlanner.BusyPorts([3306]).Count > 0 || dbService is not null)
                 {
                     _dbPort = new[] { 3307, 3308, 3309, 3310 }.FirstOrDefault(p => StackPlanner.BusyPorts([p]).Count == 0) is var p and > 0 ? p : null;
-                    DbHint = $"El 3306 está ocupado: usaría el {_dbPort}.{(HasLaragon ? " Tus bases de datos de Laragon no se tocan." : "")}";
+                    DbHint = dbService is not null
+                        ? $"El 3306 es del servicio de Windows {dbService.DisplayName}, que arranca con Windows: usaría el {_dbPort}."
+                        : $"El 3306 está ocupado: usaría el {_dbPort}.{(HasLaragon ? " Tus bases de datos de Laragon no se tocan." : "")}";
                 }
                 else
                 {
@@ -219,6 +241,13 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
             DbHint = ex.Message;
             InstallDb = false;
         }
+
+        // Con la base de datos de Roost en otro puerto, ese servicio ya no le molesta a ella.
+        var dbPort = _dbPort ?? config.DbPort;
+        ServiceWarnings = _main.MachineServices.ConflictsWith(config with { DbPort = dbPort }, withSites: true, withDb: InstallDb || new DbInstaller(_main.App.Paths).ListInstalled().Count > 0)
+            .Select(c => $"{c.Service.DisplayName} ({c.Service.Name}): {Services.MachineServices.StateText(c.Service).ToLowerInvariant()} y suele usar el {string.Join(" y el ", c.Ports)}, "
+                         + $"{(c.Ports.Count == 1 ? "que es" : "que son")} {string.Join(" y ", c.Ports.Select(p => AuditViewModel.RoleOf(p, config with { DbPort = dbPort })))} de Roost. Déjalo en Manual en Servicios de Windows para que no se lo quede.")
+            .ToList();
         Ready = true;
     }
 
