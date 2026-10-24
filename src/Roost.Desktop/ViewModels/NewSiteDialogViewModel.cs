@@ -21,7 +21,10 @@ namespace Roost.Desktop.ViewModels;
 public sealed record NewSiteRequest(string Name, string Folder, string Root, string? Php, string? Database, bool CreateDatabase = false,
     ProjectTemplate? Template = null, bool Webapp = false);
 
-/// <summary>Una plantilla de Nuevo sitio: la carpeta de siempre, Laravel, WordPress, Symfony (y «Desde git…», que llega aparte).</summary>
+/// <summary>Lo que devuelve Nuevo sitio al elegir «Desde git…»: quien lo abrió lanza el asistente de clonar.</summary>
+public sealed record NewSiteFromGit;
+
+/// <summary>Una plantilla de Nuevo sitio: la carpeta de siempre, Laravel, WordPress, Symfony o «Desde git…» (el asistente de clonar).</summary>
 public sealed partial class SiteTemplate(string label, bool available, string hint, TemplateInfo? project = null) : ObservableObject
 {
     public string Label { get; } = label;
@@ -103,14 +106,14 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
 
     public override bool Wide => true;
 
-    // Pasos y plantillas: las plantillas de verdad (C12). «Desde git…» llega con Git-app.
+    // Pasos y plantillas: las plantillas de verdad (C12). «Desde git…» cierra el diálogo y abre el asistente de Git-app.
     public IReadOnlyList<SiteTemplate> Templates { get; } =
     [
         new("Carpeta (lo de siempre)", true, "Una carpeta con un index.php, o la tuya con tu proyecto dentro: se sirve tal cual."),
         new("Laravel", true, "composer create-project laravel/laravel: Laravel 13, que pide PHP 8.3 o más nuevo. Después, el .env con su base de datos y su URL, las migraciones y storage:link.", ProjectTemplates.Laravel),
         new("WordPress", true, "La última versión de wordpress.org, comprobada con su SHA-1, con su base de datos y un wp-config.php con claves nuevas. Luego, su instalador en el navegador.", ProjectTemplates.WordPress),
         new("Symfony", true, "composer create-project symfony/skeleton: Symfony 8.1 con PHP 8.4 o más nuevo (la 7.4 LTS con 8.2 y 8.3), con su .env.local. Con «webapp», también Twig, Doctrine y formularios.", ProjectTemplates.Symfony),
-        new("Desde git…", false, "Próximamente: clonar un repositorio."),
+        new("Desde git…", true, "Clona un repositorio en tres pasos: la dirección, cómo entrar y el sitio."),
     ];
 
     /// <summary>La plantilla de proyecto elegida; null = la carpeta de siempre.</summary>
@@ -146,6 +149,11 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
 
     partial void OnTemplateChanged(SiteTemplate value)
     {
+        if (value == Templates[^1])
+        {
+            Close(new NewSiteFromGit());
+            return;
+        }
         foreach (var t in Templates) t.IsSelected = t == value;
         // La base de datos que pide cada plantilla (si hay una global): Laravel y WordPress sí; Symfony, con webapp.
         if (value.Project is { } project && HasDb)

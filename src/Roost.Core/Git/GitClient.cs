@@ -5,7 +5,11 @@ namespace Roost.Core.Git;
 /// <summary>Lo que se sabe de un remoto sin descargar nada (<c>ls-remote</c>).</summary>
 /// <param name="Reachable">true si el servidor contestó con sus ramas.</param>
 /// <param name="NeedsAuth">true si pide credenciales (o el repositorio no existe: no se distingue).</param>
-public sealed record RemoteProbe(bool Reachable, bool NeedsAuth, string? DefaultBranch, IReadOnlyList<string> Branches, GitFailure? Failure);
+public sealed record RemoteProbe(bool Reachable, bool NeedsAuth, string? DefaultBranch, IReadOnlyList<string> Branches, GitFailure? Failure)
+{
+    /// <summary>El commit de cada rama del remoto (<see cref="RemoteRefs.Heads"/>); vacío si no contestó.</summary>
+    public IReadOnlyDictionary<string, string> Heads { get; init; } = new Dictionary<string, string>();
+}
 
 /// <summary>
 /// git sobre <see cref="ICommandRunner"/>, siempre con el entorno aislado de <see cref="GitEnvironment"/>.
@@ -56,7 +60,7 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
         }
 
         var refs = GitOutput.ParseLsRemote(result.Stdout);
-        return new RemoteProbe(true, false, refs.DefaultBranch, refs.Branches, null);
+        return new RemoteProbe(true, false, refs.DefaultBranch, refs.Branches, null) { Heads = refs.Heads };
     }
 
     /// <summary>
@@ -163,6 +167,24 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
         return GitOutput.Lines(result.Stdout).FirstOrDefault()?.Trim();
     }
 
+    /// <summary>true si ese commit ya está en el repositorio local (<c>cat-file -e</c>: sin red).</summary>
+    public async Task<bool> HasCommitAsync(string folder, string sha, CancellationToken cancellation)
+    {
+        ValidateSha(sha);
+        var result = await runner.RunAsync(Spec(folder, LocalTimeout, "cat-file", "-e", sha + "^{commit}"), null, cancellation);
+        if (result.TimedOut) throw new GitException(GitFailure.TimedOut(LocalTimeout));
+        return result.Succeeded;
+    }
+
+    /// <summary>Los commits de <paramref name="to"/> que no están en <paramref name="from"/> (<c>rev-list --count from..to</c>, sin red).</summary>
+    public async Task<int> CountCommitsAsync(string folder, string from, string to, CancellationToken cancellation)
+    {
+        ValidateSha(from);
+        ValidateSha(to);
+        var result = await RunAsync(folder, LocalTimeout, null, cancellation, "rev-list", "--count", $"{from}..{to}");
+        return int.TryParse(GitOutput.Lines(result.Stdout).FirstOrDefault()?.Trim(), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var count) ? count : 0;
+    }
+
     /// <summary>La rama actual, o null si HEAD está suelto (detached).</summary>
     public async Task<string?> CurrentBranchAsync(string folder, CancellationToken cancellation)
     {
@@ -185,6 +207,13 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
     {
         if (result.TimedOut) throw new GitException(GitFailure.TimedOut(timeout ?? LocalTimeout));
         if (!result.Succeeded) throw new GitException(GitFailure.Classify(result.ExitCode, result.Stderr, null, folder, Access));
+    }
+
+    /// <summary>Un sha (lo que da <c>ls-remote</c> o <c>status</c>): nunca algo que git pudiera leer como una opción o un rango.</summary>
+    private static void ValidateSha(string sha)
+    {
+        if (!GitOutput.ShaPattern().IsMatch(sha))
+            throw new RoostException($"'{sha}' no vale como commit.");
     }
 
     private static void ValidateBranchName(string branch)

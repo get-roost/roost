@@ -701,7 +701,7 @@ public class ViewSnapshotTests
         await UntilAsync(() => main.Dialog is MessageDialogViewModel);
         var dialog = Assert.IsType<MessageDialogViewModel>(main.Dialog);
         Assert.Equal("Cambiar el PHP de blog.test", dialog.Title);
-        Assert.Contains("rearranca Roost", dialog.Text);
+        Assert.Contains("sin cortar", dialog.Text);
         Snapshot(window, "sitios-confirmar-php");
 
         dialog.Close(false);   // Cancelar
@@ -1910,6 +1910,23 @@ public class ViewSnapshotTests
     // ejecuta, nada va a la red y ningún test llega a aplicar el stack.
 
     [AvaloniaFact]
+    public async Task NuevoSitio_DesdeGit_AbreElAsistente()
+    {
+        var (main, _, fake) = await OpenAsync(running: true);
+        using var _f = fake;
+
+        await main.NavigateToAsync(main.Sites);
+        var opening = main.Sites.NewSiteCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<NewSiteDialogViewModel>(main.Dialog);
+        dialog.PickTemplateCommand.Execute(dialog.Templates[4]);
+
+        await UntilAsync(() => main.Dialog is CloneWizardViewModel);
+        ((CloneWizardViewModel)main.Dialog!).Close();
+        await opening;
+        Assert.Null(main.Dialog);
+    }
+
+    [AvaloniaFact]
     public async Task NuevoSitio_PlantillaLaravel_SoloLosPhpQueValen_YUnaCarpetaNueva()
     {
         var (main, window, fake) = await OpenAsync(running: true);
@@ -1920,7 +1937,7 @@ public class ViewSnapshotTests
         var dialog = Assert.IsType<NewSiteDialogViewModel>(main.Dialog);
         Assert.Equal(["Carpeta (lo de siempre)", "Laravel", "WordPress", "Symfony", "Desde git…"], dialog.Templates.Select(t => t.Label));
         Assert.True(dialog.Templates[0].IsSelected);
-        Assert.False(dialog.Templates[4].Available);
+        Assert.True(dialog.Templates[4].Available);   // «Desde git…» abre el asistente de clonar (NuevoSitio_DesdeGit_AbreElAsistente)
 
         dialog.Name = "shop";
         dialog.PickTemplateCommand.Execute(dialog.Templates[1]);

@@ -170,6 +170,18 @@
               </StackPanel>
             </StackPanel>
           </Border>
+
+          <!-- Git-app: lleva a Ajustes › Git -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="Git" /></Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <TextBlock Classes="small" TextWrapping="Wrap"
+                           Text="Los sitios desde git: qué git usa Roost, las claves SSH, los tokens, los servidores conocidos y cada cuánto se miran las novedades." />
+                <Button Classes="sm" Content="Abrir Ajustes › Git" Command="{Binding GoGitCommand}" HorizontalAlignment="Left" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
         </StackPanel>
 
         <StackPanel Grid.Column="1" Spacing="16">

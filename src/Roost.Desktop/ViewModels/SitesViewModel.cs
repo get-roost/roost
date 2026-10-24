@@ -283,14 +283,15 @@ public sealed partial class SitesViewModel : PageViewModel
     private void Choose(SiteRow row) => Pick(row);
 
     /// <summary>
-    /// Cambiar el PHP del sitio rearranca todo el stack: se confirma antes (si está en marcha) y,
-    /// si el rearranque no va, el sitio vuelve a su PHP de antes en el registro.
+    /// Cambiar el PHP del sitio: con el stack en marcha se confirma antes y el daemon arranca el pool
+    /// de esa rama antes de recargar el servidor web (E2), sin cortar. Si no se aplica, el sitio
+    /// vuelve a su PHP de antes en el registro.
     /// </summary>
     private async Task SetPhpAsync(SiteRow row, PhpOption option)
     {
         var label = option.Spec ?? "el global";
         if (Main.Stack.IsRunning && !await Main.ConfirmAsync($"Cambiar el PHP de {row.Host}",
-                $"Cambiar el PHP de {row.Host} a {label} rearranca Roost (unos segundos).", "Cambiar"))
+                $"{row.Host} pasará a PHP {label}. Roost arranca esa versión antes de mandarle nada y recarga el servidor web, sin cortar.", "Cambiar"))
         {
             SelectPhpOf(row.Site);
             return;
@@ -376,7 +377,7 @@ public sealed partial class SitesViewModel : PageViewModel
     [RelayCommand]
     private Task SetRootAsync(string root) => Selected is { } row ? ApplyRootAsync(row, root) : Task.CompletedTask;
 
-    /// <summary>Guarda la raíz web (validada en Core) y la aplica. De momento rearranca el stack; más adelante recargará solo el servidor web.</summary>
+    /// <summary>Guarda la raíz web (validada en Core) y la aplica. Con el stack en marcha, el daemon solo recarga el servidor web (E2).</summary>
     private Task ApplyRootAsync(SiteRow row, string? root) => Main.RunAsync($"No se pudo cambiar la raíz web de {row.Host}", async () =>
     {
         var site = new SiteManager(Main.App.Paths).SetRoot(row.Site.Name, root);
@@ -389,12 +390,12 @@ public sealed partial class SitesViewModel : PageViewModel
     private async Task RemoveAsync()
     {
         if (Selected is not { } row) return;
-        if (!await Main.ConfirmAsync($"Quitar {row.Host}",
+        // Git-app: con la casilla «quitar también la clave SSH y el token» si el sitio los tiene (SitesViewModel.Git.cs).
+        if (await ConfirmRemoveAsync(row,
                 (row.ByDns
                     ? "Deja de servirse (el DNS local deja de resolverlo al momento). "
                     : "Deja de servirse y se quita del hosts (Windows pedirá permiso de administrador). ")
-                + $"La carpeta del proyecto ({row.Site.Folder}) no se toca.",
-                "Quitar sitio", danger: true))
+                + $"La carpeta del proyecto ({row.Site.Folder}) no se toca.") is not { } removeAccess)
             return;
 
         var removed = false;
@@ -404,6 +405,7 @@ public sealed partial class SitesViewModel : PageViewModel
         {
             new SiteManager(Main.App.Paths).Remove(row.Site.Name);
             removed = true;
+            RemoveSiteAccess(row.Site, removeAccess);
             Main.NotifyConfigChanged();
             // Si se cancela el permiso del hosts, el sitio ya está quitado: el cambio se aplica igual
             // (deja de servirse) y se cuenta la verdad al final.
@@ -427,7 +429,13 @@ public sealed partial class SitesViewModel : PageViewModel
     private async Task NewSiteAsync()
     {
         var dialog = new NewSiteDialogViewModel(Main);
-        if (await Main.ShowDialogAsync(dialog) is not NewSiteRequest request) return;
+        var result = await Main.ShowDialogAsync(dialog);
+        if (result is NewSiteFromGit)
+        {
+            await OpenCloneWizardAsync();
+            return;
+        }
+        if (result is not NewSiteRequest request) return;
         // Pasos y plantillas: con una plantilla, el proyecto se crea en el diálogo de los pasos (SitesViewModel.Deploy.cs).
         await (request.Template is null ? CreateAsync(request) : CreateFromTemplateAsync(request));
     }

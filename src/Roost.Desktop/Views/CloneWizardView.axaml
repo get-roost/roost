@@ -1,0 +1,261 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             xmlns:sys="using:System"
+             x:Class="Roost.Desktop.Views.CloneWizardView"
+             x:DataType="vm:CloneWizardViewModel">
+  <!-- Git-app: «Desde git…» en tres pasos (maquetas A, B y C del diseño de git) -->
+  <Border Classes="modal wide" Width="720">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <Button DockPanel.Dock="Left" Content="Atrás" Command="{Binding BackCommand}" IsVisible="{Binding ShowBack}" IsEnabled="{Binding Idle}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancelar" Command="{Binding CancelCommand}" />
+            <Button Classes="primary" Content="Siguiente" Command="{Binding NextCommand}" IsVisible="{Binding IsStep1}" IsEnabled="{Binding CanNext}" />
+            <Panel IsVisible="{Binding IsStep2}">
+              <Button Classes="primary" Content="Probar acceso" Command="{Binding TestAccessCommand}" IsVisible="{Binding ShowTest}" IsEnabled="{Binding CanTest}" />
+              <Button Classes="primary" Content="Siguiente" Command="{Binding NextCommand}" IsVisible="{Binding ShowNext2}" IsEnabled="{Binding CanNext}" />
+            </Panel>
+            <Button Classes="primary" Content="Clonar y abrir" Command="{Binding CloneCommand}" IsVisible="{Binding IsStep3}" IsEnabled="{Binding CanClone}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <ScrollViewer MaxHeight="600">
+        <StackPanel Spacing="14" Margin="20,18,20,18">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Border Classes="badge-ic">
+              <Panel>
+                <ctl:Icon Data="{StaticResource IcPlus}" Size="18" StrokeThickness="2" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding !IsStep2}" />
+                <ctl:Icon Data="{StaticResource IcKey}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding IsStep2}" />
+              </Panel>
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Classes="h3" Text="{Binding HeaderTitle}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="faint" Text="{Binding HeaderSubtitle}" TextWrapping="Wrap" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="icon ghost" VerticalAlignment="Top" Command="{Binding CancelCommand}" AutomationProperties.Name="Cerrar">
+              <ctl:Icon Data="{StaticResource IcClose}" Size="15" />
+            </Button>
+          </Grid>
+
+          <!-- Paso 1: Repositorio -->
+          <StackPanel Spacing="14" IsVisible="{Binding IsStep1}">
+            <StackPanel Spacing="6">
+              <TextBlock Classes="lbl" Text="Repositorio" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                <TextBox Classes="mono" Text="{Binding Url}" PlaceholderText="https://github.com/acme/tienda" AutomationProperties.Name="Dirección del repositorio" />
+                <Button Grid.Column="1" Content="Comprobar" Command="{Binding CheckCommand}" IsEnabled="{Binding Idle}"
+                        ToolTip.Tip="Pregunta al servidor qué ramas hay y si hace falta acceso (ls-remote)" />
+              </Grid>
+              <TextBlock Classes="faint" TextWrapping="Wrap" Text="Pega la dirección de GitHub, GitLab, Bitbucket o de tu servidor:" />
+              <TextBlock Classes="faint mono" FontSize="11.5" Text="https://…  ·  git@servidor:grupo/repo.git  ·  ssh://…" />
+            </StackPanel>
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding Busy}" AutomationProperties.Name="Comprobando" />
+            <ctl:Note Tone="{Binding CheckTone}" IsVisible="{Binding HasCheck}">
+              <StackPanel Spacing="3">
+                <SelectableTextBlock FontWeight="SemiBold" Text="{Binding CheckTitle}" TextWrapping="Wrap" />
+                <SelectableTextBlock FontSize="12" Text="{Binding CheckDetail}" TextWrapping="Wrap" />
+              </StackPanel>
+            </ctl:Note>
+            <ctl:Note Tone="Accent"
+                      Content="Comprobar solo pregunta al servidor qué ramas hay y si hace falta acceso. No descarga nada todavía." />
+          </StackPanel>
+
+          <!-- Paso 2: Acceso -->
+          <StackPanel Spacing="14" IsVisible="{Binding IsStep2}">
+            <Border Classes="seg">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <RadioButton Theme="{StaticResource SegButton}" GroupName="acceso" Content="Token HTTPS" IsChecked="{Binding IsTokenTab}"
+                             IsEnabled="{Binding CanToken}" ToolTip.Tip="{Binding TokenTabTip}" ToolTip.ShowOnDisabled="True" />
+                <RadioButton Theme="{StaticResource SegButton}" GroupName="acceso" Content="Clave SSH de Roost" IsChecked="{Binding IsKeyTab}"
+                             IsEnabled="{Binding CanSsh}" ToolTip.Tip="{Binding SshTabTip}" ToolTip.ShowOnDisabled="True" />
+                <RadioButton Theme="{StaticResource SegButton}" GroupName="acceso" Content="Mi clave SSH" IsChecked="{Binding IsOwnTab}"
+                             IsEnabled="{Binding CanSsh}" ToolTip.Tip="{Binding SshTabTip}" ToolTip.ShowOnDisabled="True" />
+              </StackPanel>
+            </Border>
+
+            <!-- Token HTTPS -->
+            <StackPanel Spacing="10" IsVisible="{Binding IsTokenTab}">
+              <Grid ColumnDefinitions="200,*" ColumnSpacing="14">
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="lbl" Text="Usuario" />
+                  <TextBox Classes="mono" Text="{Binding TokenUser}" PlaceholderText="(opcional)" AutomationProperties.Name="Usuario del token" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="6">
+                  <TextBlock Classes="lbl" Text="Token" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                    <TextBox Classes="mono" Text="{Binding TokenText}" PasswordChar="•" RevealPassword="{Binding ShowToken}" AutomationProperties.Name="Token" />
+                    <Button Grid.Column="1" Classes="icon" Command="{Binding ToggleShowTokenCommand}" ToolTip.Tip="Ver u ocultar" AutomationProperties.Name="Ver u ocultar el token">
+                      <Panel>
+                        <ctl:Icon Data="{StaticResource IcEye}" Size="15" IsVisible="{Binding !ShowToken}" />
+                        <ctl:Icon Data="{StaticResource IcEyeOff}" Size="15" IsVisible="{Binding ShowToken}" />
+                      </Panel>
+                    </Button>
+                  </Grid>
+                </StackPanel>
+              </Grid>
+              <TextBlock Classes="faint" Text="{Binding TokenUserHint}" TextWrapping="Wrap" />
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Classes="sm" Command="{Binding CreateTokenCommand}" IsVisible="{Binding HasNewTokenUrl}" AutomationProperties.Name="Crear un token">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="{Binding NewTokenText}" VerticalAlignment="Center" />
+                    <ctl:Icon Data="{StaticResource IcExternal}" Size="13" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <TextBlock Classes="faint" Text="{Binding TokenPermissionText}" VerticalAlignment="Center" />
+              </StackPanel>
+              <ctl:Note Tone="Warn" IsVisible="{Binding HasTokenWarning}" Content="{Binding TokenWarning}" />
+              <ctl:Note Tone="Ok" IsVisible="{Binding HasExistingToken}" Content="{Binding ExistingToken}" />
+              <TextBlock Classes="small" Text="{Binding TokenStorageText}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" />
+              <ctl:Note Tone="Accent" IsVisible="{Binding HasPasswordNote}" Content="{Binding PasswordNote}" />
+            </StackPanel>
+
+            <!-- Clave SSH de Roost -->
+            <StackPanel Spacing="10" IsVisible="{Binding IsKeyTab}">
+              <TextBlock Text="{Binding KeyIntro}" TextWrapping="Wrap" />
+              <DockPanel>
+                <Button DockPanel.Dock="Right" Classes="sm" Content="Generar" Command="{Binding GenerateKeyCommand}" IsVisible="{Binding CanGenerate}" IsEnabled="{Binding Idle}" />
+                <TextBlock Classes="lbl" Text="{Binding KeyName, StringFormat='Clave pública · {0}'}" VerticalAlignment="Center" />
+              </DockPanel>
+              <Border Classes="log" Padding="10,8">
+                <Panel>
+                  <SelectableTextBlock Classes="mono" FontSize="11.5" Text="{Binding PublicKey}" TextWrapping="Wrap" Foreground="{DynamicResource LogTextBrush}" IsVisible="{Binding HasPublicKey}" />
+                  <TextBlock Classes="mono" FontSize="11.5" Foreground="{DynamicResource LogTextBrush}" Text="Aún no hay clave: pulsa Generar." IsVisible="{Binding !HasPublicKey}" />
+                </Panel>
+              </Border>
+              <WrapPanel ItemSpacing="8" LineSpacing="8">
+                <Button Classes="sm" Content="Copiar clave pública" Command="{Binding CopyKeyCommand}" IsEnabled="{Binding HasPublicKey}" />
+                <Button Classes="sm" Command="{Binding OpenDeployKeysCommand}" IsVisible="{Binding HasDeployKeysUrl}" AutomationProperties.Name="Abrir las deploy keys del repositorio">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="Abrir las deploy keys del repositorio" VerticalAlignment="Center" />
+                    <ctl:Icon Data="{StaticResource IcExternal}" Size="13" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+                <Button Classes="link" FontSize="12" Content="o usa un fichero de clave tuyo…" Command="{Binding ImportKeyCommand}" IsVisible="{Binding CanGenerate}"
+                        VerticalAlignment="Center" ToolTip.Tip="Una clave privada de OpenSSH sin contraseña: Roost guarda una copia solo para tu usuario" />
+              </WrapPanel>
+              <TextBlock Classes="faint" Text="{Binding KeyNote}" TextWrapping="Wrap" />
+              <ItemsControl ItemsSource="{Binding DeployKeySteps}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Spacing="3" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="sys:String">
+                    <TextBlock Classes="small" Text="{Binding}" TextWrapping="Wrap" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+
+            <!-- Mi clave SSH -->
+            <StackPanel Spacing="10" IsVisible="{Binding IsOwnTab}">
+              <TextBlock Text="{Binding OwnText}" TextWrapping="Wrap" />
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <ctl:Dot Tone="{Binding OwnTone}" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <StackPanel Grid.Column="1" Spacing="3">
+                  <TextBlock Classes="strong" Text="{Binding OwnFound}" TextWrapping="Wrap" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Classes="faint" Text="{Binding OwnHint}" TextWrapping="Wrap" MaxWidth="520" />
+                    <Button Classes="link" FontSize="12" Command="{Binding OwnHelpCommand}" VerticalAlignment="Top" AutomationProperties.Name="Cómo usar tus claves con el ssh-agent">
+                      <StackPanel Orientation="Horizontal" Spacing="4">
+                        <TextBlock Text="Cómo" />
+                        <ctl:Icon Data="{StaticResource IcExternal}" Size="12" VerticalAlignment="Center" />
+                      </StackPanel>
+                    </Button>
+                  </StackPanel>
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+
+            <!-- La huella del servidor (por SSH) -->
+            <ctl:Note Tone="{Binding HostTone}" IsVisible="{Binding ShowHost}">
+              <StackPanel Spacing="4">
+                <TextBlock Classes="strong" Text="{Binding HostTitle}" TextWrapping="Wrap" />
+                <SelectableTextBlock Classes="mono" FontSize="11.5" Text="{Binding HostFingerprint}" TextWrapping="Wrap" IsVisible="{Binding HasHostFingerprint}" />
+                <TextBlock Text="{Binding HostText}" TextWrapping="Wrap" />
+                <Button Classes="sm" Content="Confiar en este servidor" Command="{Binding TrustHostCommand}" IsVisible="{Binding CanTrustHost}"
+                        HorizontalAlignment="Left" Margin="0,4,0,0" />
+              </StackPanel>
+            </ctl:Note>
+
+            <Grid ColumnDefinitions="Auto,Auto,*" ColumnSpacing="8">
+              <TextBlock Classes="strong" Text="Acceso:" />
+              <ctl:Dot Grid.Column="1" Tone="{Binding AccessTone}" VerticalAlignment="Top" Margin="0,5,0,0" />
+              <SelectableTextBlock Grid.Column="2" Text="{Binding AccessMessage}" TextWrapping="Wrap" />
+            </Grid>
+          </StackPanel>
+
+          <!-- Paso 3: Sitio -->
+          <StackPanel Spacing="14" IsVisible="{Binding IsStep3}">
+            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="14">
+              <StackPanel Spacing="6">
+                <TextBlock Classes="lbl" Text="Nombre" />
+                <TextBox Classes="mono" Text="{Binding Name}" PlaceholderText="tienda" AutomationProperties.Name="Nombre del sitio" />
+                <TextBlock Classes="small" Text="{Binding NameHint}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding NameOk}" />
+                <TextBlock Classes="small" Text="{Binding NameHint}" TextWrapping="Wrap" Foreground="{DynamicResource BadBrush}" IsVisible="{Binding !NameOk}" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="6">
+                <TextBlock Classes="lbl" Text="Carpeta" />
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                  <TextBox Classes="mono" Text="{Binding Folder}" AutomationProperties.Name="Carpeta del sitio" />
+                  <Button Grid.Column="1" Classes="icon" Command="{Binding BrowseCommand}" ToolTip.Tip="Elegir carpeta" AutomationProperties.Name="Elegir carpeta">
+                    <ctl:Icon Data="{StaticResource IcFolder}" Size="15" />
+                  </Button>
+                </Grid>
+                <TextBlock Classes="small" Text="{Binding FolderHint}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding FolderOk}" />
+                <TextBlock Classes="small" Text="{Binding FolderHint}" TextWrapping="Wrap" Foreground="{DynamicResource BadBrush}" IsVisible="{Binding !FolderOk}" />
+              </StackPanel>
+              <StackPanel Grid.Row="1" Spacing="6">
+                <TextBlock Classes="lbl" Text="Rama" />
+                <ComboBox ItemsSource="{Binding Branches}" SelectedItem="{Binding Branch}" HorizontalAlignment="Stretch" AutomationProperties.Name="Rama que se clona" />
+              </StackPanel>
+              <StackPanel Grid.Row="1" Grid.Column="1" Spacing="6">
+                <TextBlock Classes="lbl" Text="PHP" />
+                <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding Php}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
+                <TextBlock Classes="faint" Text="Si el composer.json pide otra, Roost lo propondrá al terminar." TextWrapping="Wrap" />
+              </StackPanel>
+            </Grid>
+
+            <StackPanel Spacing="6">
+              <TextBlock Classes="lbl" Text="Base de datos" />
+              <CheckBox IsChecked="{Binding CreateDb}" IsEnabled="{Binding HasDb}">
+                <TextBlock Text="{Binding DbText}" TextWrapping="Wrap" />
+              </CheckBox>
+            </StackPanel>
+
+            <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="14,12">
+              <StackPanel Spacing="10">
+                <TextBlock Classes="lbl" Text="Al crear, Roost:" />
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                  <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding StepClone}" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                  <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding StepVhost}" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                  <Panel VerticalAlignment="Top" Margin="0,5,0,0">
+                    <ctl:Dot Tone="Warn" IsVisible="{Binding UsesHosts}" />
+                    <ctl:Dot Tone="Ok" IsVisible="{Binding UsesLocalDns}" />
+                  </Panel>
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding StepHosts}" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding CreateDb}">
+                  <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding StepDb}" TextWrapping="Wrap" />
+                </Grid>
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                  <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding StepDetect}" TextWrapping="Wrap" />
+                </Grid>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>
