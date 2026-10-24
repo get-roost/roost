@@ -6,16 +6,20 @@ namespace Roost.Daemon;
 /// Una foto de la configuración que genera <c>StackPlanner.Prepare</c> y que lee el stack en
 /// marcha: el nginx.conf o el httpd.conf, los <c>sites/*.conf</c> de los dos y el my.ini de cada
 /// base de datos. <c>Prepare</c> los escribe en su sitio, así que, con el stack en marcha, un
-/// <c>up</c> los regenera antes de saber si la configuración nueva vale. Nadie los relee en
-/// caliente (nginx, Apache, php-cgi y la base de datos los leen al arrancar), pero sí los leería
-/// el siguiente relanzamiento (un <c>restart</c>, un php-cgi reciclado, una caída) y la parada
-/// limpia de la base de datos (<c>mariadb-admin --defaults-file=my.ini shutdown</c> lee el
-/// puerto del my.ini). Por eso el daemon hace esta foto antes de <c>Prepare</c> y la devuelve si
-/// rechaza el plan, y la vuelve a poner mientras para lo de antes.
+/// <c>up</c> los regenera antes de saber si la configuración nueva vale. Los leería la siguiente
+/// recarga del servidor web (E2: un <c>Recargar</c>, un certificado renovado), el siguiente
+/// relanzamiento (un <c>restart</c>, un php-cgi reciclado, una caída) y la parada limpia de la base
+/// de datos (<c>mariadb-admin --defaults-file=my.ini shutdown</c> lee el puerto del my.ini). Por eso
+/// el daemon hace esta foto antes de <c>Prepare</c> y la devuelve si rechaza el plan (también si los
+/// pools de PHP nuevos no arrancan, antes de recargar nada). Al aplicar, la vuelve a poner solo
+/// mientras para lo que se va o cambia y no es PHP ni el servidor web (la base de datos que cambia
+/// de puerto se para con el suyo), y después deja los ficheros nuevos; la recarga del servidor web
+/// va después, ya con ellos.
 ///
 /// Fuera quedan los php.ini (su contenido no depende de nada que pueda fallar en la validación:
-/// el que escribe un <c>up</c> rechazado es el mismo que escribiría uno bueno) y los certificados
-/// (uno renovado siempre es mejor que el viejo, y nginx tiene el suyo cargado en memoria).
+/// el que escribe un <c>up</c> rechazado es el mismo que escribiría uno bueno; si cambia, la huella
+/// de <see cref="ServiceInputs"/> lo ve y el siguiente <c>up</c> reinicia ese pool) y los
+/// certificados (uno renovado siempre es mejor que el viejo).
 /// </summary>
 internal sealed class GeneratedConfig
 {

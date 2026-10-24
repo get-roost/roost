@@ -64,12 +64,15 @@ public static class ApacheConf
         foreach (var module in Modules)
             modules.Append($"LoadModule {module}_module modules/mod_{module}.so\n");
 
+        // retry=0: un php-cgi que se reinicia no deja su miembro «en error» 60 s (lo de serie). Con
+        // eso, al reiniciar el pool uno a uno Apache acababa con todos en error y daba 503; así la
+        // petición pasa al otro y el que vuelve se usa en el acto (probado en real con carga).
         var pools = new StringBuilder();
         foreach (var pool in input.Pools)
         {
             pools.Append($"<Proxy \"balancer://{pool.Name}\">\n");
             foreach (var port in pool.Ports)
-                pools.Append($"    BalancerMember \"fcgi://127.0.0.1:{port}\"\n");
+                pools.Append($"    BalancerMember \"fcgi://127.0.0.1:{port}\" retry=0\n");
             pools.Append("</Proxy>\n");
         }
 

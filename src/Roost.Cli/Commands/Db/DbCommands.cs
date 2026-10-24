@@ -53,7 +53,7 @@ internal static class DbCatalogs
         catch (RoostException) { return null; }
     }
 
-    /// <summary>Si el stack esta en marcha, lo rearranca para aplicar la configuracion nueva.</summary>
+    /// <summary>Si el stack esta en marcha, le aplica la configuracion nueva (el daemon reinicia solo la base de datos).</summary>
     public static Task<int> ApplyIfRunningAsync(RoostPaths paths, CancellationToken cancellation) =>
         StackApply.IfRunningAsync(paths, s => (s.Db ?? "sin base de datos") + ".", cancellation);
 }

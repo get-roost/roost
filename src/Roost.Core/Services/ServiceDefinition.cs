@@ -28,6 +28,27 @@ public sealed record ServiceDefinition
 
     /// <summary>Lo que se espera a que salga solo tras <see cref="StopCommand"/> antes de matarlo.</summary>
     public TimeSpan StopTimeout { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Iguales si lanzan el mismo proceso de la misma forma, con el entorno comparado por contenido:
+    /// la igualdad de serie de un record compararía el diccionario por referencia, y cada <c>up</c>
+    /// crea uno nuevo. Así compara la recarga selectiva (E2) el plan nuevo con el que está en marcha:
+    /// un servicio igual (también el de una extensión) no se toca.
+    /// </summary>
+    public bool Equals(ServiceDefinition? other) =>
+        other is not null
+        && Name == other.Name
+        && Executable == other.Executable
+        && Arguments == other.Arguments
+        && WorkingDirectory == other.WorkingDirectory
+        && LogFile == other.LogFile
+        && Port == other.Port
+        && StopTimeout == other.StopTimeout
+        && Equals(StopCommand, other.StopCommand)
+        && Environment.Count == other.Environment.Count
+        && Environment.All(e => other.Environment.TryGetValue(e.Key, out var value) && value == e.Value);
+
+    public override int GetHashCode() => HashCode.Combine(Name, Executable, Arguments, WorkingDirectory, Port);
 }
 
 public enum ServiceState

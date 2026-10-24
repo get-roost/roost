@@ -458,7 +458,7 @@ app.Configure(config =>
         web.SetDescription("El servidor web que arranca roost up: nginx o Apache (de momento, solo en Windows).");
 
         web.AddCommand<WebUseCommand>("use")
-            .WithDescription("Elige nginx o Apache (lee los .htaccess). Lo instala si falta y rearranca el stack si esta en marcha.")
+            .WithDescription("Elige nginx o Apache (lee los .htaccess). Lo instala si falta y, si el stack esta en marcha, cambia solo el servidor web.")
             .WithExample("web", "use", "apache")
             .WithExample("web", "use", "nginx");
     });

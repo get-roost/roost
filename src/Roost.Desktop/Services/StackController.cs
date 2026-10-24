@@ -42,6 +42,12 @@ public sealed partial class StackController(AppServices app) : ObservableObject
     [ObservableProperty]
     public partial string? BusyText { get; private set; }
 
+    /// <summary>
+    /// Lo que hizo el daemon en el último arranque o cambio aplicado con el stack en marcha
+    /// («recargado nginx», «arrancado php-7.4»): solo toca lo que cambia. Vacío si no tocó nada.
+    /// </summary>
+    public IReadOnlyList<string> LastApplied { get; private set; } = [];
+
     public bool IsRunning => Status?.Running == true;
 
     public bool IsDaemonUp => Status is not null;
@@ -70,11 +76,15 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         a is null || b is null ? a is null && b is null
             : System.Text.Json.JsonSerializer.Serialize(a) == System.Text.Json.JsonSerializer.Serialize(b);
 
-    /// <summary>Arranca (o rearranca con la configuración actual) el stack. null si ha ido bien.</summary>
+    /// <summary>Arranca el stack (o, si ya está en marcha, le aplica la configuración actual). null si ha ido bien.</summary>
     public Task<StartFailure?> StartAsync(IProgress<string>? progress = null) =>
         RunBusyAsync("Arrancando...", () => StartCoreAsync(progress));
 
-    /// <summary>Si el stack está en marcha, lo rearranca para aplicar un cambio de configuración.</summary>
+    /// <summary>
+    /// Si el stack está en marcha, le aplica un cambio de configuración: el daemon solo toca lo que
+    /// cambia (recarga el servidor web para un sitio, arranca o reinicia el pool de un PHP, la base de
+    /// datos solo si cambia lo suyo) y lo cuenta en <see cref="LastApplied"/>.
+    /// </summary>
     public async Task<StartFailure?> ApplyIfRunningAsync()
     {
         await RefreshAsync();
@@ -123,7 +133,8 @@ public sealed partial class StackController(AppServices app) : ObservableObject
             await app.Daemon.EnsureRunningAsync(DaemonLauncher.FromDirectory(AppServices.AppDirectory));
             var response = await app.Daemon.UpAsync();
             Status = response.Status;
-            return response.Ok ? null : Failure(response.Error ?? "El daemon no ha dicho por qué.", config, response.Status);
+            LastApplied = response.Applied;
+            return response.Ok ? null : Failure(response.Error ?? "El daemon no ha dicho por qué.", config, response.Status, response.Applied.Count > 0);
         }
         catch (RoostException ex)
         {
@@ -156,7 +167,8 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         }
     }
 
-    private StartFailure Failure(string error, RoostConfig config, StatusResponse status)
+    /// <param name="partial">El daemon aplicó parte del cambio (lo demás sigue en marcha) y algo de lo nuevo no arrancó.</param>
+    private StartFailure Failure(string error, RoostConfig config, StatusResponse status, bool partial = false)
     {
         // Si el daemon rechazó el cambio, lo de antes sigue en marcha con sus puertos: esos son
         // nuestros, no de otro. Tras un up que no arrancó no queda nada nuestro en marcha.
@@ -185,7 +197,8 @@ public sealed partial class StackController(AppServices app) : ObservableObject
             : first is "apache" ? "Apache"
             : busy.Count > 0 ? busy[0].Role
             : null;
-        var title = status.Running ? "No se ha aplicado el cambio"
+        var title = status.Running && partial ? "El cambio se ha aplicado a medias"
+            : status.Running ? "No se ha aplicado el cambio"
             : service is null ? "No se pudo arrancar Roost" : $"No se pudo arrancar {service}";
         return new StartFailure(title, error, busy, StillRunning: status.Running);
     }

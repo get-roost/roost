@@ -538,7 +538,8 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
                 Environment = new Dictionary<string, string>
                 {
                     // php-cgi atiende una petición cada vez y sale tras estas; el supervisor lo relanza.
-                    ["PHP_FCGI_MAX_REQUESTS"] = "500",
+                    // Cada uno con su número, para que no se reciclen todos a la vez (PhpPool.MaxRequests).
+                    ["PHP_FCGI_MAX_REQUESTS"] = PhpPool.MaxRequests(i).ToString(System.Globalization.CultureInfo.InvariantCulture),
                     ["PHP_INI_SCAN_DIR"] = scanDir,
                 },
                 LogFile = Path.Combine(paths.Logs, $"php-{branch}-{i}.log"),

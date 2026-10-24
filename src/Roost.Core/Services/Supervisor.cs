@@ -8,6 +8,10 @@ namespace Roost.Core.Services;
 /// normal (php-cgi se recicla solo tras PHP_FCGI_MAX_REQUESTS peticiones): se relanza en el
 /// acto. Uno que sale antes es una caída: se relanza con espera creciente, y tras
 /// <see cref="MaxQuickCrashes"/> caídas seguidas se marca <see cref="ServiceState.Failed"/>.
+///
+/// Con el supervisor en marcha se pueden añadir, quitar y sustituir servicios (<see cref="Add"/>,
+/// <see cref="RemoveAsync"/>, <see cref="ReplaceAsync"/>) sin tocar el resto: es lo que usa la
+/// recarga selectiva del daemon para aplicar un cambio sin pararlo todo.
 /// </summary>
 public sealed class Supervisor
 {
@@ -37,7 +41,8 @@ public sealed class Supervisor
     /// <summary>
     /// Arranca los servicios en el orden recibido (ROOST.md §5.5: DB → PHP → nginx). El primer
     /// arranque de cada uno es síncrono, para que el orden sea de verdad ese; la vigilancia y
-    /// los relanzamientos van en segundo plano. Solo se puede llamar una vez.
+    /// los relanzamientos van en segundo plano. Solo se puede llamar una vez: después, los servicios
+    /// se añaden con <see cref="Add"/>.
     /// </summary>
     public void Start(IEnumerable<ServiceDefinition> services)
     {
@@ -58,6 +63,97 @@ public sealed class Supervisor
     {
         lock (_gate)
             return _slots.Select(s => s.Snapshot()).ToList();
+    }
+
+    // Cambiar el stack en marcha (E2, la recarga selectiva): añadir, quitar y sustituir servicios
+    // sin parar el resto. Quien llama decide el orden (Arrange) y espera a que lo nuevo responda.
+
+    /// <summary>Las definiciones de los servicios que tiene ahora, en su orden (también los parados).</summary>
+    public IReadOnlyList<ServiceDefinition> Definitions()
+    {
+        lock (_gate)
+            return _slots.Select(s => s.Definition).ToList();
+    }
+
+    /// <summary>
+    /// Añade un servicio con el supervisor en marcha (un pool de PHP nuevo, Redis al activarlo) y
+    /// lo arranca como <see cref="Start"/>: el primer arranque, síncrono, y la vigilancia en segundo
+    /// plano. Va al final del orden; <see cref="Arrange"/> lo pone en su sitio. Lanza si ya hay uno
+    /// con ese nombre.
+    /// </summary>
+    public void Add(ServiceDefinition definition)
+    {
+        lock (_gate)
+        {
+            if (_slots.Any(s => s.Definition.Name == definition.Name))
+                throw new InvalidOperationException($"El supervisor ya tiene un servicio '{definition.Name}'.");
+            var slot = new Slot(definition);
+            _slots.Add(slot);
+            var first = Launch(slot);
+            slot.Loop = first is null ? Task.CompletedTask : Task.Run(() => SuperviseAsync(slot, first.Value));
+        }
+    }
+
+    /// <summary>
+    /// Para un servicio como <see cref="StopAsync()"/> (limpio, si tiene comando de parada) y lo
+    /// quita del supervisor: ya no sale en <see cref="Status"/>. false si no estaba.
+    /// </summary>
+    public async Task<bool> RemoveAsync(string name)
+    {
+        Slot? slot;
+        lock (_gate) slot = _slots.FirstOrDefault(s => s.Definition.Name == name);
+        if (slot is null) return false;
+
+        await StopSlotsAsync([slot]);
+        lock (_gate) _slots.Remove(slot);
+        return true;
+    }
+
+    /// <summary>
+    /// Sustituye un servicio por otra definición con el mismo nombre (otra versión de PHP, otro
+    /// puerto): para el proceso de la definición vieja, que es la que sabe pararlo (limpio, si tiene
+    /// comando de parada), y arranca la nueva en el mismo sitio del orden. Las cuentas de reinicios
+    /// empiezan de cero. false si no estaba.
+    /// </summary>
+    public async Task<bool> ReplaceAsync(ServiceDefinition definition)
+    {
+        Slot? old;
+        lock (_gate) old = _slots.FirstOrDefault(s => s.Definition.Name == definition.Name);
+        if (old is null) return false;
+
+        await StopSlotsAsync([old]);
+        lock (_gate)
+        {
+            var slot = new Slot(definition);
+            var index = _slots.IndexOf(old);
+            if (index >= 0) _slots[index] = slot;
+            else _slots.Add(slot);
+            var first = Launch(slot);
+            slot.Loop = first is null ? Task.CompletedTask : Task.Run(() => SuperviseAsync(slot, first.Value));
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Ordena los servicios como <paramref name="order"/> (el del plan: DB → … → PHP → servidor
+    /// web), que es el de <see cref="Status"/> y, al revés, el de parada. Los que no salen en la
+    /// lista se quedan al final, en el orden que tenían.
+    /// </summary>
+    public void Arrange(IReadOnlyList<string> order)
+    {
+        var position = new Dictionary<string, int>();
+        for (var i = 0; i < order.Count; i++) position.TryAdd(order[i], i);
+        lock (_gate)
+        {
+            var sorted = _slots
+                .Select((slot, i) => (Slot: slot, Position: position.GetValueOrDefault(slot.Definition.Name, int.MaxValue), Original: i))
+                .OrderBy(s => s.Position)
+                .ThenBy(s => s.Original)
+                .Select(s => s.Slot)
+                .ToList();
+            _slots.Clear();
+            _slots.AddRange(sorted);
+        }
     }
 
     /// <summary>

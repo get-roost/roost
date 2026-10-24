@@ -109,6 +109,13 @@ public sealed class DaemonClient : IDisposable
     public Task<CommandResponse> RestartAsync(string service, CancellationToken cancellation = default) =>
         PostAsync("restart/" + Uri.EscapeDataString(service), cancellation);
 
+    /// <summary>
+    /// Recarga un servicio sin cortar: el servidor web (<c>nginx</c>, <c>apache</c>) relee su
+    /// configuración en caliente, después de validarla; un pool de PHP se reinicia uno a uno.
+    /// </summary>
+    public Task<CommandResponse> ReloadAsync(string service, CancellationToken cancellation = default) =>
+        PostAsync("reload/" + Uri.EscapeDataString(service), cancellation);
+
     /// <summary>Reinicia todo el stack con el mismo plan: para en orden inverso y arranca en orden, sin regenerar nada.</summary>
     public Task<CommandResponse> RestartAllAsync(CancellationToken cancellation = default) => PostAsync("restart", cancellation);
 

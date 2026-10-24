@@ -18,7 +18,7 @@
             <Border Classes="card-h">
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <TextBlock Classes="h2" Text="Servidor activo" />
-                <TextBlock Classes="hint" Text="Cambiarlo rearranca el stack" />
+                <TextBlock Classes="hint" Text="Cambiarlo no para PHP ni la base de datos" />
               </StackPanel>
             </Border>
             <Grid Margin="16,14" ColumnDefinitions="*,Auto" ColumnSpacing="24">
@@ -124,7 +124,8 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <Button Classes="sm" Content="Validar configuración (nginx -t)" Command="{Binding TestConfigCommand}" IsEnabled="{Binding NginxInstalled}" />
-                  <Button Classes="sm" Content="Recargar" Command="{Binding ReloadCommand}" IsEnabled="{Binding NginxRunning}" />
+                  <Button Classes="sm" Content="Recargar" Command="{Binding ReloadCommand}" IsEnabled="{Binding NginxRunning}"
+                          ToolTip.Tip="Valida la configuración y nginx la lee otra vez sin cortar las conexiones" />
                 </StackPanel>
                 <ctl:Note Tone="{Binding TestTone}" IsVisible="{Binding HasTestOutput}">
                   <SelectableTextBlock Classes="mono" Text="{Binding TestOutput}" TextWrapping="Wrap" FontSize="11.5" />
@@ -221,7 +222,8 @@
                   </StackPanel>
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <Button Classes="sm" Content="Validar configuración (httpd -t)" Command="{Binding TestApacheConfigCommand}" IsEnabled="{Binding ApacheInstalled}" />
-                    <Button Classes="sm" Content="Recargar" Command="{Binding ReloadApacheCommand}" IsEnabled="{Binding ApacheRunning}" />
+                    <Button Classes="sm" Content="Recargar" Command="{Binding ReloadApacheCommand}" IsEnabled="{Binding ApacheRunning}"
+                            ToolTip.Tip="Valida la configuración y Apache la lee otra vez sin cortar las conexiones" />
                   </StackPanel>
                   <ctl:Note Tone="{Binding ApacheTestTone}" IsVisible="{Binding HasApacheTestOutput}">
                     <SelectableTextBlock Classes="mono" Text="{Binding ApacheTestOutput}" TextWrapping="Wrap" FontSize="11.5" />

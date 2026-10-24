@@ -21,7 +21,8 @@ public static class DaemonHost
     /// Uno por usuario y raíz: una Roost con <c>ROOST_HOME</c>, o un cliente sobre otra raíz (los tests de la
     /// app), tiene su propia tubería y nunca habla con el daemon de la Roost de siempre.
     /// Endpoints: <c>GET /status</c>, <c>POST /up</c>, <c>/down</c>, <c>/restart</c> (todo),
-    /// <c>/restart/{servicio}</c>, <c>/stop/{servicio}</c> y <c>/start/{servicio}</c>.
+    /// <c>/restart/{servicio}</c>, <c>/reload/{servicio}</c> (el servidor web, en caliente),
+    /// <c>/stop/{servicio}</c> y <c>/start/{servicio}</c>.
     /// </summary>
     public static string PipeName(RoostPaths paths) => "roost-" + Environment.UserName + RoostPaths.InstanceTag(paths);
 
@@ -84,6 +85,7 @@ public static class DaemonHost
         app.MapPost("/up", () => stack.UpAsync());
         app.MapPost("/restart", () => stack.RestartAllAsync());
         app.MapPost("/restart/{service}", (string service) => stack.RestartAsync(service));
+        app.MapPost("/reload/{service}", (string service) => stack.ReloadServiceAsync(service));
         app.MapPost("/stop/{service}", (string service) => stack.StopServiceAsync(service));
         app.MapPost("/start/{service}", (string service) => stack.StartServiceAsync(service));
         app.MapPost("/down", async () =>

@@ -38,7 +38,7 @@ public class ApacheTests : IDisposable
         Assert.Contains("LoadModule proxy_fcgi_module modules/mod_proxy_fcgi.so", conf);
         Assert.Contains("LoadModule rewrite_module modules/mod_rewrite.so", conf);
         Assert.Contains("<Proxy \"balancer://php-8.4\">", conf);
-        Assert.Contains("BalancerMember \"fcgi://127.0.0.1:9841\"", conf);
+        Assert.Contains("BalancerMember \"fcgi://127.0.0.1:9841\" retry=0\n", conf);   // sin 503 al reiniciar el pool uno a uno (E2)
         Assert.Contains("BalancerMember \"fcgi://127.0.0.1:9740\"", conf);
         Assert.Contains("SetHandler \"proxy:balancer://php-8.4/\"", conf);   // localhost, con el global
         Assert.Contains("ProxyFCGISetEnvIf \"true\" SCRIPT_FILENAME \"%{DOCUMENT_ROOT}%{reqenv:SCRIPT_NAME}\"", conf);

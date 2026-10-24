@@ -15,9 +15,9 @@ using Spectre.Console.Cli;
 namespace Roost.Cli.Commands.Stack;
 
 /// <summary>
-/// <c>roost up</c>: arranca (o vuelve a arrancar con la configuracion actual) el stack local:
-/// el pool de php-cgi del PHP global y el servidor web ([web] server: nginx o Apache) en
-/// http://localhost/. La primera vez instala el servidor web.
+/// <c>roost up</c>: arranca el stack local (el pool de php-cgi del PHP global y el servidor web,
+/// [web] server: nginx o Apache, en http://localhost/) o, si ya esta en marcha, le aplica la
+/// configuracion actual tocando solo lo que cambia. La primera vez instala el servidor web.
 /// Lo hace el daemon, que se lanza solo si no esta en marcha.
 /// </summary>
 public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
@@ -43,21 +43,25 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             WarnAboutWindowsServices(config, paths, globalDb is not null);
 
             using var client = new DaemonClient(paths);
-            await client.EnsureRunningAsync(DaemonLauncher.ForCurrentCli(), cancellation);
+            var wasRunning = (await client.EnsureRunningAsync(DaemonLauncher.ForCurrentCli(), cancellation)).Running;
 
             CommandResponse response = null!;
-            await AnsiConsole.Status().StartAsync($"Arrancando PHP {php.Name} y {WebServerSetup.Label(config.WebServer)}...", async _ =>
+            var doing = wasRunning ? "Aplicando la configuracion" : $"Arrancando PHP {php.Name} y {WebServerSetup.Label(config.WebServer)}";
+            await AnsiConsole.Status().StartAsync(doing + "...", async _ =>
                 response = await client.UpAsync(cancellation));
 
             if (!response.Ok)
             {
-                AnsiConsole.MarkupLineInterpolated($"[red]No se pudo arrancar:[/] {response.Error}");
+                AnsiConsole.MarkupLineInterpolated($"[red]{(wasRunning ? "No se pudo aplicar" : "No se pudo arrancar")}:[/] {response.Error}");
+                StackApply.PrintApplied(response, partial: true);
                 return 1;
             }
 
             var status = response.Status;
             var pool = status.Services.Count(s => s.Name.StartsWith("php-", StringComparison.Ordinal));
             AnsiConsole.MarkupLineInterpolated($"[green]En marcha:[/] [bold]{status.Url}[/]");
+            // Ya estaba en marcha: el daemon solo ha tocado lo que cambiaba, y lo dice.
+            if (wasRunning) StackApply.PrintApplied(response, partial: false);
             AnsiConsole.MarkupLineInterpolated($"  PHP {status.Php} ({pool} php-cgi) · {status.WebLabel}");
             if (status.Db is null)
                 AnsiConsole.MarkupLine("  [grey]Sin base de datos (instala una con: roost db install mariadb@11.4)[/]");
@@ -174,7 +178,10 @@ public sealed class RestartCommand : AsyncCommand<RestartCommand.Settings>
             AnsiConsole.MarkupLineInterpolated($"[red]{response.Error}[/]");
             return 1;
         }
-        AnsiConsole.MarkupLineInterpolated($"[green]Reiniciado:[/] {(all ? "todo el stack" : settings.Service)}");
+        // El pool de un PHP va uno a uno: siempre queda algun php-cgi atendiendo.
+        var oneByOne = response.Applied.Any(a => a.EndsWith("(uno a uno)", StringComparison.Ordinal));
+        AnsiConsole.MarkupLine($"[green]Reiniciado:[/] {Markup.Escape(all ? "todo el stack" : settings.Service!)}"
+            + (oneByOne ? " [grey](uno a uno, sin dejar de atender)[/]" : ""));
         return 0;
     }
 }

@@ -12,6 +12,13 @@ public static class PhpPool
     public static IReadOnlyList<int> Ports(ComponentVersion version, int size) =>
         Enumerable.Range(0, size).Select(i => 9000 + version.Major * 100 + version.Minor * 10 + i).ToList();
 
+    /// <summary>
+    /// Tras cuántas peticiones sale el php-cgi <paramref name="index"/> del pool (y el supervisor lo
+    /// relanza): 500, 561, 622… Con el mismo número para todos y el reparto por turnos, llegaban a la
+    /// vez y el pool entero se reciclaba de golpe (502 con carga); con periodos distintos se separan.
+    /// </summary>
+    public static int MaxRequests(int index) => 500 + index * 61;
+
     /// <summary>Nombre del bloque <c>upstream</c> de nginx para una rama: <c>php-8.3</c>.</summary>
     public static string UpstreamName(ComponentVersion version) => $"php-{version.Major}.{version.Minor}";
 }
@@ -60,12 +67,16 @@ public static class NginxConf
         var run = Nginx(input.RunDirectory);
         var logs = Nginx(input.LogsDirectory);
 
+        // max_fails=0: un php-cgi que se reinicia (o que se cae) no deja su servidor «caído» 10 s.
+        // Con lo de serie, al reiniciar el pool uno a uno nginx acababa con todos marcados y daba
+        // 502 («no live upstreams») aunque los demás ya estuvieran en marcha: así, si uno no
+        // contesta, la petición pasa al siguiente sin más (probado en real con carga).
         var upstreams = new StringBuilder();
         foreach (var upstream in input.Upstreams)
         {
             upstreams.Append($"    upstream {upstream.Name} {{\n");
             foreach (var port in upstream.Ports)
-                upstreams.Append($"        server 127.0.0.1:{port};\n");
+                upstreams.Append($"        server 127.0.0.1:{port} max_fails=0;\n");
             upstreams.Append("    }\n\n");
         }
 
