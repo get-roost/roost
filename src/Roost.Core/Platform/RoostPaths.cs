@@ -107,8 +107,18 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     /// <summary>Configuración del usuario (ROOST.md §8). Puede no existir: valen los valores por defecto.</summary>
     public string ConfigFile => Path.Combine(ConfigDir ?? Root, "roost.toml");
 
-    /// <summary>Carpeta que sirve <c>http://localhost/</c> (los proyectos van dentro).</summary>
+    /// <summary>
+    /// Carpeta que sirve <c>http://localhost/</c> (los proyectos van dentro): <c>&lt;raíz&gt;/www</c> salvo que
+    /// <c>roost.toml</c> diga otra en <c>[paths] www</c> o que, en Linux y sin <c>ROOST_HOME</c>, exista
+    /// <see cref="LinuxSharedWww"/> y sea escribible por el usuario (la crea <c>roost www init</c> con el helper).
+    /// </summary>
     public string Www => WwwDir ?? Path.Combine(Root, "www");
+
+    /// <summary>La www compartida de Linux, como en un servidor: <c>/var/www/roost</c> (decisión del plan de Linux).</summary>
+    public const string LinuxSharedWww = "/var/www/roost";
+
+    /// <summary>true si la www es la de respaldo bajo la raíz: en Linux, cuando <c>/var/www/roost</c> no existe o no es del usuario.</summary>
+    public bool WwwIsFallback => WwwDir is null;
 
     /// <summary>
     /// Las rutas de una raíz concreta (la del shim, que vive en <c>&lt;raíz&gt;/bin/shims</c>): las
@@ -179,34 +189,50 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     public static RoostPaths Default() => Default(Environment.GetEnvironmentVariable);
 
     /// <summary><see cref="Default()"/> con otro entorno (los tests, para no cambiar las variables del proceso).</summary>
-    public static RoostPaths Default(Func<string, string?> env)
+    public static RoostPaths Default(Func<string, string?> env) =>
+        Default(env, dir => Directory.Exists(dir) && Posix.CanWrite(dir));
+
+    /// <summary>
+    /// <see cref="Default()"/> con otro entorno y otra forma de saber si <c>/var/www/roost</c> es escribible
+    /// (los tests). Con <c>ROOST_HOME</c> la www compartida de Linux no se mira: todo va bajo esa carpeta
+    /// (salvo que su <c>roost.toml</c> diga <c>[paths] www</c>).
+    /// </summary>
+    internal static RoostPaths Default(Func<string, string?> env, Func<string, bool> writableDirectory)
     {
         var home = env(HomeVariable);
         if (!string.IsNullOrWhiteSpace(home))
         {
             var root = Path.GetFullPath(home);
-            return Config.RoostConfig.ReadRoot(Path.Combine(root, "roost.toml")) is { } moved && !SameFolder(moved, root)
-                ? new RoostPaths(moved, Path.Combine(root, "cache"), root)
-                : new RoostPaths(root, Path.Combine(root, "cache"));
+            var toml = Path.Combine(root, "roost.toml");
+            var www = Config.RoostConfig.ReadWww(toml);
+            return Config.RoostConfig.ReadRoot(toml) is { } moved && !SameFolder(moved, root)
+                ? new RoostPaths(moved, Path.Combine(root, "cache"), root, www)
+                : new RoostPaths(root, Path.Combine(root, "cache"), WwwDir: www);
         }
 
         if (OperatingSystem.IsWindows())
         {
             var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
             var roaming = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Roost");
+            var toml = Path.Combine(roaming, "roost.toml");
             return new RoostPaths(
-                Config.RoostConfig.ReadRoot(Path.Combine(roaming, "roost.toml")) ?? WindowsDefaultRoot,
+                Config.RoostConfig.ReadRoot(toml) ?? WindowsDefaultRoot,
                 Path.Combine(local, "Roost", "cache"),
-                roaming);
+                roaming,
+                Config.RoostConfig.ReadWww(toml));
         }
 
-        // Linux/macOS: XDG, con sus valores por defecto si no están definidas.
+        // Linux/macOS: XDG, con sus valores por defecto si no están definidas. La www: [paths] www, o en
+        // Linux /var/www/roost si existe y es del usuario (si no, ~/.local/share/roost/www, y up sugiere crearla).
         var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        var config = Path.Combine(Xdg("XDG_CONFIG_HOME", Path.Combine(userHome, ".config")), "roost");
+        var config = Path.Combine(Xdg(env, "XDG_CONFIG_HOME", Path.Combine(userHome, ".config")), "roost");
+        var configToml = Path.Combine(config, "roost.toml");
+        var shared = OperatingSystem.IsLinux() && writableDirectory(LinuxSharedWww) ? LinuxSharedWww : null;
         return new RoostPaths(
-            Config.RoostConfig.ReadRoot(Path.Combine(config, "roost.toml")) ?? Path.Combine(Xdg("XDG_DATA_HOME", Path.Combine(userHome, ".local", "share")), "roost"),
-            Path.Combine(Xdg("XDG_CACHE_HOME", Path.Combine(userHome, ".cache")), "roost"),
-            config);
+            Config.RoostConfig.ReadRoot(configToml) ?? Path.Combine(Xdg(env, "XDG_DATA_HOME", Path.Combine(userHome, ".local", "share")), "roost"),
+            Path.Combine(Xdg(env, "XDG_CACHE_HOME", Path.Combine(userHome, ".cache")), "roost"),
+            config,
+            Config.RoostConfig.ReadWww(configToml) ?? shared);
     }
 
     /// <summary>
@@ -225,9 +251,11 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     /// <summary>Dos rutas a la misma carpeta (sin la barra final; en Windows, sin mirar mayúsculas).</summary>
     public static bool SameFolder(string a, string b) => Normalize(a) == Normalize(b);
 
-    private static string Xdg(string variable, string fallback)
+    private static string Xdg(string variable, string fallback) => Xdg(Environment.GetEnvironmentVariable, variable, fallback);
+
+    private static string Xdg(Func<string, string?> env, string variable, string fallback)
     {
-        var value = Environment.GetEnvironmentVariable(variable);
+        var value = env(variable);
         return string.IsNullOrEmpty(value) ? fallback : value;
     }
 }

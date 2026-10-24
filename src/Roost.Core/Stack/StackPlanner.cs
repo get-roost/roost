@@ -13,6 +13,16 @@ namespace Roost.Core.Stack;
 /// <summary>Un sitio del plan: el sitio, el PHP que lo sirve y su URL https.</summary>
 public sealed record SitePlan(Site Site, InstalledPhp Php, string Url);
 
+/// <summary>Qué pasa al intentar escuchar en un puerto (<see cref="StackPlanner.Probe(int)"/>).</summary>
+public enum PortState
+{
+    Free,
+    /// <summary>Lo tiene otro proceso.</summary>
+    Busy,
+    /// <summary>Este usuario no puede abrirlo (Linux: por debajo del 1024 sin setcap).</summary>
+    Denied,
+}
+
 /// <summary>
 /// Lo que arranca <c>roost up</c>, en este orden (ROOST.md §5.5): la base de datos global si
 /// la hay, Redis y Mailpit si van en el stack, un pool de php-cgi por cada rama de PHP en uso (la global y la de cada sitio que
@@ -175,27 +185,71 @@ public sealed partial class StackPlanner(RoostPaths paths, IProcessRunner runner
     }
 
     /// <summary>
-    /// Puertos de la lista que ya tiene ocupados otro proceso en loopback: en 127.0.0.1 o, si la
-    /// máquina tiene IPv6, en [::1] (Roost escucha en las dos, y un servidor en <c>[::]:80</c> solo
-    /// se ve por la segunda).
+    /// Puertos de la lista que no se pueden abrir en loopback: en 127.0.0.1 o, si la máquina tiene IPv6,
+    /// en [::1] (Roost escucha en las dos, y un servidor en <c>[::]:80</c> solo se ve por la segunda).
+    /// Son los ocupados por otro proceso y también los que este usuario no puede abrir
+    /// (<see cref="DeniedPorts"/>): los dos impiden arrancar; el mensaje es distinto.
     /// </summary>
     public static IReadOnlyList<int> BusyPorts(IEnumerable<int> ports) =>
-        ports.Where(port => IsBusy(IPAddress.Loopback, port) || (Loopback.HasIpv6 && IsBusy(IPAddress.IPv6Loopback, port))).ToList();
+        ports.Where(port => Probe(port) != PortState.Free).ToList();
 
-    private static bool IsBusy(IPAddress address, int port)
+    /// <summary>
+    /// Puertos de la lista que este usuario no puede abrir por permisos: en Linux, los menores de 1024
+    /// como usuario normal (<c>EACCES</c>). No están ocupados: hay que usar otro puerto o dar a nginx la
+    /// capacidad con <c>setcap</c>. En Windows no se distingue (un <c>WSAEACCES</c> es un puerto reservado o en uso exclusivo).
+    /// </summary>
+    public static IReadOnlyList<int> DeniedPorts(IEnumerable<int> ports) =>
+        ports.Where(port => Probe(port) == PortState.Denied).ToList();
+
+    /// <summary>Qué pasa al intentar escuchar en un puerto de loopback, en las dos direcciones.</summary>
+    public static PortState Probe(int port)
+    {
+        var v4 = Probe(IPAddress.Loopback, port);
+        if (v4 != PortState.Free) return v4;
+        return Loopback.HasIpv6 ? Probe(IPAddress.IPv6Loopback, port) : PortState.Free;
+    }
+
+    private static PortState Probe(IPAddress address, int port)
     {
         try
         {
             var listener = new TcpListener(address, port);
             listener.Start();
             listener.Stop();
-            return false;
+            return PortState.Free;
         }
-        catch (SocketException)
+        catch (SocketException ex)
         {
-            return true;
+            return ex.SocketErrorCode == SocketError.AccessDenied && !OperatingSystem.IsWindows() ? PortState.Denied : PortState.Busy;
         }
     }
+
+    /// <summary>
+    /// PURO: el mensaje de un puerto que este usuario no puede abrir (Linux, &lt; 1024), sin tildes:
+    /// no está ocupado, y lo que toca es un puerto alto (<paramref name="key"/> = <paramref name="suggested"/>
+    /// en <paramref name="configFile"/>) hasta que Roost pueda dar a nginx el permiso con setcap.
+    /// </summary>
+    public static string DeniedPortMessage(int port, string key, int suggested, string configFile) =>
+        $"El puerto {port} esta por debajo del 1024 y en Linux un usuario normal no puede abrirlo (no es que este ocupado). "
+        + $"Usa un puerto alto: {key} = {suggested} en {configFile}. Cuando Roost pueda dar a nginx el permiso para los puertos bajos (setcap, con el helper), valdra el {port}.";
+
+    /// <summary>
+    /// PURO: el primer puerto que el <c>-t</c> del servidor web no pudo abrir por permisos («bind() to
+    /// 127.0.0.1:80 failed (13: Permission denied)»), o null. En Linux, nginx -t abre los puertos de verdad.
+    /// </summary>
+    public static int? DeniedBind(string? testOutput)
+    {
+        if (testOutput is null) return null;
+        var match = DeniedBindFailure.Match(testOutput);
+        return match.Success ? int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : null;
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex DeniedBindFailure =
+        new(@"bind\(\) to \S*?:(\d+) failed \(13:", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>La clave de <c>roost.toml</c> y el puerto alto que se sugiere para un puerto bajo que no se puede abrir.</summary>
+    public static (string Key, int Suggested) SuggestionFor(int port, RoostConfig config) =>
+        port == config.HttpsPort ? ("[web] https_port", 8443) : ("[web] port", 8080);
 
     /// <summary>true si algo acepta conexiones en 127.0.0.1:<paramref name="port"/>.</summary>
     public static async Task<bool> AcceptsConnectionsAsync(int port, CancellationToken cancellation = default)

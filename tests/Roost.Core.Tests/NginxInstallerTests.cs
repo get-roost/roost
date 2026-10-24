@@ -34,11 +34,74 @@ public class NginxInstallerTests : IDisposable
         return ms.ToArray();
     }
 
-    private (NginxInstaller Installer, NginxBuild Build, RoostPaths Paths) Setup(byte[] zip)
+    /// <summary>Un tar.gz como el de roost-builds: entradas en la raíz, con su modo.</summary>
+    private static byte[] TarGz(params (string Path, UnixFileMode Mode)[] entries)
+    {
+        using var ms = new MemoryStream();
+        using (var gzip = new GZipStream(ms, CompressionLevel.Fastest, leaveOpen: true))
+        using (var tar = new System.Formats.Tar.TarWriter(gzip, System.Formats.Tar.TarEntryFormat.Pax, leaveOpen: true))
+        {
+            foreach (var (path, mode) in entries)
+            {
+                var entry = new System.Formats.Tar.PaxTarEntry(System.Formats.Tar.TarEntryType.RegularFile, path)
+                {
+                    Mode = mode,
+                    DataStream = new MemoryStream("x"u8.ToArray()),
+                };
+                tar.WriteEntry(entry);
+            }
+        }
+        return ms.ToArray();
+    }
+
+    private (NginxInstaller Installer, NginxBuild Build, RoostPaths Paths) Setup(byte[] archive, string fileName = "nginx-1.30.6.zip")
     {
         var paths = new RoostPaths(_root, Path.Combine(_root, "cache"));
-        var build = new NginxBuild("1.30.6", new Uri("https://example.test/nginx-1.30.6.zip"), Convert.ToHexStringLower(SHA256.HashData(zip)));
-        return (new NginxInstaller(paths, new HttpClient(new FakeHandler(zip))), build, paths);
+        var build = new NginxBuild("1.30.6", new Uri("https://example.test/" + fileName), Convert.ToHexStringLower(SHA256.HashData(archive)));
+        return (new NginxInstaller(paths, new HttpClient(new FakeHandler(archive))), build, paths);
+    }
+
+    private const UnixFileMode Executable = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+                                            | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute;
+
+    [Fact]
+    public async Task Install_ElTarGzDeRoostBuilds_InstalaNginxYSusConf()
+    {
+        var tar = TarGz(
+            (OsNames.Exe("nginx"), Executable),
+            ("conf/mime.types", UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead),
+            ("conf/fastcgi_params", UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead),
+            ("licenses/LICENSE-nginx.txt", UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead));
+        var (installer, build, paths) = Setup(tar, "nginx-1.30.6-linux-x86_64.tar.gz");
+        Assert.Equal("nginx-1.30.6-linux-x86_64.tar.gz", build.FileName);
+
+        var installed = await installer.InstallAsync(build);
+
+        Assert.Equal(Path.Combine(paths.NginxBin, "1.30.6", OsNames.Exe("nginx")), installed.Executable);
+        Assert.True(File.Exists(installed.Executable));
+        Assert.True(File.Exists(installed.MimeTypes));
+        Assert.True(File.Exists(installed.FastCgiParams));
+        Assert.True(File.Exists(Path.Combine(installed.Directory, "licenses", "LICENSE-nginx.txt")));
+        Assert.Equal(installed, installer.Find(build));
+        if (!OperatingSystem.IsWindows())
+            Assert.True(File.GetUnixFileMode(installed.Executable).HasFlag(UnixFileMode.UserExecute));
+        Assert.True(File.Exists(Path.Combine(paths.Downloads, "nginx-1.30.6-linux-x86_64.tar.gz")));   // en la caché, con el nombre de la URL
+    }
+
+    [Fact]
+    public void Catalogo_ElDeWindowsEsElZipDeNginxOrg_YElDeLinuxElTarGzDeRoostBuilds()
+    {
+        Assert.Equal("nginx-1.30.6.zip", NginxCatalog.Windows.FileName);
+        Assert.Equal("nginx.org", NginxCatalog.Windows.Url.Host);
+
+        var linux = NginxCatalog.Linux;
+        Assert.Equal("1.30.6", linux.Version);
+        Assert.Equal("https://github.com/get-roost/roost-builds/releases/download/nginx-1.30.6/nginx-1.30.6-linux-x86_64.tar.gz", linux.Url.ToString());
+        Assert.Equal("nginx-1.30.6-linux-x86_64.tar.gz", linux.FileName);
+        Assert.Matches("^[0-9a-f]{64}$", linux.Sha256);   // el SHA-256 del artefacto probado, fijado como el de MinGit
+        Assert.Equal(NginxCatalog.Windows.Version, linux.Version);   // la misma versión en los dos sistemas
+
+        Assert.Same(OperatingSystem.IsWindows() ? NginxCatalog.Windows : NginxCatalog.Linux, NginxCatalog.Current);
     }
 
     [WindowsFact("Solo en Windows: zips de Windows.")]

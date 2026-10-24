@@ -12,8 +12,14 @@ namespace Roost.Core.Config;
 public sealed record RoostConfig
 {
     public const int DefaultPhpPool = 4;
-    public const int DefaultHttpPort = 80;
-    public const int DefaultHttpsPort = 443;
+
+    /// <summary>
+    /// Puertos web por defecto: 80 y 443 en Windows. En Linux y macOS, 8080 y 8443: un usuario normal no
+    /// puede abrir puertos por debajo del 1024 (nginx podrá cuando el helper le dé la capacidad con
+    /// <c>setcap</c>; mientras, los altos).
+    /// </summary>
+    public static readonly int DefaultHttpPort = OperatingSystem.IsWindows() ? 80 : 8080;
+    public static readonly int DefaultHttpsPort = OperatingSystem.IsWindows() ? 443 : 8443;
     public const int DefaultDbPort = 3306;
 
     /// <summary>Valor de <c>[db] engine</c> para no arrancar ninguna base de datos.</summary>
@@ -128,6 +134,10 @@ public sealed record RoostConfig
         # registros y los proyectos (www). Sin esta clave, C:\roost. Cambiala desde la app (Ajustes,
         # Rutas, Cambiar...): mueve lo que hay y lo comprueba. A mano, Roost empezaria de cero ahi.
         # root = 'D:\roost'
+        # Carpeta de los proyectos (la www que sirve http://localhost/). Sin esta clave, <raiz>/www; en
+        # Linux, /var/www/roost si existe y es tuya (roost www init). Un sitio puede estar en cualquier
+        # otra carpeta (roost site add --path).
+        # www = '/var/www/roost'
 
         [php]
         # PHP global: rama (8.4), version (8.4.27) o instalacion (8.4.27-nts-x64).
@@ -328,6 +338,31 @@ public sealed record RoostConfig
     /// <summary>Fija <c>[paths] root</c>; null la quita (vuelve a la de siempre).</summary>
     public static void SetRoot(string path, string? root) =>
         Set(path, "paths", [("root", Text(string.IsNullOrWhiteSpace(root) ? null : root.Trim()))]);
+
+    /// <summary>
+    /// <c>[paths] www</c>, la carpeta de los proyectos, si la hay y es una ruta completa; null si no (y
+    /// entonces vale la de siempre, <c>&lt;raíz&gt;/www</c> o, en Linux, <c>/var/www/roost</c> si es del
+    /// usuario). Como <see cref="ReadRoot"/>, <b>nunca lanza</b>: lo lee <c>RoostPaths.Default()</c> en cada arranque.
+    /// </summary>
+    public static string? ReadWww(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            var doc = SyntaxParser.Parse(File.ReadAllText(path), path, false);
+            if (doc.HasErrors || ReadValue(doc, "paths", "www") is not StringValueSyntax { Value: { } www }) return null;
+            www = www.Trim();
+            return www.Length > 0 && Path.IsPathFullyQualified(www) ? Path.GetFullPath(www) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Fija <c>[paths] www</c>; null la quita (vuelve a la de siempre).</summary>
+    public static void SetWww(string path, string? www) =>
+        Set(path, "paths", [("www", Text(string.IsNullOrWhiteSpace(www) ? null : www.Trim()))]);
 
     /// <summary>Fija <c>[git] exe</c>; null vuelve al git de Roost.</summary>
     public static void SetGitExe(string path, string? exe) =>

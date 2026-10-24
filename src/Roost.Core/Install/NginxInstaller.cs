@@ -2,21 +2,28 @@ using Roost.Core.Platform;
 
 namespace Roost.Core.Install;
 
-/// <summary>Un zip de nginx para Windows con el SHA-256 que tiene que dar.</summary>
+/// <summary>
+/// Un paquete de nginx con el SHA-256 que tiene que dar: el zip de nginx.org en Windows, el tar.gz
+/// estático de roost-builds en Linux.
+/// </summary>
 public sealed record NginxBuild(string Version, Uri Url, string Sha256)
 {
-    public string FileName => $"nginx-{Version}.zip";
+    /// <summary>El nombre con el que se guarda en la caché de descargas: el de la URL (<c>nginx-1.30.6.zip</c>, <c>nginx-1.30.6-linux-x86_64.tar.gz</c>).</summary>
+    public string FileName => Path.GetFileName(Url.AbsolutePath);
 }
 
 /// <summary>
 /// nginx fijado a mano mientras no exista el feed roost-catalog. nginx.org no publica
-/// checksums, solo firmas PGP: el SHA-256 de aquí es el de un zip cuya firma se verificó con
-/// la clave del desarrollador que lo firmó, descargada de nginx.org/keys.
+/// checksums, solo firmas PGP: el SHA-256 del zip de Windows es el de un zip cuya firma se verificó con
+/// la clave del desarrollador que lo firmó, descargada de nginx.org/keys. El de Linux lo compila
+/// <c>get-roost/roost-builds</c> (<c>nginx.yml</c>: Alpine, estático con pcre2, zlib y OpenSSL, de la
+/// fuente de nginx.org verificada con su firma PGP en el propio workflow) y su SHA-256 es el del
+/// artefacto publicado en la release <c>nginx-&lt;versión&gt;</c>, con su <c>SHA256SUMS.txt</c> y su attestation.
 /// </summary>
 public static class NginxCatalog
 {
-    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
-    public static NginxBuild Current => Windows;
+    /// <summary>El de este sistema: el zip de nginx.org en Windows, el tar.gz de roost-builds en el resto.</summary>
+    public static NginxBuild Current => OperatingSystem.IsWindows() ? Windows : Linux;
 
     // nginx-1.30.6.zip (rama estable): firma PGP verificada el 22-oct-2026 con la clave de Sergey
     // Kandaurov (D678 6CE3 03D9 A902 2998 DC6C C846 4D54 9AF7 5C0A, nginx.org/keys/pluknet.key).
@@ -24,6 +31,17 @@ public static class NginxCatalog
         "1.30.6",
         new Uri("https://nginx.org/download/nginx-1.30.6.zip"),
         "c6ee35edb0a861063323f709192ae50d1eefaf2ea7d00678bd2b22d8542dc61e");
+
+    // nginx-1.30.6-linux-x86_64.tar.gz (2.892.541 bytes): el artefacto del workflow nginx.yml de roost-builds
+    // (run 40123045694 del 24-oct-2026; fuente nginx-1.30.6.tar.gz de nginx.org, firmada por la misma clave de
+    // Kandaurov y verificada en el workflow; OpenSSL 3.5.9, PCRE2 10.46, zlib 1.3.2, musl 1.2.5), probado en
+    // Ubuntu 24.04. Es el fichero que se publica en la release nginx-1.30.6, con su SHA256SUMS.txt y su
+    // attestation. Para cambiar de versión: lanzar nginx.yml con la nueva, probar el artefacto, fijar aquí
+    // su SHA-256 y publicarlo (publish: true o la etiqueta nginx-<versión>).
+    public static readonly NginxBuild Linux = new(
+        "1.30.6",
+        new Uri("https://github.com/get-roost/roost-builds/releases/download/nginx-1.30.6/nginx-1.30.6-linux-x86_64.tar.gz"),
+        "ff42ef52672db72d989d3e96049527110256ff0520c1842904aa6ecc08bf0b43");
 }
 
 /// <summary>Un nginx instalado por Roost, en <c>bin/nginx/&lt;versión&gt;</c>.</summary>
@@ -66,11 +84,13 @@ public sealed class NginxInstaller
             throw new RoostException($"nginx {build.Version} ya esta instalado en {target}.");
 
         InstallFiles.CleanLeftovers(_paths.NginxBin);
-        var zip = await InstallFiles.DownloadVerifiedAsync(
+        var archive = await InstallFiles.DownloadVerifiedAsync(
             http, [build.Url], build.FileName, build.Sha256, _paths.Downloads, downloaded, cancellation);
 
-        // El zip oficial lo mete todo en nginx-<versión>/: se instala su contenido.
-        InstallFiles.ExtractAtomic(zip, target, ExecutableName, stripSingleRoot: true, build.FileName);
+        // El zip oficial de Windows lo mete todo en nginx-<versión>/: se instala su contenido. El tar.gz
+        // de roost-builds trae nginx, conf/ y licenses/ en la raíz (y conserva el bit de ejecución).
+        InstallFiles.ExtractAtomic(archive, target, ExecutableName, stripSingleRoot: true, build.FileName);
+        InstallFiles.MarkExecutable(Path.Combine(target, ExecutableName));
         return new InstalledNginx(build.Version, target);
     }
 }

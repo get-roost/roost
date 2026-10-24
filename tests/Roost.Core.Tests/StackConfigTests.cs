@@ -18,12 +18,92 @@ public class StackConfigTests : IDisposable
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "roost-stack-" + Guid.NewGuid().ToString("N"));
 
     [Fact]
-    public void LaCarpetaDeProyectos_EsSiempreWwwDentroDeLaRaiz()
+    public void LaCarpetaDeProyectos_EsWwwDentroDeLaRaiz_SalvoLaCompartidaDeLinux()
     {
-        // C:\roost\www, no C:\www: todo lo de Roost cuelga de su raíz (con ROOST_HOME o sin él).
+        // C:\roost\www, no C:\www: todo lo de Roost cuelga de su raíz (con ROOST_HOME o sin él). En Linux, sin
+        // ROOST_HOME y con /var/www/roost del usuario (roost www init), los proyectos van ahí.
         var paths = RoostPaths.Default();
-        Assert.Equal(Path.Combine(paths.Root, "www"), paths.Www);
+        var shared = OperatingSystem.IsLinux()
+            && string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(RoostPaths.HomeVariable))
+            && Directory.Exists(RoostPaths.LinuxSharedWww) && Posix.CanWrite(RoostPaths.LinuxSharedWww);
+        if (!shared && paths.WwwDir is not null) return;   // el roost.toml de esta máquina fija [paths] www
+        Assert.Equal(shared ? RoostPaths.LinuxSharedWww : Path.Combine(paths.Root, "www"), paths.Www);
         Assert.Equal(Path.Combine(_dir, "www"), RoostPaths.ForRoot(_dir).Www);
+    }
+
+    [Fact]
+    public void RoostPaths_ConRoostHome_LaWwwVaDebajo_SalvoQueSuTomlDigaOtra()
+    {
+        Directory.CreateDirectory(_dir);
+        Func<string, string?> env = v => v == RoostPaths.HomeVariable ? _dir : null;
+
+        // Aunque /var/www/roost fuera escribible, con ROOST_HOME no se mira: todo va bajo esa carpeta.
+        var paths = RoostPaths.Default(env, _ => true);
+        Assert.Equal(Path.Combine(_dir, "www"), paths.Www);
+        Assert.True(paths.WwwIsFallback);
+
+        var www = Path.Combine(_dir, "proyectos");
+        RoostConfig.SetWww(Path.Combine(_dir, "roost.toml"), www);
+        var custom = RoostPaths.Default(env, _ => true);
+        Assert.Equal(www, custom.Www);
+        Assert.False(custom.WwwIsFallback);
+        Assert.Equal(_dir, custom.Root);
+    }
+
+    [LinuxFact]
+    public void Linux_SinRoostHome_LaWwwCompartida_SoloSiEsEscribible()
+    {
+        Func<string, string?> env = v => v == "XDG_CONFIG_HOME" ? Path.Combine(_dir, "config") : null;
+
+        Assert.Equal(RoostPaths.LinuxSharedWww, RoostPaths.Default(env, dir => dir == RoostPaths.LinuxSharedWww).Www);
+        var fallback = RoostPaths.Default(env, _ => false);
+        Assert.Equal(Path.Combine(fallback.Root, "www"), fallback.Www);
+        Assert.True(fallback.WwwIsFallback);
+    }
+
+    [Fact]
+    public void PuertosDenegados_ElMensajeNoDiceOcupado_YSugiereElAlto()
+    {
+        var message = StackPlanner.DeniedPortMessage(80, "[web] port", 8080, @"C:\x\roost.toml");
+        Assert.StartsWith("El puerto 80 esta por debajo del 1024 y en Linux un usuario normal no puede abrirlo (no es que este ocupado).", message);
+        Assert.Contains(@"[web] port = 8080 en C:\x\roost.toml", message);
+        Assert.Contains("setcap", message);
+
+        Assert.Equal(80, StackPlanner.DeniedBind("nginx: [emerg] bind() to 127.0.0.1:80 failed (13: Permission denied)\nnginx: configuration file x test failed"));
+        Assert.Null(StackPlanner.DeniedBind("nginx: [emerg] bind() to 127.0.0.1:80 failed (98: Address already in use)"));
+        Assert.Null(StackPlanner.DeniedBind(null));
+
+        var config = new RoostConfig { HttpPort = 80, HttpsPort = 443 };
+        Assert.Equal(("[web] port", 8080), StackPlanner.SuggestionFor(80, config));
+        Assert.Equal(("[web] https_port", 8443), StackPlanner.SuggestionFor(443, config));
+    }
+
+    [Fact]
+    public void Probe_UnPuertoLibre_YUnoQueTenemosNosotros()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        try
+        {
+            var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+            Assert.Equal(PortState.Busy, StackPlanner.Probe(port));
+            Assert.Equal([port], StackPlanner.BusyPorts([port]));
+            Assert.Empty(StackPlanner.DeniedPorts([port]));
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    [LinuxFact]
+    public void Linux_Probe_UnPuertoBajoComoUsuario_EsDenegado_NoOcupado()
+    {
+        if (Posix.Uid == 0) return;   // root sí puede
+        // El 1 nunca lo tiene nadie: como usuario normal, EACCES.
+        Assert.Equal(PortState.Denied, StackPlanner.Probe(1));
+        Assert.Equal([1], StackPlanner.DeniedPorts([1]));
+        Assert.Equal([1], StackPlanner.BusyPorts([1]));   // también cuenta como «no se puede arrancar»
     }
 
     [Fact]
