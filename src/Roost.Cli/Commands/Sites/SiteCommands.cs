@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Security.Cryptography.X509Certificates;
 using System.Text.Json;
+using Roost.Cli.Commands.Git;
 using Roost.Cli.Rendering;
 using Roost.Core;
 using Roost.Core.Config;
@@ -111,7 +112,11 @@ public sealed class SiteAddCommand : AsyncCommand<SiteAddCommand.Settings>
     }
 }
 
-/// <summary><c>roost site remove</c>: quita un sitio. La carpeta del proyecto no se toca nunca.</summary>
+/// <summary>
+/// <c>roost site remove</c>: quita un sitio. La carpeta del proyecto no se toca nunca. Ofrece quitar
+/// tambien su acceso (su clave SSH de Roost y su token), salvo lo que compartan otros sitios; el
+/// historial y el registro de git se quedan.
+/// </summary>
 public sealed class SiteRemoveCommand : AsyncCommand<SiteRemoveCommand.Settings>
 {
     public sealed class Settings : CommandSettings
@@ -119,14 +124,39 @@ public sealed class SiteRemoveCommand : AsyncCommand<SiteRemoveCommand.Settings>
         [CommandArgument(0, "<NOMBRE>")]
         [Description("Nombre del sitio (el de <nombre>.test).")]
         public string Name { get; init; } = "";
+
+        [CommandOption("--keep-access")]
+        [Description("Deja su clave SSH de Roost y su token (por defecto se quitan con el sitio, salvo los que usen otros sitios).")]
+        public bool KeepAccess { get; init; }
+
+        [CommandOption("-y|--yes")]
+        [Description("No pregunta si quitar tambien la clave y el token: los quita (sin terminal, igual).")]
+        public bool Yes { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
         var paths = RoostPaths.Default();
-        var sites = new SiteManager(paths);
+        var sites = new SiteManager(paths) { Access = GitAccessSupport.Factory(paths) };
         try
         {
+            var found = sites.Find(settings.Name);
+            if (found is null)
+            {
+                AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun sitio '{settings.Name}'.[/] Mira los registrados con: roost site list");
+                return 1;
+            }
+
+            // Lo que se quitaria, antes de tocar nada: para preguntarlo.
+            var plan = sites.RemoveAccess(found, dryRun: true);
+            var removable = (plan.KeyName is not null && !plan.KeyShared) || (plan.Token is not null && !plan.TokenShared);
+            var removeAccess = removable && !settings.KeepAccess;
+            if (removeAccess && !settings.Yes && GitAccessSupport.Interactive)
+            {
+                AnsiConsole.MarkupLineInterpolated($"{found.Host} tiene {DescribeAccess(sites, plan)}.");
+                removeAccess = AnsiConsole.Confirm("Quitar tambien su clave SSH y su token?", defaultValue: true);
+            }
+
             var site = sites.Remove(settings.Name);
             if (site is null)
             {
@@ -135,6 +165,9 @@ public sealed class SiteRemoveCommand : AsyncCommand<SiteRemoveCommand.Settings>
             }
 
             AnsiConsole.MarkupLineInterpolated($"[green]Quitado[/] {site.Host}. [grey]La carpeta del proyecto ({site.Folder}) no se ha tocado.[/]");
+            ReportAccess(sites, removeAccess ? sites.RemoveAccess(site) : plan, removeAccess);
+            if (site.Git is not null || File.Exists(plan.HistoryFile) || File.Exists(plan.LogFile))
+                AnsiConsole.MarkupLineInterpolated($"[grey]El historial y el registro de git se quedan: {plan.HistoryFile} y {plan.LogFile}.[/]");
             SiteSupport.SyncHosts(paths, sites.Registry.Load());
             return await StackApply.IfRunningAsync(paths, s => $"{s.Sites.Count} sitio(s) en marcha.", cancellation);
         }
@@ -142,6 +175,38 @@ public sealed class SiteRemoveCommand : AsyncCommand<SiteRemoveCommand.Settings>
         {
             AnsiConsole.MarkupLineInterpolated($"[red]{ex.Message}[/]");
             return 1;
+        }
+    }
+
+    private static string DescribeAccess(SiteManager sites, SiteAccessRemoval plan)
+    {
+        var parts = new List<string>();
+        if (plan.KeyName is not null && !plan.KeyShared) parts.Add($"su clave SSH de Roost ({plan.KeyName})");
+        if (plan.Token is not null && !plan.TokenShared) parts.Add($"un token ({sites.Access!.Credentials.Describe(plan.Token)})");
+        return string.Join(" y ", parts);
+    }
+
+    private static void ReportAccess(SiteManager sites, SiteAccessRemoval access, bool removed)
+    {
+        var credentials = sites.Access!.Credentials;
+        if (access.KeyName is not null)
+        {
+            if (access.KeyShared)
+                AnsiConsole.MarkupLineInterpolated($"[grey]Su clave SSH ({access.KeyName}) se queda: la usa otro sitio.[/]");
+            else if (removed && access.KeyRemoved)
+                AnsiConsole.MarkupLineInterpolated($"[green]Quitada[/] su clave SSH de Roost ({access.KeyName}). [grey]Quita tambien la publica de las deploy keys del repositorio{(access.DeployKeysUrl is { } page ? $": {page}" : "")}.[/]");
+            else if (!removed)
+                AnsiConsole.MarkupLineInterpolated($"[grey]Su clave SSH ({access.KeyName}) se queda; para quitarla: roost git key remove {access.KeyName}[/]");
+        }
+        if (access.Token is not null)
+        {
+            var where = credentials.Describe(access.Token);
+            if (access.TokenShared)
+                AnsiConsole.MarkupLineInterpolated($"[grey]Su token ({where}) se queda: tambien vale para otro sitio.[/]");
+            else if (removed && access.TokenRemoved)
+                AnsiConsole.MarkupLineInterpolated($"[green]Borrado[/] su token ({where}) del Administrador de credenciales.");
+            else if (!removed)
+                AnsiConsole.MarkupLineInterpolated($"[grey]Su token ({where}) se queda; para borrarlo: roost git token remove {where}[/]");
         }
     }
 }

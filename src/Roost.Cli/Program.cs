@@ -13,6 +13,10 @@ using Spectre.Console.Cli;
 // UTF-8 en la salida para que el semaforo (●) y las tablas se vean en Windows.
 try { Console.OutputEncoding = Encoding.UTF8; } catch { /* consola redirigida: da igual */ }
 
+// El helper de credenciales de git (oculto): lo lanza git con el token por medio, asi que va
+// directo, sin Spectre ni extensiones, y solo habla por stdin y stdout.
+if (args is ["git-credential", var credentialAction]) return GitCredentialCommand.Run(credentialAction);
+
 // Las extensiones de bin/extensions (ROOST.md §12.4): una que no carga no impide usar Roost.
 var extensions = CliExtensions.Load();
 
@@ -163,8 +167,9 @@ app.Configure(config =>
             .WithExample("site", "add", "legacy", "--path", "C:\\proyectos\\legacy", "--php", "7.4");
 
         site.AddCommand<SiteRemoveCommand>("remove")
-            .WithDescription("Quita un sitio. La carpeta del proyecto no se toca.")
-            .WithExample("site", "remove", "tienda");
+            .WithDescription("Quita un sitio. La carpeta del proyecto no se toca. Ofrece quitar tambien su clave SSH de Roost y su token (--keep-access para dejarlos).")
+            .WithExample("site", "remove", "tienda")
+            .WithExample("site", "remove", "tienda", "--keep-access");
 
         site.AddCommand<SiteListCommand>("list")
             .WithDescription("Lista los sitios con su carpeta, su PHP, su certificado y si estan en el hosts.")
@@ -177,9 +182,13 @@ app.Configure(config =>
             .WithExample("site", "root", "tienda", ".");
 
         site.AddCommand<SiteCloneCommand>("clone")
-            .WithDescription("Crea un sitio clonando un repositorio git (publico o local; se clona en una carpeta temporal y solo al acabar pasa a ser el sitio).")
+            .WithDescription("Crea un sitio clonando un repositorio git, publico o privado (token HTTPS, clave SSH de Roost, un fichero de clave o la tuya); se clona en una carpeta temporal y solo al acabar pasa a ser el sitio.")
             .WithExample("site", "clone", "https://github.com/acme/tienda")
-            .WithExample("site", "clone", "https://github.com/acme/tienda.git", "--name", "tienda", "--branch", "develop", "--php", "8.3");
+            .WithExample("site", "clone", "https://github.com/acme/tienda.git", "--name", "tienda", "--branch", "develop", "--php", "8.3")
+            .WithExample("site", "clone", "https://github.com/acme/privado", "--token")
+            .WithExample("site", "clone", "git@github.com:acme/privado.git", "--ssh")
+            .WithExample("site", "clone", "git@git.acme.es:web/tienda.git", "--ssh-key", "C:\\claves\\deploy_tienda")
+            .WithExample("site", "clone", "git@github.com:acme/privado.git", "--own-ssh");
 
         site.AddCommand<SitePullCommand>("pull")
             .WithDescription("Trae lo nuevo del remoto a un sitio: solo fast-forward y solo si no hay cambios locales.")
@@ -232,7 +241,64 @@ app.Configure(config =>
             .WithDescription("Que git usa Roost, su version y donde esta su configuracion aislada.")
             .WithExample("git", "status")
             .WithExample("git", "status", "--json");
+
+        git.AddBranch("key", key =>
+        {
+            key.SetDescription("La clave SSH de cada sitio (una deploy key de solo lectura): ed25519, sin contrasena y solo legible por tu usuario, en state/git/keys.");
+
+            key.AddCommand<GitKeyNewCommand>("new")
+                .WithDescription("Crea la clave SSH de un sitio y ensena la publica para pegarla en las deploy keys del repositorio.")
+                .WithExample("git", "key", "new", "tienda")
+                .WithExample("git", "key", "new", "tienda", "--repo", "git@github.com:acme/tienda.git");
+
+            key.AddCommand<GitKeyShowCommand>("show")
+                .WithDescription("Ensena la clave publica de un sitio para copiarla, con el enlace a las deploy keys de su repositorio.")
+                .WithExample("git", "key", "show", "tienda");
+
+            key.AddCommand<GitKeyRemoveCommand>("remove")
+                .WithDescription("Borra la clave SSH de un sitio de este equipo (quita tambien la publica en el proveedor).")
+                .WithExample("git", "key", "remove", "tienda");
+        });
+
+        git.AddBranch("hosts", hosts =>
+        {
+            hosts.SetDescription("Los servidores SSH en los que confia Roost: los de GitHub, GitLab y Bitbucket de serie (sus huellas publicadas) y los que aceptes tras ver su huella.");
+
+            hosts.AddCommand<GitHostsListCommand>("list")
+                .WithDescription("Los servidores conocidos, con su huella y de donde sale.")
+                .WithExample("git", "hosts", "list");
+
+            hosts.AddCommand<GitHostsAddCommand>("add")
+                .WithDescription("Le pregunta a un servidor por su clave, ensena su huella y la recuerda si dices que si (o si coincide con --fingerprint).")
+                .WithExample("git", "hosts", "add", "git.acme.es")
+                .WithExample("git", "hosts", "add", "git.acme.es:2222", "--fingerprint", "SHA256:x7Qp...");
+
+            hosts.AddCommand<GitHostsRemoveCommand>("remove")
+                .WithDescription("Olvida la huella de un servidor (uno de serie vuelve a tener la publicada).")
+                .WithExample("git", "hosts", "remove", "git.acme.es");
+        });
+
+        git.AddBranch("token", token =>
+        {
+            token.SetDescription("Los tokens HTTPS de los repositorios privados, en el Administrador de credenciales de Windows (nunca en la direccion, los argumentos ni los registros).");
+
+            token.AddCommand<GitTokenSetCommand>("set")
+                .WithDescription("Guarda el token de un repositorio (lo pide sin eco o lo lee de stdin).")
+                .WithExample("git", "token", "set", "github.com/acme/tienda")
+                .WithExample("git", "token", "set", "gitlab.com/acme", "--user", "gitlab+deploy-token-7");
+
+            token.AddCommand<GitTokenRemoveCommand>("remove")
+                .WithDescription("Borra un token guardado.")
+                .WithExample("git", "token", "remove", "github.com/acme/tienda");
+
+            token.AddCommand<GitTokenListCommand>("list")
+                .WithDescription("Los tokens guardados: donde valen, con que usuario y que sitios los usan (nunca el token).")
+                .WithExample("git", "token", "list");
+        });
     });
+
+    // El helper de credenciales que lanza git (Program lo atiende antes, directamente).
+    config.AddCommand<GitCredentialCommand>("git-credential").IsHidden();
 
     config.AddBranch("composer", composer =>
     {
