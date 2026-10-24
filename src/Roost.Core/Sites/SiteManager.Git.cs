@@ -90,6 +90,19 @@ public sealed partial class SiteManager
         Client.With(AccessFor(url, access)).ProbeAsync(url, null, cancellation);
 
     /// <summary>
+    /// Pregunta al remoto de un sitio con su acceso (<c>ls-remote</c>, sin descargar ni tocar la
+    /// carpeta): lo que hacen «Probar acceso» y la comprobación de novedades. No lanza por lo que
+    /// conteste el servidor (va en <see cref="RemoteProbe.Failure"/>); sí si el sitio no tiene git
+    /// o le falta la clave o el OpenSSH.
+    /// </summary>
+    public Task<RemoteProbe> ProbeSiteAsync(string name, CancellationToken cancellation)
+    {
+        var (_, info) = RequireGit(name);
+        var url = GitUrl.TryParse(info.Remote, out var parsed, out var why) ? parsed : throw new RoostException($"El remoto del sitio ({GitLog.Redact(info.Remote)}) no vale: {why}");
+        return Client.With(AccessFor(info)).ProbeAsync(url, null, cancellation);
+    }
+
+    /// <summary>
     /// Resuelve y valida lo que se va a clonar sin tocar nada: el nombre (válido y libre), la carpeta
     /// (inexistente o vacía) y el PHP (instalado). Lanza <see cref="RoostException"/> si algo no cuadra.
     /// </summary>
@@ -257,7 +270,8 @@ public sealed partial class SiteManager
     public async Task<SiteGitStatus> GitStatusAsync(string name, bool fetch, CancellationToken cancellation)
     {
         var (site, info) = RequireGit(name);
-        var client = ClientFor(info);
+        // Sin fetch todo es local: no hace falta el acceso (ni el OpenSSH, ni que la clave siga ahí).
+        var client = fetch ? ClientFor(info) : Client;
         if (fetch) await client.FetchAsync(site.Folder, null, cancellation);
         var status = await client.StatusAsync(site.Folder, cancellation);
         var head = await client.HeadAsync(site.Folder, cancellation);

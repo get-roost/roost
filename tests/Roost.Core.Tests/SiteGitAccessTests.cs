@@ -162,6 +162,36 @@ public class SiteGitAccessTests : IDisposable
         Assert.Empty(_runner.Calls);
     }
 
+    [Fact]
+    public async Task StatusSinFetch_EsLocal_YNoNecesitaLaClave()
+    {
+        FakeKey("tienda");
+        ScriptClone();
+        await Sites.CloneAsync(new CloneRequest(GitUrl.Parse("git@github.com:acme/tienda.git"), Access: SiteAccess.Key("tienda")), null, null, CancellationToken.None);
+        Factory.Keys.Remove("tienda");
+        _runner.On("status --porcelain=v2", stdout: Clean);
+
+        var status = await Sites.GitStatusAsync("tienda", fetch: false, CancellationToken.None);
+
+        Assert.True(status.Status.IsClean);
+    }
+
+    [Fact]
+    public async Task ProbeSite_PreguntaAlRemotoConElAccesoDelSitio()
+    {
+        FakeKey("tienda");
+        ScriptClone();
+        await Sites.CloneAsync(new CloneRequest(GitUrl.Parse("git@github.com:acme/tienda.git"), Access: SiteAccess.Key("tienda")), null, null, CancellationToken.None);
+        _runner.Calls.Clear();
+
+        var probe = await Sites.ProbeSiteAsync("tienda.test", CancellationToken.None);
+
+        Assert.True(probe.Reachable);
+        var call = _runner.Calls.Single();
+        Assert.Equal(["ls-remote", "--symref", "--", "git@github.com:acme/tienda.git", "HEAD", "refs/heads/*"], call.Arguments);
+        Assert.Contains("IdentityFile=", call.Environment!["GIT_SSH_COMMAND"]);
+    }
+
     // --- I9: quitar un sitio quita tambien su acceso ---
 
     private void Register(string name, string remote, string access, string? key = null, string? target = null)
