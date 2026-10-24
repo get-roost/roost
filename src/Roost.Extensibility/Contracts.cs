@@ -41,10 +41,11 @@ public interface IRoostExtension
 public sealed record StackContext(RoostPaths Paths, RoostConfig Config);
 
 /// <summary>
-/// Servicios que arrancan con el stack (un Redis, un Mailpit): van después de la base de datos y
-/// antes de PHP, sus puertos se comprueban antes de arrancar, se espera a que respondan como el
-/// resto y salen en el estado, en el reinicio por servicio y en los registros. Se pide en cada
-/// <c>up</c>. Los nombres no pueden repetir los de Roost.
+/// Servicios que arrancan con el stack (un Memcached, un Meilisearch): van después de la base de
+/// datos, Redis y Mailpit y antes de PHP, sus puertos se comprueban antes de arrancar, se espera a
+/// que respondan como el resto y salen en el estado, en el reinicio por servicio y en los registros.
+/// Se pide en cada <c>up</c>. Los nombres no pueden repetir los de Roost (tampoco <c>redis</c> ni
+/// <c>mailpit</c>, que ya son suyos).
 /// </summary>
 public interface IStackExtension : IRoostExtension
 {

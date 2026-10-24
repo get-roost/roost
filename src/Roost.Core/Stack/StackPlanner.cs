@@ -14,7 +14,7 @@ public sealed record SitePlan(Site Site, InstalledPhp Php, string Url);
 
 /// <summary>
 /// Lo que arranca <c>roost up</c>, en este orden (ROOST.md §5.5): la base de datos global si
-/// la hay, un pool de php-cgi por cada rama de PHP en uso (la global y la de cada sitio que
+/// la hay, Redis y Mailpit si van en el stack, un pool de php-cgi por cada rama de PHP en uso (la global y la de cada sitio que
 /// fije otra) y el servidor web delante (nginx o Apache, <c>[web] server</c>), con
 /// <c>http://localhost/</c> y un vhost por sitio.
 /// </summary>
@@ -36,8 +36,20 @@ public sealed record StackPlan(
     public IReadOnlyList<int> Ports =>
         Services.Where(s => s.Port is not null).Select(s => s.Port!.Value)
             .Concat(Sites.Count > 0 ? [HttpsPort] : [])
+            .Concat(MailWebPort is { } web ? [web] : [])
             .Distinct()
             .ToList();
+
+    // Servicios (oleada 3)
+
+    /// <summary>El Redis del stack, si va (<c>[redis] enabled</c>): su servicio es <c>redis</c>.</summary>
+    public InstalledRedis? Redis { get; init; }
+
+    /// <summary>El Mailpit del stack, si va (<c>[mail] enabled</c>): su servicio es <c>mailpit</c>, con el puerto SMTP.</summary>
+    public InstalledMailpit? Mailpit { get; init; }
+
+    /// <summary>La bandeja de Mailpit (su web): no es el puerto de su servicio, pero también tiene que estar libre.</summary>
+    public int? MailWebPort { get; init; }
 }
 
 /// <summary>
@@ -159,6 +171,8 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         foreach (var dir in new[] { confD, paths.Logs, paths.Run })
             Directory.CreateDirectory(dir);
         EnsureUserIni();
+        // El mail() de PHP a Mailpit si va en el stack; si no, se quita (lo leen php-cgi y la terminal).
+        MailConf.SyncPhpIni(confD, config);
 
         // Un pool por rama: primero la del PHP global, luego la de cada sitio que fije otra.
         // Si dos piden la misma rama, comparten el pool del primero.
@@ -188,11 +202,13 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             ? (PrepareApache(config, apache!, upstreams, sitePlans, ca), apache!.Version)
             : (PrepareNginx(config, nginx!, upstreams, sitePlans, ca), nginx!.Version);
 
-        // Orden de arranque (ROOST.md §5.5): DB → servicios de las extensiones → pools de PHP →
-        // servidor web. La parada, al revés.
+        // Orden de arranque (ROOST.md §5.5): DB → Redis → Mailpit → servicios de las extensiones →
+        // pools de PHP → servidor web. La parada, al revés.
         var all = new List<ServiceDefinition>();
         if (db is not null)
             all.Add(PrepareDb(db, config.DbPort));
+        var redis = config.RedisEnabled ? PrepareRedis(config, all) : null;
+        var mailpit = config.MailEnabled ? PrepareMail(config, all) : null;
         all.AddRange(extraServices);
         all.AddRange(phpServices);
         all.Add(web);
@@ -201,7 +217,92 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         if (all.GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase).FirstOrDefault(g => g.Count() > 1) is { } repeated)
             throw new RoostException($"Hay dos servicios llamados '{repeated.Key}': una extension usa un nombre que ya existe.");
 
-        return new StackPlan(php, web.Name, webVersion, config.HttpPort, config.HttpsPort, db, config.DbPort, sitePlans, all);
+        return new StackPlan(php, web.Name, webVersion, config.HttpPort, config.HttpsPort, db, config.DbPort, sitePlans, all)
+        {
+            Redis = redis,
+            Mailpit = mailpit,
+            MailWebPort = mailpit is null ? null : config.MailWebPort,
+        };
+    }
+
+    // Servicios (oleada 3): Redis, Mailpit y la carpeta de Adminer.
+
+    /// <summary>
+    /// Genera el redis.conf (con <c>conf.d/99-usuario.conf</c> la primera vez y <c>data/redis</c>, que
+    /// nunca se borra) y añade el servicio <c>redis</c>. Arranca desde <c>etc/redis</c> con la ruta
+    /// relativa al conf (ver <see cref="RedisConf"/>) y se para limpio con <c>redis-cli shutdown</c>,
+    /// que vuelca el RDB y cierra el AOF; con la contraseña del usuario si ha puesto <c>requirepass</c>.
+    /// </summary>
+    private InstalledRedis PrepareRedis(RoostConfig config, List<ServiceDefinition> services)
+    {
+        var redis = new RedisInstaller(paths).Locate()
+            ?? throw new RoostException(
+                $"Redis va en el stack ([redis] enabled en {paths.ConfigFile}), pero no esta instalado. "
+                + "Instalalo con: roost redis install (o quitalo del stack con: roost redis disable)");
+
+        RedisConf.Write(paths, redis.Version, config.RedisPort);
+        var log = Path.Combine(paths.Logs, "redis.log");
+        var password = RedisConf.UserPassword(paths);
+        services.Add(new ServiceDefinition
+        {
+            Name = "redis",
+            Executable = redis.Server,
+            Arguments = RedisConf.FileName,
+            WorkingDirectory = RedisConf.Directory(paths),
+            LogFile = log,
+            Port = config.RedisPort,
+            StopCommand = new ServiceDefinition
+            {
+                Name = "redis-shutdown",
+                Executable = redis.Cli,
+                Arguments = $"-h 127.0.0.1 -p {config.RedisPort} shutdown",
+                WorkingDirectory = redis.Directory,
+                // Por el entorno y no por -a: así la contraseña no sale en la línea de órdenes.
+                Environment = password is null ? new Dictionary<string, string>() : new Dictionary<string, string> { ["REDISCLI_AUTH"] = password },
+                LogFile = log,
+            },
+            StopTimeout = TimeSpan.FromSeconds(15),
+        });
+        return redis;
+    }
+
+    /// <summary>
+    /// Añade el servicio <c>mailpit</c>: SMTP y bandeja web en 127.0.0.1, con la bandeja en
+    /// <c>data/mailpit</c> (persistente; nunca se borra). Se para matándolo: guarda en SQLite y cada
+    /// correo queda escrito al recibirlo.
+    /// </summary>
+    private InstalledMailpit PrepareMail(RoostConfig config, List<ServiceDefinition> services)
+    {
+        var mailpit = new MailpitInstaller(paths).Locate()
+            ?? throw new RoostException(
+                $"Mailpit va en el stack ([mail] enabled en {paths.ConfigFile}), pero no esta instalado. "
+                + "Instalalo con: roost mail install (o quitalo del stack con: roost mail disable)");
+
+        Directory.CreateDirectory(paths.MailpitData);
+        services.Add(new ServiceDefinition
+        {
+            Name = "mailpit",
+            Executable = mailpit.Executable,
+            Arguments = MailConf.Arguments(config.MailSmtpPort, config.MailWebPort, MailConf.Database(paths)),
+            WorkingDirectory = paths.MailpitData,
+            LogFile = Path.Combine(paths.Logs, "mailpit.log"),
+            Port = config.MailSmtpPort,
+        });
+        return mailpit;
+    }
+
+    /// <summary>
+    /// La carpeta que el servidor web sirve en <c>http://localhost/adminer</c>: la de la versión de
+    /// Adminer de esta Roost, aunque aún no esté instalada (así instalarlo desde la app no pide
+    /// rearrancar el servidor web; mientras, PHP contesta que no hay fichero). Si está instalada, deja
+    /// su entrada al día. null si el usuario tiene su propia <c>www/adminer</c>: esa manda.
+    /// </summary>
+    private string? AdminerAlias()
+    {
+        if (Directory.Exists(Path.Combine(paths.Www, "adminer"))) return null;
+        var installer = new AdminerInstaller(paths);
+        if (installer.Find(AdminerCatalog.Current) is { } adminer) AdminerInstaller.EnsureEntry(adminer);
+        return installer.InstallDirectory(AdminerCatalog.Current);
     }
 
     /// <summary>
@@ -251,7 +352,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             upstreams,
             upstreams[0].Name,
             paths.NginxSites,
-            Loopback.HasIpv6)));
+            Loopback.HasIpv6) { AdminerDirectory = AdminerAlias() }));
 
         var test = TestNginx(nginx);
         if (test is null || !test.Contains("test is successful", StringComparison.OrdinalIgnoreCase))
@@ -298,7 +399,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             pools,
             pools[0].Name,
             paths.ApacheSites,
-            Loopback.HasIpv6)));
+            Loopback.HasIpv6) { AdminerDirectory = AdminerAlias() }));
 
         var test = TestApache(apache);
         if (test is null || !test.Contains("Syntax OK", StringComparison.OrdinalIgnoreCase))

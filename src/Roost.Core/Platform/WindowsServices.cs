@@ -27,6 +27,9 @@ public sealed record WindowsService(string Name, string DisplayName, string Kind
     public bool StartsWithWindows => Start == ServiceStartMode.Automatic;
 }
 
+/// <summary>Un servicio de Windows que molesta, con los puertos del stack de Roost que suele usar.</summary>
+public sealed record ServiceConflict(WindowsService Service, IReadOnlyList<int> Ports);
+
 /// <summary>
 /// Los servicios de Windows que se pelean con Roost por los puertos: un MySQL o una MariaDB
 /// instalados con su MSI, un Apache como servicio, IIS (http.sys en el 80)… Con inicio automático
@@ -85,6 +88,46 @@ public static class WindowsServices
             .Where(s => s.Start != ServiceStartMode.Disabled && (s.StartsWithWindows || s.Running))
             .Where(s => s.UsualPorts.Any(roostPorts.Contains))
             .ToList();
+
+    /// <summary>PURO: <see cref="Conflicting"/> con los puertos de Roost que cada uno suele usar.</summary>
+    public static IReadOnlyList<ServiceConflict> Conflicts(IEnumerable<WindowsService> services, IReadOnlyCollection<int> roostPorts) =>
+        Conflicting(services, roostPorts)
+            .Select(s => new ServiceConflict(s, s.UsualPorts.Where(roostPorts.Contains).ToList()))
+            .ToList();
+
+    /// <summary>
+    /// PURO: el servicio que tiene un puerto, por el proceso que escucha en él (<c>mysqld</c> es el
+    /// servicio cuyo ejecutable es <c>mysqld.exe</c>; el 80 o el 443 de <c>System</c> es http.sys, o
+    /// sea IIS si está en marcha). Solo los que están en marcha; null si no es ninguno.
+    /// </summary>
+    public static WindowsService? OwnerOf(PortOwner? owner, IEnumerable<WindowsService> services)
+    {
+        if (owner?.ProcessName is not { } process) return null;
+        var running = services.Where(s => s.Running).ToList();
+        if (process.Equals("System", StringComparison.OrdinalIgnoreCase))
+            return owner.Port is 80 or 443 ? running.FirstOrDefault(s => s.Kind == "IIS") : null;
+        return running.FirstOrDefault(s => s.Executable is { } exe
+            && Path.GetFileNameWithoutExtension(exe).Equals(process, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>PURO: la orden que lo deja en Manual (hace falta una consola de administrador).</summary>
+    public static string ManualCommand(WindowsService service) => $"sc config \"{service.Name}\" start= demand";
+
+    /// <summary>PURO: la orden que lo para ahora (también como administrador).</summary>
+    public static string StopCommand(WindowsService service) => $"sc stop \"{service.Name}\"";
+
+    /// <summary>PURO: «MariaDB» (MariaDB 10.6): el nombre del servicio y, si es otro, el que enseña Windows.</summary>
+    public static string Label(WindowsService service) =>
+        service.DisplayName.Equals(service.Name, StringComparison.OrdinalIgnoreCase) ? $"\"{service.Name}\"" : $"\"{service.Name}\" ({service.DisplayName})";
+
+    /// <summary>PURO: «arranca con Windows y esta en marcha», para los textos de la CLI y del daemon (sin tildes).</summary>
+    public static string StateText(WindowsService service) => (service.StartsWithWindows, service.Running) switch
+    {
+        (true, true) => "arranca con Windows y esta en marcha",
+        (true, false) => "arranca con Windows (ahora esta parado)",
+        (false, true) => "esta en marcha",
+        _ => "esta parado",
+    };
 
     /// <summary>PURO: el tipo por el ejecutable (o IIS por su nombre); null si no es de los que molestan.</summary>
     public static string? Classify(string serviceName, string? executable)

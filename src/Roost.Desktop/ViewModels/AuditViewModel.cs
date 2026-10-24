@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Roost.Core;
 using Roost.Core.Audit;
 using Roost.Core.Models;
+using Roost.Core.Platform;
 using Roost.Desktop.Controls;
 using Roost.Desktop.Services;
 
@@ -32,6 +33,15 @@ public sealed partial class AuditRow(AuditFinding finding) : ObservableObject
 public sealed record AdvisoryLine(string Id, string Meta, bool Kev, string Title);
 
 /// <summary>
+/// Un servicio de Windows que puede quitarle un puerto a Roost (E7): cómo está, si choca con el
+/// stack y la orden para dejarlo en Manual (que Roost no ejecuta nunca: solo la enseña).
+/// </summary>
+public sealed record WindowsServiceRow(string Display, string Name, string Kind, string State, Tone Tone, string Detail, string Command)
+{
+    public string Title => Display == Name ? Name : $"{Display} ({Name})";
+}
+
+/// <summary>
 /// Auditoría: todo lo instalado en la máquina, de Roost o no, frente a los avisos de seguridad y
 /// las fechas de fin de vida (lo mismo que <c>roost audit</c>, en local y sin red).
 /// </summary>
@@ -49,7 +59,85 @@ public sealed partial class AuditViewModel : PageViewModel
                 OnPropertyChanged(nameof(DatasetOrigin));
             }
         };
+        main.MachineServices.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(MachineServices.Found) or nameof(MachineServices.Loaded)) BuildServices();
+        };
     }
+
+    // Servicios de Windows (E7, oleada 3)
+
+    /// <summary>Los servicios de Windows de bases de datos y servidores web que hay en el equipo.</summary>
+    [ObservableProperty] public partial IReadOnlyList<WindowsServiceRow> ServiceRows { get; private set; } = [];
+    [ObservableProperty] public partial string ServicesSummary { get; private set; } = "";
+    [ObservableProperty] public partial Tone ServicesTone { get; private set; } = Tone.Neutral;
+
+    public bool HasServiceRows => ServiceRows.Count > 0;
+
+    partial void OnServiceRowsChanged(IReadOnlyList<WindowsServiceRow> value) => OnPropertyChanged(nameof(HasServiceRows));
+
+    private void BuildServices()
+    {
+        var machine = Main.MachineServices;
+        if (!machine.Loaded)
+        {
+            ServiceRows = [];
+            (ServicesSummary, ServicesTone) = ("Mirando los servicios de Windows…", Tone.Neutral);
+            return;
+        }
+
+        var (config, ports) = StackPorts();
+        var conflicts = machine.ConflictsWith(config, ports.Sites, ports.Db);
+        ServiceRows = machine.Found
+            .OrderByDescending(s => conflicts.Any(c => c.Service.Name == s.Name))
+            .ThenBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(s =>
+            {
+                var conflict = conflicts.FirstOrDefault(c => c.Service.Name == s.Name);
+                var detail = conflict is not null
+                    ? $"Suele usar el {string.Join(" y el ", conflict.Ports)}, {(conflict.Ports.Count == 1 ? "que es" : "que son")} {string.Join(" y ", conflict.Ports.Select(p => RoleOf(p, config)))} de Roost: si se lo queda, Roost no arranca."
+                    : $"Suele usar el {string.Join(" y el ", s.UsualPorts)}; Roost usa otros, así que no choca.";
+                var tone = conflict is not null ? Tone.Bad : s.StartsWithWindows || s.Running ? Tone.Warn : Tone.Neutral;
+                return new WindowsServiceRow(s.DisplayName, s.Name, s.Kind, MachineServices.StateText(s), tone, detail, WindowsServices.ManualCommand(s));
+            })
+            .ToList();
+        (ServicesSummary, ServicesTone) = conflicts.Count > 0
+            ? ($"{conflicts.Count} {(conflicts.Count == 1 ? "servicio puede quitarle" : "servicios pueden quitarle")} un puerto a Roost", Tone.Bad)
+            : machine.Found.Count > 0 ? ("Ninguno choca con los puertos de Roost", Tone.Ok)
+            : ("Ninguno: nada le quita los puertos a Roost", Tone.Ok);
+    }
+
+    /// <summary>La configuración y si el stack lleva sitios y base de datos (los puertos que va a usar).</summary>
+    private (Roost.Core.Config.RoostConfig Config, (bool Sites, bool Db) Ports) StackPorts()
+    {
+        var paths = Main.App.Paths;
+        var config = new Roost.Core.Config.RoostConfig();
+        try { config = Roost.Core.Config.RoostConfig.Load(paths.ConfigFile); } catch (RoostException) { }
+        var sites = false;
+        try { sites = new Roost.Core.Sites.SiteRegistry(paths).Load().Count > 0; } catch (Exception ex) when (ex is IOException or RoostException) { }
+        var db = false;
+        try { db = new Roost.Core.Stack.StackPlanner(paths, Roost.Core.Scanning.ProcessRunner.Default).ResolveDb(config, new Roost.Core.Install.DbInstaller(paths).ListInstalled()) is not null; }
+        catch (RoostException) { }
+        return (config, (sites, db));
+    }
+
+    /// <summary>«el puerto de la base de datos»: para qué usa Roost ese puerto.</summary>
+    public static string RoleOf(int port, Roost.Core.Config.RoostConfig config) =>
+        port == config.DbPort ? "el de la base de datos"
+        : port == config.HttpPort ? "el de la web"
+        : port == config.HttpsPort ? "el del HTTPS de los sitios"
+        : port == config.RedisPort ? "el de Redis"
+        : "el del correo";
+
+    [RelayCommand]
+    private void OpenServicesPanel() => MachineServices.OpenServicesPanel();
+
+    [RelayCommand]
+    private Task CopyServiceCommandAsync(WindowsServiceRow row) =>
+        Main.CopyAsync(row.Command, $"Copiado: pégalo en una consola de administrador para dejar {row.Name} en Manual");
+
+    [RelayCommand]
+    private Task RecheckServicesAsync() => Main.MachineServices.LoadAsync(force: true);
 
     public override string Title => "Auditoría";
 
@@ -112,8 +200,12 @@ public sealed partial class AuditViewModel : PageViewModel
     public override async Task ShownAsync()
     {
         Build();
+        BuildServices();
+        _ = Main.MachineServices.LoadAsync();
         if (Main.Audit.LastScan is null && !Main.Audit.Scanning) await Main.Audit.ScanAsync();
     }
+
+    public override void StackChanged() => BuildServices();
 
     private void Build()
     {

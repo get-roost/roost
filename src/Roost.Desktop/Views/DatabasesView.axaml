@@ -149,17 +149,21 @@
           </Border>
 
           <StackPanel Grid.Column="1" Spacing="16">
-            <!-- Clientes gráficos del equipo: solo si hay alguno -->
-            <Border Classes="card" IsVisible="{Binding HasClients}">
+            <!-- Adminer (siempre: lo instala Roost) y los clientes gráficos del equipo que haya -->
+            <Border Classes="card">
               <StackPanel>
                 <Border Classes="card-h">
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Classes="h2" Text="Abrir con" />
-                    <TextBlock Classes="hint" Text="programas de este equipo" />
+                    <TextBlock Classes="hint" Text="Adminer y programas de este equipo" />
                   </StackPanel>
                 </Border>
                 <StackPanel Margin="16,14" Spacing="8">
-                  <ItemsControl ItemsSource="{Binding Clients}">
+                  <!-- Servicios (oleada 3): Adminer en http://localhost/adminer -->
+                  <Button HorizontalAlignment="Stretch" Content="Abrir Adminer" Command="{Binding OpenAdminerCommand}"
+                          ToolTip.Tip="{Binding AdminerTip}" ToolTip.ShowOnDisabled="True" IsEnabled="{Binding DbRunning}"
+                          AutomationProperties.Name="Abrir Adminer" />
+                  <ItemsControl ItemsSource="{Binding Clients}" IsVisible="{Binding HasClients}">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
@@ -171,7 +175,7 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
-                  <TextBlock Classes="faint" TextWrapping="Wrap" Text="Entran como root, con la contraseña que guarda Roost." />
+                  <TextBlock Classes="faint" TextWrapping="Wrap" Text="Entran como root, con la contraseña que guarda Roost. Adminer sale con root puesto: si tiene contraseña, cópiala de la izquierda." />
                 </StackPanel>
               </StackPanel>
             </Border>

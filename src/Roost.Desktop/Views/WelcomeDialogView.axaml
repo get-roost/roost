@@ -2,6 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
+             xmlns:sys="using:System"
              x:Class="Roost.Desktop.Views.WelcomeDialogView"
              x:DataType="vm:WelcomeDialogViewModel">
   <Border Classes="modal wide" Width="720">
@@ -51,6 +52,28 @@
               <TextBlock Classes="muted" IsVisible="{Binding FoundNothing}" TextWrapping="Wrap"
                          Text="No hay otros PHP ni bases de datos en este equipo: empezamos de cero." />
             </StackPanel>
+
+            <!-- Servicios (oleada 3): servicios de Windows que se quedarían un puerto de Roost (E7) -->
+            <ctl:Note Tone="Warn" IsVisible="{Binding HasServiceWarnings}">
+              <StackPanel Spacing="8">
+                <TextBlock Classes="strong" Text="Servicios de Windows que le quitarían un puerto a Roost" />
+                <ItemsControl ItemsSource="{Binding ServiceWarnings}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Spacing="4" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="sys:String">
+                      <TextBlock Text="{Binding}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm" Content="Abrir Servicios de Windows" Command="{Binding OpenServicesPanelCommand}" />
+                  <TextBlock Classes="faint" VerticalAlignment="Center" TextWrapping="Wrap"
+                             Text="Roost no los toca: Tipo de inicio › Manual, y Detener." />
+                </StackPanel>
+              </StackPanel>
+            </ctl:Note>
 
             <StackPanel Spacing="10">
               <TextBlock Classes="lbl" Text="¿Qué traemos?" />

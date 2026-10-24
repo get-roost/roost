@@ -67,11 +67,15 @@ public sealed partial class MainViewModel : ObservableObject
         Logs = new LogsViewModel(this);
         Settings = new SettingsViewModel(this);
         News = new NewsViewModel(this);
+        // Servicios (oleada 3)
+        Redis = new RedisViewModel(this);
+        Mail = new MailViewModel(this);
 
         NavItem Nav(string label, string icon, PageViewModel page) =>
             new(label, Application.Current?.FindResource(icon) as Geometry, page, NavigateCommand);
         MainNav = [Nav("Inicio", "IcHome", Home), Nav("Sitios", "IcGlobe", Sites)];
         var components = new List<NavItem> { Nav("PHP", "IcCode", Php), Nav("Servidor web", "IcServer", Web), Nav("Bases de datos", "IcDatabase", Databases) };
+        components.AddRange([Nav("Redis", "IcLayers", Redis), Nav("Correo", "IcMail", Mail)]);
         var roost = new List<NavItem> { Nav("Auditoría", "IcShieldCheck", AuditPage), Nav("Registros", "IcFile", Logs) };
 
         // Las pantallas de las extensiones van al final de su sección; Ajustes, siempre la última.
@@ -122,6 +126,17 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>Novedades: lo que cambia en cada versión (CHANGELOG.md), debajo de Ajustes.</summary>
     public NewsViewModel News { get; }
+
+    // Servicios (oleada 3)
+
+    /// <summary>Redis, en Componentes.</summary>
+    public RedisViewModel Redis { get; }
+
+    /// <summary>Correo (Mailpit), en Componentes.</summary>
+    public MailViewModel Mail { get; }
+
+    /// <summary>Los servicios de Windows que pueden quitarle puertos a Roost (Auditoría, Bienvenida, Redis).</summary>
+    public MachineServices MachineServices { get; } = new();
 
     public IReadOnlyList<NavItem> MainNav { get; }
 

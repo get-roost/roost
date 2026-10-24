@@ -1,0 +1,133 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.MailView"
+             x:DataType="vm:MailViewModel">
+  <ScrollViewer>
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto" Margin="24,18,24,14">
+        <StackPanel VerticalAlignment="Center">
+          <TextBlock Classes="h1" Text="Correo" />
+          <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Classes="primary" Content="Abrir la bandeja" Command="{Binding OpenInboxCommand}" IsEnabled="{Binding Running}"
+                ToolTip.Tip="{Binding InboxUrl}" ToolTip.ShowOnDisabled="True" />
+      </Grid>
+
+      <StackPanel Margin="24,0,24,24" Spacing="16">
+        <Grid ColumnDefinitions="*,340" ColumnSpacing="16">
+          <!-- Mailpit: estado, en el stack, puertos, PHP y .env -->
+          <Border Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h">
+                <DockPanel>
+                  <Button DockPanel.Dock="Right" Classes="sm" Content="Reiniciar" Command="{Binding RestartCommand}" IsEnabled="{Binding Running}" />
+                  <StackPanel Orientation="Horizontal" Spacing="10">
+                    <TextBlock Classes="h2" Text="{Binding Version, StringFormat='Mailpit {0}'}" />
+                    <ctl:Chip Text="{Binding StateText}" Tone="{Binding StateTone}" ShowDot="True" />
+                  </StackPanel>
+                </DockPanel>
+              </Border>
+              <StackPanel Margin="16,14" Spacing="14">
+                <ctl:Note Tone="Accent" IsVisible="{Binding NotInstalled}">
+                  <StackPanel Spacing="8">
+                    <TextBlock TextWrapping="Wrap"
+                               Text="Mailpit aún no está instalado. Recibe el correo de tus proyectos por SMTP y te lo enseña en una bandeja web; no lo manda a nadie. Roost lo baja de GitHub con su SHA-256 comprobado." />
+                    <Button Classes="primary" HorizontalAlignment="Left" Content="Instalar Mailpit" Command="{Binding InstallCommand}" />
+                  </StackPanel>
+                </ctl:Note>
+
+                <CheckBox IsChecked="{Binding InStack}">
+                  <StackPanel>
+                    <TextBlock Classes="strong" Text="En el stack" />
+                    <TextBlock Classes="faint" TextWrapping="Wrap" Text="Arranca con Iniciar todo y el mail() de PHP va a él. Cambiarlo rearranca el stack." />
+                  </StackPanel>
+                </CheckBox>
+
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                  <StackPanel Spacing="6">
+                    <TextBlock Classes="lbl" Text="SMTP (MAIL_PORT)" />
+                    <TextBox Classes="mono" Width="96" Text="{Binding SmtpText}" AutomationProperties.Name="Puerto SMTP de Mailpit" />
+                    <ctl:Chip Text="{Binding SmtpChip}" Tone="{Binding SmtpTone}" />
+                  </StackPanel>
+                  <StackPanel Spacing="6">
+                    <TextBlock Classes="lbl" Text="Bandeja (web)" />
+                    <TextBox Classes="mono" Width="96" Text="{Binding WebText}" AutomationProperties.Name="Puerto de la bandeja de Mailpit" />
+                    <ctl:Chip Text="{Binding WebChip}" Tone="{Binding WebTone}" />
+                  </StackPanel>
+                  <Button Classes="primary" Content="Aplicar" Command="{Binding ApplyPortsCommand}" IsEnabled="{Binding CanApplyPorts}" VerticalAlignment="Bottom" Margin="0,0,0,28" />
+                </StackPanel>
+
+                <ctl:Note Tone="{Binding PhpTone}">
+                  <TextBlock Text="{Binding PhpText}" TextWrapping="Wrap" />
+                </ctl:Note>
+
+                <StackPanel Spacing="6">
+                  <TextBlock Classes="lbl" Text="Para tu .env (Laravel)" />
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                    <!-- Varias líneas: el campo crece con ellas (Height=NaN deshace el alto fijo de .field). -->
+                    <Border Classes="field" Height="NaN" Padding="10,7">
+                      <SelectableTextBlock Classes="mono" Text="{Binding EnvText}" TextWrapping="Wrap" />
+                    </Border>
+                    <Button Grid.Column="1" Classes="icon" VerticalAlignment="Top" Command="{Binding CopyEnvCommand}" ToolTip.Tip="Copiar" AutomationProperties.Name="Copiar las variables del correo">
+                      <ctl:Icon Data="{StaticResource IcCopy}" Size="15" />
+                    </Button>
+                  </Grid>
+                  <TextBlock Classes="faint" TextWrapping="Wrap"
+                             Text="WordPress usa mail() de PHP: no hace falta nada. Mailpit acepta cualquier usuario y contraseña SMTP, así que un .env que los traiga funciona igual." />
+                </StackPanel>
+
+                <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="6">
+                  <TextBlock Classes="muted" Text="Bandeja" VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding DataPath}">
+                    <Run Text="{Binding DataPath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                    <Run Text="  (sobrevive a los reinicios; Roost nunca la borra)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
+                  </TextBlock>
+                  <Button Grid.Column="2" Classes="sm ghost" Content="Abrir carpeta" Command="{Binding OpenDataFolderCommand}" />
+
+                  <TextBlock Grid.Row="1" Classes="muted" Text="PHP" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="1" Grid.Column="1" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding PhpIniPath}">
+                    <Run Text="{Binding PhpIniPath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                    <Run Text="  (SMTP y smtp_port; lo tuyo, en 99-usuario.ini)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
+                  </TextBlock>
+                  <Button Grid.Row="1" Grid.Column="2" Classes="sm ghost" Content="Ver" Command="{Binding OpenPhpIniCommand}" AutomationProperties.Name="Ver el fragmento de PHP del correo" />
+
+                  <TextBlock Grid.Row="2" Classes="muted" Text="Registro" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="mono" FontSize="12" Text="logs\mailpit.log" VerticalAlignment="Center" />
+                  <Button Grid.Row="2" Grid.Column="2" Classes="sm ghost" Content="Abrir" Command="{Binding GoLogCommand}" AutomationProperties.Name="Abrir el registro de Mailpit" />
+                </Grid>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Disponibles -->
+          <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Disponibles" />
+                  <TextBlock Classes="hint" Text="axllent/mailpit" />
+                </StackPanel>
+              </Border>
+              <Border Classes="tr" MinHeight="50" Padding="16,8">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                  <ctl:Dot Tone="Ok" VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <TextBlock Classes="mono strong" Text="{Binding CatalogVersion}" />
+                    <TextBlock Classes="faint" Text="Windows amd64 · SHA-256 fijado" ToolTip.Tip="{Binding CatalogSha}" />
+                  </StackPanel>
+                  <ctl:Chip Grid.Column="2" Text="instalada" IsVisible="{Binding Installed}" />
+                  <Button Grid.Column="2" Classes="sm" Content="Instalar" Command="{Binding InstallCommand}" IsVisible="{Binding NotInstalled}"
+                          AutomationProperties.Name="Instalar Mailpit" />
+                </Grid>
+              </Border>
+              <ctl:Note Tone="Accent" Margin="16,12"
+                        Content="Mailpit (MIT) es un solo ejecutable. Roost fija su versión y su SHA-256, lo arranca solo en 127.0.0.1 y su bandeja solo atiende a localhost." />
+            </StackPanel>
+          </Border>
+        </Grid>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

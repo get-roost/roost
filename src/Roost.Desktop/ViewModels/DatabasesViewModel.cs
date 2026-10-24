@@ -646,6 +646,41 @@ public sealed partial class DatabasesViewModel : PageViewModel
         DbClients.Open(client, connection);
     });
 
+    /// <summary>
+    /// Adminer en <c>http://localhost/adminer</c>, con el servidor y root ya puestos (B6). La primera
+    /// vez lo instala; el servidor web ya lo sirve (lo lleva cada nginx.conf y httpd.conf), así que
+    /// no hay que rearrancar nada.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenAdminerAsync()
+    {
+        if (_global is null || !DbRunning)
+        {
+            await Main.InfoAsync("La base de datos no está en marcha", "Adminer entra en la base de datos de Roost con ella arrancada: pulsa Iniciar todo.", Tone.Warn);
+            return;
+        }
+        var status = Main.Stack.Status;
+        if (status?.Services.Any(s => s.Name is "nginx" or "apache" && s.State == "Running") != true)
+        {
+            await Main.InfoAsync("El servidor web no está en marcha", "Adminer se sirve en http://localhost/adminer: arranca el servidor web (Iniciar todo).", Tone.Warn);
+            return;
+        }
+        if (new AdminerInstaller(Main.App.Paths).Find(AdminerCatalog.Current) is null && !await ServiceInstall.AdminerAsync(Main)) return;
+        OnPropertyChanged(nameof(AdminerTip));
+
+        await Main.RunAsync("No se pudo abrir Adminer", () =>
+        {
+            Shell.OpenUrl(AdminerEntry.Url(_config.HttpPort, Port));
+            Main.Flash(HasPassword ? "Adminer: entra como root con la contraseña que guarda Roost (cópiala aquí)" : "Adminer: entra como root, sin contraseña");
+            return Task.CompletedTask;
+        });
+    }
+
+    /// <summary>Lo que dice el botón de Adminer al pasar por encima.</summary>
+    public string AdminerTip => new AdminerInstaller(Main.App.Paths).Find(AdminerCatalog.Current) is null
+        ? $"Instala {AdminerCatalog.Current.Label} (un solo fichero, verificado) y lo abre en http://localhost/adminer"
+        : "Abre Adminer en http://localhost/adminer, con el servidor y root ya puestos";
+
     [RelayCommand]
     private void OpenDataFolder()
     {

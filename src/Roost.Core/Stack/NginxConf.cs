@@ -31,7 +31,14 @@ public sealed record NginxConfInput(
     IReadOnlyList<NginxUpstream> Upstreams,
     string DefaultUpstream,
     string SitesDirectory,
-    bool Ipv6 = true);
+    bool Ipv6 = true)
+{
+    /// <summary>
+    /// La carpeta de Adminer (<c>bin/adminer/&lt;versión&gt;</c>) que se sirve en <c>/adminer</c> con el
+    /// PHP global; null = sin Adminer (el usuario tiene su propia <c>www/adminer</c>).
+    /// </summary>
+    public string? AdminerDirectory { get; init; }
+}
 
 /// <summary>
 /// El nginx.conf base que genera Roost (ROOST.md §5.6): un <c>upstream php-X.Y</c> por cada
@@ -95,7 +102,7 @@ public static class NginxConf
                     root "{{Nginx(input.Www)}}";
                     index index.php index.html index.htm;
                     autoindex on;
-
+            {{Adminer(input)}}
                     location ~ \.php$ {
                         try_files $uri =404;
                         fastcgi_pass {{input.DefaultUpstream}};
@@ -111,6 +118,26 @@ public static class NginxConf
 
             """;
     }
+
+    /// <summary>
+    /// PURO: <c>/adminer</c> en el bloque de localhost. Todo lo de <c>/adminer/</c> va a la entrada de
+    /// Roost (<c>index.php</c>, que carga <c>adminer.php</c>; Adminer sirve también su CSS y su JS por
+    /// <c>?file=</c>), así que ningún otro fichero de esa carpeta se ejecuta ni se descarga. El
+    /// <c>^~</c> hace que no pase por el <c>location ~ \.php$</c> de la www.
+    /// </summary>
+    public static string Adminer(NginxConfInput input) => input.AdminerDirectory is not { } dir ? "" : $$"""
+
+                    # Adminer de Roost (bin\adminer), con el PHP global. Solo atiende a localhost.
+                    location = /adminer {
+                        return 301 /adminer/;
+                    }
+                    location ^~ /adminer/ {
+                        fastcgi_pass {{input.DefaultUpstream}};
+                        fastcgi_param SCRIPT_FILENAME "{{Nginx(dir)}}/index.php";
+                        include "{{Nginx(input.FastCgiParams)}}";
+                    }
+
+            """;
 
     /// <summary>nginx en Windows acepta '/' y así no hay que escapar las '\' dentro de comillas.</summary>
     public static string Nginx(string path) => path.Replace('\\', '/');

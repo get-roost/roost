@@ -487,23 +487,23 @@ public class ViewSnapshotTests
         Assert.Equal(Roost.Desktop.Controls.Tone.Ok, main.Updates.StatusTone);
     }
 
-    private sealed class RedisPage(MainViewModel main) : PageViewModel(main)
+    private sealed class MemcachedPage(MainViewModel main) : PageViewModel(main)
     {
-        public override string Title => "Redis";
+        public override string Title => "Memcached de prueba";
     }
 
-    /// <summary>Una extensión con una pantalla, como sería un Redis de Roost Pro.</summary>
-    private sealed class RedisExtension : Roost.Desktop.Extensibility.IDesktopExtension
+    /// <summary>Una extensión con una pantalla (Redis ya es de Roost: la de pega es un Memcached).</summary>
+    private sealed class MemcachedExtension : Roost.Desktop.Extensibility.IDesktopExtension
     {
-        public string Id => "redis";
-        public string Name => "Redis de prueba";
+        public string Id => "memcached";
+        public string Name => "Memcached de prueba";
         public string Version => "0.1.0";
 
         public IEnumerable<Roost.Desktop.Extensibility.DesktopPage> Pages(MainViewModel main) =>
         [
-            new("Redis", Roost.Desktop.Extensibility.DesktopSection.Components,
+            new("Memcached de prueba", Roost.Desktop.Extensibility.DesktopSection.Components,
                 "M4 6 A8 3 0 1 0 20 6 A8 3 0 1 0 4 6 Z M4 6 V18 C4 19.7 7.6 21 12 21 C16.4 21 20 19.7 20 18 V6",
-                new RedisPage(main),
+                new MemcachedPage(main),
                 () => new Avalonia.Controls.TextBlock { Text = "Pantalla de una extensión", Margin = new Avalonia.Thickness(24) }),
         ];
     }
@@ -513,17 +513,18 @@ public class ViewSnapshotTests
     {
         var fake = new FakeRoost();
         using var _ = fake;
-        var main = new MainViewModel(new AppServices(fake.Paths, fake.Http, new Roost.Extensibility.ExtensionSet([new RedisExtension()])));
+        var main = new MainViewModel(new AppServices(fake.Paths, fake.Http, new Roost.Extensibility.ExtensionSet([new MemcachedExtension()])));
         var window = new MainWindow { DataContext = main };
         window.Show();
 
-        Assert.Equal(["PHP", "Servidor web", "Bases de datos", "Redis"], main.ComponentNav.Select(n => n.Label));
+        // Las de Roost primero (Redis y Correo ya son suyas); las de las extensiones, al final de su sección.
+        Assert.Equal(["PHP", "Servidor web", "Bases de datos", "Redis", "Correo", "Memcached de prueba"], main.ComponentNav.Select(n => n.Label));
         Assert.Equal(["Ajustes", "Novedades"], main.RoostNav.TakeLast(2).Select(n => n.Label));
         Assert.NotNull(main.ComponentNav[^1].Icon);
 
         await main.NavigateToAsync(main.ComponentNav[^1].Page);
         Snapshot(window, "extension");
-        Assert.Contains("Redis de prueba 0.1.0", main.Settings.ExtensionsText);
+        Assert.Contains("Memcached de prueba 0.1.0", main.Settings.ExtensionsText);
     }
 
     // BD-1
@@ -1643,5 +1644,263 @@ public class ViewSnapshotTests
         await php.ToggleExtensionCommand.ExecuteAsync(soap);
         Assert.True(soap.IsOn);
         Assert.Contains("extension=soap", File.ReadAllText(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64", "php.ini")));
+    }
+
+    // Servicios (oleada 3): Redis, Correo, Adminer y los servicios de Windows
+
+    /// <summary>Un Redis de mentira en loopback que contesta +PONG a cada PING (para la línea del PING).</summary>
+    private static (int Port, System.Net.Sockets.TcpListener Listener) FakeRedis()
+    {
+        var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        listener.Start();
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (true)
+                {
+                    using var client = await listener.AcceptTcpClientAsync();
+                    var stream = client.GetStream();
+                    // El PING de RedisProbe cabe en una lectura (14 bytes); lo que lea da igual.
+                    _ = await stream.ReadAtLeastAsync(new byte[64], 1, throwOnEndOfStream: false);
+                    await stream.WriteAsync("+PONG\r\n"u8.ToArray());
+                }
+            }
+            catch (Exception) { /* parado al acabar el test */ }
+        });
+        return (((System.Net.IPEndPoint)listener.LocalEndpoint).Port, listener);
+    }
+
+    [AvaloniaFact]
+    public async Task Inicio_ConRedisYMailpit_SonDeRoost_YVanTrasLaBaseDeDatos()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        fake.InstallFakeServices(redisPort: 6380, smtpPort: 1026, webPort: 8026);
+
+        main.Stack.Show(FakeRoost.RunningWithServices(6380, 1026, 8026));
+        main.NotifyConfigChanged();
+        Dispatcher.UIThread.RunJobs();
+
+        var rows = main.Home.Services;
+        Assert.Equal(["MariaDB", "Redis", "Mailpit", "PHP 8.4", "PHP 7.4", "nginx"], rows.Select(r => r.Name));
+        var redis = rows.Single(r => r.Name == "Redis");
+        Assert.Null(redis.Tag);   // ya no sale como «extensión»
+        Assert.Equal("8.10.2", redis.Version);
+        Assert.Equal("127.0.0.1:6380", redis.Listen);
+        Assert.Equal("redis", redis.RestartKey);
+        Assert.True(redis.CanStop);
+        var mail = rows.Single(r => r.Name == "Mailpit");
+        Assert.Equal(":1026 · :8026", mail.Listen);
+        Assert.Contains("http://localhost:8026", mail.Detail);
+        Snapshot(window, "inicio-con-redis-y-mailpit");
+
+        // Parado: siguen en la lista, en su sitio, sin botones.
+        main.Stack.Show(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(["MariaDB", "Redis", "Mailpit"], main.Home.Services.Take(3).Select(r => r.Name));
+        Assert.All(main.Home.Services.Take(3), r => Assert.False(r.CanRestart));
+    }
+
+    [AvaloniaFact]
+    public async Task Redis_SinInstalar_OfreceInstalarlo_YEstaEnComponentes()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        Assert.Equal(["PHP", "Servidor web", "Bases de datos", "Redis", "Correo"], main.ComponentNav.Select(n => n.Label));
+        await main.NavigateToAsync(main.Redis);
+        var redis = main.Redis;
+        Assert.False(redis.Installed);
+        Assert.True(redis.NotInstalled);
+        Assert.False(redis.InStack);
+        Assert.Equal("sin instalar", redis.StateText);
+        Assert.Equal("6379", redis.PortText);
+        Assert.Equal("8.10.2", redis.CatalogVersion);
+        Assert.Contains("REDIS_CLIENT=predis", redis.EnvText);
+        Assert.False(redis.OpenCliCommand.CanExecute(null) && redis.Running);
+        Snapshot(window, "redis-sin-instalar");
+    }
+
+    [AvaloniaFact]
+    public async Task Redis_EnMarcha_ConElPing_ElPuertoYLosOtrosRedisDelEquipo()
+    {
+        var (port, listener) = FakeRedis();
+        try
+        {
+            var (main, window, fake) = await OpenAsync(running: true);
+            using var _ = fake;
+            fake.InstallFakeServices(redisPort: port);
+            main.MachineServices.Show(
+            [
+                new Roost.Core.Platform.WindowsService("Memurai", "Memurai", "Redis", @"C:\Program Files\Memurai\memurai.exe", Roost.Core.Platform.ServiceStartMode.Automatic, Running: false),
+            ]);
+            main.Stack.Show(FakeRoost.RunningWithServices(redisPort: port));
+            main.NotifyConfigChanged();
+
+            await main.NavigateToAsync(main.Redis);
+            var redis = main.Redis;
+            Assert.True(redis.Installed);
+            Assert.True(redis.InStack);
+            Assert.True(redis.Running);
+            Assert.Equal("en marcha", redis.StateText);
+            Assert.Equal("Contesta al PING (PONG)", redis.PingText);
+            Assert.Equal("en uso por Roost", redis.PortChip);
+            Assert.False(redis.CanApplyPort);
+            Assert.Contains($"REDIS_PORT={port}", redis.EnvText);
+            Assert.Single(redis.Others);
+            Assert.Contains("Memurai", redis.Others[0]);
+            Assert.Contains("Roost no lo usa ni lo toca", redis.Others[0]);
+
+            // Un puerto que choca con otro de Roost (el de la base de datos) no se puede aplicar.
+            redis.PortText = "3308";
+            Assert.Equal("es de otro servicio de Roost", redis.PortChip);
+            Assert.False(redis.CanApplyPort);
+            redis.PortText = "abc";
+            Assert.Equal("no válido", redis.PortChip);
+            redis.PortText = port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Snapshot(window, "redis");
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    [AvaloniaFact]
+    public async Task Correo_EnMarcha_ConLaBandejaYElMailDePhp()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        fake.InstallFakeServices(smtpPort: 1026, webPort: 8026);
+        Roost.Core.Stack.MailConf.SyncPhpIni(Path.Combine(fake.Paths.Etc, "php", "conf.d"), Roost.Core.Config.RoostConfig.Load(fake.Paths.ConfigFile));
+        main.Stack.Show(FakeRoost.RunningWithServices(smtpPort: 1026, webPort: 8026));
+        main.NotifyConfigChanged();
+
+        await main.NavigateToAsync(main.Mail);
+        var mail = main.Mail;
+        Assert.Equal("Correo", mail.Title);
+        Assert.True(mail.Installed);
+        Assert.True(mail.InStack);
+        Assert.True(mail.Running);
+        Assert.Equal("http://localhost:8026/", mail.InboxUrl);
+        Assert.True(mail.OpenInboxCommand.CanExecute(null));
+        Assert.Equal("en uso por Roost", mail.SmtpChip);
+        Assert.StartsWith("mail() de PHP va a Mailpit (SMTP 127.0.0.1:1026)", mail.PhpText);
+        Assert.Contains("MAIL_PORT=1026", mail.EnvText);
+
+        mail.WebText = "1026";
+        Assert.Equal("igual que el SMTP", mail.WebChip);
+        Assert.False(mail.CanApplyPorts);
+        mail.WebText = "8026";
+        Snapshot(window, "correo");
+    }
+
+    [AvaloniaFact]
+    public async Task Correo_SinInstalar_OfreceInstalarlo()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Mail);
+        Assert.False(main.Mail.Installed);
+        Assert.Equal("sin instalar", main.Mail.StateText);
+        Assert.Equal("1025", main.Mail.SmtpText);
+        Assert.Equal("8025", main.Mail.WebText);
+        Assert.StartsWith("Con Mailpit fuera del stack", main.Mail.PhpText);
+        Snapshot(window, "correo-sin-instalar");
+    }
+
+    [AvaloniaFact]
+    public async Task BasesDeDatos_AbrirAdminer_LaPrimeraVezLoInstala_YSiFallaNoAbreNada()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Databases);
+        var db = main.Databases;
+        Assert.StartsWith("Instala Adminer 6.2.0", db.AdminerTip);
+        Snapshot(window, "bases-de-datos-adminer");
+
+        // FakeUpstream no sirve adminer.php (404): el diálogo de instalación lo dice y no se abre el navegador.
+        var opening = db.OpenAdminerCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<InstallDialogViewModel>(main.Dialog);
+        Assert.Equal("Instalando Adminer 6.2.0", dialog.Title);
+        Assert.False(await dialog.Finished);
+        Assert.Contains("No se pudo descargar", dialog.Error);
+        dialog.CancelCommand.Execute(null);
+        await opening;
+        Assert.Null(new Roost.Core.Install.AdminerInstaller(fake.Paths).Find(Roost.Core.Install.AdminerCatalog.Current));
+    }
+
+    [AvaloniaFact]
+    public async Task Auditoria_ServiciosDeWindows_LaMariaDbQueArrancaConWindows_YComoDejarlaEnManual()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        ShowFindings(main);
+        Roost.Core.Config.RoostConfig.SetDbPort(fake.Paths.ConfigFile, 3306);   // el caso del usuario: la de Roost también en el 3306
+        main.MachineServices.Show(
+        [
+            new Roost.Core.Platform.WindowsService("MariaDB", "MariaDB 10.6", "MariaDB", @"C:\Program Files\MariaDB 10.6\bin\mysqld.exe", Roost.Core.Platform.ServiceStartMode.Automatic, Running: true),
+            new Roost.Core.Platform.WindowsService("Apache2.4", "Apache2.4", "Apache", @"C:\Apache24\bin\httpd.exe", Roost.Core.Platform.ServiceStartMode.Manual, Running: false),
+        ]);
+
+        await main.NavigateToAsync(main.AuditPage);
+        var audit = main.AuditPage;
+        Assert.Equal("1 servicio puede quitarle un puerto a Roost", audit.ServicesSummary);
+        Assert.Equal(Roost.Desktop.Controls.Tone.Bad, audit.ServicesTone);
+        var maria = audit.ServiceRows[0];
+        Assert.Equal("MariaDB 10.6 (MariaDB)", maria.Title);
+        Assert.Equal("Arranca con Windows y está en marcha", maria.State);
+        Assert.Contains("el de la base de datos de Roost", maria.Detail);
+        Assert.Equal("sc config \"MariaDB\" start= demand", maria.Command);
+        var apache = audit.ServiceRows[1];
+        Assert.Equal(Roost.Desktop.Controls.Tone.Neutral, apache.Tone);   // manual y parado: no molesta
+        Assert.Equal("Manual y parado", apache.State);
+        // La sección va al final de la pantalla: se baja hasta ella para la captura.
+        Dispatcher.UIThread.RunJobs();
+        window.GetVisualDescendants().OfType<AuditView>().Single().GetVisualDescendants().OfType<ScrollViewer>().First().ScrollToEnd();
+        Snapshot(window, "auditoria-servicios-de-windows");
+    }
+
+    [AvaloniaFact]
+    public async Task Auditoria_SinServiciosDeWindows_LoDice()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        main.MachineServices.Show([]);
+
+        await main.NavigateToAsync(main.AuditPage);
+
+        Assert.Empty(main.AuditPage.ServiceRows);
+        Assert.Equal("Ninguno: nada le quita los puertos a Roost", main.AuditPage.ServicesSummary);
+    }
+
+    [AvaloniaFact]
+    public async Task Bienvenida_AvisaDeLosServiciosDeWindowsQueSeQuedanLosPuertos()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        ShowFindings(main);
+        Roost.Core.Config.RoostConfig.SetDbPort(fake.Paths.ConfigFile, 3306);
+        main.MachineServices.Show(
+        [
+            new Roost.Core.Platform.WindowsService("MariaDB", "MariaDB 10.6", "MariaDB", @"C:\Program Files\MariaDB 10.6\bin\mysqld.exe", Roost.Core.Platform.ServiceStartMode.Automatic, Running: false),
+            new Roost.Core.Platform.WindowsService("W3SVC", "World Wide Web Publishing Service", "IIS", @"C:\Windows\system32\svchost.exe", Roost.Core.Platform.ServiceStartMode.Automatic, Running: true),
+        ]);
+
+        var showing = main.ShowWelcomeAsync(force: true);
+        var welcome = Assert.IsType<WelcomeDialogViewModel>(main.Dialog);
+        await welcome.LoadAsync();
+
+        Assert.True(welcome.HasServiceWarnings);
+        Assert.Equal(2, welcome.ServiceWarnings.Count);
+        Assert.Contains(welcome.ServiceWarnings, w => w.StartsWith("MariaDB 10.6 (MariaDB): arranca con Windows (ahora está parado)", StringComparison.Ordinal) && w.Contains("el de la base de datos"));
+        Assert.Contains(welcome.ServiceWarnings, w => w.StartsWith("World Wide Web Publishing Service (W3SVC)", StringComparison.Ordinal) && w.Contains("el de la web"));
+        Snapshot(window, "bienvenida-servicios-de-windows");
+
+        welcome.SkipCommand.Execute(null);
+        await showing;
     }
 }

@@ -124,6 +124,28 @@ public sealed class FakeRoost : IDisposable
         return dir;
     }
 
+    // Servicios (oleada 3)
+
+    /// <summary>Redis y Mailpit «instalados» (de pega) y en el stack, con estos puertos.</summary>
+    public void InstallFakeServices(int redisPort = 6379, int smtpPort = 1025, int webPort = 8025)
+    {
+        Touch(Path.Combine(Paths.RedisBin, "8.10.2", "redis-server.exe"));
+        Touch(Path.Combine(Paths.RedisBin, "8.10.2", "redis-cli.exe"));
+        Touch(Path.Combine(Paths.MailpitBin, "1.32.0", "mailpit.exe"));
+        File.AppendAllText(Paths.ConfigFile, $"\n[redis]\nenabled = true\nport = {redisPort}\n\n[mail]\nenabled = true\nsmtp_port = {smtpPort}\nweb_port = {webPort}\n");
+    }
+
+    /// <summary>Lo que contaría roostd con todo en marcha, también Redis y Mailpit (tras la base de datos).</summary>
+    public static StatusResponse RunningWithServices(int redisPort = 6379, int smtpPort = 1025, int webPort = 8025)
+    {
+        var running = Running;
+        return running with
+        {
+            Services = [running.Services[0], new ServiceDto("redis", "Running", 7010, 0, redisPort, null), new ServiceDto("mailpit", "Running", 7020, 0, smtpPort, null), .. running.Services.Skip(1)],
+            Ports = [.. running.Services.Where(s => s.Port is not null).Select(s => s.Port!.Value), redisPort, smtpPort, webPort],
+        };
+    }
+
     private static string Esc(string path) => path.Replace("\\", "\\\\");
 
     private static void Touch(string file) => Write(file, "");

@@ -62,6 +62,9 @@
     <DataTemplate DataType="vm:UpdateProgressDialogViewModel"><v:UpdateProgressDialogView /></DataTemplate>
     <!-- PHP (oleada 3) -->
     <DataTemplate DataType="vm:PhpTextDialogViewModel"><v:PhpTextDialogView /></DataTemplate>
+    <!-- Servicios (oleada 3) -->
+    <DataTemplate DataType="vm:RedisViewModel"><v:RedisView /></DataTemplate>
+    <DataTemplate DataType="vm:MailViewModel"><v:MailView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="40,*,28">

@@ -126,6 +126,23 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     /// <summary>Donde van los shims de la terminal (<c>php</c>), que se ponen en el PATH del usuario.</summary>
     public string Shims => Path.Combine(Root, "bin", "shims");
 
+    // Servicios (oleada 3): Redis, Mailpit y Adminer.
+
+    /// <summary>El Redis de Roost, una subcarpeta por versión: <c>bin/redis/8.10.2</c>.</summary>
+    public string RedisBin => Path.Combine(Root, "bin", "redis");
+
+    /// <summary>Los datos de Redis (<c>dump.rdb</c> y <c>appendonlydir/</c>). Roost nunca borra nada de aquí.</summary>
+    public string RedisData => Path.Combine(Data, "redis");
+
+    /// <summary>El Mailpit de Roost, una subcarpeta por versión: <c>bin/mailpit/1.32.0</c>.</summary>
+    public string MailpitBin => Path.Combine(Root, "bin", "mailpit");
+
+    /// <summary>La bandeja de Mailpit (<c>mailpit.db</c>). Roost nunca borra nada de aquí.</summary>
+    public string MailpitData => Path.Combine(Data, "mailpit");
+
+    /// <summary>El Adminer de Roost, una subcarpeta por versión: <c>bin/adminer/6.2.0</c>.</summary>
+    public string AdminerBin => Path.Combine(Root, "bin", "adminer");
+
     public static RoostPaths Default()
     {
         var home = Environment.GetEnvironmentVariable(HomeVariable);
