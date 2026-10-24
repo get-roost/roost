@@ -60,7 +60,7 @@ public class ServicesTests : IDisposable
     private static RedisBuild RedisBuildFor(byte[] zip, string? sha = null) =>
         new("8.10.2", new Uri("https://example.test/Redis-8.10.2-Windows-x64-msys2.zip"), sha ?? Sha(zip));
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Redis_Install_QuitaLaCarpetaEnvolvente_YLocateLoEncuentra()
     {
         var zip = Zip(RedisZip);
@@ -90,7 +90,7 @@ public class ServicesTests : IDisposable
         Assert.False(Directory.Exists(Paths.RedisBin) && Directory.EnumerateFileSystemEntries(Paths.RedisBin).Any());
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Redis_Install_SinRedisCli_NoInstala_PorqueNoPodriaPararloLimpio()
     {
         var zip = Zip("Redis-8.10.2-Windows-x64-msys2/redis-server.exe");
@@ -102,7 +102,7 @@ public class ServicesTests : IDisposable
         Assert.Null(installer.Locate());
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Redis_Remove_QuitaLosBinarios_PeroNuncaLosDatos()
     {
         var zip = Zip(RedisZip);
@@ -627,7 +627,7 @@ public class ServicesTests : IDisposable
         Assert.Empty(WindowsServices.Conflicts(services, [8766, 8444, 3408, 6380]));   // con otros puertos, nada
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: los servicios de Windows.")]
     public void WindowsServices_OwnerOf_PorElProcesoQueTieneElPuerto()
     {
         WindowsService[] services =

@@ -60,7 +60,7 @@ public class DbInstallerTests : IDisposable
     private static byte[] MySqlZip(string version) =>
         Zip($"mysql-{version}-winx64/bin/mysqld.exe", $"mysql-{version}-winx64/bin/mysqladmin.exe");
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Install_QuitaLaCarpetaEnvolvente_YQuedaEnBinMotorVersion()
     {
         var zip = MariaDbZip("11.4.13");
@@ -73,7 +73,7 @@ public class DbInstallerTests : IDisposable
         Assert.Equal("mariadb@11.4.13", db.Spec);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Install_SiLaPrimeraUrlDa404_UsaLaSiguiente()
     {
         // Lo que pasa con MySQL cuando sale una release nueva: la anterior se va de Downloads/ a archives/.
@@ -89,7 +89,7 @@ public class DbInstallerTests : IDisposable
         Assert.Equal(2, handler.Requested.Count);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task ListInstalled_MariaDbPrimero_YMatchFiltraPorMotorYVersion()
     {
         foreach (var (engine, version, zip) in new[]
@@ -109,7 +109,7 @@ public class DbInstallerTests : IDisposable
         Assert.Equal(2, DbInstaller.Match(installed, DbSpec.Parse("mariadb")).Count);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Remove_QuitaLosBinarios_PeroNuncaLosDatos()
     {
         var zip = MySqlZip("5.7.44");

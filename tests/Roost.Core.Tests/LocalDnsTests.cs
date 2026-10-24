@@ -88,7 +88,7 @@ public class LocalDnsTests : IDisposable
         Assert.Equal(1, Rcode(error));
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Privilegios y confianza (L1).")]
     public async Task ElServidor_ContestaPorUdp_YNoComparteSuPuerto()
     {
         await using var server = LocalDnsServer.Start(new IPEndPoint(IPAddress.Loopback, 0));

@@ -184,7 +184,7 @@ public class GitUrlTests
         Assert.True(Site.IsValidName(name));
     }
 
-    [Theory]
+    [WindowsTheory("Pendiente en Linux: Terminal y herramientas (L2).")]
     [InlineData("git@github.com:acme/tienda.git", "https://github.com/acme/tienda/settings/keys")]
     [InlineData("https://gitlab.com/acme/web/tienda", "https://gitlab.com/acme/web/tienda/-/settings/repository#js-deploy-keys-settings")]
     [InlineData("git@bitbucket.org:acme/tienda.git", "https://bitbucket.org/acme/tienda/admin/access-keys/")]

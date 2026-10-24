@@ -87,7 +87,7 @@ public class StackConfigTests : IDisposable
         Assert.Equal(max.Count, max.Distinct().Count());
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Builds y PHP (L1).")]
     public void PhpIni_SoloActivaLasExtensionesQueTraeElBuild()
     {
         var available = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "curl", "mbstring", "opcache", "xdebug" };

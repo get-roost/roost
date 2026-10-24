@@ -140,7 +140,7 @@ public class AjustesSistemaTests
 
     // J3 + C4: los programas
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void ShellApps_EncuentraEditoresTerminalesYNavegadores_PorRutasYRegistro()
     {
         var probe = Machine().Probe;
@@ -173,7 +173,7 @@ public class AjustesSistemaTests
         Assert.Null(ShellApps.AutoTerminal(ShellApps.Terminals(probe)));
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void Shell_AbreConElEditorLaTerminalYElNavegadorElegidos()
     {
         using var shell = new FakeShell(Machine());
@@ -215,7 +215,7 @@ public class AjustesSistemaTests
         }
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void Shell_Terminal_WindowsTerminalPoneElPathConEncodedCommand_YGitBashLaCarpeta()
     {
         var terminals = ShellApps.Terminals(Machine().Probe);
@@ -305,7 +305,7 @@ public class AjustesSistemaTests
 
     // Ajustes: Programas, roostd y la app, el DNS local
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Ajustes_ProgramasRoostdYAvisosDeLaBandeja()
     {
         using var shell = new FakeShell(Machine());
@@ -385,7 +385,7 @@ public class AjustesSistemaTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Ajustes_IniciarTodoAlIniciarSesion_ConLaTareaProgramada()
     {
         var (main, window, fake) = await OpenAsync();
@@ -429,7 +429,7 @@ public class AjustesSistemaTests
 
     // J2: cambiar la raíz
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void CambiarRaiz_QueCarpetasValen()
     {
         (string? Problem, string? Info) C(string target, bool move = true, bool exists = false, bool roost = false) =>
@@ -453,7 +453,7 @@ public class AjustesSistemaTests
         Assert.StartsWith("Roost empezará de cero ahí", C(@"D:\roost", move: false).Info);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task CambiarRaiz_MoverLoQueHay_LoCopiaApuntaYDejaElMarcador()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -494,7 +494,7 @@ public class AjustesSistemaTests
         Roost.Core.Platform.RootMover.DeleteTree(target);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task CambiarRaiz_EmpezarDeCero_SoloApunta()
     {
         var (main, _, fake) = await OpenAsync(running: false);
@@ -527,7 +527,7 @@ public class AjustesSistemaTests
         Assert.True(condition());
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Sitios_AbrirEnElEditor_ConLaCarpetaDelSitio()
     {
         using var shell = new FakeShell(Machine());

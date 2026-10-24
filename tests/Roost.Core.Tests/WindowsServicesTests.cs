@@ -13,7 +13,7 @@ public class WindowsServicesTests
     public void ExecutableOf_ConComillasConArgumentosYSinNada(string imagePath, string? expected) =>
         Assert.Equal(expected, WindowsServices.ExecutableOf(imagePath));
 
-    [Theory]
+    [WindowsTheory("Solo en Windows: los servicios de Windows.")]
     [InlineData("MariaDB", "C:\\Program Files\\MariaDB 10.6\\bin\\mysqld.exe", "MariaDB")]   // MariaDB vieja con mysqld.exe
     [InlineData("MySQL80", "C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysqld.exe", "MySQL")]
     [InlineData("MariaDB", "C:\\Program Files\\MariaDB 11.4\\bin\\mariadbd.exe", "MariaDB")]

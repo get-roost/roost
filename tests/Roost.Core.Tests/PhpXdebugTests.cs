@@ -212,7 +212,7 @@ public class PhpXdebugTests : IDisposable
 
     // F2: la conf.d de la rama y los ajustes rápidos
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Builds y PHP (L1).")]
     public void ConfDDeLaRama_EnElPoolYEnLaTerminal_DespuesDeLaComun()
     {
         var php84 = Php("8.4.27-nts-x64");

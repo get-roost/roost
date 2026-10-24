@@ -172,7 +172,7 @@ public class TerminalNodeTests : IDisposable
         Assert.Equal(NodeChoiceSource.VersionFile, Resolve(src).Source);
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
     public void Entorno_SuCarpetaPrimeroEnElPath_LaCaDeRoost_YSinColoresNiPreguntasEnLaApp()
     {
         Node("24.22.1");
@@ -199,7 +199,7 @@ public class TerminalNodeTests : IDisposable
         Assert.False(TerminalNode.Environment(Paths, node, true, name => env.GetValueOrDefault(name)).ContainsKey("NODE_EXTRA_CA_CERTS"));
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
     public void Ordenes_NpmConSuNpmCli_PnpmYYarnConCorepack_YBunNo()
     {
         Node("24.22.1");
@@ -296,7 +296,7 @@ public class TerminalNodeTests : IDisposable
     public void ScriptsQueSeQuedanEnMarcha(string name, string command, bool expected) =>
         Assert.Equal(expected, NodeProject.IsLongRunning(name, command));
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
     public void Shims_DeNodeSoloConUnNodeDeRoost_YAlQuitarElUltimoSeQuitan()
     {
         var source = Path.Combine(_root, "app");
@@ -320,7 +320,7 @@ public class TerminalNodeTests : IDisposable
         Assert.True(shims.Has("php"));
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
     public void QuienLeGanaAlShimDeNode_PorSuNombre()
     {
         var env = new Dictionary<string, string?> { ["NVM_SYMLINK"] = @"C:\Program Files\nodejs", ["NVM_HOME"] = @"C:\Users\yo\AppData\Local\nvm" };

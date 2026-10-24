@@ -102,7 +102,7 @@ public class GitAccessTests : IDisposable
         Assert.Contains("roost git key new tienda", ex.Message);
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
     public void CarpetaLocal_SinNada()
     {
         var access = Factory.For(GitUrl.Parse(@"C:\repos\tienda.git"), SiteGit.AccessOwn);

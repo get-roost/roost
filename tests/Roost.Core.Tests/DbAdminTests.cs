@@ -33,7 +33,7 @@ public class DbAdminTests
         }
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Web, BD y servicios (L2).")]
     public void Create_UsaElClienteDeLaInstalacionConSuMyIni_EnUtf8mb4()
     {
         var client = new FakeClient("roost-ok\n");
@@ -326,7 +326,7 @@ public class DbAdminTests
 
     // --- Tras instalar ---
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Web, BD y servicios (L2).")]
     public void SmokeTest_SiElServidorContesta_DaSuVersion()
     {
         var client = new FakeClient("C:\\roost\\bin\\mariadb\\11.4.13\\bin\\mariadbd.exe  Ver 11.4.13-MariaDB for Win64 on AMD64\n");

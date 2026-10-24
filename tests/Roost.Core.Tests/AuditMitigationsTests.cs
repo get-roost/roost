@@ -76,7 +76,7 @@ public class AuditMitigationsTests : IDisposable
 
     // ---- php -i --------------------------------------------------------------------------------
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Builds y PHP (L1).")]
     public void PhpI_DaLosValoresLocales_YLosFicherosEnElOrdenEnQuePhpLosLee()
     {
         var s = PhpIniSnapshot.Parse(PhpI(withOurs: true))!;

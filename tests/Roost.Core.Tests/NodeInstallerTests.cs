@@ -180,7 +180,7 @@ public class NodeInstallerTests : IDisposable
         Assert.Null(NodeCatalog.ParseShasums("hola\n", "node-v1.0.0-win-x64.zip"));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Install_ExtraeLaCarpetaDelZip_YNoDejaTemporales()
     {
         var zip = Zip("24.22.1");
@@ -228,7 +228,7 @@ public class NodeInstallerTests : IDisposable
         Assert.False(Directory.Exists(Path.Combine(Paths.NodeBin, "22.23.4")));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public void ListInstalled_LaMasNuevaPrimero_YMatchPorRamaOVersion()
     {
         foreach (var v in new[] { "22.23.4", "24.22.1", "22.11.0" })

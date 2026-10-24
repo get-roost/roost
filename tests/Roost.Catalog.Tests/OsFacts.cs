@@ -6,18 +6,22 @@ namespace Roost.Catalog.Tests;
 /// <summary>Un test que solo vale en Windows: en Linux y macOS se salta.</summary>
 public sealed class WindowsFactAttribute : FactAttribute
 {
-    public WindowsFactAttribute()
+    /// <param name="skip">Por qué se salta fuera de Windows: «Solo en Windows: …», o «Pendiente en Linux: &lt;agente&gt;
+    /// (&lt;oleada&gt;)» si es de los que tiene que reactivar quien lleve esa parte a Linux.</param>
+    public WindowsFactAttribute(string skip = "Solo en Windows.")
     {
-        if (!OperatingSystem.IsWindows()) Skip = "Solo en Windows.";
+        if (!OperatingSystem.IsWindows()) Skip = skip;
     }
 }
 
 /// <summary>Una teoría que solo vale en Windows: en Linux y macOS se salta.</summary>
 public sealed class WindowsTheoryAttribute : TheoryAttribute
 {
-    public WindowsTheoryAttribute()
+    /// <param name="skip">Por qué se salta fuera de Windows: «Solo en Windows: …», o «Pendiente en Linux: &lt;agente&gt;
+    /// (&lt;oleada&gt;)» si es de los que tiene que reactivar quien lleve esa parte a Linux.</param>
+    public WindowsTheoryAttribute(string skip = "Solo en Windows.")
     {
-        if (!OperatingSystem.IsWindows()) Skip = "Solo en Windows.";
+        if (!OperatingSystem.IsWindows()) Skip = skip;
     }
 }
 

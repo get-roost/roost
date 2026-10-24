@@ -446,7 +446,7 @@ public class BdDumpViewTests
         }
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Solo en Windows: Laragon.", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Bienvenida_ConLaragon_OfreceSusBasesDeDatos()
     {
         using var laragon = new FakeLaragon();
@@ -485,7 +485,7 @@ public class BdDumpViewTests
         Assert.Empty(plan.Sites);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Solo en Windows: Laragon.", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Bienvenida_TraeLasDeLaragon_ConSuProgreso_YSaltaLasQueYaEstan()
     {
         using var laragon = new FakeLaragon();
@@ -530,7 +530,7 @@ public class BdDumpViewTests
         Assert.True(await bringing);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Solo en Windows: Laragon.", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Bienvenida_SinLaBaseDeDatosDeRoostEnMarcha_LoDiceYSigue()
     {
         using var laragon = new FakeLaragon();

@@ -65,7 +65,7 @@ public class PhpInstallerTests : IDisposable
         return new PhpInstaller(_paths, new HttpClient(handler));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Install_VerificaYExtrae_EnSuCarpetaPorVersion()
     {
         var zip = Zip("php.exe", "php.ini-development", "ext/php_curl.dll");
@@ -104,7 +104,7 @@ public class PhpInstallerTests : IDisposable
         Assert.Empty(Directory.GetDirectories(_paths.PhpBin));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Install_NuncaPisaUnaInstalacionExistente()
     {
         var zip = Zip("php.exe");
@@ -114,7 +114,7 @@ public class PhpInstallerTests : IDisposable
         await Assert.ThrowsAsync<RoostException>(() => installer.InstallAsync(Build(zip)));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Install_ReutilizaLaDescargaVerificadaDeLaCache()
     {
         var zip = Zip("php.exe");
@@ -126,7 +126,7 @@ public class PhpInstallerTests : IDisposable
         Assert.Equal(1, handler.Requests);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Find_CasaPorNombreVersionYRama_YRemoveQuitaLaCarpeta()
     {
         var zip = Zip("php.exe");

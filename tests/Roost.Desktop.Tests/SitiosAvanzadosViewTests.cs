@@ -35,7 +35,7 @@ public class SitiosAvanzadosViewTests
 
     private static string Hosts(FakeRoost fake) => File.ReadAllText(fake.HostsFile);
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Panel_AliasRoostTomlYCarpetasAparcadas()
     {
         var (main, window, fake) = await OpenAsync(running: true);

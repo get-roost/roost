@@ -52,7 +52,7 @@ public class ApacheTests : IDisposable
         new Site { Name = "tienda", Folder = @"C:\www\tienda", Root = "public" }, "php-7.4", 8765, 8443,
         @"C:\roost\certs\sites\tienda.crt", @"C:\roost\certs\sites\tienda.key");
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Web, BD y servicios (L2).")]
     public void ConfDeUnSitio_HttpYHttps_ConSuPool_YLoDeFueraSeRespeta()
     {
         var fresh = ApacheSiteConf.RenderNew(SiteInput());

@@ -542,7 +542,7 @@ jobs:
             if grep -q "ROOST.md" <<< "$out"; then echo "::error::roost $* --help cita ROOST.md"; exit 1; fi
             count=$((count + 1))
             [ "$#" -ge 3 ] && return
-            names="$(sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' <<< "$out" | sed -n '/^COMMANDS:/,$p' | grep -E '^    [a-z]' | awk '{print $1}' | sort -u)"
+            names="$(sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' <<< "$out" | sed -n '/^COMMANDS:/,$p' | { grep -E '^    [a-z]' || true; } | awk '{print $1}' | sort -u)"
             for n in $names; do walk "$@" "$n"; done
           }
           count=0

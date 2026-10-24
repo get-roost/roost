@@ -41,7 +41,7 @@ public class NginxInstallerTests : IDisposable
         return (new NginxInstaller(paths, new HttpClient(new FakeHandler(zip))), build, paths);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: zips de Windows.")]
     public async Task Install_QuitaLaCarpetaEnvolvente_YFindLoEncuentra()
     {
         var (installer, build, paths) = Setup(Zip("nginx-1.30.6/nginx.exe", "nginx-1.30.6/conf/mime.types", "nginx-1.30.6/conf/fastcgi_params"));

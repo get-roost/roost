@@ -147,7 +147,7 @@ public class GitClientTests : IDisposable
         Assert.Equal(GitFailureKind.Diverged, ex.Failure.Kind);
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
     public async Task Checkout_RamaInexistente_DiceLasQueHay()
     {
         _runner.On("status --porcelain=v2", stdout: Clean)

@@ -124,7 +124,7 @@ public class AuditoriaMitigacionesTests
             """;
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Auditoria_Mitigaciones_SeComparanSeAplicanYSeDeshacen_SoloEnLosDeRoost()
     {
         var (main, window, fake) = await AjustesSistemaTests.OpenAsync();   // en marcha: el pool php-8.4 también

@@ -69,7 +69,7 @@ public sealed class LaragonTests : IDisposable
 
     // --- Dónde está y qué tiene ---
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public void Locate_LaVariableManda_YSiNoLaRutaDeUnBinario()
     {
         var fromVariable = LaragonInstall.Locate([], name => name == LaragonInstall.RootVariable ? Laragon : null);
@@ -83,7 +83,7 @@ public sealed class LaragonTests : IDisposable
         Assert.Null(LaragonInstall.Locate([@"C:\xampp\php\php.exe"], _ => null));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public void DbServers_LaQueUsaLaragonPrimero_ConSuDatadirYSuPuerto()
     {
         var servers = new LaragonInstall(Laragon).DbServers();
@@ -104,7 +104,7 @@ public sealed class LaragonTests : IDisposable
         Assert.Equal(Path.Combine(Laragon, "data", "mariadb"), maria.DataDir);   // sin my.ini: la de siempre que tiene mysql dentro
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public void Databases_LasDelUsuario_ConSuNombreDecodificado_YSiValenEnRoost()
     {
         var dbs = LaragonInstall.Databases(MySql84);
@@ -127,7 +127,7 @@ public sealed class LaragonTests : IDisposable
         Assert.Equal("C:/laragon/data/mysql-8", ini["mysqld"]["datadir"]);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public void CopyServerCommand_SinFicherosDeOpciones_SoloEn127_YSinBinlogNiEventos()
     {
         var spec = LaragonDumper.CopyServerCommand(MySql84, @"C:\roost\run\laragon-1\data", @"C:\roost\run\laragon-1", 51234);
@@ -194,7 +194,7 @@ public sealed class LaragonTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public async Task Dump_ConLaragonEnMarcha_VuelcaDeSuServidor_YNoEscribeEnSusCarpetas()
     {
         var before = Snapshot();
@@ -224,7 +224,7 @@ public sealed class LaragonTests : IDisposable
         }
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public async Task Dump_ConContrasena_VaEnElFicheroDeOpciones_YSinElla_LoPide()
     {
         var runner = new FakeLaragon(MySql84.DataDir!) { AccessDenied = "S3cret!" };
@@ -239,7 +239,7 @@ public sealed class LaragonTests : IDisposable
         await Assert.ThrowsAsync<LaragonPasswordException>(() => dumper.DumpAsync(MySql84, ["crm"], "con espacio", null, null, CancellationToken.None));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public async Task Dump_ConLaragonParado_CopiaSusDatos_ArrancaSuServidorSobreLaCopia_YLaBorra()
     {
         var before = Snapshot();
@@ -267,7 +267,7 @@ public sealed class LaragonTests : IDisposable
         Assert.Equal(before, Snapshot());
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public async Task Dump_EnSuPuertoContestaOtroServidor_NoSeVuelcaDeEse()
     {
         var runner = new FakeLaragon(MySql84.DataDir!) { DataDirAnswer = @"C:\\ProgramData\\MySQL\\MySQL Server 8.0\\Data\\" };
@@ -284,7 +284,7 @@ public sealed class LaragonTests : IDisposable
         Assert.DoesNotContain(runner.Calls, c => Path.GetFileName(c.Exe) == "mysqldump.exe" && File.ReadAllText(c.Arguments[0]["--defaults-file=".Length..]).Contains("3419"));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public async Task Dump_ParadoPeroConSusFicherosAbiertos_NoSeCopia()
     {
         var runner = new FakeLaragon(MySql84.DataDir!);
@@ -297,7 +297,7 @@ public sealed class LaragonTests : IDisposable
         Assert.Empty(Directory.GetDirectories(Paths.Run));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public async Task Dump_SiLaCopiaNoArranca_LoDice_YNoDejaNada()
     {
         var runner = new FakeLaragon(MySql84.DataDir!) { ServerCrash = "2026-10-24T03:49:29Z 0 [ERROR] [MY-010119] [Server] Aborting" };
@@ -309,7 +309,7 @@ public sealed class LaragonTests : IDisposable
         Assert.Empty(Directory.GetDirectories(Paths.Run));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public async Task Dump_Cancelado_ParaLaCopiaYNoDejaNada()
     {
         var runner = new FakeLaragon(MySql84.DataDir!);
@@ -332,7 +332,7 @@ public sealed class LaragonTests : IDisposable
         Assert.Empty(Directory.GetDirectories(Paths.Run));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public async Task Dump_NombresQueNoValen_NoLleganANada()
     {
         var runner = new FakeLaragon(MySql84.DataDir!);
@@ -344,7 +344,7 @@ public sealed class LaragonTests : IDisposable
         Assert.Empty(runner.Calls);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: Laragon.")]
     public void IsDataDirInUse_SiOtroLoTieneAbiertoParaEscribir()
     {
         var dir = Path.Combine(Laragon, "data", "mysql-8");

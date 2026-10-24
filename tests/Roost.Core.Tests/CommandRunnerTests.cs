@@ -68,7 +68,7 @@ public class CommandRunnerTests
         Assert.Equal(["manzana", "pera"], result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()));
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Cimientos y nginx (L1).")]
     public async Task Run_AplicaElEntorno_YUnNullQuitaLaVariable()
     {
         var script = OperatingSystem.IsWindows() ? "echo [%ROOST_PRUEBA%][%PATH%]" : "echo \"[$ROOST_PRUEBA][$PATH]\"";

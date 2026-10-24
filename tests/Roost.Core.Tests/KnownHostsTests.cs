@@ -132,7 +132,7 @@ public class KnownHostsTests : IDisposable
         Assert.Equal(OtherEd25519, hosts.For("git.acme.es").Single().Key.Base64);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: el OpenSSH de Windows (ssh-keyscan.exe).")]
     public async Task Scan_CalculaLaHuellaYSoloCogeLasDelServidorPedido()
     {
         // Lo que imprime ssh-keyscan (los comentarios van a stderr), con una linea de otro servidor
@@ -164,7 +164,7 @@ public class KnownHostsTests : IDisposable
         Assert.Contains("Could not resolve hostname", ex.Message);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: el OpenSSH de Windows (ssh-keyscan.exe).")]
     public async Task Scan_ConElKeyscanDeWindowsRoto_LaSacaSshEnUnKnownHostsDeUsarYTirar()
     {
         // Lo que hace el ssh-keyscan del OpenSSH 9.5 de Windows contra github.com (grabado el 24-oct-2026).

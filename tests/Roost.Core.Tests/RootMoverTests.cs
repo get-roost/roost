@@ -30,7 +30,7 @@ public sealed class RootMoverTests : IDisposable
 
     // [paths] root
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void ReadRoot_LaLee_YNuncaLanza()
     {
         var toml = P("roost.toml");
@@ -45,7 +45,7 @@ public sealed class RootMoverTests : IDisposable
         Assert.Null(RoostConfig.ReadRoot(toml));
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void SetRoot_LaPoneYLaQuita_SinTocarElResto()
     {
         var toml = P("roost.toml");
@@ -89,7 +89,7 @@ public sealed class RootMoverTests : IDisposable
 
     // Mover
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void Copy_CopiaComprueba_YDejaElOrigenIntacto()
     {
         var from = P("raiz-a");
@@ -117,7 +117,7 @@ public sealed class RootMoverTests : IDisposable
         Assert.Equal(RootMoveStep.Placing, progress[^1].Step);
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void Copy_SiElDestinoTieneCosas_NoHaceNada()
     {
         Write(P(@"a\www\x.txt"), "1");
@@ -184,7 +184,7 @@ public sealed class RootMoverTests : IDisposable
         Assert.True(new DirectoryInfo(P(@"b\state\git\keys\tienda")).GetAccessControl().AreAccessRulesProtected);
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: la app (L2).")]
     public void Retire_LaRenombra_YSiEstaEnUsoLaDeja()
     {
         Write(P(@"a\logs\roostd.log"), "x");

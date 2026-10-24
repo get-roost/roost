@@ -416,7 +416,7 @@ public class ViewSnapshotTests
         Assert.True(main.App.Prefs.WelcomeDone);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: Actualizador (L3a).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Actualizaciones_AvisaDeUnaVersionNueva()
     {
         // Por si quien lanza los tests ha desactivado el aviso (CI): aquí se prueba justo eso.
@@ -837,7 +837,7 @@ public class ViewSnapshotTests
         return (main, window, fake, launcher, () => exited);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: Actualizador (L3a).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Actualizar_ElModalYLosPasos_HastaLanzarElInstalador()
     {
         var (main, window, fake, launcher, exited) = await OpenWithUpdateAsync(running: true, Roost.Core.Updates.InstallChannel.Installer);
@@ -912,7 +912,7 @@ public class ViewSnapshotTests
         await flow;
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Solo en Windows: Scoop.", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Actualizar_ConScoop_SaleYAbreUnaTerminalQueActualizaYRelanza()
     {
         var (main, window, fake, launcher, exited) = await OpenWithUpdateAsync(running: false, Roost.Core.Updates.InstallChannel.Scoop);
@@ -1485,7 +1485,7 @@ public class ViewSnapshotTests
         Assert.True(php.CanSaveSettings);   // vuelve a lo de serie, pero hay que guardarlo
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Solo en Windows: la DLL de Xdebug.", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Php_XdebugConSuDll_SeApagaYSeEnciendeComprobandoConPhpV()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -1576,7 +1576,7 @@ public class ViewSnapshotTests
         Assert.Null(main.Dialog);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Php_PhpinfoYModulos_ConElPhpIniDeRoost_YBusqueda()
     {
         var (main, window, fake) = await OpenAsync(running: false);

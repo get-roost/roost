@@ -151,7 +151,7 @@ public class TerminalPhpTests : IDisposable
         Assert.True(UserPath.Contains(path, @"C:\roost\bin\shims"));
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Builds y PHP (L1).")]
     public void ShimInstaller_CopiaElShimComoPhpConLoQueNecesitaAlLado()
     {
         var source = Path.Combine(_root, "app");

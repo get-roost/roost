@@ -15,7 +15,7 @@ public class LogonTaskTests
 
     private static readonly Func<string, string?> NoHome = _ => null;
 
-    [Fact]
+    [WindowsFact("Solo en Windows: la tarea programada (schtasks).")]
     public void Xml_EsDelUsuario_SinElevar_SinVentana_YSinLimite()
     {
         var xml = LogonTask.Xml(Exe, @"PORTATIL\ana", @"C:\Windows\System32\conhost.exe");
@@ -65,7 +65,7 @@ public class LogonTaskTests
         Assert.Equal("El servicio no responde.", broken.Error);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: la tarea programada (schtasks).")]
     public async Task Enable_CreaConElXmlEnUtf16_YBorraElTemporal()
     {
         string? file = null;
@@ -85,7 +85,7 @@ public class LogonTaskTests
         Assert.False(File.Exists(file));
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: la tarea programada (schtasks).")]
     public async Task Enable_ConRoostHome_NoCreaNada_YSiSchtasksFallaLoDice()
     {
         var runner = new FakeCommandRunner();

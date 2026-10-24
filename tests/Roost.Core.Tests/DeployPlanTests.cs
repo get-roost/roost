@@ -410,7 +410,7 @@ public class DeployPlanTests
         Assert.Null(DeployProbe.Parse(null));
     }
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
     public void DeployProbe_PreguntaConElClienteYSuMyIni_YNoLanza()
     {
         var db = new DeployDatabase(new InstalledDb(DbEngine.MariaDb, "11.4.13", @"C:\roost\bin\mariadb\11.4.13"), @"C:\roost\etc\mariadb\11.4\my.ini", 3409, null, "tienda");

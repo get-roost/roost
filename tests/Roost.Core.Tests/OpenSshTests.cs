@@ -12,7 +12,7 @@ public class OpenSshTests : IDisposable
 
     private static readonly OpenSshTools Tools = new(@"C:\Windows\System32\OpenSSH");
 
-    [Fact]
+    [WindowsFact("Solo en Windows: el OpenSSH de System32.")]
     public void KeyCommand_SoloLaClaveDeRoost_SinPreguntas_YSoloElKnownHostsDeRoost()
     {
         var command = OpenSsh.KeyCommand(Tools, @"C:\roost\state\git\keys\tienda", @"C:\roost\state\git\known_hosts");
@@ -23,7 +23,7 @@ public class OpenSshTests : IDisposable
             command);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: el OpenSSH de System32.")]
     public void OwnCommand_LasDelUsuario_PeroEstrictoYConLasHuellasDeRoostPrimero()
     {
         var command = OpenSsh.OwnCommand(Tools, @"C:\roost\state\git\known_hosts");

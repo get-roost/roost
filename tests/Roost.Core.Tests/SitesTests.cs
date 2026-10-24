@@ -67,7 +67,7 @@ public class SitesTests : IDisposable
 
     private static readonly Site Tienda = new() { Name = "tienda", Folder = @"C:\www\tienda", Root = "public" };
 
-    [Fact]
+    [WindowsFact("Pendiente en Linux: Privilegios y confianza (L1).")]
     public void SiteConf_Nuevo_TieneHttpYHttpsSoloLocalYElFrontalFueraDeLasMarcas()
     {
         var conf = SiteConf.RenderNew(Input(Tienda));

@@ -84,7 +84,7 @@ public class ShimComposerTests : IDisposable
 
     private const string Shims = @"C:\roost\bin\shims";
 
-    [Fact]
+    [WindowsFact("Solo en Windows: el PATH del sistema y del usuario de Windows.")]
     public void Shadowing_UnComposerBatEnElPathDelSistema_GanaAlShim()
     {
         var shadow = ShimShadowing.Find("composer", Shims,
@@ -108,7 +108,7 @@ public class ShimComposerTests : IDisposable
         Assert.Equal(@"C:\php\php.exe", php?.Path);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: el PATH del sistema y del usuario de Windows.")]
     public void Shadowing_LoQueVaDetrasDeLosShims_NoGana_YLoDeDelanteEnElDelUsuarioSi()
     {
         Assert.Null(ShimShadowing.Find("composer", Shims, @"C:\Windows\system32", Shims + @"\;C:\tools",
