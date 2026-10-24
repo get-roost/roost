@@ -65,6 +65,7 @@ public class DaemonSocketTests : IDisposable
         var socket = Path.Combine(_dir, "roost.sock");
         Assert.False(DaemonHost.IsSocketAlive(socket));   // no existe
 
+        var orphan = Path.Combine(_dir, "huerfano.sock");
         using (var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified))
         {
             listener.Bind(new UnixDomainSocketEndPoint(socket));
@@ -72,13 +73,15 @@ public class DaemonSocketTests : IDisposable
             Assert.True(DaemonHost.IsSocketAlive(socket));
             Assert.Throws<RoostException>(() => DaemonHost.PrepareSocket(socket, ownDirectory: false));   // hay un roostd vivo
             Assert.True(File.Exists(socket));
+            // .NET borra el fichero de un socket que hizo bind al cerrarlo (un roostd muerto con kill -9 no
+            // llega a eso): se aparta antes para dejar un huérfano de verdad, uno al que nadie contesta.
+            File.Move(socket, orphan);
         }
 
-        // Cerrado el que escuchaba, el fichero sigue ahí huérfano: ahora sí se quita.
-        Assert.True(File.Exists(socket));
-        Assert.False(DaemonHost.IsSocketAlive(socket));
-        DaemonHost.PrepareSocket(socket, ownDirectory: false);
-        Assert.False(File.Exists(socket));
+        Assert.True(File.Exists(orphan));
+        Assert.False(DaemonHost.IsSocketAlive(orphan));
+        DaemonHost.PrepareSocket(orphan, ownDirectory: false);
+        Assert.False(File.Exists(orphan));
     }
 
     [LinuxFact]
