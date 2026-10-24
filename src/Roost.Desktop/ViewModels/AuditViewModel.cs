@@ -343,9 +343,7 @@ public sealed partial class AuditViewModel : PageViewModel
             string.Join(" · ", a.Aliases.Append(Gravity(a))),
             a.Kev, a.Title, AdvisoryUrl(a))).ToList();
         Mitigations = f.Mitigations.Select(m => m.ToString()).ToList();
-        var fixedIn = f.MatchedAdvisories.SelectMany(a => a.FixedIn.Values).Distinct().Order().ToList();
-        RealFix = fixedIn.Count == 0 ? null
-            : $"Arreglo real: {KindName(f.Component.Kind)} {string.Join(", ", fixedIn.Take(fixedIn.Count - 1))}{(fixedIn.Count > 1 ? " o " : "")}{fixedIn[^1]}";
+        RealFix = RealFixText(f);
 
         var latest = f.BranchLatest is { } l && ComponentVersion.TryParse(l, out var lv) ? lv : (ComponentVersion?)null;
         ActionLabel = f.Component.Kind switch
@@ -353,6 +351,8 @@ public sealed partial class AuditViewModel : PageViewModel
             ComponentKind.Php when f.Verdict != AuditVerdict.Eol && latest is { } v && v > f.Component.Version => $"Instalar {v}",
             ComponentKind.Php when f.Color != AuditColor.Green => "Elegir otra versión",
             ComponentKind.MariaDb or ComponentKind.MySql when f.Color != AuditColor.Green => "Ver bases de datos",
+            // K2: el nginx y el Apache de Roost van fijados en Roost: se cambian desde Servidor web.
+            ComponentKind.Nginx or ComponentKind.Apache when f.Color != AuditColor.Green && f.Component.Source == "Roost" => "Ver servidor web",
             _ => null,
         };
         Notify();
@@ -363,6 +363,27 @@ public sealed partial class AuditViewModel : PageViewModel
         OnPropertyChanged(nameof(HasAdvisories));
         OnPropertyChanged(nameof(HasMitigations));
         OnPropertyChanged(nameof(HasAction));
+    }
+
+    /// <summary>
+    /// PURO: «Arreglo real: nginx 1.30.6 o posterior» con la mayor de las corregidas en la rama del
+    /// componente; si su rama no tiene arreglo (EOL), la última corregida de cada rama que sí lo tiene
+    /// («PHP 8.2.35, 8.3.36 o 8.4.27»). Null si ningún aviso dice dónde está corregido.
+    /// </summary>
+    public static string? RealFixText(AuditFinding f)
+    {
+        var name = KindName(f.Component.Kind);
+        var branch = $"{f.Component.Version.Major}.{f.Component.Version.Minor}";
+        var byBranch = f.MatchedAdvisories
+            .SelectMany(a => a.FixedIn)
+            .Select(kv => (kv.Key, Ok: ComponentVersion.TryParse(kv.Value, out var v), Version: v))
+            .Where(x => x.Ok)
+            .GroupBy(x => x.Key)
+            .ToDictionary(g => g.Key, g => g.Max(x => x.Version));
+        if (byBranch.TryGetValue(branch, out var mine)) return $"Arreglo real: {name} {mine} o posterior";
+        var fixes = byBranch.Values.Order().Select(v => v.ToString()).ToList();
+        return fixes.Count == 0 ? null
+            : $"Arreglo real: {name} {string.Join(", ", fixes.Take(fixes.Count - 1))}{(fixes.Count > 1 ? " o " : "")}{fixes[^1]}";
     }
 
     /// <summary>«CVSS 9.2» o, si el aviso no trae puntuación, su gravedad («gravedad alta»).</summary>
@@ -382,6 +403,8 @@ public sealed partial class AuditViewModel : PageViewModel
         ComponentKind.Php => "PHP",
         ComponentKind.MySql => "MySQL",
         ComponentKind.MariaDb => "MariaDB",
+        ComponentKind.Nginx => "nginx",
+        ComponentKind.Apache => "Apache",
         _ => kind.ToString(),
     };
 
@@ -487,6 +510,10 @@ public sealed partial class AuditViewModel : PageViewModel
                 await Main.Php.InstallLatestAsync(branch);
             else
                 await Main.NavigateToAsync(Main.Php);
+        }
+        else if (f.Component.Kind is ComponentKind.Nginx or ComponentKind.Apache)
+        {
+            await Main.NavigateToAsync(Main.Web);
         }
         else
         {

@@ -379,6 +379,8 @@ public sealed partial class HomeViewModel : PageViewModel
         ComponentKind.Php => "PHP",
         ComponentKind.MySql => "MySQL",
         ComponentKind.MariaDb => "MariaDB",
+        ComponentKind.Nginx => "nginx",
+        ComponentKind.Apache => "Apache",
         _ => kind.ToString(),
     };
 
