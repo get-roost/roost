@@ -22,6 +22,15 @@ public sealed record CatalogInputs
     /// <summary>Lo que el lector de GHSA no ha podido leer.</summary>
     public IReadOnlyList<string> Skipped { get; init; } = [];
 
+    /// <summary>Los avisos de nginx.org (si el catálogo lleva nginx).</summary>
+    public IReadOnlyList<SourceAdvisory> Nginx { get; init; } = [];
+
+    /// <summary>Los avisos de httpd.apache.org de la 2.4 (si el catálogo lleva Apache).</summary>
+    public IReadOnlyList<SourceAdvisory> Apache { get; init; } = [];
+
+    /// <summary>Lo que no se ha podido leer de nginx.org y httpd.apache.org (cada línea dice de dónde).</summary>
+    public IReadOnlyList<string> WebSkipped { get; init; } = [];
+
     public required IReadOnlySet<string> Kev { get; init; }
     public string KevVersion { get; init; } = "";
     public IReadOnlyList<ManualAdvisory> Manual { get; init; } = [];
@@ -95,12 +104,15 @@ public static class CatalogBuilder
             products[key] = new ProductInfo { DisplayName = meta.DisplayName, Branches = branches };
         }
 
-        // Avisos automáticos (lo más nuevo primero), uno por id.
+        // Avisos automáticos (lo más nuevo primero), uno por id. Un CVE que sale en dos secciones (un
+        // arreglo incompleto y el bueno) junta sus rangos.
         var advisories = new List<Advisory>();
-        foreach (var source in input.PhpSrc.OrderByDescending(s => s.Published))
+        foreach (var source in input.PhpSrc.OrderByDescending(s => s.Published)
+                     .Concat(input.Nginx)
+                     .Concat(input.Apache.OrderByDescending(s => s.Published)))
         {
             var a = source.Advisory;
-            if (advisories.FindIndex(x => Same(x, a.Id)) is var i and >= 0)
+            if (advisories.FindIndex(x => Same(x, a.Id) && x.Product == a.Product) is var i and >= 0)
             {
                 advisories[i] = Overlay(advisories[i], new ManualAdvisory { Id = a.Id, Affected = [.. advisories[i].Affected.Union(a.Affected)] });
                 continue;
@@ -109,8 +121,15 @@ public static class CatalogBuilder
         }
         if (input.PhpSrc.Count == 0)
             errors.Add("GitHub no ha dado ningun aviso de php/php-src");
+        // Una página que de repente no da nada ha cambiado de forma: no se publica sin sus avisos.
+        if (products.ContainsKey("nginx") && input.Nginx.Count == 0)
+            errors.Add("nginx.org no ha dado ningun aviso: puede que haya cambiado security_advisories.html");
+        if (products.ContainsKey("apache") && input.Apache.Count == 0)
+            errors.Add("httpd.apache.org no ha dado ningun aviso: puede que haya cambiado vulnerabilities_24.html");
         foreach (var skipped in input.Skipped)
             warnings.Add($"GHSA sin leer del todo: {skipped}");
+        foreach (var skipped in input.WebSkipped)
+            warnings.Add($"Sin leer del todo: {skipped}");
 
         // Lo escrito a mano.
         var reviewed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -192,7 +211,10 @@ public static class CatalogBuilder
         {
             SchemaVersion = SchemaVersion,
             Generated = new DateTimeOffset(input.Now.UtcDateTime.Ticks / TimeSpan.TicksPerSecond * TimeSpan.TicksPerSecond, TimeSpan.Zero),
-            Source = $"roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src y CISA KEV {input.KevVersion}"
+            Source = $"roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src"
+                     + (products.ContainsKey("nginx") ? ", nginx.org" : "")
+                     + (products.ContainsKey("apache") ? ", httpd.apache.org" : "")
+                     + $" y CISA KEV {input.KevVersion}"
                      + (reviewed.Count > 0 ? $"; {reviewed.Count} revisado(s) a mano" : ""),
             Remediation = remediation,
             Products = products,
@@ -251,7 +273,8 @@ public static class CatalogBuilder
         md.AppendLine();
         foreach (var (key, p) in d.Products)
             md.AppendLine($"- {p.DisplayName}: {p.Branches.Count} ramas ({p.Branches.Count(b => b.Value.Status != "eol")} con soporte)");
-        md.AppendLine($"- Avisos: {d.Advisories.Count} ({d.Advisories.Count(a => a.Kev)} en KEV)");
+        md.AppendLine($"- Avisos: {d.Advisories.Count} ({d.Advisories.Count(a => a.Kev)} en KEV): "
+                      + string.Join(", ", d.Advisories.GroupBy(a => a.Product).Select(g => $"{g.Count()} de {g.Key}")));
         Section(md, "Errores", result.Errors);
         Section(md, "Nuevos", result.New);
         Section(md, "Retenidos hasta que alguien los revise", result.Held);

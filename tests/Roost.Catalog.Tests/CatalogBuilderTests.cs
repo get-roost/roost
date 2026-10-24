@@ -316,14 +316,14 @@ public class CatalogBuilderTests
         var meta = ManualData.LoadMeta(dir);
         var manual = ManualData.LoadAdvisories(dir);
 
-        Assert.Equal(["php", "mysql", "mariadb", "nginx"], meta.Products.Keys);
+        Assert.Equal(["php", "mysql", "mariadb", "nginx", "apache"], meta.Products.Keys);
         Assert.NotEmpty(manual);
         var page = GhsaPage(
             Ghsa("GHSA-w8hw-w9fx-j79w", "CVE-2026-109618", "RCE via OOM corruption", "critical", null, Php2ShellBranches),
             Ghsa("GHSA-6wmf-4rv5-p3rp", "CVE-2026-109619", "RCE via stale global state", "critical", null, Php2ShellBranches));
         var result = CatalogBuilder.Build(Inputs(page, manual) with
         {
-            Meta = new CatalogMeta { Products = new(meta.Products.Where(p => p.Key != "nginx")), Remediation = meta.Remediation },
+            Meta = new CatalogMeta { Products = new(meta.Products.Where(p => p.Key is not ("nginx" or "apache"))), Remediation = meta.Remediation },
         });
 
         Assert.Empty(result.Errors);
