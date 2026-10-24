@@ -2,6 +2,10 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
+## 0.1.10 — en preparación
+
+- **Linux, los primeros arreglos:** lo que aún no funciona en Linux lo dice igual en todos los comandos, sin proponer comandos que allí no van («Prueba: roost php install 8.4»); `roost site hosts` nombra `/etc/hosts` (decía una ruta de Windows que no existe); y la tabla de `roost audit` enseña la versión limpia y los nombres como `roost scan` («PHP», «MariaDB», «nginx»), no la línea entera del binario.
+
 ## 0.1.9 — 24-oct-2026
 
 - **Compartir por internet sin anunciar tu PHP:** las respuestas del túnel ya no llevan `X-Powered-By: PHP/<versión>`, con nginx y con Apache. En tu equipo, el sitio sigue igual.
