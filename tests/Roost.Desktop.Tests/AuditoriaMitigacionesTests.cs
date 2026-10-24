@@ -195,6 +195,54 @@ public class AuditoriaMitigacionesTests
         Assert.False(File.Exists(Path.Combine(@"C:\laragon\bin\php\php-8.4.20-nts-Win32-vs17-x64", PhpMitigations.FileName)));
     }
 
+    /// <summary>
+    /// Solo con <c>ROOST_TEST_AUDIT_HOME</c> (una <c>ROOST_HOME</c> de pruebas): la pantalla con un
+    /// escaneo de verdad de la máquina (solo <c>-v</c> y <c>php -i</c>: nada se arranca ni se cambia) y,
+    /// si se da <c>ROOST_TEST_AUDIT_DATASET</c>, los PHP evaluados con ese dataset y comparados con su
+    /// php -i real. Sin red: el feed da 404. Deja <c>real-auditoria*.png</c>.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task EnReal_ElEscaneoDeLaMaquina_ConNginxApacheYMitigaciones()
+    {
+        var home = Environment.GetEnvironmentVariable("ROOST_TEST_AUDIT_HOME");
+        if (string.IsNullOrWhiteSpace(home) || !Directory.Exists(home))
+            Assert.Skip("Define ROOST_TEST_AUDIT_HOME=<una ROOST_HOME de pruebas> para escanear la maquina de verdad.");
+        var before = Environment.GetEnvironmentVariable(Roost.Core.Platform.RoostPaths.HomeVariable);
+        Environment.SetEnvironmentVariable(Roost.Core.Platform.RoostPaths.HomeVariable, home);
+        try
+        {
+            using var http = new HttpClient(new FakeUpstream());
+            var main = new MainViewModel(new Roost.Desktop.Services.AppServices(Roost.Core.Platform.RoostPaths.Default(), http, version: FakeRoost.Version));
+            main.Stack.Show(null);
+            var window = new Roost.Desktop.Views.MainWindow { DataContext = main };
+            window.Show();
+            await main.Current.ShownAsync();
+            await main.NavigateToAsync(main.AuditPage);
+            await main.Audit.ScanAsync();
+            Assert.Contains(main.Audit.Findings, f => f.Component.Kind == ComponentKind.Nginx);
+            Assert.Contains(main.Audit.Findings, f => f.Component.Kind == ComponentKind.Apache);
+            AjustesSistemaTests.ScrollTo(window, 300);
+            AjustesSistemaTests.Snapshot(window, "real-auditoria");
+
+            if (Environment.GetEnvironmentVariable("ROOST_TEST_AUDIT_DATASET") is { Length: > 0 } file && File.Exists(file))
+            {
+                var evaluator = new AuditEvaluator(AuditDataset.LoadFile(file));
+                var findings = evaluator.EvaluateAll(main.Audit.Findings.Select(f => f.Component)).ToList();
+                main.Audit.Show(Sorted(await main.Audit.Mitigations!.CheckAllAsync(findings)));
+                var audit = main.AuditPage;
+                audit.ChooseCommand.Execute(audit.Rows.First(r => r.Name == "PHP" && r.Version.StartsWith("8.5", StringComparison.Ordinal)));
+                Assert.NotEmpty(audit.Mitigations);
+                Assert.All(audit.Mitigations, l => Assert.NotEqual("Sin comprobar", l.Status));
+                AjustesSistemaTests.ScrollTo(window, 900);
+                AjustesSistemaTests.Snapshot(window, "real-auditoria-mitigaciones");
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(Roost.Core.Platform.RoostPaths.HomeVariable, before);
+        }
+    }
+
     [Fact]
     public void LaLineaDeUnaMitigacion_DiceSuEstadoConSusTextos()
     {
