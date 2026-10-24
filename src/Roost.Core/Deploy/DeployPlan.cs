@@ -360,7 +360,9 @@ public static partial class DeployPlan
                 Kind = DeployStepKind.AppKey,
                 Label = "php artisan key:generate",
                 Command = "php artisan key:generate",
-                Hint = "La clave de la aplicacion (APP_KEY esta vacia).",
+                Hint = target.Fresh
+                    ? "La clave de la aplicacion (si create-project ya la ha puesto, se deja)."
+                    : "La clave de la aplicacion (APP_KEY esta vacia).",
                 Checked = true,
                 RunsProjectCode = true,
             });

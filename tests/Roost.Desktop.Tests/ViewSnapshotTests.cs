@@ -2189,9 +2189,11 @@ public class ViewSnapshotTests
         Assert.Equal(3, runner.Calls.Count);   // composer (falla), composer otra vez y key:generate
         Assert.Equal("", dialog.FailureTail);
 
-        dialog.FinishCommand.Execute(null);
+        // Cerrado con la X (o Escape) también vale: el panel vuelve a mirar el proyecto.
+        dialog.DismissCommand.Execute(null);
         await showing;
         Assert.Null(main.Dialog);
+        Assert.True(sites.Project!.HasEnv);
     }
 
     [AvaloniaFact]

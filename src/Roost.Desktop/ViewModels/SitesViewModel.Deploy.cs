@@ -95,12 +95,13 @@ public sealed partial class SitesViewModel
             var dialog = new DeployStepsDialogViewModel(mode, kind, target, steps,
                 (step, lines, cancel) => RunDeployStepAsync(runner, target, step, lines, cancel),
                 text => Main.CopyAsync(text, "Salida de los pasos copiada"));
-            var result = await Main.ShowDialogAsync(dialog) as DeployDialogResult;
+            await Main.ShowDialogAsync(dialog);
 
-            if (result?.Ran != true) return;
+            // Por el estado del diálogo y no por lo que devuelve: cerrado con la X o con Escape también vale.
+            if (dialog.Idle) return;
             Main.NotifyConfigChanged();
             if (Selected?.Site.Name == site.Name) PickComposer(site);
-            if (result.Succeeded) Main.Flash($"Pasos de {site.Host} hechos");
+            if (dialog.Succeeded) Main.Flash($"Pasos de {site.Host} hechos");
         }
         finally
         {

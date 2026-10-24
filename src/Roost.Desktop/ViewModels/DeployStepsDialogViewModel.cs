@@ -477,7 +477,9 @@ internal static class DeployTexts
                 + (target.MailSmtpPort is not null ? "; el correo a Mailpit" : "")
                 + (target.RedisPort is not null ? step.PredisMissing ? "; Redis con predis (el proyecto aún no lo tiene: composer require predis/predis)" : "; Redis con predis" : "")
                 + ".",
-            DeployStepKind.AppKey => "La clave de la aplicación (APP_KEY está vacía).",
+            DeployStepKind.AppKey => target.Fresh
+                ? "La clave de la aplicación (si create-project ya la ha puesto, se deja)."
+                : "La clave de la aplicación (APP_KEY está vacía).",
             DeployStepKind.Migrate => step.DbState switch
             {
                 DbState.Stopped => $"La base de datos está parada: arranca Roost para migrar {db?.Name}.",
