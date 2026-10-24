@@ -563,6 +563,11 @@ public sealed partial class PhpViewModel : PageViewModel
         var build = XdebugCatalog.For(card.Php)!;
         var installer = new XdebugInstaller(Main.App.Paths, Main.App.Http);
         if (installer.Find(build) is not null) return true;
+        if (Installing is not null)
+        {
+            await Main.InfoAsync("Ya hay una instalación en curso", $"Espera a que termine {Installing}.");
+            return false;
+        }
 
         var steps = new List<InstallStep>
         {
@@ -587,7 +592,7 @@ public sealed partial class PhpViewModel : PageViewModel
                 await installer.InstallAsync(build, bytes, cancel);
                 d.Step(3, "Instalando");
             });
-        await RunInstallAsync(dialog, build.Label);
+        await RunInstallAsync(dialog, build.Label, Path.GetDirectoryName(installer.DllPath(build)));
         return !dialog.Failed && await dialog.Finished && installer.Find(build) is not null;
     }
 
@@ -707,7 +712,8 @@ public sealed partial class PhpViewModel : PageViewModel
     }
 
     /// <summary>Enseña el diálogo de instalación y espera al resultado, aunque se haya pasado a segundo plano.</summary>
-    private async Task RunInstallAsync(InstallDialogViewModel dialog, string what)
+    /// <param name="where">Dónde queda, para el aviso si se pasó a segundo plano; null es la carpeta de los PHP.</param>
+    private async Task RunInstallAsync(InstallDialogViewModel dialog, string what, string? where = null)
     {
         Installing = what;
         dialog.PropertyChanged += (_, e) =>
@@ -725,7 +731,7 @@ public sealed partial class PhpViewModel : PageViewModel
         if (shown is null && dialog.Failed)
             await Main.InfoAsync($"No se instaló {what}", dialog.Error!, Tone.Bad);
         else if (shown is null && !dialog.Failed)
-            await Main.InfoAsync($"{what} instalado", $"Ya está en {Main.App.Paths.PhpBin}.", Tone.Ok);
+            await Main.InfoAsync($"{what} instalado", $"Ya está en {where ?? Main.App.Paths.PhpBin}.", Tone.Ok);
     }
 
     [RelayCommand]
