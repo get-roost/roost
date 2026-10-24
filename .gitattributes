@@ -1,2 +1,6 @@
 # Los scripts de bash se ejecutan en el runner de Linux: con CRLF, bash falla.
 *.sh text eol=lf
+
+# El C# con LF en todos los sistemas: los literales de varias lineas de los tests valen lo mismo en
+# Windows que en Linux (con autocrlf, en Windows llevarian CRLF y en el runner de Linux LF).
+*.cs text eol=lf
