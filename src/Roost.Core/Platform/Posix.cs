@@ -85,6 +85,12 @@ public static class Posix
     /// Manda stdout y stderr de este proceso al final de <paramref name="logFile"/> y stdin a <c>/dev/null</c>
     /// (<c>dup2</c>): lo que hace un daemon con lo que heredó de quien lo lanzó. Los descriptores que se
     /// abren se quedan abiertos para siempre (son los del proceso). false si no se pudo o en Windows.
+    /// <para>
+    /// .NET puede haber copiado ya esos descriptores al iniciar la consola (<c>Console.Out</c> se queda con
+    /// un <c>dup</c> de stdout): si una copia sigue apuntando a la tubería o a la terminal de quien lanzó
+    /// el daemon, esa orden no ve nunca el final de su salida (<c>roost up | tee up.log</c> no acaba). Esas
+    /// copias se tapan también, con el log (o con <c>/dev/null</c> la de stdin).
+    /// </para>
     /// </summary>
     public static bool RedirectStdioTo(string logFile)
     {
@@ -92,11 +98,19 @@ public static class Posix
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(logFile)!);
+            var inherited = new[] { DescriptorTarget(0), DescriptorTarget(1), DescriptorTarget(2) };
             var log = File.Open(logFile, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
             var devNull = File.Open("/dev/null", FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            var ok = dup2((int)log.SafeFileHandle.DangerousGetHandle(), 1) != -1
-                     & dup2((int)log.SafeFileHandle.DangerousGetHandle(), 2) != -1
-                     & dup2((int)devNull.SafeFileHandle.DangerousGetHandle(), 0) != -1;
+            var logFd = (int)log.SafeFileHandle.DangerousGetHandle();
+            var nullFd = (int)devNull.SafeFileHandle.DangerousGetHandle();
+            var ok = dup2(logFd, 1) != -1 & dup2(logFd, 2) != -1 & dup2(nullFd, 0) != -1;
+            foreach (var fd in OpenDescriptors())
+            {
+                if (fd <= 2 || fd == logFd || fd == nullFd) continue;
+                var target = DescriptorTarget(fd);
+                var which = Array.IndexOf(inherited, target);
+                if (which >= 0 && IsSharedStream(target)) dup2(which == 0 ? nullFd : logFd, fd);
+            }
             // No se cierran: dup2 ya ha copiado los descriptores, pero así quedan vivos los originales también.
             GC.KeepAlive(log);
             GC.KeepAlive(devNull);
@@ -111,6 +125,26 @@ public static class Posix
     }
 
     private static readonly List<IDisposable> _kept = [];
+
+    /// <summary>A qué apunta un descriptor de este proceso (<c>/proc/self/fd/N</c>: «pipe:[123]», «/dev/pts/0»…); null si no se sabe.</summary>
+    private static string? DescriptorTarget(int fd)
+    {
+        try { return new FileInfo($"/proc/self/fd/{fd}").LinkTarget; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    private static IEnumerable<int> OpenDescriptors()
+    {
+        string[] entries;
+        try { entries = Directory.GetFileSystemEntries("/proc/self/fd"); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return []; }
+        return entries.Select(e => int.TryParse(Path.GetFileName(e), out var fd) ? fd : -1).Where(fd => fd >= 0).ToList();
+    }
+
+    /// <summary>PURO: si un descriptor heredado es de los que mantienen viva la salida de quien lanzó el proceso (una tubería, un socket, una terminal).</summary>
+    internal static bool IsSharedStream(string? target) =>
+        target is not null && (target.StartsWith("pipe:", StringComparison.Ordinal) || target.StartsWith("socket:", StringComparison.Ordinal)
+                               || target.StartsWith("/dev/pts/", StringComparison.Ordinal) || target.StartsWith("/dev/tty", StringComparison.Ordinal));
 
     /// <summary>El uid efectivo de este proceso; -1 en Windows.</summary>
     public static int Uid
