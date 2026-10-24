@@ -63,8 +63,8 @@ public sealed class LocalCa(RoostPaths paths)
         request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
         request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], false)); // serverAuth
         var san = new SubjectAlternativeNameBuilder();
-        san.AddDnsName(site.Host);
-        san.AddDnsName("*." + site.Host);
+        // El sitio y *.sitio y, con alias (C7), cada alias con el suyo (SiteAliases.CertNames).
+        foreach (var name in SiteAliases.CertNames(site)) san.AddDnsName(name);
         request.CertificateExtensions.Add(san.Build());
         request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
         request.CertificateExtensions.Add(X509AuthorityKeyIdentifierExtension.CreateFromCertificate(ca, true, false));
@@ -162,11 +162,40 @@ public sealed class LocalCa(RoostPaths paths)
             chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
             chain.ChainPolicy.CustomTrustStore.Add(ca);
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-            return chain.Build(cert) && cert.MatchesHostname(site.Host);
+            return chain.Build(cert) && cert.MatchesHostname(site.Host) && HasNames(cert, SiteAliases.CertNames(site));
         }
         catch
         {
             return false; // ilegible: se vuelve a emitir
+        }
+    }
+
+    /// <summary>
+    /// true si los nombres DNS del certificado son exactamente <paramref name="wanted"/>: un alias nuevo
+    /// o quitado (C7) hace que se vuelva a emitir. Las IP del SAN, si las hay, no cuentan aquí.
+    /// </summary>
+    private static bool HasNames(X509Certificate2 cert, IReadOnlyList<string> wanted) =>
+        DnsNames(cert).ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(wanted);
+
+    /// <summary>Los nombres DNS del SAN de un certificado (vacío si no lo tiene).</summary>
+    public static IReadOnlyList<string> DnsNames(X509Certificate2 cert)
+    {
+        var ext = cert.Extensions.FirstOrDefault(e => e.Oid?.Value == "2.5.29.17");
+        return ext is null ? [] : new X509SubjectAlternativeNameExtension(ext.RawData, ext.Critical).EnumerateDnsNames().ToList();
+    }
+
+    /// <summary>Los nombres DNS del certificado de un sitio, para enseñarlos (vacío si no hay o no se lee).</summary>
+    public IReadOnlyList<string> SiteCertNames(string site)
+    {
+        try
+        {
+            if (!File.Exists(SiteCertFile(site))) return [];
+            using var cert = X509Certificate2.CreateFromPem(File.ReadAllText(SiteCertFile(site)));
+            return DnsNames(cert);
+        }
+        catch (Exception ex) when (ex is IOException or CryptographicException or ArgumentException)
+        {
+            return [];
         }
     }
 

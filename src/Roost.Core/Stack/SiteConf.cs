@@ -22,17 +22,30 @@ public static class SiteConf
         string CertFile,
         string KeyFile,
         string FastCgiParams,
-        bool Ipv6 = true);
+        bool Ipv6 = true)
+    {
+        /// <summary>
+        /// Sitios avanzados (C5): la carpeta de los registros por sitio (<c>logs/sites</c>); null = los
+        /// del servidor (<c>nginx-access.log</c>), como antes.
+        /// </summary>
+        public string? LogsDirectory { get; init; }
+    }
+
+    /// <summary>Las directivas de los registros del sitio (C5), o nada sin carpeta.</summary>
+    private static string Logs(Input input) => input.LogsDirectory is not { } dir ? "" : $$"""
+            access_log "{{NginxConf.Nginx(dir)}}/{{input.Site.Name}}-access.log";
+            error_log "{{NginxConf.Nginx(dir)}}/{{input.Site.Name}}-error.log" warn;
+
+        """;
 
     /// <summary>PURO: el bloque que regenera Roost, marcas incluidas, sangrado para ir dentro de <c>server { }</c>.</summary>
     public static string RenderBlock(Input input)
     {
-        var host = input.Site.Host;
         return $$"""
                 {{Begin}}  (lo regenera Roost en cada roost up; edita fuera de las marcas)
             {{NginxConf.Listen(input.HttpPort, input.Ipv6, "    ")}}{{NginxConf.Listen(input.HttpsPort, input.Ipv6, "    ", " ssl")}}    http2 on;
-                server_name {{host}} *.{{host}};
-                root "{{NginxConf.Nginx(input.Site.DocumentRoot)}}";
+                server_name {{string.Join(' ', SiteAliases.ServerNames(input.Site))}};
+            {{Logs(input)}}    root "{{NginxConf.Nginx(input.Site.DocumentRoot)}}";
                 index index.php index.html index.htm;
                 ssl_certificate "{{NginxConf.Nginx(input.CertFile)}}";
                 ssl_certificate_key "{{NginxConf.Nginx(input.KeyFile)}}";

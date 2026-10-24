@@ -190,17 +190,31 @@ public static class ApacheSiteConf
 {
     /// <summary>Lo que necesita el bloque de Roost; todas las rutas, absolutas.</summary>
     /// <param name="Ipv6">Escuchar también en <c>[::1]</c> (false en una máquina sin IPv6 en loopback).</param>
-    public sealed record Input(Site Site, string Pool, int HttpPort, int HttpsPort, string CertFile, string KeyFile, bool Ipv6 = true);
+    public sealed record Input(Site Site, string Pool, int HttpPort, int HttpsPort, string CertFile, string KeyFile, bool Ipv6 = true)
+    {
+        /// <summary>
+        /// Sitios avanzados (C5): la carpeta de los registros por sitio (<c>logs/sites</c>); null = los
+        /// del servidor (<c>apache-access.log</c>), como antes.
+        /// </summary>
+        public string? LogsDirectory { get; init; }
+    }
+
+    /// <summary>Los registros del sitio (C5), en los dos VirtualHost; nada sin carpeta. El formato es el <c>combined</c> de httpd.conf.</summary>
+    private static string Logs(Input input) => input.LogsDirectory is not { } dir ? "" : $$"""
+            ErrorLog "{{ApacheConf.Path(dir)}}/{{input.Site.Name}}-error.log"
+            CustomLog "{{ApacheConf.Path(dir)}}/{{input.Site.Name}}-access.log" combined
+
+        """;
 
     /// <summary>PURO: el bloque que regenera Roost, marcas incluidas.</summary>
     public static string RenderBlock(Input input)
     {
-        var host = input.Site.Host;
+        var names = SiteAliases.ServerNames(input.Site);
         var root = ApacheConf.Path(input.Site.DocumentRoot);
         var common = $$"""
-                ServerName {{host}}
-                ServerAlias *.{{host}}
-                DocumentRoot "{{root}}"
+                ServerName {{names[0]}}
+                ServerAlias {{string.Join(' ', names.Skip(1))}}
+            {{Logs(input)}}    DocumentRoot "{{root}}"
                 <Directory "{{root}}">
                     Options Indexes FollowSymLinks
                     AllowOverride All

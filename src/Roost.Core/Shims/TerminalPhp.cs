@@ -15,7 +15,7 @@ public sealed record PhpChoice(InstalledPhp Php, string Reason);
 /// <c>php</c> en cada llamada, en este orden:
 /// <list type="number">
 /// <item>la variable <see cref="VersionVariable"/> (para un script o una sola orden);</item>
-/// <item>un <see cref="VersionFile"/> en la carpeta o en una superior (versionable en git);</item>
+/// <item>un <see cref="VersionFile"/>, o el <c>php</c> de un <c>.roost.toml</c>, en la carpeta o en una superior (versionables en git);</item>
 /// <item>el PHP propio del sitio cuya carpeta contiene a esta;</item>
 /// <item>el PHP global (<c>[php] version</c>, o el más nuevo instalado).</item>
 /// </list>
@@ -36,11 +36,12 @@ public static class TerminalPhp
             return Pick(installed, pinned.Trim(), $"{VersionVariable}={pinned.Trim()}");
 
         directory = Path.GetFullPath(directory);
-        if (FindVersionFile(directory) is { } file)
+        if (FindProjectPhp(directory) is { } found)
         {
-            var spec = ReadVersionFile(file)
-                ?? throw new RoostException($"{file} esta vacio: pon una version (8.3, 8.3.36) o borralo.");
-            return Pick(installed, spec, $"{file} pide {spec}");
+            // Sitios avanzados (C11): el php del .roost.toml vale como un .php-version; "global" es el global.
+            if (found.Spec.Equals("global", StringComparison.OrdinalIgnoreCase))
+                return Global(paths, installed, $"{found.File} pide el PHP global");
+            return Pick(installed, found.Spec, $"{found.File} pide {found.Spec}");
         }
 
         if (FindSite(new SiteRegistry(paths).Load(), directory) is { } site)
@@ -95,6 +96,29 @@ public static class TerminalPhp
             if (end < 0) end = line.Length;
         }
         return line[end..].TrimStart(' ', '\t');
+    }
+
+    /// <summary>
+    /// El PHP que pide la carpeta, subiendo desde <paramref name="directory"/>: en cada carpeta, primero
+    /// su <see cref="VersionFile"/> y luego el <c>php</c> de su <c>.roost.toml</c> (C11; uno sin
+    /// <c>php</c> no cuenta). El más cercano gana. null si ninguno pide nada. Lanza
+    /// <see cref="RoostException"/> con un <c>.php-version</c> vacío o un <c>.roost.toml</c> roto.
+    /// </summary>
+    public static (string File, string Spec)? FindProjectPhp(string directory)
+    {
+        for (var dir = new DirectoryInfo(directory); dir is not null; dir = dir.Parent)
+        {
+            var version = Path.Combine(dir.FullName, VersionFile);
+            if (File.Exists(version))
+            {
+                var spec = ReadVersionFile(version)
+                    ?? throw new RoostException($"{version} esta vacio: pon una version (8.3, 8.3.36) o borralo.");
+                return (version, spec);
+            }
+            if (ProjectFile.ExistsIn(dir.FullName) && ProjectFile.Read(dir.FullName)?.Php is { } php)
+                return (ProjectFile.PathIn(dir.FullName), php);
+        }
+        return null;
     }
 
     /// <summary>El <see cref="VersionFile"/> más cercano subiendo desde <paramref name="directory"/>, o null.</summary>

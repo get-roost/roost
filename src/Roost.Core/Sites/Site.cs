@@ -32,7 +32,24 @@ public sealed partial record Site
     /// <summary>El repositorio del que viene el sitio (ROOST.md: git al estilo Plesk); null en los sitios de siempre.</summary>
     public SiteGit? Git { get; init; }
 
+    /// <summary>
+    /// Sitios avanzados (C7): otros nombres <c>.test</c> por los que se sirve el sitio, ya
+    /// normalizados (<see cref="SiteAliases"/>): un alias (<c>tienda-alias.test</c>) o un subdominio
+    /// suyo (<c>api.tienda.test</c>). null o vacío = ninguno.
+    /// </summary>
+    public IReadOnlyList<string>? Aliases { get; init; }
+
+    /// <summary>
+    /// Sitios avanzados (C3): la carpeta aparcada de la que sale el sitio (cada subcarpeta suya es un
+    /// sitio); null = registrado a mano. Si su carpeta desaparece, Roost lo quita solo.
+    /// </summary>
+    public string? ParkedIn { get; init; }
+
     public string Host => $"{Name}.test";
+
+    /// <summary>Todos los nombres del sitio que tienen que resolver: el suyo y sus alias (para el hosts).</summary>
+    [JsonIgnore]
+    public IReadOnlyList<string> HostNames => [Host, .. Aliases ?? []];
 
     public string DocumentRoot => Root is null ? Folder : Path.GetFullPath(Path.Combine(Folder, Root));
 
@@ -126,10 +143,18 @@ public sealed class SiteRegistry(RoostPaths paths)
     private void Save(IEnumerable<Site> sites)
     {
         Directory.CreateDirectory(paths.State);
-        // Escritura atómica: un corte a medias no deja un sites.json roto.
-        var temp = FilePath + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(sites.OrderBy(s => s.Name, StringComparer.Ordinal).ToList(), SiteJson.Default.ListSite));
-        File.Move(temp, FilePath, overwrite: true);
+        // Escritura atómica: un corte a medias no deja un sites.json roto. El temporal es único: la
+        // app y el daemon pueden escribir a la vez (los dos vigilan las carpetas aparcadas, C3).
+        var temp = $"{FilePath}.tmp-{Guid.NewGuid():N}";
+        try
+        {
+            File.WriteAllText(temp, JsonSerializer.Serialize(sites.OrderBy(s => s.Name, StringComparer.Ordinal).ToList(), SiteJson.Default.ListSite));
+            File.Move(temp, FilePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temp)) Install.InstallFiles.TryDeleteFile(temp);
+        }
     }
 }
 
