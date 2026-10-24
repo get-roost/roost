@@ -44,6 +44,7 @@ public partial class App : Application
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             var services = new AppServices();
+            StartLog(services, desktop.Args);
             ApplyTheme(services.Prefs.Theme);
             _main = new MainViewModel(services);
             _window = new MainWindow { DataContext = _main, Icon = AppIcon.Window() };
@@ -62,6 +63,7 @@ public partial class App : Application
             {
                 _tray?.Dispose();
                 services.Dispose();
+                AppLog.Stop("Roost se cierra");
             };
             _ = StartupAsync(_main.InitializeAsync(), args);
         }
@@ -110,6 +112,19 @@ public partial class App : Application
             }
         });
         if (renewed) _main.Flash("El php de la terminal ya es el de esta versión");
+    }
+
+    /// <summary>
+    /// J6: el log de la app (<c>logs/roost-desktop.log</c>). Además del arranque y los errores de
+    /// los diálogos, lo que falla sin que nadie lo recoja y los avisos de Avalonia.
+    /// </summary>
+    private static void StartLog(AppServices services, string[]? args)
+    {
+        AppLog.Start(services.Paths, services.Version, args);
+        Avalonia.Logging.Logger.Sink = new AppLog.AvaloniaSink(Avalonia.Logging.Logger.Sink);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) => AppLog.Error("Error sin recoger (la app se cierra)", e.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, e) => AppLog.Error("Una tarea en segundo plano falló sin que nadie lo viera", e.Exception);
+        Dispatcher.UIThread.UnhandledException += (_, e) => AppLog.Error("Error sin recoger en la ventana", e.Exception);
     }
 
     /// <summary>"system", "light" o "dark".</summary>
