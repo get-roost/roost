@@ -5,6 +5,7 @@ using Roost.Core;
 using Roost.Core.Config;
 using Roost.Core.Dns;
 using Roost.Core.Platform;
+using Roost.Core.Share;
 using Roost.Core.Shims;
 using Roost.Core.Sites;
 using Roost.Core.Updates;
@@ -17,6 +18,7 @@ namespace Roost.Cli.Commands;
 /// <c>roost uninstall-cleanup</c> (oculto): lo lanza el desinstalador, ya elevado, antes de borrar
 /// los ficheros. Quita lo que Roost puso FUERA de su carpeta: la regla NRPT (sin ella, los .test de
 /// otras herramientas dejarian de resolver), el bloque del hosts, los shims del PATH del usuario,
+/// las reglas «Roost LAN» del cortafuegos (roost share --lan),
 /// el arranque con Windows (la app y la tarea que arranca el stack) y, salvo <c>--keep-ca</c>, la CA de los certificados de confianza y lo
 /// de Firefox. Nunca toca los datos, los proyectos ni la configuracion (salvo volver a
 /// <c>[sites] resolver = "hosts"</c> si quita la regla). Cada paso va por su cuenta: si uno falla,
@@ -70,6 +72,15 @@ public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Se
                 return "no estaba";
             run.DeleteValue("Roost", throwOnMissingValue: false);
             return "quitado de HKCU\\...\\Run";
+        });
+
+        // Compartir (oleada 6): las reglas "Roost LAN <puerto>" de roost share --lan que hayan quedado.
+        Step(log, "cortafuegos", () =>
+        {
+            var ports = LanFirewall.RulePortsAsync(Roost.Core.Scanning.CommandRunner.Default).GetAwaiter().GetResult();
+            if (ports.Count == 0) return "no habia reglas de Roost";
+            foreach (var port in ports) LanFirewall.Remove(SiteSupport.HelperExe, port);
+            return $"quitada(s) {string.Join(", ", ports.Select(LanFirewall.RuleName))}";
         });
 
         // E4: la tarea que arranca el stack al iniciar sesion lanzaria un roost.exe que ya no esta.

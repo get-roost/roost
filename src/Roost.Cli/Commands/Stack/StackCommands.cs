@@ -130,8 +130,11 @@ public sealed class DownCommand : AsyncCommand<EmptyCommandSettings>
             return 0;
         }
 
+        // Compartir (oleada 6): lo compartido se para con el stack; lo de la red local deja su regla del cortafuegos.
+        var shared = await Share.ShareSupport.CurrentAsync(client, cancellation);
         await client.DownAsync(cancellation);
         AnsiConsole.MarkupLine("[green]Parado.[/]");
+        Share.ShareSupport.AfterDown(shared);
         return 0;
     }
 }
