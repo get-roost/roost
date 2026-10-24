@@ -2,7 +2,7 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
-## 0.1.7 — en preparación
+## 0.1.7 — 24-oct-2026
 
 - **Node, gratis:** Roost instala Node de nodejs.org (las LTS 24 y 22, verificadas con su SHA-256 antes de instalar nada) con `roost node install`, o desde el panel de un sitio con «Instalar Node 24 (LTS)». `roost node list` dice cuáles tienes, cuáles ofrece Roost y si están en mantenimiento o sin parches; `roost node use 24` fija el global, y `roost node use 22 --here`, el del proyecto (escribe un `.nvmrc`).
 - **node, npm y npx en la terminal según la carpeta:** con los shims puestos, usan el Node que pide el `.nvmrc` o el `.node-version` del proyecto (como nvm y fnm), el que cumple su `engines.node` o el global. Si otro Node te gana en el PATH (el instalador de nodejs.org, nvm-windows, Volta, fnm), `roost node status` y `roost shims status` lo dicen y cómo arreglarlo. Tu caché de npm y tu `.npmrc` no se tocan.
