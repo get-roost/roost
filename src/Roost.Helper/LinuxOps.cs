@@ -201,10 +201,10 @@ internal static class LinuxOps
             if (!Directory.Exists(parent))
             {
                 Directory.CreateDirectory(parent);
-                File.SetUnixFileMode(parent, LinuxFiles.Mode755);
+                LinuxFiles.SetMode(parent, LinuxFiles.Mode755);
             }
             Directory.CreateDirectory(WwwPath);
-            File.SetUnixFileMode(WwwPath, LinuxFiles.Mode755);
+            LinuxFiles.SetMode(WwwPath, LinuxFiles.Mode755);
             if (!Posix.Chown(WwwPath, user.Uid, user.Gid))
             {
                 Log.Write($"www-init: chown de {WwwPath} fallo (errno {Posix.Errno})");
@@ -436,11 +436,19 @@ internal static class LinuxFiles
     public const UnixFileMode Mode644 = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead;
     public const UnixFileMode Mode755 = Mode644 | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
 
-    public static void WriteAtomic(string path, string text)
+    public static void WriteAtomic(string path, string text, UnixFileMode mode = Mode644)
     {
         var temp = path + ".roost-tmp";
         File.WriteAllText(temp, text);
-        File.SetUnixFileMode(temp, Mode644);
+        SetMode(temp, mode);
         File.Move(temp, path, overwrite: true);
+    }
+
+    /// <summary>Los permisos POSIX de un fichero. Solo se llama desde las operaciones de Linux (Program.cs despacha por sistema), de ahí que no haga falta la guarda del analizador.</summary>
+    public static void SetMode(string path, UnixFileMode mode)
+    {
+#pragma warning disable CA1416 // solo en Linux
+        File.SetUnixFileMode(path, mode);
+#pragma warning restore CA1416
     }
 }

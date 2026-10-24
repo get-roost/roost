@@ -114,12 +114,12 @@ internal static class Hosts
         }
     }
 
-    /// <summary>Linux: un temporal en el mismo /etc (0644, root) y <c>rename</c> encima: el hosts nunca queda a medias.</summary>
+    /// <summary>Linux: un temporal en el mismo /etc (0644, root) y <c>rename</c> encima: el hosts nunca queda a medias. En Latin-1, como se leyó.</summary>
     private static void WriteAtomic(string path, string text)
     {
         var temp = path + ".roost-tmp";
         File.WriteAllText(temp, text, Encoding.Latin1);
-        File.SetUnixFileMode(temp, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead);
+        LinuxFiles.SetMode(temp, LinuxFiles.Mode644);
         File.Move(temp, path, overwrite: true);
     }
 }

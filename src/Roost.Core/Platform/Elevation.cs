@@ -43,8 +43,8 @@ public sealed class ElevationNeededException(string message, string command) : R
 /// <item>Si no hay manera (sin pkexec ni sudo, sin agente y sin terminal), no se lanza nada:
 /// <see cref="ElevationNeededException"/> trae la orden exacta para que el usuario la ejecute él.</item>
 /// </list>
-/// Los nombres del hosts van al helper por stdin en Linux (<paramref name="stdin"/>): pkexec y sudo
-/// se lo pasan tal cual. En Windows el UAC no deja stdin, y el helper lee el fichero de siempre.
+/// Los nombres del hosts van al helper por stdin en Linux (el <c>stdin</c> de <see cref="Run"/>): pkexec
+/// y sudo se lo pasan tal cual. En Windows el UAC no deja stdin, y el helper lee el fichero de siempre.
 /// Los tests la construyen con un <see cref="ICommandRunner"/> falso y sus propias respuestas.
 /// </summary>
 public sealed class Elevation
