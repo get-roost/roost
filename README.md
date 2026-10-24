@@ -181,6 +181,9 @@ roost db drop tienda             # la borra (pide confirmar; nunca las del propi
 roost db password               # la contraseña de root (vacía = sin contraseña); --save-only si ya la cambiaste por fuera
 roost db user add tienda --db tienda   # un usuario con acceso a esa base de datos (imprime su .env)
 roost db user list | password <usuario> | remove <usuario>
+roost db export tienda           # tienda-<fecha>.sql en la carpeta actual; --out tienda.sql.gz para comprimirlo
+roost db import tienda tienda.sql.gz --create   # .sql, .sql.gz o un .zip con un .sql; --create si no existe
+roost db import blog blog-mysql8.sql --compat   # un volcado de otro motor, adaptado al vuelo
 roost db remove mysql@5.7        # quita los binarios; los datos se quedan
 ```
 
@@ -190,6 +193,7 @@ roost db remove mysql@5.7        # quita los binarios; los datos se quedan
 - **Contraseña de root y usuarios.** `roost db password` (o Bases de datos › Contraseña › Cambiar…) la pone con `ALTER USER` en todas las cuentas de root. Roost la guarda en `C:\roost\state\db-passwords.json` y la escribe en el `[client]` del `my.ini` que genera, para que la parada limpia, la consola y `db create` sigan funcionando. Vale cualquier texto ASCII sin espacios, comillas, barras invertidas ni acentos graves, de hasta 64 caracteres; las contraseñas se piden sin eco, y en un script van por stdin (`echo pw | roost db password`). Los usuarios se crean como `'usuario'@'%'`, que es seguro porque el servidor solo escucha en 127.0.0.1.
 - **Tus ajustes del servidor** (`sql_mode` para proyectos viejos, `max_allowed_packet`…) van en `C:\roost\etc\<motor>\<rama>\usuario.cnf`, que el `my.ini` incluye al final y Roost no toca. Se aplican al reiniciar la base de datos.
 - **Clientes gráficos.** Si tienes HeidiSQL o DBeaver, la app los abre ya conectados; TablePlus se abre con la URL de conexión copiada.
+- **Exportar e importar.** `export` usa el `mariadb-dump`/`mysqldump` de la instalación con su `my.ini` (rutinas, triggers y eventos, una foto coherente de InnoDB y los binarios en hexadecimal), escribe aparte y renombra al acabar, y con `.gz` comprime al vuelo. `import` manda el fichero al cliente por stdin, sin cargarlo en memoria, con su progreso; vale para ficheros de varios GB. Si la base de datos tiene tablas pregunta (o `--yes`), nunca toca las del servidor y quita los `CREATE DATABASE`/`USE` del fichero, para que todo vaya a la elegida. Si el volcado es de otro motor (colaciones de MySQL 8, `NO_AUTO_CREATE_USER` de MariaDB), lo avisa y `--compat` lo adapta al vuelo. En la app: «Exportar…» por base de datos e «Importar…» en Bases de datos, con su progreso y Cancelar.
 - **Solo local.** Escucha en `127.0.0.1` (puerto 3306 por defecto), en utf8mb4. Con MySQL 8 se desactiva el protocolo X (puerto 33060).
 - **Parada limpia.** Arranca la primera y se para la última. Al pararla, Roost le pide `shutdown` (`mariadb-admin` / `mysqladmin`) y espera a que cierre sus ficheros; solo si no responde en 30 s, la mata.
 - **Si el puerto 3306 está ocupado** (por ejemplo, por el MySQL de Laragon o un servicio de Windows), `roost up` lo dice y no arranca nada. Cámbialo en Bases de datos (junto a la conexión) o en `[db] port` de `roost.toml`.
@@ -261,7 +265,7 @@ Cuando un comando cambia una clave, Roost toca solo esa clave y respeta el resto
 - **Registros:** el final de cada log, coloreado, con filtro y en vivo.
 - **Ajustes:** inicio con Windows, bandeja, tema claro u oscuro, puertos, la CA local y cómo se resuelven los `.test` (hosts o DNS local).
 
-La primera vez, una bienvenida propone traer las ramas de PHP que ya usas, una MariaDB y las carpetas de la www de Laragon como sitios. Desde la bandeja se arranca y se para todo, se cambia el PHP o la base de datos global y se abren los sitios. La app lleva `roost.exe` (el daemon) y `roost-helper.exe` a su lado.
+La primera vez, una bienvenida propone traer las ramas de PHP que ya usas, una MariaDB, las carpetas de la www de Laragon como sitios y, si quieres, sus bases de datos (volcadas sin tocar Laragon: de su servidor si está en marcha o de una copia de sus datos si no). Desde la bandeja se arranca y se para todo, se cambia el PHP o la base de datos global y se abren los sitios. La app lleva `roost.exe` (el daemon) y `roost-helper.exe` a su lado.
 
 ```sh
 dotnet run --project src/Roost.Desktop
