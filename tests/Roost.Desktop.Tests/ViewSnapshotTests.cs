@@ -848,4 +848,37 @@ public class ViewSnapshotTests
         Dispatcher.UIThread.RunJobs();
         Assert.False(db.CanStartDb);
     }
+
+    // Daemon-1: un cambio rechazado antes de parar nada (E1) se cuenta como tal en el diálogo.
+
+    [AvaloniaFact]
+    public async Task ArranqueFallido_ConElCambioRechazado_DiceQueSigueEnMarchaLoDeAntes()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        // Lo que devuelve StackController cuando el daemon rechaza el cambio con el stack en marcha.
+        var failure = new StartFailure(
+            "No se ha aplicado el cambio",
+            "No se ha aplicado el cambio: El puerto 8445 (HTTPS de los sitios .test) ya esta en uso en esta maquina por powershell (PID 4242) (IIS, VMware, Skype u otro servidor?). "
+            + "Paralo, o cambia [web] https_port en roost.toml.\nSigue en marcha lo de antes, con la configuracion anterior.",
+            [new BusyPort(8445, "HTTPS de los sitios .test", new Roost.Core.Platform.PortOwner(8445, 4242, "powershell"), 9443, "[web] https_port")],
+            WasRunning: true,
+            StillRunning: true);
+        var opening = main.ShowDialogAsync(new StartErrorDialogViewModel(main, failure));
+        await UntilAsync(() => main.Dialog is StartErrorDialogViewModel);
+        var dialog = Assert.IsType<StartErrorDialogViewModel>(main.Dialog);
+
+        Assert.Contains("sigue en marcha, con la configuración de antes", dialog.Subtitle);
+        Assert.StartsWith("No se ha aplicado el cambio: El puerto 8445", dialog.Message);
+        Assert.Contains("Sigue en marcha lo de antes", dialog.LogTail);
+        Assert.Single(dialog.Ports);
+        Assert.Equal("Usar el puerto 9443", dialog.Ports[0].UseLabel);
+        Snapshot(window, "arranque-fallido-cambio-rechazado");
+
+        dialog.Close();
+        await opening;
+        await UntilAsync(() => main.Dialog is null);
+        Assert.True(main.Stack.IsRunning);   // y la app lo sigue viendo en marcha
+    }
 }
