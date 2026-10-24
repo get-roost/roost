@@ -38,6 +38,7 @@ public class SupervisorTests
         private int _nextId = 100;
         private readonly List<(string Name, FakeProcess Process)> _started = [];
         private readonly List<string> _killed = [];
+        private readonly List<ServiceDefinition> _definitions = [];
 
         /// <summary>Si se fija, los procesos de ese servicio salen en cuanto arrancan.</summary>
         public string? ExitsImmediately { get; set; }
@@ -55,6 +56,7 @@ public class SupervisorTests
                 FakeProcess? process = null;
                 process = new FakeProcess(_nextId++, p => { lock (_lock) _killed.Add(definition.Name); });
                 _started.Add((definition.Name, process));
+                _definitions.Add(definition);
                 if (definition.Name == ExitsImmediately) process.Exit(255);
 
                 if (definition.Name.EndsWith("-shutdown", StringComparison.Ordinal))
@@ -71,6 +73,9 @@ public class SupervisorTests
         public FakeProcess Last(string name) { lock (_lock) return _started.Last(s => s.Name == name).Process; }
         public List<string> StartOrder() { lock (_lock) return _started.Select(s => s.Name).ToList(); }
         public List<string> KillOrder() { lock (_lock) return [.. _killed]; }
+
+        /// <summary>La definición con la que se lanzó por última vez algo con ese nombre.</summary>
+        public ServiceDefinition LastDefinition(string name) { lock (_lock) return _definitions.Last(d => d.Name == name); }
     }
 
     private static ServiceDefinition Service(string name) => new() { Name = name, Executable = name + ".exe" };
@@ -304,5 +309,109 @@ public class SupervisorTests
         await Until(() => StatusOf(supervisor, "nginx").State == ServiceState.Running);
         Assert.Equal(Supervisor.MaxQuickCrashes + 1, launcher.StartsOf("nginx"));
         await supervisor.StopAsync();
+    }
+
+    // E2: añadir, quitar y sustituir servicios con el supervisor en marcha
+
+    [Fact]
+    public async Task Add_ConElSupervisorEnMarcha_LoArrancaYLoVigila_YArrange_LoPoneEnSuSitio()
+    {
+        var launcher = new FakeLauncher();
+        var supervisor = new Supervisor(launcher, restartDelay: TimeSpan.Zero, healthyUptime: TimeSpan.Zero);
+        supervisor.Start([Service("db"), Service("php-8.4-0"), Service("nginx")]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+
+        supervisor.Add(Service("php-7.4-0"));
+
+        Assert.Equal(ServiceState.Running, StatusOf(supervisor, "php-7.4-0").State);
+        Assert.Equal(["db", "php-8.4-0", "nginx", "php-7.4-0"], supervisor.Status().Select(s => s.Name));
+        Assert.Throws<InvalidOperationException>(() => supervisor.Add(Service("nginx")));
+        Assert.Equal(1, launcher.StartsOf("nginx"));   // el resto, sin tocar
+
+        // Vigilado como los demás: una salida tras vivir un rato se relanza.
+        launcher.Last("php-7.4-0").Exit(0);
+        await Until(() => launcher.StartsOf("php-7.4-0") == 2 && StatusOf(supervisor, "php-7.4-0").State == ServiceState.Running);
+
+        // En el orden del plan, que es también el de parada al revés.
+        supervisor.Arrange(["db", "php-8.4-0", "php-7.4-0", "nginx"]);
+        Assert.Equal(["db", "php-8.4-0", "php-7.4-0", "nginx"], supervisor.Status().Select(s => s.Name));
+        await supervisor.StopAsync();
+        Assert.Equal(["nginx", "php-7.4-0", "php-8.4-0", "db"], launcher.KillOrder());
+    }
+
+    [Fact]
+    public async Task Remove_LoParaLimpio_YYaNoSaleEnElEstado_NiSeRelanza()
+    {
+        var launcher = new FakeLauncher();
+        var supervisor = new Supervisor(launcher, restartDelay: TimeSpan.Zero, healthyUptime: TimeSpan.Zero);
+        supervisor.Start([Database("mysql-8.4"), Service("nginx")]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+
+        Assert.True(await supervisor.RemoveAsync("mysql-8.4"));
+        await Task.Delay(100); // margen para que un relanzamiento indebido se viera
+
+        Assert.Equal(1, launcher.StartsOf("mysql-8.4-shutdown"));   // limpia, con su comando de parada
+        Assert.Equal(1, launcher.StartsOf("mysql-8.4"));
+        Assert.Empty(launcher.KillOrder());
+        Assert.Equal(["nginx"], supervisor.Status().Select(s => s.Name));
+        Assert.False(await supervisor.RemoveAsync("redis"));
+        Assert.Equal(1, launcher.StartsOf("nginx"));
+        await supervisor.StopAsync();
+    }
+
+    [Fact]
+    public async Task Replace_ParaConLaDefinicionVieja_YArrancaLaNueva_EnElMismoSitio()
+    {
+        var launcher = new FakeLauncher();
+        var supervisor = new Supervisor(launcher, restartDelay: TimeSpan.Zero, healthyUptime: TimeSpan.FromHours(1));
+        var old = Database("mysql-8.4") with
+        {
+            StopCommand = new ServiceDefinition { Name = "mysql-8.4-shutdown", Executable = "mysqladmin.exe", Arguments = "--port=3306 shutdown" },
+        };
+        supervisor.Start([old, Service("php-8.4-0"), Service("nginx")]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+        var replacement = old with
+        {
+            Arguments = "--port=3307",
+            StopCommand = new ServiceDefinition { Name = "mysql-8.4-shutdown", Executable = "mysqladmin.exe", Arguments = "--port=3307 shutdown" },
+        };
+
+        Assert.True(await supervisor.ReplaceAsync(replacement));
+
+        // La vieja se para con SU comando (el puerto de la que corre) y la nueva arranca en su sitio.
+        Assert.Equal("--port=3306 shutdown", launcher.LastDefinition("mysql-8.4-shutdown").Arguments);
+        Assert.Equal("--port=3307", launcher.LastDefinition("mysql-8.4").Arguments);
+        Assert.Equal(["mysql-8.4", "php-8.4-0", "nginx"], supervisor.Status().Select(s => s.Name));
+        Assert.Equal(ServiceState.Running, StatusOf(supervisor, "mysql-8.4").State);
+        Assert.Equal(0, StatusOf(supervisor, "mysql-8.4").Restarts);
+        Assert.Equal(1, launcher.StartsOf("php-8.4-0"));
+        Assert.Equal(1, launcher.StartsOf("nginx"));
+        Assert.False(await supervisor.ReplaceAsync(Service("redis")));
+
+        // Y la nueva se para con el suyo.
+        await supervisor.StopAsync();
+        Assert.Equal("--port=3307 shutdown", launcher.LastDefinition("mysql-8.4-shutdown").Arguments);
+    }
+
+    [Fact]
+    public void ServiceDefinition_EsIgualPorContenido_TambienElEntornoYElComandoDeParada()
+    {
+        static ServiceDefinition Php(string scanDir) => new()
+        {
+            Name = "php-8.4-0",
+            Executable = "php-cgi.exe",
+            Arguments = "-b 127.0.0.1:9840",
+            Environment = new Dictionary<string, string> { ["PHP_FCGI_MAX_REQUESTS"] = "500", ["PHP_INI_SCAN_DIR"] = scanDir },
+            Port = 9840,
+            StopCommand = new ServiceDefinition { Name = "x", Executable = "x.exe", Environment = new Dictionary<string, string> { ["A"] = scanDir } },
+        };
+
+        // Cada up crea diccionarios nuevos: con lo mismo dentro, es el mismo servicio.
+        Assert.Equal(Php("conf.d"), Php("conf.d"));
+        Assert.True(Php("conf.d") == Php("conf.d"));
+        Assert.Equal(Php("conf.d").GetHashCode(), Php("conf.d").GetHashCode());
+        Assert.NotEqual(Php("conf.d"), Php("otra"));
+        Assert.NotEqual(Php("conf.d"), Php("conf.d") with { Port = 9841 });
+        Assert.NotEqual(Php("conf.d"), Php("conf.d") with { StopCommand = null });
     }
 }
