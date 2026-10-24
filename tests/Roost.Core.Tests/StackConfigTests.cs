@@ -62,6 +62,23 @@ public class StackConfigTests : IDisposable
     }
 
     [Fact]
+    public void NginxConf_FueraDeWindows_LlevaDaemonOff_ParaQueElSupervisorSeaSuPadre()
+    {
+        var input = new NginxConfInput("/r/bin/nginx/1.30.6/conf/mime.types", "/r/bin/nginx/1.30.6/conf/fastcgi_params", "/r/run", "/r/logs", "/r/www",
+            8765, [new NginxUpstream("php-8.4", [9840])], "php-8.4", "/r/etc/nginx/sites");
+        Assert.Equal(!OperatingSystem.IsWindows(), input.DaemonOff);
+
+        var linux = NginxConf.Render(input with { DaemonOff = true });
+        Assert.StartsWith("# Generado por Roost: NO lo edites, se regenera en cada `roost up`.\ndaemon off;\nworker_processes 1;\n", linux);
+        Assert.Contains("pid \"/r/run/nginx.pid\";", linux);
+        Assert.DoesNotContain("user ", linux);   // sin `user`: corre como el usuario, sin root
+
+        var windows = NginxConf.Render(input with { DaemonOff = false });
+        Assert.DoesNotContain("daemon", windows);
+        Assert.StartsWith("# Generado por Roost: NO lo edites, se regenera en cada `roost up`.\nworker_processes 1;\n", windows);
+    }
+
+    [Fact]
     public void PuertosDenegados_ElMensajeNoDiceOcupado_YSugiereElAlto()
     {
         var message = StackPlanner.DeniedPortMessage(80, "[web] port", 8080, @"C:\x\roost.toml");
