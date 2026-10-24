@@ -17,7 +17,11 @@ namespace Roost.Core.Install;
 /// contra el SHA-256 que publica php.net y probado en el runner), publicar la release
 /// <c>php-&lt;versión&gt;</c> con su <c>SHA256SUMS.txt</c> y la attestation, y fijar aquí la versión, el
 /// SHA-256 y el tamaño del fichero publicado (<c>gh attestation verify &lt;fichero&gt; --repo
-/// get-roost/roost-builds</c> lo comprueba). La URL sale de <see cref="BaseUrl"/>; con
+/// get-roost/roost-builds</c> lo comprueba). <b>Cada run compila de nuevo</b> (lo reproducible es el
+/// proceso, no el byte a byte): lo que se fija aquí tiene que ser el SHA-256 del tar.gz que está en la
+/// release, así que si se publica desde otro run distinto del que se probó, se vuelven a fijar los
+/// hashes de ese run (el <c>SHA256SUMS.txt</c> de la release, o el artefacto <c>php-&lt;rama&gt;</c> del run)
+/// antes de cerrar la versión de Roost. La URL sale de <see cref="BaseUrl"/>; con
 /// <see cref="UrlVariable"/> se apunta a un espejo o a un servidor de pruebas, y el SHA-256 se
 /// comprueba igual.
 /// </remarks>
@@ -37,15 +41,16 @@ public static partial class LinuxPhpCatalog
     /// <summary>Las ramas que en Linux no existen: solo están en Windows (static-php-cli no las compila).</summary>
     public static readonly IReadOnlyList<string> WindowsOnlyBranches = ["7.4", "8.0"];
 
-    // Verificado el 25-oct-2026 con el run de php.yml que los compiló (StaticPHP 3.0.0-alpha1, commit
-    // d7f1a88 de v3; fuentes de php.net verificadas contra su SHA-256 publicado). El SHA-256 y el tamaño
-    // son los del tar.gz que se probó en real en la Ubuntu-24.04 y que publica la release.
+    // Los tar.gz del run 40124456483 de php.yml (24-oct-2026; StaticPHP 3.0.0-alpha1, commit d7f1a88 de
+    // v3; fuentes de php.net y xdebug.org verificadas contra su SHA-256 publicado; Xdebug 3.5.3; GLIBC
+    // 2.17): el SHA-256 y el tamaño son los del SHA256SUMS.txt de cada artefacto, comprobados al bajarlo.
+    // Si la release se publica desde otro run, hay que volver a fijarlos (ver remarks).
     private static readonly (string Version, string Sha256, long Size)[] Pinned =
     [
         ("8.5.12", "PENDIENTE", 0),
-        ("8.4.27", "PENDIENTE", 0),
-        ("8.3.36", "PENDIENTE", 0),
-        ("8.2.35", "PENDIENTE", 0),
+        ("8.4.27", "5b5cb8036491c978e30e823181cec874d5421285e88dea514ec49c8ef74dfb95", 54_258_532),
+        ("8.3.36", "e32286ea703c77f6e63a8073b361156f38eaf27de410af53370e8a5a52a35b26", 52_496_952),
+        ("8.2.35", "6bb77305ef9bf19ddcb0ae4d4c0f823351c7487c46e5e252b6ba28326d897618", 52_262_193),
         ("8.1.34", "PENDIENTE", 0),
     ];
 
