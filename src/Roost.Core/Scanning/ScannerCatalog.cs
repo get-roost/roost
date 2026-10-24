@@ -6,9 +6,9 @@ namespace Roost.Core.Scanning;
 /// <summary>
 /// Catálogo de scanners por defecto para el SO actual.
 ///
-/// Los tres scanners (PHP, MySQL, MariaDB) son multiplataforma: cada uno elige sus
-/// rutas candidatas según el SO (Windows vs POSIX) y se desactiva solo si el SO no
-/// está soportado. Por eso se registran los mismos tres en Windows, Linux y macOS.
+/// Los cinco scanners (PHP, MySQL, MariaDB, nginx y Apache) son multiplataforma: cada uno elige sus
+/// rutas candidatas según el SO (Windows vs POSIX) y se desactiva solo si el SO no está soportado.
+/// Por eso se registran los mismos cinco en Windows, Linux y macOS.
 /// </summary>
 public static class ScannerCatalog
 {
@@ -25,6 +25,8 @@ public static class ScannerCatalog
                 new PhpScanner(runner),
                 new MySqlScanner(runner),
                 new MariaDbScanner(runner),
+                new NginxScanner(runner),
+                new ApacheScanner(runner),
             ];
         }
 

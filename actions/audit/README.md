@@ -1,6 +1,6 @@
 # Roost Audit
 
-Una GitHub Action que pasa [`roost audit`](https://github.com/get-roost/roost#roost-audit) en el runner: busca los PHP, MySQL y MariaDB instalados, los evalúa contra el dataset de avisos y fechas de fin de soporte que va dentro de Roost y deja el semáforo en el resumen del job. Si algo está VULNERABLE o en EOL *con certeza*, el paso falla.
+Una GitHub Action que pasa [`roost audit`](https://github.com/get-roost/roost#roost-audit) en el runner: busca los PHP, MySQL, MariaDB, nginx y Apache instalados, los evalúa contra el dataset de avisos y fechas de fin de soporte que va dentro de Roost y deja el semáforo en el resumen del job. Si algo está VULNERABLE o en EOL *con certeza*, el paso falla.
 
 Baja la build de Roost de las [releases](https://github.com/get-roost/roost/releases) (Linux x64 o Windows x64), verifica su SHA-256 contra el `SHA256SUMS.txt` de la misma release y no usa la red para nada más: la evaluación es local.
 
@@ -56,7 +56,7 @@ Usa una etiqueta (`@v0.1.0`) o un commit, no `@main`. La versión de la acción 
 |---|---|---|
 | `version` | `latest` | Versión de Roost: `latest` (la última release estable), `0.1.0` o `v0.1.0`. |
 | `fail-on-blocking` | `true` | `true`: el paso falla si hay algo VULNERABLE o EOL con certeza (el código `1` de `roost audit`). `false`: lo deja en un aviso. Lo ámbar no hace fallar nunca. |
-| `only` | *(vacío: todo)* | Qué tipos cuentan para el resumen y para fallar, separados por comas: `php`, `mysql`, `mariadb`. Se pasa a `roost audit --only`, así que el código de salida ya sale de lo filtrado. |
+| `only` | *(vacío: todo)* | Qué tipos cuentan para el resumen y para fallar, separados por comas: `php`, `mysql`, `mariadb`, `nginx`, `apache`. Se pasa a `roost audit --only`, así que el código de salida ya sale de lo filtrado. |
 | `args` | *(vacío)* | Argumentos extra para `roost audit`, separados por espacios; por ejemplo, `--dataset ruta/advisories.json`. `--json` ya lo pone la acción. |
 | `repository` | `get-roost/roost` | Repositorio del que se bajan las releases. |
 

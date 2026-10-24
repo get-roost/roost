@@ -239,7 +239,7 @@ def cmd_install(args):
 
 KINDS = {"Php": "PHP", "MySql": "MySQL", "MariaDb": "MariaDB", "Nginx": "nginx", "Apache": "Apache"}
 # Lo que admite la entrada `only`: el `kind` del JSON en minúsculas.
-ONLY_KINDS = {"php": "PHP", "mysql": "MySQL", "mariadb": "MariaDB"}
+ONLY_KINDS = {"php": "PHP", "mysql": "MySQL", "mariadb": "MariaDB", "nginx": "nginx", "apache": "Apache"}
 DOTS = {"red": "🔴", "amber": "🟠", "green": "🟢"}
 
 
@@ -295,7 +295,7 @@ def render_summary(report, exit_code, fail_on_blocking, roost_version, platform_
     md.append("")
 
     if not findings:
-        md += ["Roost no ha encontrado ningun PHP, MySQL ni MariaDB en el runner." if not only
+        md += ["Roost no ha encontrado ningun PHP, MySQL, MariaDB, nginx ni Apache en el runner." if not only
                else "Roost no ha encontrado en el runner ningun componente de los que cuentan.", ""]
     else:
         md += ["| | Componente | Origen | Veredicto | Detalle | Ruta |", "|---|---|---|---|---|---|"]
@@ -412,7 +412,7 @@ def main(argv=None):
                         "tambien con la variable ROOST_AUDIT_BASE_URL).")
     p.add_argument("--os", help="Linux o Windows (por defecto, RUNNER_OS).")
     p.add_argument("--arch", help="X64 (por defecto, RUNNER_ARCH).")
-    p.add_argument("--only", default="", help="Solo se valida (php, mysql, mariadb): asi un error sale antes de bajar nada.")
+    p.add_argument("--only", default="", help="Solo se valida (php, mysql, mariadb, nginx, apache): asi un error sale antes de bajar nada.")
     p.set_defaults(func=cmd_install)
 
     p = sub.add_parser("summary", help="Resume el JSON de roost audit --json.")

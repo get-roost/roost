@@ -24,7 +24,7 @@ public sealed class AuditDataset
 
     public RemediationText Remediation { get; init; } = new();
 
-    /// <summary>Productos por clave: "php", "mysql", "mariadb".</summary>
+    /// <summary>Productos por clave: "php", "mysql", "mariadb", "nginx", "apache".</summary>
     public Dictionary<string, ProductInfo> Products { get; init; } = new();
 
     public List<Advisory> Advisories { get; init; } = new();
@@ -98,6 +98,8 @@ public sealed class AuditDataset
         ComponentKind.Php => "php",
         ComponentKind.MySql => "mysql",
         ComponentKind.MariaDb => "mariadb",
+        ComponentKind.Nginx => "nginx",
+        ComponentKind.Apache => "apache",
         _ => null,
     };
 }

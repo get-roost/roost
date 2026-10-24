@@ -31,7 +31,7 @@ public sealed class AuditCommand : AsyncCommand<AuditCommand.Settings>
         public bool Offline { get; init; }
 
         [CommandOption("--only <TIPOS>")]
-        [Description("Solo esos tipos (php, mysql, mariadb; varios separados por comas). El resumen y el codigo de salida salen de lo filtrado.")]
+        [Description("Solo esos tipos (php, mysql, mariadb, nginx, apache; varios separados por comas). El resumen y el codigo de salida salen de lo filtrado.")]
         public string? Only { get; init; }
     }
 

@@ -15,6 +15,8 @@ public sealed class ComponentFilter
         ("php", ComponentKind.Php),
         ("mysql", ComponentKind.MySql),
         ("mariadb", ComponentKind.MariaDb),
+        ("nginx", ComponentKind.Nginx),
+        ("apache", ComponentKind.Apache),
     ];
 
     private readonly HashSet<ComponentKind> _kinds;

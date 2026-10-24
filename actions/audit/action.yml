@@ -1,9 +1,9 @@
-# Acción compuesta: audita con `roost audit` los PHP, MySQL y MariaDB del runner y deja el resultado
+# Acción compuesta: audita con `roost audit` los PHP, MySQL, MariaDB, nginx y Apache del runner y deja el resultado
 # en el resumen del job. Está pensada para poder copiarse tal cual a un repositorio propio y
 # publicarse en el Marketplace (ver README.md): todo lo que usa está en esta carpeta y las rutas
 # salen de github.action_path.
 name: Roost Audit
-description: Audita los PHP, MySQL y MariaDB del runner con roost audit (fin de soporte y CVE) y deja el resultado en el resumen del job.
+description: Audita PHP, MySQL, MariaDB, nginx y Apache del runner con roost audit (soporte y CVE) y deja el resultado en el resumen.
 author: Ángel Manso
 branding:
   icon: shield
@@ -22,7 +22,7 @@ inputs:
     default: 'true'
   only:
     description: >-
-      Qué tipos cuentan para el resumen y para fallar, separados por comas: php, mysql, mariadb
+      Qué tipos cuentan para el resumen y para fallar, separados por comas: php, mysql, mariadb, nginx, apache
       (se pasa a roost audit --only). Vacío, todos. Las imágenes de GitHub traen su propio MySQL;
       con only php, un MySQL de la imagen fuera de soporte no hace fallar el job.
     required: false

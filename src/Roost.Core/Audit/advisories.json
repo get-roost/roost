@@ -45,6 +45,30 @@
         "12.3": { "latest": "12.3.3", "eol": "2029-06-12", "status": "active" },
         "13.0": { "latest": "13.0.2", "status": "active" }
       }
+    },
+    "nginx": {
+      "displayName": "nginx",
+      "branches": {
+        "1.18": { "latest": "1.18.0", "eol": "2021-04-20", "status": "eol" },
+        "1.20": { "latest": "1.20.2", "eol": "2022-05-24", "status": "eol" },
+        "1.22": { "latest": "1.22.1", "eol": "2023-04-11", "status": "eol" },
+        "1.24": { "latest": "1.24.0", "eol": "2024-04-23", "status": "eol" },
+        "1.25": { "latest": "1.25.5", "eol": "2024-05-29", "status": "eol" },
+        "1.26": { "latest": "1.26.3", "eol": "2025-04-23", "status": "eol" },
+        "1.27": { "latest": "1.27.5", "eol": "2025-06-24", "status": "eol" },
+        "1.28": { "latest": "1.28.3", "eol": "2026-04-14", "status": "eol" },
+        "1.29": { "latest": "1.29.8", "eol": "2026-05-13", "status": "eol" },
+        "1.30": { "latest": "1.30.6", "status": "active" },
+        "1.31": { "latest": "1.31.8", "status": "active" }
+      }
+    },
+    "apache": {
+      "displayName": "Apache",
+      "branches": {
+        "2.0": { "latest": "2.0.65", "eol": "2013-07-10", "status": "eol" },
+        "2.2": { "latest": "2.2.34", "eol": "2017-07-11", "status": "eol" },
+        "2.4": { "latest": "2.4.69", "status": "active" }
+      }
     }
   },
   "advisories": [

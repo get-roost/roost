@@ -112,6 +112,12 @@ public sealed partial class AuditEvaluator
         if (component.Kind is ComponentKind.MySql or ComponentKind.MariaDb)
             notes.Add("Solo se comprueba el fin de vida de la rama: el feed de Roost aun no trae CVE de MySQL ni de MariaDB.");
 
+        // nginx tiene dos ramas vivas a la vez, y las dos reciben los parches.
+        if (component.Kind == ComponentKind.Nginx && branch is not null && !isEol)
+            notes.Add(component.Version.Minor % 2 == 0
+                ? $"Rama {branchKey} de nginx: la estable (las pares)."
+                : $"Rama {branchKey} de nginx: la mainline (las impares), la de las novedades; tambien recibe los parches.");
+
         // "Ambar honesto": si es un backport de distro, la comparacion por numero
         // no es fiable. No lo damos por rojo: lo marcamos incierto y lo pintamos ambar.
         if (uncertain)
@@ -167,12 +173,14 @@ public sealed partial class AuditEvaluator
         return rank < 0 ? "sin puntuacion" : $"gravedad {labels[rank]}";
     }
 
+    /// <summary>A qué subir para quitarse todos los avisos: la mayor de las corregidas en esta rama.</summary>
     private static string? FixTarget(IEnumerable<Advisory> advisories, string branchKey)
     {
+        ComponentVersion? best = null;
         foreach (var a in advisories)
-            if (a.FixedIn.TryGetValue(branchKey, out var fix))
-                return fix;
-        return null;
+            if (a.FixedIn.TryGetValue(branchKey, out var fix) && ComponentVersion.TryParse(fix, out var v) && (best is null || v > best.Value))
+                best = v;
+        return best?.ToString();
     }
 
     private static readonly HashSet<string> SystemSources = new(StringComparer.OrdinalIgnoreCase)

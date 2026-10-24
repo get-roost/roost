@@ -80,6 +80,40 @@ public static class WindowsServices
     }
 
     /// <summary>
+    /// Los ejecutables de los servicios de bases de datos y servidores web (los de <see cref="Classify"/>),
+    /// para el escaneo: un Apache instalado como servicio fuera de las rutas típicas. Solo lee el
+    /// registro (sin <c>sc query</c>); vacío fuera de Windows o sin permiso.
+    /// </summary>
+    public static IReadOnlyList<string> Executables()
+    {
+        if (!OperatingSystem.IsWindows()) return [];
+        var found = new List<string>();
+        try
+        {
+            using var services = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services");
+            if (services is null) return [];
+            foreach (var name in services.GetSubKeyNames())
+            {
+                try
+                {
+                    using var key = services.OpenSubKey(name);
+                    if (ExecutableOf(key?.GetValue("ImagePath") as string) is { } exe && Classify(name, exe) is not null and not "IIS")
+                        found.Add(Environment.ExpandEnvironmentVariables(exe));
+                }
+                catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+                {
+                    // Esa clave no se puede leer: las demás sí.
+                }
+            }
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException or IOException)
+        {
+            // Sin permiso para el registro: sin servicios.
+        }
+        return found;
+    }
+
+    /// <summary>
     /// PURO: los que molestan con estos puertos de Roost: arrancan con Windows o están en marcha,
     /// y suelen usar uno de ellos. Los deshabilitados no.
     /// </summary>
