@@ -70,6 +70,14 @@ internal static class ServiceInputs
                 yield return ca.SiteCertFile(site.Site.Name);
                 yield return ca.SiteKeyFile(site.Site.Name);
             }
+            // Compartir (oleada 6): las escuchas de lo compartido y el certificado con la IP de la red local.
+            foreach (var conf in Sorted(apache ? paths.ApacheShares : paths.NginxShares, "*.conf", ".conf"))
+                yield return conf;
+            foreach (var share in plan.Shares.Where(s => s.Kind == Roost.Core.Share.ShareKind.Lan).OrderBy(s => s.Site, StringComparer.OrdinalIgnoreCase))
+            {
+                yield return ca.LanCertFile(share.Site);
+                yield return ca.LanKeyFile(share.Site);
+            }
         }
         else if (ReloadPlan.IsPhpMember(service.Name) && PhpOf(plan, service) is { } php)
         {

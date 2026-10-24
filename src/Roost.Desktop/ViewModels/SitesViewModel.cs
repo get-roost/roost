@@ -116,6 +116,7 @@ public sealed partial class SitesViewModel : PageViewModel
         // Al volver a la pantalla se vuelven a mirar las bases de datos (una creada desde la CLI aparece).
         ForgetDatabases();
         Build();
+        _ = RefreshSharesAsync();   // Compartir: lo compartido desde la CLI también sale
         return Task.CompletedTask;
     }
 
@@ -123,6 +124,7 @@ public sealed partial class SitesViewModel : PageViewModel
     {
         ForgetDatabases();
         Build();
+        _ = RefreshSharesAsync();
     }
 
     private void Build()
@@ -217,6 +219,7 @@ public sealed partial class SitesViewModel : PageViewModel
         PickComposer(site);
         PickNode(site);
         PickAdvanced(site);
+        PickShare(site);
 
         // La carpeta o la raíz web pueden haber desaparecido desde que se registró el sitio.
         var folderExists = Directory.Exists(site.Folder);

@@ -201,4 +201,71 @@ public sealed class LocalCa(RoostPaths paths)
 
     /// <summary>Escribe una clave privada que solo puede leer el usuario actual (la misma ACL que las claves SSH de los sitios).</summary>
     private static void WritePrivate(string path, string content) => PrivateFile.Write(path, content);
+
+    // Compartir (oleada 6): el certificado de la red local, con la IP.
+
+    public string LanCertFile(string site) => Path.Combine(paths.Certs, "lan", site + ".crt");
+    public string LanKeyFile(string site) => Path.Combine(paths.Certs, "lan", site + ".key");
+
+    /// <summary>
+    /// El certificado de <c>roost share --lan</c>, en <c>certs/lan</c>: el nombre del sitio
+    /// (<c>&lt;n&gt;.test</c>) y además la IP de la red local como SAN, porque el móvil entra por la IP
+    /// (<c>https://192.168.1.20:8443</c>), y un certificado sin ella daría un error de nombre aunque
+    /// se confiara en la CA. Mismas reglas que el del sitio (ECDSA P-256, serverAuth,
+    /// <see cref="SiteValidity"/>); se reemite si falta, si caduca en menos de <see cref="RenewBefore"/>,
+    /// si no es de la CA actual o si no lleva esa IP.
+    /// </summary>
+    public (string CertFile, string KeyFile) EnsureLanCert(Site site, System.Net.IPAddress address)
+    {
+        var certFile = LanCertFile(site.Name);
+        var keyFile = LanKeyFile(site.Name);
+        using var ca = LoadOrCreate();
+        if (IsUsableLan(certFile, keyFile, site, address, ca)) return (certFile, keyFile);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(certFile)!);
+        using var key = ECDsa.Create(ECCurve.NamedCurves.nistP256);
+        var request = new CertificateRequest($"CN={site.Host}", key, HashAlgorithmName.SHA256);
+        request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
+        request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature, true));
+        request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension([new Oid("1.3.6.1.5.5.7.3.1")], false)); // serverAuth
+        var san = new SubjectAlternativeNameBuilder();
+        san.AddDnsName(site.Host);
+        san.AddIpAddress(address);
+        request.CertificateExtensions.Add(san.Build());
+        request.CertificateExtensions.Add(new X509SubjectKeyIdentifierExtension(request.PublicKey, false));
+        request.CertificateExtensions.Add(X509AuthorityKeyIdentifierExtension.CreateFromCertificate(ca, true, false));
+
+        var now = DateTimeOffset.UtcNow;
+        var notAfter = now + SiteValidity < ca.NotAfter ? now + SiteValidity : new DateTimeOffset(ca.NotAfter.ToUniversalTime());
+        var serial = RandomNumberGenerator.GetBytes(16);
+        serial[0] &= 0x7F; // número de serie positivo
+        using var cert = request.Create(ca, now.AddDays(-1), notAfter, serial);
+
+        WritePrivate(keyFile, key.ExportPkcs8PrivateKeyPem());
+        File.WriteAllText(certFile, cert.ExportCertificatePem());
+        return (certFile, keyFile);
+    }
+
+    /// <summary>Borra el certificado de la red local de un sitio (al dejar de compartirlo; se vuelve a emitir la próxima vez).</summary>
+    public void RemoveLanCert(string site)
+    {
+        foreach (var file in new[] { LanCertFile(site), LanKeyFile(site) })
+        {
+            try { File.Delete(file); } catch { /* lo que quede se reemplaza al volver a emitir */ }
+        }
+    }
+
+    private static bool IsUsableLan(string certFile, string keyFile, Site site, System.Net.IPAddress address, X509Certificate2 ca)
+    {
+        if (!IsUsable(certFile, keyFile, site, ca)) return false;
+        try
+        {
+            using var cert = X509Certificate2.CreateFromPem(File.ReadAllText(certFile));
+            return cert.MatchesHostname(address.ToString());
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

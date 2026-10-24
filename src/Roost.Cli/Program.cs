@@ -519,6 +519,31 @@ app.Configure(config =>
             .WithExample("mail", "status", "--json");
     });
 
+    // Compartir (oleada 6): un sitio por internet con un tunel rapido de Cloudflare, o en la red local.
+    config.AddBranch("share", share =>
+    {
+        share.SetDescription("Ensena un sitio fuera de tu equipo mientras dura: por internet con un tunel rapido de Cloudflare (sin cuenta) o, con --lan, en tu red local (solo en Windows). Nada se comparte solo, y Ctrl+C o roost down lo paran.");
+        share.SetDefaultCommand<Roost.Cli.Commands.Share.ShareCommand>();
+        share.AddExample("share", "tienda");
+        share.AddExample("share", "tienda", "--lan");
+        share.AddExample("share", "tienda", "--lan", "--ip", "192.168.1.20");
+        share.AddExample("share", "tienda", "--detach", "--yes", "--json");
+
+        share.AddCommand<Roost.Cli.Commands.Share.ShareStopCommand>("stop")
+            .WithDescription("Deja de compartir un sitio (sin sitio, todo); con lo de la red local quita tambien la regla del cortafuegos.")
+            .WithExample("share", "stop", "tienda")
+            .WithExample("share", "stop", "--lan");
+
+        share.AddCommand<Roost.Cli.Commands.Share.ShareStatusCommand>("status")
+            .WithDescription("Lo que se esta compartiendo, cloudflared y las reglas del cortafuegos de Roost.")
+            .WithExample("share", "status")
+            .WithExample("share", "status", "--json");
+
+        share.AddCommand<Roost.Cli.Commands.Share.ShareInstallCommand>("install")
+            .WithDescription("Descarga cloudflared, verifica su SHA-256 y lo instala en bin/cloudflared (roost share lo hace solo la primera vez).")
+            .WithExample("share", "install");
+    });
+
     config.AddBranch("cert", cert =>
     {
         cert.SetDescription("La CA local que firma los certificados de los sitios .test.");

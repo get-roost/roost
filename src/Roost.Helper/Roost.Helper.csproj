@@ -2,9 +2,9 @@
 
   <!--
     roost-helper: lo único de Roost que se ejecuta con privilegios (ROOST.md §5.1, decisión 5).
-    A propósito sin dependencias: solo su Program.cs, y HostsBlock.cs y NrptScripts.cs de
-    Roost.Core enlazados como fuente, para que lo que puede escribir en el hosts (y la regla de DNS
-    que pone) lo decida código de Core probado por los tests.
+    A propósito sin dependencias: solo su Program.cs, y HostsBlock.cs, NrptScripts.cs y
+    FirewallRule.cs de Roost.Core enlazados como fuente, para que lo que puede escribir en el hosts
+    (y la regla de DNS y la del cortafuegos que pone) lo decida código de Core probado por los tests.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -20,6 +20,7 @@
   <ItemGroup>
     <Compile Include="..\Roost.Core\Sites\HostsBlock.cs" Link="HostsBlock.cs" />
     <Compile Include="..\Roost.Core\Dns\NrptScripts.cs" Link="NrptScripts.cs" />
+    <Compile Include="..\Roost.Core\Share\FirewallRule.cs" Link="FirewallRule.cs" />
   </ItemGroup>
 
 </Project>

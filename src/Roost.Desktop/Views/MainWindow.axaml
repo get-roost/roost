@@ -83,6 +83,8 @@
     <!-- Sitios avanzados -->
     <DataTemplate DataType="vm:EditSiteDialogViewModel"><v:EditSiteDialogView /></DataTemplate>
     <DataTemplate DataType="vm:SiteAliasesDialogViewModel"><v:SiteAliasesDialogView /></DataTemplate>
+    <!-- Compartir -->
+    <DataTemplate DataType="vm:ShareDialogViewModel"><v:ShareDialogView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="40,*,28">

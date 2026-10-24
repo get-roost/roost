@@ -76,7 +76,8 @@ internal sealed class GeneratedConfig
         {
             if (File.Exists(file)) yield return file;
         }
-        foreach (var dir in new[] { paths.NginxSites, paths.ApacheSites })
+        // Con las escuchas de compartir (oleada 6), que también genera Prepare.
+        foreach (var dir in new[] { paths.NginxSites, paths.ApacheSites, paths.NginxShares, paths.ApacheShares })
         {
             if (!Directory.Exists(dir)) continue;
             foreach (var file in Directory.EnumerateFiles(dir)) yield return file;

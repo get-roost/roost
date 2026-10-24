@@ -22,7 +22,9 @@ public static class DaemonHost
     /// app), tiene su propia tubería y nunca habla con el daemon de la Roost de siempre.
     /// Endpoints: <c>GET /status</c>, <c>POST /up</c>, <c>/down</c>, <c>/restart</c> (todo),
     /// <c>/restart/{servicio}</c>, <c>/reload/{servicio}</c> (el servidor web, en caliente),
-    /// <c>/stop/{servicio}</c> y <c>/start/{servicio}</c>.
+    /// <c>/stop/{servicio}</c> y <c>/start/{servicio}</c>; y para compartir (oleada 6), <c>GET /shares</c>,
+    /// <c>POST /share/{sitio}/tunnel</c>, <c>/share/{sitio}/lan</c>, <c>/share/{sitio}/{tipo}/stop</c> y
+    /// <c>/share/{sitio}/{tipo}/hold</c> (espera a que se deje de compartir; si el cliente se va, lo para).
     /// </summary>
     public static string PipeName(RoostPaths paths) => "roost-" + Environment.UserName + RoostPaths.InstanceTag(paths);
 
@@ -88,6 +90,18 @@ public static class DaemonHost
         app.MapPost("/reload/{service}", (string service) => stack.ReloadServiceAsync(service));
         app.MapPost("/stop/{service}", (string service) => stack.StopServiceAsync(service));
         app.MapPost("/start/{service}", (string service) => stack.StartServiceAsync(service));
+        // Compartir (oleada 6): un sitio por internet (túnel) o en la red local, mientras dure.
+        app.MapGet("/shares", () => stack.Shares());
+        app.MapPost("/share/{site}/tunnel", (string site) => stack.ShareTunnelAsync(site));
+        app.MapPost("/share/{site}/lan", (string site, ShareLanRequest request) => stack.ShareLanAsync(site, request.Address, request.Port));
+        app.MapPost("/share/{site}/{kind}/stop", (string site, string kind) =>
+            Roost.Core.Share.ShareListener.TryParseKind(kind, out var parsed)
+                ? stack.StopShareAsync(site, parsed)
+                : Task.FromResult(new ShareResponse(false, $"No hay ningun tipo de compartir '{kind}' (tunnel o lan).", null)));
+        app.MapPost("/share/{site}/{kind}/hold", (string site, string kind, HttpContext context) =>
+            Roost.Core.Share.ShareListener.TryParseKind(kind, out var parsed)
+                ? stack.HoldShareAsync(site, parsed, context.RequestAborted)
+                : Task.FromResult(new ShareResponse(false, $"No hay ningun tipo de compartir '{kind}' (tunnel o lan).", null)));
         app.MapPost("/down", async () =>
         {
             var response = await stack.DownAsync();

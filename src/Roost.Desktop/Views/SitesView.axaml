@@ -418,6 +418,63 @@
                 </StackPanel>
               </Border>
 
+              <!-- Compartir (oleada 6): por internet con un túnel rápido de Cloudflare, o en la red local -->
+              <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10">
+                <StackPanel Spacing="8">
+                  <DockPanel>
+                    <ctl:Chip DockPanel.Dock="Right" Text="{Binding ShareChip}" Tone="{Binding ShareChipTone}" ShowDot="True" IsVisible="{Binding IsSharing}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <ctl:Icon Data="{StaticResource IcShare}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                      <TextBlock Classes="lbl" Text="Compartir" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </DockPanel>
+                  <TextBlock Classes="faint" TextWrapping="Wrap" IsVisible="{Binding ShareIntroVisible}"
+                             Text="Enséñalo fuera de tu equipo mientras lo necesites: por internet con un enlace temporal de Cloudflare, o en tu red local (un móvil en la misma wifi). Nada se comparte solo." />
+                  <ctl:Note Tone="Bad" IsVisible="{Binding HasSiteTunnel}">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="{Binding TunnelHeadline}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                      <SelectableTextBlock Classes="mono" Text="{Binding SiteTunnel.Url, FallbackValue=''}" TextWrapping="Wrap" />
+                      <TextBlock Classes="small" TextWrapping="Wrap" IsVisible="{Binding TunnelConnecting}"
+                                 Text="Cloudflare aún está preparando la conexión: si da error, prueba en unos segundos." />
+                      <WrapPanel ItemSpacing="6" LineSpacing="6">
+                        <Button Classes="sm" Content="Copiar" Command="{Binding CopyTunnelUrlCommand}" ToolTip.Tip="Copiar el enlace para mandarlo" />
+                        <Button Classes="sm" Content="Abrir" Command="{Binding OpenTunnelUrlCommand}" ToolTip.Tip="Abrir el enlace en el navegador" />
+                        <Button Classes="sm danger" Content="Dejar de compartir" Command="{Binding StopTunnelCommand}" IsEnabled="{Binding ShareIdle}"
+                                ToolTip.Tip="Cierra el túnel: el enlace deja de funcionar" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </ctl:Note>
+                  <ctl:Note Tone="Warn" IsVisible="{Binding HasSiteLan}">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="{Binding LanHeadline}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                      <SelectableTextBlock Classes="mono" Text="{Binding SiteLan.Url, FallbackValue=''}" TextWrapping="Wrap" />
+                      <TextBlock Classes="small" Text="{Binding LanCertHint}" TextWrapping="Wrap" />
+                      <WrapPanel ItemSpacing="6" LineSpacing="6">
+                        <Button Classes="sm" Content="Copiar" Command="{Binding CopyLanUrlCommand}" ToolTip.Tip="Copiar la dirección para abrirla en el móvil" />
+                        <Button Classes="sm" Content="Abrir" Command="{Binding OpenLanUrlCommand}" ToolTip.Tip="Abrir la dirección en el navegador" />
+                        <Button Classes="sm danger" Content="Dejar de compartir" Command="{Binding StopLanCommand}" IsEnabled="{Binding ShareIdle}"
+                                ToolTip.Tip="Deja de escuchar en la red local y quita la regla del cortafuegos (Windows pide permiso)" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </ctl:Note>
+                  <ctl:Note Tone="Bad" IsVisible="{Binding ShowShareDebug}">
+                    <TextBlock Text="{Binding ShareDebugText}" TextWrapping="Wrap" />
+                  </ctl:Note>
+                  <TextBlock Classes="small" Text="{Binding ShareUrlsHint}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding IsSharing}" />
+                  <TextBlock Classes="small" Text="{Binding ShareBusyText}" TextWrapping="Wrap" IsVisible="{Binding ShareBusy}" />
+                  <StackPanel Spacing="6" IsVisible="{Binding ShareStackStopped}">
+                    <TextBlock Classes="small" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Text="Para compartirlo, el stack tiene que estar en marcha." />
+                    <Button Classes="sm primary" Content="Iniciar todo" Command="{Binding ShareStartStackCommand}" HorizontalAlignment="Left" />
+                  </StackPanel>
+                  <WrapPanel ItemSpacing="6" LineSpacing="6" IsEnabled="{Binding ShareIdle}" IsVisible="{Binding !ShareStackStopped}">
+                    <Button Classes="sm" Content="Compartir por internet…" Command="{Binding ShareTunnelCommand}" IsVisible="{Binding !HasSiteTunnel}"
+                            ToolTip.Tip="Un enlace https://….trycloudflare.com que lleva a este sitio, sin cuenta. Antes de nada te dice lo que implica." />
+                    <Button Classes="sm" Content="En la red local…" Command="{Binding ShareLanCommand}" IsVisible="{Binding !HasSiteLan}"
+                            ToolTip.Tip="Para el móvil u otro equipo de tu wifi: HTTPS en la IP de este equipo, con una regla del cortafuegos solo para tu red privada" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+
               <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="8">
                 <TextBlock Classes="muted" Text="Certificado" />
                 <StackPanel Grid.Column="1" Spacing="4">

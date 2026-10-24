@@ -25,8 +25,12 @@ internal sealed record StackEnvironment(
     TimeSpan HealthTimeout,
     bool Ipv6,
     Func<ServiceDefinition, int?, Task<string?>>? ReloadWeb = null,
-    Func<int, IReadOnlyCollection<int>>? Connections = null)
+    Func<int, IReadOnlyCollection<int>>? Connections = null,
+    ShareEnvironment? Share = null)
 {
+    /// <summary>Compartir (oleada 6): lo que necesitan el túnel y la red local; sin dar, lo de verdad.</summary>
+    public ShareEnvironment Shares => Share ?? ShareEnvironment.Real;
+
     /// <summary>
     /// Las conexiones establecidas a un puerto de 127.0.0.1, por su puerto de origen (<see cref="TcpConnections"/>;
     /// en los tests, las que digan).
@@ -116,12 +120,28 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
     public async Task<CommandResponse> UpAsync()
     {
         await _gate.WaitAsync();
+        try
+        {
+            var response = await UpLockedAsync();
+            // Compartir (oleada 6): lo de un sitio que ya no está en el stack deja de compartirse.
+            await PruneSharesLockedAsync();
+            return response;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary><see cref="UpAsync"/> con el cerrojo ya cogido (lo usa también compartir, que abre y cierra escuchas con un <c>up</c>).</summary>
+    private async Task<CommandResponse> UpLockedAsync()
+    {
         Supervisor? starting = null;
         var wasRunning = _supervisor is not null;
         try
         {
             var config = RoostConfig.Load(paths.ConfigFile);
-            var planner = new StackPlanner(paths, _env.Runner);
+            var planner = new StackPlanner(paths, _env.Runner) { Shares = ShareListenersLocked() };
             var installedPhp = new PhpInstaller(paths).ListInstalled();
             var php = planner.ResolvePhp(config, installedPhp);
             // El servidor web de [web] server; si falta, Prepare lo dice (roost up lo instala antes).
@@ -235,7 +255,6 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
             if (starting is not null) await starting.StopAsync();
             // Un up fallido no deja nada a medias: tampoco el DNS local.
             if (_supervisor is null) await SetDnsAsync(false);
-            _gate.Release();
         }
     }
 
@@ -686,6 +705,8 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
         await _gate.WaitAsync();
         try
         {
+            // Compartir (oleada 6): nada se queda compartido con el stack parado.
+            await StopAllSharesLockedAsync("Se ha parado Roost (roost down).");
             await SetDnsAsync(false);
             _dnsWanted = false;
             await StopCurrentAsync();
