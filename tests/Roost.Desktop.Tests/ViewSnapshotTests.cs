@@ -1903,4 +1903,314 @@ public class ViewSnapshotTests
         welcome.SkipCommand.Execute(null);
         await showing;
     }
+
+    // ---- Pasos y plantillas (oleada 4) ----
+    // Los pasos tras clonar, «Pasos de instalación…» del panel y Nuevo sitio con una plantilla. Composer
+    // y artisan van sobre un runner guionizado y la base de datos sobre un cliente falso: nada se
+    // ejecuta, nada va a la red y ningún test llega a aplicar el stack.
+
+    [AvaloniaFact]
+    public async Task NuevoSitio_PlantillaLaravel_SoloLosPhpQueValen_YUnaCarpetaNueva()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Sites);
+        var opening = main.Sites.NewSiteCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<NewSiteDialogViewModel>(main.Dialog);
+        Assert.Equal(["Carpeta (lo de siempre)", "Laravel", "WordPress", "Symfony", "Desde git…"], dialog.Templates.Select(t => t.Label));
+        Assert.True(dialog.Templates[0].IsSelected);
+        Assert.False(dialog.Templates[4].Available);
+
+        dialog.Name = "shop";
+        dialog.PickTemplateCommand.Execute(dialog.Templates[1]);
+        Assert.True(dialog.IsProjectTemplate);
+        Assert.True(dialog.Templates[1].IsSelected);
+        Assert.False(dialog.Templates[0].IsSelected);
+        // Laravel 13 pide PHP 8.3: la 7.4 no sale.
+        Assert.Equal(["Global (ahora 8.4.27)", "8.4.27", "8.3.36"], dialog.PhpOptions.Select(o => o.Label));
+        Assert.Equal("Laravel 13 pide PHP 8.3 o más nuevo: solo salen los que valen.", dialog.PhpHint);
+        Assert.Equal("public", dialog.Root);
+        Assert.False(dialog.RootEditable);
+        Assert.Equal("No existe: Roost crea aquí el proyecto Laravel.", dialog.FolderHint);
+        Assert.True(dialog.DbIsCreate);
+        Assert.Equal("shop", dialog.DbName);
+        Assert.Contains("composer create-project laravel/laravel", dialog.StepFolder);
+        Assert.Equal("Deja el .env con la base de datos shop y https://shop.test, y hace migrate y storage:link, con la salida en vivo", dialog.TemplateStep);
+        Assert.True(dialog.CanCreate);
+        Snapshot(window, "nuevo-sitio-plantilla-laravel");
+
+        // Una carpeta con algo dentro no vale para una plantilla; un sitio que ya existe, tampoco.
+        dialog.Folder = Path.Combine(fake.Paths.Www, "tienda");
+        Assert.False(dialog.FolderValid);
+        Assert.False(dialog.CanCreate);
+        Assert.StartsWith("Ya existe y no está vacía", dialog.FolderHint);
+        dialog.Folder = Path.Combine(fake.Paths.Www, "shop");
+        Assert.True(dialog.FolderValid);
+        dialog.Name = "blog";
+        Assert.False(dialog.NameValid);
+        Assert.StartsWith("Ya existe blog.test: una plantilla crea un sitio nuevo", dialog.NameHint);
+        dialog.Name = "shop";
+
+        // WordPress: vale con la 7.4, se sirve desde su carpeta y sin base de datos no.
+        dialog.PickTemplateCommand.Execute(dialog.Templates[2]);
+        Assert.Contains(dialog.PhpOptions, o => o.Label.StartsWith("7.4.33", StringComparison.Ordinal));
+        Assert.Equal("", dialog.Root);
+        dialog.DbIsNone = true;
+        Assert.False(dialog.DbValid);
+        Assert.StartsWith("WordPress necesita una base de datos", dialog.DbHint);
+        dialog.DbIsCreate = true;
+        Assert.True(dialog.CanCreate);
+
+        // Symfony: sin base de datos, salvo con webapp.
+        dialog.PickTemplateCommand.Execute(dialog.Templates[3]);
+        Assert.True(dialog.IsSymfony);
+        Assert.True(dialog.DbIsNone);
+        dialog.Webapp = true;
+        Assert.True(dialog.DbIsCreate);
+        Assert.Contains("composer require webapp", dialog.StepFolder);
+        Assert.Contains("DATABASE_URL a shop", dialog.TemplateStep);
+        Snapshot(window, "nuevo-sitio-plantilla-symfony");
+
+        // De vuelta a la carpeta de siempre, todo como antes.
+        dialog.PickTemplateCommand.Execute(dialog.Templates[0]);
+        Assert.True(dialog.RootEditable);
+        Assert.True(dialog.FolderValid);
+        Assert.Equal("", dialog.TemplateStep);
+        Assert.Equal("", dialog.PhpHint);
+
+        dialog.Close();   // sin crear: crear aplicaría al stack
+        await opening;
+    }
+
+    [AvaloniaFact]
+    public async Task NuevoSitio_PlantillaLaravel_LosPasosEmpiezanSolos_YSiFallaNoQuedaNada()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        fake.InstallFakeComposer();
+        var runner = new ScriptedCommandRunner(
+            "Creating a \"laravel/laravel\" project at \"./.tmp-1f2e3d\"",
+            "Installing laravel/laravel (v13.11.0)",
+            "  - Downloading laravel/laravel (v13.11.0)",
+            "  - Installing laravel/laravel (v13.11.0): Extracting archive",
+            "Created project in C:\\roost\\www\\.tmp-1f2e3d",
+            "Loading composer repositories with package information",
+            "Updating dependencies",
+            "Lock file operations: 111 installs, 0 updates, 0 removals");
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        sites.Runner = runner;
+        sites.DbRunner = new FakeDbClient(exists: false);
+
+        var creating = sites.NewSiteCommand.ExecuteAsync(null);
+        var form = Assert.IsType<NewSiteDialogViewModel>(main.Dialog);
+        form.Name = "shop";
+        form.PickTemplateCommand.Execute(form.Templates[1]);
+        form.CreateCommand.Execute(null);
+        await UntilAsync(() => main.Dialog is DeployStepsDialogViewModel && runner.Calls.Count == 1);
+        var dialog = (DeployStepsDialogViewModel)main.Dialog!;
+        dialog.FlushLines();
+
+        Assert.True(dialog.IsTemplate);
+        Assert.Equal("Creando shop.test", dialog.Title);
+        Assert.Equal($"Laravel con PHP 8.4.27 · en {Path.Combine(fake.Paths.Www, "shop")}", dialog.Subtitle);
+        Assert.True(dialog.Running);
+        Assert.False(dialog.CanDismiss);
+        Assert.False(dialog.ShowOffer);   // empieza solo
+        Assert.Equal(["create", "db", "env", "key", "migrate", "storage-link", "npm"], dialog.Rows.Select(r => r.Step.Id));
+        Assert.False(dialog.Rows[0].Editable);   // crear el proyecto no se desmarca
+        Assert.True(dialog.Rows[0].IsActive);
+        var spec = runner.Calls[0];
+        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), spec.Exe);
+        Assert.Equal(["create-project", "laravel/laravel"], spec.Arguments.Skip(1).Take(2));
+        Assert.StartsWith(Path.Combine(fake.Paths.Www, ".tmp-"), spec.Arguments[3]);
+        Assert.Equal(fake.Paths.Www, spec.WorkingDirectory);
+        Snapshot(window, "plantilla-laravel-en-marcha");
+
+        runner.Report("");
+        runner.Report("  Problem 1");
+        runner.Report("    - Root composer.json requires laravel/framework ^13.0 -> satisfiable by laravel/framework[v13.0.0, ..., v13.38.0].");
+        runner.Report("  Your requirements could not be resolved to an installable set of packages.");
+        runner.Finish(2);
+        await UntilAsync(() => dialog.Stopped);
+
+        Assert.True(dialog.ShowRetry);
+        Assert.True(dialog.ShowUndo);
+        Assert.False(dialog.ShowClose);
+        Assert.StartsWith("composer create-project laravel/laravel ha fallado (ver las últimas líneas).", dialog.ResultText);
+        Assert.Contains("la carpeta nueva, el sitio y su base de datos", dialog.ResultText);
+        Assert.Contains("could not be resolved", dialog.FailureTail);
+        Assert.Equal(DeployRowState.Failed, dialog.Rows[0].State);
+        Assert.Equal("ha fallado (código 2)", dialog.Rows[0].StateText);
+        Assert.Equal(DeployRowState.Pending, dialog.Rows[1].State);
+        Snapshot(window, "plantilla-laravel-fallo");
+
+        // «Deshacer y cerrar»: no queda ni la carpeta, ni el temporal, ni el sitio.
+        dialog.UndoCommand.Execute(null);
+        await creating;
+        Assert.Null(main.Dialog);
+        Assert.False(Directory.Exists(Path.Combine(fake.Paths.Www, "shop")));
+        Assert.Empty(Directory.GetDirectories(fake.Paths.Www, ".tmp-*"));
+        Assert.Null(new Roost.Core.Sites.SiteRegistry(fake.Paths).Find("shop"));
+    }
+
+    [AvaloniaFact]
+    public async Task PasosTrasClonar_MarcaLoQueHaceFalta_YLosHaceConLaSalidaEnVivo()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        fake.InstallFakeComposer();
+        var folder = fake.Project("shop", "artisan", "composer.json", "composer.lock", ".env.example", "public/", "package.json");
+        var site = new Roost.Core.Sites.SiteManager(fake.Paths).Add("shop", folder).Site;
+        var runner = new ScriptedCommandRunner(
+            "Installing dependencies from lock file (including require-dev)",
+            "Verifying lock file contents can be installed on current platform.",
+            "Package operations: 112 installs, 0 updates, 0 removals",
+            "  - Installing doctrine/inflector (2.0.10): Extracting archive",
+            "  - Installing laravel/framework (v13.38.0): Extracting archive");
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        sites.Runner = runner;
+        sites.DbRunner = new FakeDbClient(exists: true, tables: 0);
+
+        var offering = sites.OfferDeployStepsAsync(site);
+        await UntilAsync(() => main.Dialog is DeployStepsDialogViewModel);
+        var dialog = (DeployStepsDialogViewModel)main.Dialog!;
+
+        Assert.Equal("shop.test está clonado", dialog.Title);
+        Assert.Equal("Parece un proyecto Laravel 11 (composer.json, artisan)", dialog.Subtitle);
+        Assert.Equal("PHP: 8.4.27 (el global) · composer.json pide ^8.2 ✓", dialog.PhpLine);
+        Assert.Equal(["composer", "env", "key", "migrate", "storage-link", "npm"], dialog.Rows.Select(r => r.Step.Id));
+        Assert.All(dialog.Rows.Take(5), r => Assert.True(r.IsChecked));
+        Assert.False(dialog.Rows[^1].IsChecked);
+        Assert.False(dialog.Rows[^1].Editable);   // npm: llega con Node en Roost
+        Assert.Equal("Llega con Node en Roost.", dialog.Rows[^1].Hint);
+        Assert.Equal("Instala las dependencias (hay composer.lock).", dialog.Rows[0].Hint);
+        Assert.Equal("Con la base de datos de Roost: 127.0.0.1:3308, root sin contraseña, shop; APP_URL=https://shop.test.", dialog.Rows[1].Hint);
+        Assert.Equal("La base de datos shop está vacía.", dialog.Rows[3].Hint);
+        Assert.Equal("composer install y php artisan ejecutan scripts del propio proyecto. Hazlo solo con repositorios de confianza.", dialog.Note);
+        Assert.True(dialog.ShowOffer);
+        Assert.True(dialog.CanRun);
+        Snapshot(window, "pasos-tras-clonar");
+
+        dialog.RunCommand.Execute(null);
+        await UntilAsync(() => runner.Calls.Count == 1);
+        dialog.FlushLines();
+        Assert.True(dialog.Running);
+        Assert.False(dialog.CanDismiss);
+        Assert.True(dialog.Rows[0].IsActive);
+        Assert.False(dialog.Rows[1].Editable);   // corriendo, no se tocan las casillas
+        Assert.Equal("> composer install", dialog.Lines[0].Text);
+        Assert.True(dialog.Lines[0].IsMuted);
+        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), runner.Calls[0].Exe);
+        Assert.Equal(folder, runner.Calls[0].WorkingDirectory);
+        Snapshot(window, "pasos-tras-clonar-en-marcha");
+
+        runner.Report("Generating optimized autoload files");
+        runner.Finish(0);
+        await UntilAsync(() => dialog.Succeeded);
+
+        Assert.All(dialog.Rows.Take(5), r => Assert.Equal(DeployRowState.Done, r.State));
+        Assert.StartsWith("Listo: 5 pasos en ", dialog.ResultText);
+        Assert.Equal(4, runner.Calls.Count);   // composer, key:generate, migrate y storage:link (el .env lo escribe Roost)
+        Assert.Equal(["artisan", "key:generate", "--no-interaction"], runner.Calls[1].Arguments);
+        var env = Roost.Core.Deploy.EnvFile.Load(Path.Combine(folder, ".env")).Env;
+        Assert.Equal("shop", env.Get("DB_DATABASE"));
+        Assert.Equal("3308", env.Get("DB_PORT"));
+        Assert.Equal("https://shop.test", env.Get("APP_URL"));
+        Assert.True(dialog.ShowClose);
+        Snapshot(window, "pasos-tras-clonar-hecho");
+
+        dialog.FinishCommand.Execute(null);
+        await offering;
+        Assert.Null(main.Dialog);
+    }
+
+    [AvaloniaFact]
+    public async Task PasosDeInstalacion_DesdeElPanel_UnPasoQueFalla_YReintentarDesdeAhi()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        fake.InstallFakeComposer();
+        var folder = fake.Project("shop", "artisan", "composer.json", "composer.lock", ".env.example", "public/");
+        new Roost.Core.Sites.SiteManager(fake.Paths).Add("shop", folder);
+        var runner = new SequenceCommandRunner(
+            (2,
+            [
+                "Installing dependencies from lock file (including require-dev)",
+                "Verifying lock file contents can be installed on current platform.",
+                "Your lock file does not contain a compatible set of packages. Please run composer update.",
+                "",
+                "  Problem 1",
+                "    - laravel/framework is locked to version v13.38.0 and an update of this package was not requested.",
+                "    - laravel/framework v13.38.0 requires ext-intl * -> it is missing from your system. Install or enable PHP's intl extension.",
+            ]),
+            (0, ["Installing dependencies from lock file (including require-dev)", "Generating optimized autoload files"]));
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        sites.Runner = runner;
+        sites.DbRunner = new FakeDbClient(exists: true, tables: 7);
+        main.NotifyConfigChanged();
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "shop.test"));
+
+        Assert.True(sites.HasDeploySteps);
+        Assert.Equal("Laravel 11", sites.DeployProjectText);
+        Assert.StartsWith("composer install, el .env con la base de datos de Roost", sites.DeployStepsText);
+        ScrollPage(window, sites, 560);
+        Snapshot(window, "sitios-panel-pasos-de-instalacion");
+
+        var showing = sites.DeployStepsCommand.ExecuteAsync(null);
+        await UntilAsync(() => main.Dialog is DeployStepsDialogViewModel);
+        var dialog = (DeployStepsDialogViewModel)main.Dialog!;
+        Assert.Equal("Pasos de instalación · shop.test", dialog.Title);
+        var migrate = dialog.Rows.Single(r => r.Step.Id == "migrate");
+        Assert.False(migrate.IsChecked);   // con tablas, apagado
+        Assert.True(migrate.Editable);
+        Assert.Equal("shop ya tiene 7 tablas: márcalo solo si de verdad quieres migrar.", migrate.Hint);
+        dialog.Rows.Single(r => r.Step.Id == "storage-link").IsChecked = false;
+
+        dialog.RunCommand.Execute(null);
+        await UntilAsync(() => dialog.Stopped);
+        Assert.True(dialog.ShowRetry);
+        Assert.True(dialog.ShowClose);
+        Assert.False(dialog.ShowUndo);
+        Assert.Equal("composer install ha fallado en shop (ver las últimas líneas). El sitio sigue registrado: arréglalo y repite el paso con «Reintentar desde aquí».", dialog.ResultText);
+        Assert.Contains("ext-intl", dialog.FailureTail);
+        Assert.Equal("ha fallado (código 2)", dialog.Rows[0].StateText);
+        Assert.False(File.Exists(Path.Combine(folder, ".env")));   // se para en el primero que falla
+        Snapshot(window, "pasos-de-instalacion-fallo");
+
+        dialog.RetryCommand.Execute(null);
+        await UntilAsync(() => dialog.Succeeded);
+        Assert.True(File.Exists(Path.Combine(folder, ".env")));
+        Assert.Equal(DeployRowState.Pending, dialog.Rows.Single(r => r.Step.Id == "storage-link").State);
+        Assert.Equal(DeployRowState.Pending, migrate.State);
+        Assert.Equal(3, runner.Calls.Count);   // composer (falla), composer otra vez y key:generate
+        Assert.Equal("", dialog.FailureTail);
+
+        dialog.FinishCommand.Execute(null);
+        await showing;
+        Assert.Null(main.Dialog);
+    }
+
+    [AvaloniaFact]
+    public async Task PasosDeInstalacion_UnaCarpetaSinProyecto_NoProponeNada()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        var folder = fake.Project("estatica", "index.php");
+        var site = new Roost.Core.Sites.SiteManager(fake.Paths).Add("estatica", folder).Site;
+
+        var offering = main.Sites.OfferDeployStepsAsync(site);
+        await UntilAsync(() => main.Dialog is DeployStepsDialogViewModel);
+        var dialog = (DeployStepsDialogViewModel)main.Dialog!;
+
+        Assert.True(dialog.NoSteps);
+        Assert.Equal("No hay pasos que proponer. Se sirve tal cual.", dialog.ResultText);
+        Assert.True(dialog.ShowClose);
+        Assert.False(dialog.ShowOffer);
+        dialog.FinishCommand.Execute(null);
+        await offering;
+    }
 }

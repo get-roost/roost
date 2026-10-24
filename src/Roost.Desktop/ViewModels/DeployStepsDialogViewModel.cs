@@ -66,6 +66,9 @@ public sealed partial class DeployStepRow : ObservableObject
 
     public bool Available => Step.Available;
 
+    /// <summary>Lo que ahora no se puede (npm, que llega con Node; migrar con la base de datos parada), atenuado.</summary>
+    public double RowOpacity => Step.Available ? 1 : 0.55;
+
     [ObservableProperty] public partial bool IsChecked { get; set; }
 
     /// <summary>Se puede marcar o desmarcar ahora (ni corriendo, ni si es obligatorio, ni si no se puede).</summary>
@@ -233,7 +236,11 @@ public sealed partial class DeployStepsDialogViewModel : DialogViewModel
 
     public bool HasResult => ResultText.Length > 0;
 
-    partial void OnResultTextChanged(string value) => OnPropertyChanged(nameof(HasResult));
+    partial void OnResultTextChanged(string value)
+    {
+        OnPropertyChanged(nameof(HasResult));
+        OnPropertyChanged(nameof(ShowNote));
+    }
 
     /// <summary>«Omitir» y «Ejecutar»: antes de empezar (con una plantilla no, que empieza sola).</summary>
     public bool ShowOffer => Idle && !Running && !IsTemplate && HasSteps;
@@ -386,11 +393,23 @@ public sealed partial class DeployStepsDialogViewModel : DialogViewModel
         }
     }
 
+    /// <summary>
+    /// Antes de empezar se puede tocar cualquiera; tras un fallo, el que falló y los de después (para
+    /// saltarse uno o añadir otro antes de «Reintentar desde aquí»); corriendo, ninguno.
+    /// </summary>
     private void UpdateEditable()
     {
-        foreach (var row in Rows) row.Editable = row.Available && !row.Step.Required && Idle && !Running;
+        for (var i = 0; i < Rows.Count; i++)
+        {
+            var row = Rows[i];
+            row.Editable = row.Available && !row.Step.Required && !Running && (Idle || Stopped && i >= _failedIndex);
+        }
         OnPropertyChanged(nameof(CanRun));
+        OnPropertyChanged(nameof(ShowNote));
     }
+
+    /// <summary>El aviso de los scripts, mientras no haya un resultado que contar.</summary>
+    public bool ShowNote => HasNote && !HasResult;
 
     /// <summary>Pasa a <see cref="Lines"/> lo que ha llegado (en el hilo de la UI).</summary>
     internal void FlushLines()

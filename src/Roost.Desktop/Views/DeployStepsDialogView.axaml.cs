@@ -16,7 +16,12 @@ public partial class DeployStepsDialogView : UserControl
         InitializeComponent();
         OutputScroll.ScrollChanged += (_, e) =>
         {
-            if (e.OffsetDelta.Y == 0 && e.ExtentDelta.Y != 0) return;
+            // Si solo ha crecido el contenido (ya medido), se baja hasta el final si se estaba siguiendo.
+            if (e.OffsetDelta.Y == 0 && e.ExtentDelta.Y != 0)
+            {
+                if (_follow) OutputScroll.ScrollToEnd();
+                return;
+            }
             _follow = OutputScroll.Offset.Y >= OutputScroll.Extent.Height - OutputScroll.Viewport.Height - 8;
         };
         DataContextChanged += (_, _) =>

@@ -54,12 +54,11 @@
               </ItemsControl.ItemsPanel>
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:DeployStepRow">
-                  <Grid ColumnDefinitions="Auto,230,*,Auto" ColumnSpacing="10">
+                  <Grid ColumnDefinitions="Auto,230,*,Auto" ColumnSpacing="10" Opacity="{Binding RowOpacity}">
                     <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding Editable}" VerticalAlignment="Top" Margin="0,-2,0,0"
                               AutomationProperties.Name="{Binding Label}" />
                     <TextBlock Grid.Column="1" Text="{Binding Label}" TextWrapping="Wrap" VerticalAlignment="Top"
-                               Classes="small" Classes.mono="{Binding IsCommand}" FontWeight="SemiBold" Opacity="1"
-                               Classes.faint="{Binding !Available}" />
+                               Classes="small" Classes.mono="{Binding IsCommand}" FontWeight="SemiBold" />
                     <TextBlock Grid.Column="2" Classes="small" Text="{Binding Hint}" TextWrapping="Wrap" VerticalAlignment="Top"
                                Foreground="{DynamicResource MutedBrush}" />
                     <ctl:Chip Grid.Column="3" Text="{Binding StateText}" Tone="{Binding StateTone}" IsVisible="{Binding ShowState}" VerticalAlignment="Top" />
@@ -69,7 +68,13 @@
             </ItemsControl>
           </StackPanel>
 
-          <ctl:Note Tone="Warn" IsVisible="{Binding HasNote}" Content="{Binding Note}" />
+          <ctl:Note Tone="{Binding ResultTone}" IsVisible="{Binding HasResult}">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" />
+              <SelectableTextBlock Classes="mono" FontSize="11.5" Text="{Binding FailureTail}" TextWrapping="Wrap" IsVisible="{Binding HasFailureTail}" />
+            </StackPanel>
+          </ctl:Note>
+          <ctl:Note Tone="Warn" IsVisible="{Binding ShowNote}" Content="{Binding Note}" />
 
           <StackPanel Spacing="6" IsVisible="{Binding ShowOutput}">
             <DockPanel>
@@ -93,13 +98,6 @@
               </ScrollViewer>
             </Border>
           </StackPanel>
-
-          <ctl:Note Tone="{Binding ResultTone}" IsVisible="{Binding HasResult}">
-            <StackPanel Spacing="8">
-              <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" />
-              <SelectableTextBlock Classes="mono" FontSize="11.5" Text="{Binding FailureTail}" TextWrapping="Wrap" IsVisible="{Binding HasFailureTail}" />
-            </StackPanel>
-          </ctl:Note>
         </StackPanel>
       </ScrollViewer>
     </DockPanel>
