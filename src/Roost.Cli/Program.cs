@@ -76,6 +76,50 @@ app.Configure(config =>
             .WithDescription("Que PHP usa la terminal en esta carpeta, y por que (.php-version, el sitio, el global).")
             .WithExample("php", "which")
             .WithExample("php", "which", "--dir", @"C:\roost\www\legacy");
+
+        php.AddCommand<PhpIniCommand>("ini")
+            .WithDescription("Donde estan el php.ini generado y las conf.d de una instalacion, y sus ajustes rapidos (memory_limit, upload_max_filesize, post_max_size, max_execution_time), que --set cambia.")
+            .WithExample("php", "ini")
+            .WithExample("php", "ini", "8.4", "--set", "memory_limit=1G", "--set", "upload_max_filesize=256M", "--set", "post_max_size=256M")
+            .WithExample("php", "ini", "7.4", "--reset");
+
+        php.AddBranch("xdebug", xdebug =>
+        {
+            xdebug.SetDescription("Xdebug con un clic: la DLL de xdebug.org que toca a cada rama, verificada, en el php.ini de una instalacion.");
+
+            xdebug.AddCommand<PhpXdebugOnCommand>("on")
+                .WithDescription("Baja la DLL de Xdebug de esa rama (la primera vez, con su SHA-256 comprobado), la activa y reinicia solo su pool si el stack esta en marcha.")
+                .WithExample("php", "xdebug", "on")
+                .WithExample("php", "xdebug", "on", "7.4");
+
+            xdebug.AddCommand<PhpXdebugOffCommand>("off")
+                .WithDescription("Quita Xdebug del php.ini de esa instalacion y reinicia solo su pool.")
+                .WithExample("php", "xdebug", "off", "8.4");
+
+            xdebug.AddCommand<PhpXdebugStatusCommand>("status")
+                .WithDescription("En que PHP esta encendido Xdebug, que version y si carga.")
+                .WithExample("php", "xdebug", "status")
+                .WithExample("php", "xdebug", "status", "8.4", "--json");
+        });
+
+        php.AddBranch("ext", ext =>
+        {
+            ext.SetDescription("Las extensiones de una instalacion (las DLL de su ext\\): las mismas que activa la app.");
+
+            ext.AddCommand<PhpExtListCommand>("list")
+                .WithDescription("Lista las extensiones de una instalacion, si se cargan y si van de serie.")
+                .WithExample("php", "ext", "list")
+                .WithExample("php", "ext", "list", "--php", "7.4", "--json");
+
+            ext.AddCommand<PhpExtEnableCommand>("enable")
+                .WithDescription("Activa una extension (comprueba con php -v que carga; si no, la deja como estaba) y reinicia solo su pool.")
+                .WithExample("php", "ext", "enable", "soap")
+                .WithExample("php", "ext", "enable", "pdo_pgsql", "--php", "8.3");
+
+            ext.AddCommand<PhpExtDisableCommand>("disable")
+                .WithDescription("Quita una extension (tambien una de serie, como opcache) y reinicia solo su pool.")
+                .WithExample("php", "ext", "disable", "opcache", "--php", "8.4");
+        });
     });
 
     config.AddBranch("shims", shims =>

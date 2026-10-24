@@ -396,6 +396,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
     {
         var ini = PhpIniPath(php);
         Directory.CreateDirectory(Path.GetDirectoryName(ini)!);
+        EnsureUserIni();
         EnsureBranchUserIni(php);
         File.WriteAllText(ini, PhpIni.Render(
             php.Name,
