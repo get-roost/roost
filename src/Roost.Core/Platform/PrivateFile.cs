@@ -12,10 +12,35 @@ namespace Roost.Core.Platform;
 /// </summary>
 public static class PrivateFile
 {
-    /// <summary>Escribe <paramref name="content"/> en <paramref name="path"/> y lo deja solo para el usuario actual.</summary>
+    private const UnixFileMode OwnerFile = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+    private const UnixFileMode OwnerDirectory = OwnerFile | UnixFileMode.UserExecute;
+
+    /// <summary>
+    /// Escribe <paramref name="content"/> en <paramref name="path"/> y lo deja solo para el usuario actual. En
+    /// Linux y macOS el fichero nace ya 0600 (<c>UnixCreateMode</c>): sin el rato entre crearlo con el umask
+    /// (0644) y el chmod en que otro usuario podría leer una clave privada.
+    /// </summary>
     public static void Write(string path, string content)
     {
-        File.WriteAllText(path, content);
+        if (OperatingSystem.IsWindows())
+        {
+            File.WriteAllText(path, content);
+            Restrict(path);
+            return;
+        }
+
+        using (var stream = new FileStream(path, new FileStreamOptions
+        {
+            Mode = FileMode.Create,
+            Access = FileAccess.Write,
+            Share = FileShare.None,
+            UnixCreateMode = OwnerFile,
+        }))
+        using (var writer = new StreamWriter(stream))
+        {
+            writer.Write(content);
+        }
+        // Si ya existía, el modo de creación no se aplica: se baja ahora.
         Restrict(path);
     }
 
@@ -23,19 +48,26 @@ public static class PrivateFile
     public static void Restrict(string path)
     {
         if (OperatingSystem.IsWindows()) RestrictToCurrentUser(path);
-        else File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+        else File.SetUnixFileMode(path, OwnerFile);
     }
 
     /// <summary>
     /// Crea la carpeta si falta y la deja solo para el usuario actual, con herencia: lo que se cree
     /// dentro nace ya protegido, sin el rato en que tendría los permisos de la carpeta de arriba
-    /// (en <c>C:\</c>, los usuarios autenticados pueden leer lo que cuelga de una carpeta nueva).
+    /// (en <c>C:\</c>, los usuarios autenticados pueden leer lo que cuelga de una carpeta nueva). En
+    /// Linux y macOS nace ya 0700.
     /// </summary>
     public static void EnsureDirectory(string path)
     {
-        Directory.CreateDirectory(path);
-        if (OperatingSystem.IsWindows()) RestrictDirectoryToCurrentUser(path);
-        else File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        if (OperatingSystem.IsWindows())
+        {
+            Directory.CreateDirectory(path);
+            RestrictDirectoryToCurrentUser(path);
+            return;
+        }
+        Directory.CreateDirectory(path, OwnerDirectory);
+        // Si ya existía, el modo de creación no se aplica: se baja ahora.
+        File.SetUnixFileMode(path, OwnerDirectory);
     }
 
     /// <summary>true si el fichero tiene una ACL protegida con un solo permiso, del usuario actual (para los tests y para avisar).</summary>

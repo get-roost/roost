@@ -96,6 +96,13 @@ public interface IServiceProcess : IDisposable
 
     /// <summary>Mata el proceso y sus hijos. No lanza si ya había muerto.</summary>
     void Kill();
+
+    /// <summary>
+    /// Le pide que se pare con <paramref name="signal"/> (en Linux y macOS, <c>kill(2)</c>: nginx y php-fpm
+    /// acaban lo que están sirviendo y salen); el supervisor espera a que salga y, si no, lo mata. En
+    /// Windows, o con <see cref="StopSignal.Kill"/>, es <see cref="Kill"/>. No lanza si ya había muerto.
+    /// </summary>
+    void Terminate(StopSignal signal) => Kill();
 }
 
 public interface IProcessLauncher
