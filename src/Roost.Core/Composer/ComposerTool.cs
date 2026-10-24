@@ -88,19 +88,29 @@ public static partial class ComposerTool
         return new CommandSpec(php.Executable, [composer.Phar, .. arguments], workingDirectory, environment);
     }
 
-    /// <summary>Los argumentos de cada acción. <c>require</c> exige un paquete válido (<see cref="NormalizePackage"/>).</summary>
+    /// <summary>
+    /// Sin las barras de progreso: con la salida capturada (la app, <c>roost site composer</c>) Composer
+    /// no ve una terminal y las pintaría como líneas sueltas (<c>0/1 [&gt;---]   0%</c>).
+    /// </summary>
+    public const string NoProgress = "--no-progress";
+
+    /// <summary>
+    /// Los argumentos de cada acción, para ejecutarla con la salida capturada (con <see cref="NoProgress"/>).
+    /// <c>require</c> exige un paquete válido (<see cref="NormalizePackage"/>).
+    /// </summary>
     public static IReadOnlyList<string> Arguments(ComposerAction action, string? package = null, bool dev = false) => action switch
     {
-        ComposerAction.Install => ["install"],
-        ComposerAction.Update => ["update"],
+        ComposerAction.Install => ["install", NoProgress],
+        ComposerAction.Update => ["update", NoProgress],
         ComposerAction.Require => dev
-            ? ["require", "--dev", NormalizePackage(package ?? "")]
-            : ["require", NormalizePackage(package ?? "")],
+            ? ["require", NoProgress, "--dev", NormalizePackage(package ?? "")]
+            : ["require", NoProgress, NormalizePackage(package ?? "")],
         _ => throw new ArgumentOutOfRangeException(nameof(action)),
     };
 
-    /// <summary>Lo que se ve de la orden en un diálogo o en la consola: <c>composer require --dev phpunit/phpunit</c>.</summary>
-    public static string Display(IReadOnlyList<string> arguments) => string.Join(' ', new[] { "composer" }.Concat(arguments));
+    /// <summary>Lo que se ve de la orden en un diálogo o en la consola: <c>composer require --dev phpunit/phpunit</c> (sin <see cref="NoProgress"/>).</summary>
+    public static string Display(IReadOnlyList<string> arguments) =>
+        string.Join(' ', new[] { "composer" }.Concat(arguments.Where(a => a != NoProgress)));
 
     // El nombre como lo valida Composer (ValidatingArrayLoader::hasPackageNamingError): vendor/paquete
     // en minúsculas, con . _ - entre letras y números.

@@ -135,7 +135,7 @@ public class ComposerTests : IDisposable
         var spec = ComposerTool.Command(Paths, php, composer, ComposerTool.Arguments(ComposerAction.Install), project);
 
         Assert.Equal(php.Executable, spec.Exe);
-        Assert.Equal([composer.Phar, "install"], spec.Arguments);
+        Assert.Equal([composer.Phar, "install", "--no-progress"], spec.Arguments);
         Assert.Equal(project, spec.WorkingDirectory);
         Assert.Null(spec.Timeout);   // un install largo no se corta
         var env = spec.Environment!;
@@ -159,7 +159,7 @@ public class ComposerTests : IDisposable
         var php = Php("8.4.27-nts-x64");
         FakeComposer(ComposerCatalog.Stable.Version);
         var composer = ComposerTool.Locate(Paths)!;
-        var runner = new FakeCommandRunner().On(composer.Phar + " require psr/log:^3", stderr: "./composer.json has been updated\nLock file operations: 1 install\n  - Locking psr/log (3.0.2)\n");
+        var runner = new FakeCommandRunner().On(composer.Phar + " require --no-progress psr/log:^3", stderr: "./composer.json has been updated\nLock file operations: 1 install\n  - Locking psr/log (3.0.2)\n");
         var lines = new List<string>();
 
         var spec = ComposerTool.Command(Paths, php, composer, ComposerTool.Arguments(ComposerAction.Require, "psr/log:^3"), _root);
@@ -232,12 +232,12 @@ public class ComposerTests : IDisposable
     [Fact]
     public void Arguments_DeCadaAccion()
     {
-        Assert.Equal(["install"], ComposerTool.Arguments(ComposerAction.Install));
-        Assert.Equal(["update"], ComposerTool.Arguments(ComposerAction.Update));
-        Assert.Equal(["require", "psr/log"], ComposerTool.Arguments(ComposerAction.Require, "PSR/log"));
-        Assert.Equal(["require", "--dev", "phpunit/phpunit:^11"], ComposerTool.Arguments(ComposerAction.Require, "phpunit/phpunit:^11", dev: true));
+        Assert.Equal(["install", "--no-progress"], ComposerTool.Arguments(ComposerAction.Install));
+        Assert.Equal(["update", "--no-progress"], ComposerTool.Arguments(ComposerAction.Update));
+        Assert.Equal(["require", "--no-progress", "psr/log"], ComposerTool.Arguments(ComposerAction.Require, "PSR/log"));
+        Assert.Equal(["require", "--no-progress", "--dev", "phpunit/phpunit:^11"], ComposerTool.Arguments(ComposerAction.Require, "phpunit/phpunit:^11", dev: true));
         Assert.Throws<RoostException>(() => ComposerTool.Arguments(ComposerAction.Require, null));
-        Assert.Equal("composer require --dev phpunit/phpunit", ComposerTool.Display(["require", "--dev", "phpunit/phpunit"]));
+        Assert.Equal("composer require --dev phpunit/phpunit", ComposerTool.Display(["require", "--no-progress", "--dev", "phpunit/phpunit"]));
     }
 
     [Theory]

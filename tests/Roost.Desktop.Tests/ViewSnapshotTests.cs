@@ -877,7 +877,7 @@ public class ViewSnapshotTests
         // La orden: el PHP del sitio con el composer.phar de Roost, en su carpeta y sin preguntas.
         var spec = runner.Calls.Single();
         Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), spec.Exe);
-        Assert.Equal([phar, "install"], spec.Arguments);
+        Assert.Equal([phar, "install", "--no-progress"], spec.Arguments);
         Assert.Equal(sites.Selected!.Site.Folder, spec.WorkingDirectory);
         Assert.Equal("1", spec.Environment!["COMPOSER_NO_INTERACTION"]);
         Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64"), spec.Environment["PHPRC"]);
