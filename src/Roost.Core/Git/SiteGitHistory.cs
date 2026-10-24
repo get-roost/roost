@@ -9,7 +9,14 @@ namespace Roost.Core.Git;
 /// <param name="Kind"><see cref="GitHistory.Clone"/>, <see cref="GitHistory.Pull"/>, <see cref="GitHistory.Checkout"/> o <see cref="GitHistory.Adopt"/>.</param>
 /// <param name="From">El sha corto de antes (null al clonar).</param>
 /// <param name="To">El sha corto de después (null si falló antes de llegar).</param>
-public sealed record GitHistoryEntry(DateTimeOffset When, string Kind, string? Branch, string? From, string? To, bool Ok, double Seconds, string? Error);
+public sealed record GitHistoryEntry(DateTimeOffset When, string Kind, string? Branch, string? From, string? To, bool Ok, double Seconds, string? Error)
+{
+    /// <summary>
+    /// Si falló git, el <see cref="GitFailureKind"/> (en texto): así la app puede contarlo con sus
+    /// propias palabras (con tildes) en vez de enseñar <see cref="Error"/>, que va sin ellas.
+    /// </summary>
+    public string? ErrorKind { get; init; }
+}
 
 /// <summary>El historial de cada sitio, en <c>state/git/&lt;sitio&gt;/history.json</c> (lo que enseña «Historial»).</summary>
 public sealed class GitHistory(RoostPaths paths)

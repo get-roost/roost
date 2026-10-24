@@ -55,8 +55,8 @@
             <ProgressBar IsIndeterminate="True" IsVisible="{Binding Busy}" AutomationProperties.Name="Comprobando" />
             <ctl:Note Tone="{Binding CheckTone}" IsVisible="{Binding HasCheck}">
               <StackPanel Spacing="3">
-                <SelectableTextBlock Classes="strong" Text="{Binding CheckTitle}" TextWrapping="Wrap" />
-                <SelectableTextBlock Classes="small" Text="{Binding CheckDetail}" TextWrapping="Wrap" />
+                <SelectableTextBlock FontWeight="SemiBold" Text="{Binding CheckTitle}" TextWrapping="Wrap" />
+                <SelectableTextBlock FontSize="12" Text="{Binding CheckDetail}" TextWrapping="Wrap" />
               </StackPanel>
             </ctl:Note>
             <ctl:Note Tone="Accent"

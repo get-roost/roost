@@ -202,7 +202,10 @@ public sealed partial class SiteManager
         {
             watch.Stop();
             var error = ex is OperationCanceledException ? "Cancelado." : ex.Message;
-            History.Append(plan.Name, new GitHistoryEntry(DateTimeOffset.Now, GitHistory.Clone, branch, null, null, false, watch.Elapsed.TotalSeconds, error));
+            History.Append(plan.Name, new GitHistoryEntry(DateTimeOffset.Now, GitHistory.Clone, branch, null, null, false, watch.Elapsed.TotalSeconds, error)
+            {
+                ErrorKind = (ex as GitException)?.Failure.Kind.ToString(),
+            });
             log.End(false, error);
             throw;
         }
@@ -383,7 +386,10 @@ public sealed partial class SiteManager
     {
         watch.Stop();
         var error = ex is OperationCanceledException ? "Cancelado." : ex.Message;
-        History.Append(site, new GitHistoryEntry(DateTimeOffset.Now, kind, branch, null, null, false, watch.Elapsed.TotalSeconds, error));
+        History.Append(site, new GitHistoryEntry(DateTimeOffset.Now, kind, branch, null, null, false, watch.Elapsed.TotalSeconds, error)
+        {
+            ErrorKind = (ex as GitException)?.Failure.Kind.ToString(),
+        });
         log.End(false, error);
     }
 

@@ -82,7 +82,7 @@ public static partial class GitTexts
             case GitFailureKind.TokenForbidden:
                 return $"El token existe pero la organización {url?.Owner ?? ""} exige autorizarlo (SSO) o no tiene el permiso de contenido ({url?.TokenPermission ?? "leer el repositorio"}). Ábrelo en {provider} y autorízalo.";
             case GitFailureKind.PasswordNotAccepted:
-                return $"{provider} ya no acepta la contraseña de la cuenta: hace falta un token. Créalo con el enlace de Crear un token.";
+                return $"{provider} ya no acepta la contraseña de la cuenta: hace falta un token. Créalo con el enlace de arriba.";
             case GitFailureKind.AccessMismatch:
                 return failure.Message.StartsWith("Un token", StringComparison.Ordinal)
                     ? $"Un token solo vale por HTTPS, y {url?.Original ?? "esa dirección"} es SSH. Pon la dirección https:// del repositorio o entra con una clave SSH."
@@ -149,6 +149,10 @@ public static partial class GitTexts
         var cut = text.IndexOf(" Prueba de nuevo", StringComparison.Ordinal);
         return (cut > 0 ? text[..cut] : text).TrimEnd('.', ' ');
     }
+
+    /// <summary>Para qué vale un token, como se enseña: <c>github.com/acme/tienda</c> (sin el <c>https://</c>; un <c>http://</c> local, sí).</summary>
+    public static string Where(string described) =>
+        described.StartsWith("https://", StringComparison.Ordinal) ? described["https://".Length..] : described;
 
     /// <summary>Cómo entra el sitio, para el panel y Acceso….</summary>
     public static string AccessLabel(SiteGit git) => git.Access switch

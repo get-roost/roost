@@ -172,7 +172,7 @@ public sealed partial class GitSettingsViewModel : PageViewModel
         try
         {
             Tokens = Git.Access.Credentials.List().Select(t =>
-                new GitTokenRow(t.Target, Git.Access.Credentials.Describe(t.Target), string.IsNullOrEmpty(t.UserName) ? "sin usuario" : $"usuario {t.UserName}")).ToList();
+                new GitTokenRow(t.Target, GitTexts.Where(Git.Access.Credentials.Describe(t.Target)), string.IsNullOrEmpty(t.UserName) ? "sin usuario" : $"usuario {t.UserName}")).ToList();
         }
         catch (Exception ex) when (ex is RoostException or IOException or UnauthorizedAccessException)
         {
@@ -235,8 +235,8 @@ public sealed partial class GitSettingsViewModel : PageViewModel
             }
             catch (Exception ex) when (ex is RoostException or IOException or InvalidOperationException) { }
         }
-        var own = await Task.Run(Git.OwnSsh);
-        AgentText = $"ssh-agent: {own.AgentState} · lo usa «Mi clave SSH» (las claves de {own.Folder})";
+        var agent = await Task.Run(Git.AgentState);
+        AgentText = $"ssh-agent: {agent} · lo usa «Mi clave SSH» (las claves de {Git.UserSshFolder})";
     }
 
     partial void OnCheckUpdatesChanged(bool value) => SaveChecks();

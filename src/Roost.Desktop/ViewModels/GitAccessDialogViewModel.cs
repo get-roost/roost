@@ -121,7 +121,7 @@ public sealed partial class GitAccessDialogViewModel : DialogViewModel
             HasToken = found is not null;
             TokenText = found is null
                 ? $"No hay ningún token guardado para {location.Key[(location.Protocol.Length + 3)..]}: sin él, git entra como público."
-                : $"Token de {_git.Access.Credentials.Describe(found.Target)}{(found.UserName is { Length: > 0 } u ? $" (usuario {u})" : "")} · guardado en el Administrador de credenciales.";
+                : $"Token de {GitTexts.Where(_git.Access.Credentials.Describe(found.Target))}{(found.UserName is { Length: > 0 } u ? $" (usuario {u})" : "")} · guardado en el Administrador de credenciales.";
         }
 
         if (Url is { Scheme: GitScheme.Ssh, Host: { } host })
@@ -269,7 +269,7 @@ public sealed partial class GitAccessDialogViewModel : DialogViewModel
         if (Busy || !HasToken || Url is null || CredentialLocation.For(Url) is not { } location) return;
         var found = _git.Access.Credentials.Find(location);
         if (found is null) return;
-        var where = _git.Access.Credentials.Describe(found.Target);
+        var where = GitTexts.Where(_git.Access.Credentials.Describe(found.Target));
         if (!await _main.ConfirmAsync($"Quitar el token de {_site.Host}",
                 $"Borra el token de {where} del Administrador de credenciales. Sin él, {_site.Host} entra como público (si el repositorio es privado, no podrá actualizarse). Si ya no lo usas, revócalo también en {Url.ProviderName}.",
                 "Quitar token", danger: true))

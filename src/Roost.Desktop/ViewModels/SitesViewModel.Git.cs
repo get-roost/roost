@@ -808,7 +808,8 @@ public sealed partial class SitesViewModel
     {
         if (Selected is not { } row || row.Site.Git is null) return Task.CompletedTask;
         var manager = Git.AccessManager();
-        var dialog = new GitHistoryDialogViewModel(row.Host, manager.History.Load(row.Site.Name), () => Main.OpenLogAsync($"git-{row.Site.Name}.log"));
+        var (_, url) = InfoOf(row.Site);
+        var dialog = new GitHistoryDialogViewModel(row.Host, manager.History.Load(row.Site.Name), () => Main.OpenLogAsync($"git-{row.Site.Name}.log"), url);
         return Main.ShowDialogAsync(dialog);
     }
 
@@ -844,7 +845,7 @@ public sealed partial class SitesViewModel
         }
         if (plan?.Token is { } token)
         {
-            var where = Git.Access.Credentials.Describe(token);
+            var where = GitTexts.Where(Git.Access.Credentials.Describe(token));
             if (plan.TokenShared) kept.Add($"Su token ({where}) se queda: también vale para otro sitio.");
             else removing.Add($"Su token de {where}, del Administrador de credenciales.");
         }

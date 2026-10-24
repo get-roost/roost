@@ -25,11 +25,12 @@ public sealed partial class GitHistoryDialogViewModel : DialogViewModel
 {
     private readonly Func<Task> _openLog;
 
-    public GitHistoryDialogViewModel(string host, IReadOnlyList<GitHistoryEntry> entries, Func<Task> openLog)
+    /// <param name="url">El remoto del sitio, para contar los fallos con las palabras de la app.</param>
+    public GitHistoryDialogViewModel(string host, IReadOnlyList<GitHistoryEntry> entries, Func<Task> openLog, GitUrl? url = null)
     {
         Title = $"Historial de {host}";
         _openLog = openLog;
-        Rows = entries.Select(Row).ToList();
+        Rows = entries.Select(e => Row(e, url, host)).ToList();
     }
 
     public override bool Wide => true;
@@ -42,8 +43,12 @@ public sealed partial class GitHistoryDialogViewModel : DialogViewModel
 
     public bool HasRows => Rows.Count > 0;
 
-    /// <summary>PURO: una entrada del historial como se enseña.</summary>
-    public static GitHistoryRow Row(GitHistoryEntry entry)
+    /// <summary>
+    /// PURO: una entrada del historial como se enseña. Un fallo de git se cuenta por su tipo
+    /// (<see cref="GitHistoryEntry.ErrorKind"/>) con los textos de la app; sin tipo (cancelado, o de
+    /// una Roost anterior), con lo que se apuntó.
+    /// </summary>
+    public static GitHistoryRow Row(GitHistoryEntry entry, GitUrl? url = null, string? host = null)
     {
         var what = entry.Kind switch
         {
@@ -66,7 +71,15 @@ public sealed partial class GitHistoryDialogViewModel : DialogViewModel
             < 60 => entry.Seconds.ToString("0", es) + " s",
             _ => $"{(int)(entry.Seconds / 60)} min {(int)entry.Seconds % 60} s",
         };
-        return new GitHistoryRow(GitTexts.When(entry.When), what, range, entry.Ok, took, entry.Ok ? null : entry.Error ?? "Falló sin decir por qué.");
+        string? error = null;
+        if (!entry.Ok)
+        {
+            error = entry.Error == "Cancelado." ? "Cancelado: no se tocó nada."
+                : entry.ErrorKind is { } kind && Enum.TryParse<GitFailureKind>(kind, out var parsed)
+                    ? GitTexts.Explain(new GitFailure(parsed, entry.Error ?? "", ""), url, where: host, branch: entry.Branch)
+                    : entry.Error ?? "Falló sin decir por qué.";
+        }
+        return new GitHistoryRow(GitTexts.When(entry.When), what, range, entry.Ok, took, error);
     }
 
     [RelayCommand]

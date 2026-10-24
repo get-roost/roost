@@ -42,7 +42,7 @@
               </DockPanel>
             </Border>
             <Border Classes="th">
-              <Grid ColumnDefinitions="2.4*,*,1.3*,86,64" ColumnSpacing="12">
+              <Grid ColumnDefinitions="2*,*,1.4*,76,64" ColumnSpacing="12">
                 <TextBlock Text="Sitio" />
                 <TextBlock Grid.Column="1" Text="PHP" />
                 <TextBlock Grid.Column="2" Text="Certificado" />
@@ -59,7 +59,7 @@
                           Command="{Binding $parent[ItemsControl].((vm:SitesViewModel)DataContext).ChooseCommand}" CommandParameter="{Binding}"
                           AutomationProperties.Name="{Binding Host}">
                     <Border Classes="tr" Padding="16,10">
-                      <Grid ColumnDefinitions="2.4*,*,1.3*,86,64" ColumnSpacing="12">
+                      <Grid ColumnDefinitions="2*,*,1.4*,76,64" ColumnSpacing="12">
                         <StackPanel VerticalAlignment="Center">
                           <TextBlock Classes="mono strong" Text="{Binding Host}" />
                           <TextBlock Classes="faint" Text="{Binding DocumentRoot}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding DocumentRoot}" />

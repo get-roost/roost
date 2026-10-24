@@ -149,7 +149,7 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
     // Pasos
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsStep1), nameof(IsStep2), nameof(IsStep3), nameof(HeaderTitle), nameof(HeaderSubtitle), nameof(ShowBack))]
+    [NotifyPropertyChangedFor(nameof(IsStep1), nameof(IsStep2), nameof(IsStep3), nameof(HeaderTitle), nameof(HeaderSubtitle), nameof(ShowBack), nameof(CanNext), nameof(CanTest), nameof(CanClone))]
     public partial int Step { get; private set; } = 1;
 
     public bool IsStep1 => Step == 1;
@@ -370,7 +370,6 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
         KeyName = PickKeyName(_url!.SuggestedSiteName);
         LoadKey();
         LoadToken();
-        LoadOwn();
         var tab = IsSshUrl || !CanToken ? GitAccessTab.RoostKey : GitAccessTab.Token;
         if (tab == GitAccessTab.RoostKey && !CanSsh) tab = GitAccessTab.Token;
         PickTab(tab, force: true);
@@ -389,6 +388,8 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
         AccessMessage = "sin probar";
         if (tab == GitAccessTab.Token) HostState = HostCheck.None;
         else _ = CheckHostAsync();
+        // Las claves del usuario solo se nombran si elige usarlas (y nunca se leen: solo los nombres de fichero).
+        if (tab == GitAccessTab.OwnKey) LoadOwn();
         NotifyTabTexts();
     }
 
@@ -499,7 +500,7 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
         if (TokenUrl is not { } url || CredentialLocation.For(url) is not { } location) return;
         TokenUser = "";
         if (_git.Access.Credentials.Find(location) is { } saved)
-            ExistingToken = $"Hay un token guardado para {_git.Access.Credentials.Describe(saved.Target)}{(saved.UserName is { Length: > 0 } u ? $" (usuario {u})" : "")}: si no pegas otro, se usa ese.";
+            ExistingToken = $"Hay un token guardado para {GitTexts.Where(_git.Access.Credentials.Describe(saved.Target))}{(saved.UserName is { Length: > 0 } u ? $" (usuario {u})" : "")}: si no pegas otro, se usa ese.";
     }
 
     [RelayCommand]
@@ -804,6 +805,8 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
                 HostTitle = $"La huella de {KnownHosts.HostToken(url.Host!, url.Port)} ha cambiado";
                 HostFingerprint = "";
                 HostText = GitTexts.Explain(failure, url);
+                FailAccess("No se ha conectado: la huella del servidor no es la que Roost tenía guardada (mira arriba).");
+                return;
             }
             FailAccess(GitTexts.Explain(failure, url, keyName: Tab == GitAccessTab.RoostKey ? KeyName : null, ownKey: Tab == GitAccessTab.OwnKey));
         }

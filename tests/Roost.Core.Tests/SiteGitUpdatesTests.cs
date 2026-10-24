@@ -139,6 +139,20 @@ public class SiteGitUpdatesTests : IDisposable
     }
 
     [Fact]
+    public async Task Historial_ApuntaElTipoDelFallo_ParaQueLaAppLoCuenteConSusPalabras()
+    {
+        Register();
+        _runner.On("status --porcelain=v2", stdout: Status(Head) + "1 .M N... 100644 100644 100644 aaaa aaaa README\n");
+
+        await Assert.ThrowsAsync<GitException>(() => Sites.PullAsync("hello", null, CancellationToken.None));
+
+        var entry = Sites.History.Load("hello")[0];
+        Assert.False(entry.Ok);
+        Assert.Equal(nameof(GitFailureKind.LocalChanges), entry.ErrorKind);
+        Assert.Contains("\"errorKind\": \"LocalChanges\"", File.ReadAllText(Sites.History.FilePath("hello")));
+    }
+
+    [Fact]
     public async Task CheckUpdates_UnShaRaro_NoLlegaAGit()
     {
         var client = new GitClient("git", _runner, new GitEnvironment(Paths));

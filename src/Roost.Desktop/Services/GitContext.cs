@@ -96,11 +96,18 @@ public sealed class GitContext
                     .ToList();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        string agent;
-        try { agent = _agentState(); }
-        catch (Exception) { agent = "desconocido"; }
-        return new OwnSshInfo(_userSsh, keys, agent);
+        return new OwnSshInfo(_userSsh, keys, AgentState());
     }
+
+    /// <summary>El estado del ssh-agent de Windows («en marcha», «parado», «deshabilitado», «no está»), sin mirar ninguna clave.</summary>
+    public string AgentState()
+    {
+        try { return _agentState(); }
+        catch (Exception) { return "desconocido"; }
+    }
+
+    /// <summary>La carpeta <c>.ssh</c> del usuario (solo para nombrarla).</summary>
+    public string UserSshFolder => _userSsh;
 
     /// <summary>El servicio ssh-agent de Windows: «en marcha», «parado», «deshabilitado» o «no está». Solo lee (registro y <c>sc query</c>).</summary>
     private static string ReadAgentState()
