@@ -70,6 +70,7 @@ public class SiteGitUpdatesTests : IDisposable
         Assert.False(check.HasNews);
         Assert.Equal(0, check.Behind);
         Assert.Equal(["master", "test"], check.Branches);
+        Assert.True(check.Status?.IsClean);
         Assert.DoesNotContain(_runner.Commands, c => c.StartsWith("fetch") || c.StartsWith("pull"));
     }
 

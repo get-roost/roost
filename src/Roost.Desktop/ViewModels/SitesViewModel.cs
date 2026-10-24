@@ -389,12 +389,12 @@ public sealed partial class SitesViewModel : PageViewModel
     private async Task RemoveAsync()
     {
         if (Selected is not { } row) return;
-        if (!await Main.ConfirmAsync($"Quitar {row.Host}",
+        // Git-app: con la casilla «quitar también la clave SSH y el token» si el sitio los tiene (SitesViewModel.Git.cs).
+        if (await ConfirmRemoveAsync(row,
                 (row.ByDns
                     ? "Deja de servirse (el DNS local deja de resolverlo al momento). "
                     : "Deja de servirse y se quita del hosts (Windows pedirá permiso de administrador). ")
-                + $"La carpeta del proyecto ({row.Site.Folder}) no se toca.",
-                "Quitar sitio", danger: true))
+                + $"La carpeta del proyecto ({row.Site.Folder}) no se toca.") is not { } removeAccess)
             return;
 
         var removed = false;
@@ -404,6 +404,7 @@ public sealed partial class SitesViewModel : PageViewModel
         {
             new SiteManager(Main.App.Paths).Remove(row.Site.Name);
             removed = true;
+            RemoveSiteAccess(row.Site, removeAccess);
             Main.NotifyConfigChanged();
             // Si se cancela el permiso del hosts, el sitio ya está quitado: el cambio se aplica igual
             // (deja de servirse) y se cuenta la verdad al final.

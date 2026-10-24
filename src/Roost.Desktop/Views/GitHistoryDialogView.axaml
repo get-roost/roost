@@ -1,0 +1,60 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.GitHistoryDialogView"
+             x:DataType="vm:GitHistoryDialogViewModel">
+  <!-- Git-app: Historial de un sitio (maqueta G del diseño de git) -->
+  <Border Classes="modal wide" Width="720">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <Button DockPanel.Dock="Left" Content="Abrir el registro completo" Command="{Binding OpenLogCommand}" />
+          <Button HorizontalAlignment="Right" Classes="primary" Content="Cerrar" Command="{Binding FinishCommand}" />
+        </DockPanel>
+      </Border>
+      <StackPanel Spacing="14" Margin="20,18,20,18">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+          <Border Classes="badge-ic">
+            <ctl:Icon Data="{StaticResource IcHistory}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Classes="h3" Text="{Binding Title}" />
+            <TextBlock Classes="faint" Text="Lo que Roost ha hecho con el repositorio" />
+          </StackPanel>
+          <Button Grid.Column="2" Classes="icon ghost" VerticalAlignment="Top" Command="{Binding DismissCommand}" AutomationProperties.Name="Cerrar">
+            <ctl:Icon Data="{StaticResource IcClose}" Size="15" />
+          </Button>
+        </Grid>
+        <ctl:Note Tone="Accent" IsVisible="{Binding IsEmpty}"
+                  Content="Aún no hay nada: se apunta cada clonado, actualización y cambio de rama, con su salida." />
+        <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8" IsVisible="{Binding HasRows}">
+          <ScrollViewer MaxHeight="380">
+            <ItemsControl ItemsSource="{Binding Rows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:GitHistoryRow">
+                  <Border Classes="tr" Padding="14,9">
+                    <Grid ColumnDefinitions="96,*,Auto" RowDefinitions="Auto,Auto" ColumnSpacing="12">
+                      <TextBlock Classes="small muted" Text="{Binding When}" VerticalAlignment="Center" />
+                      <TextBlock Grid.Column="1" Classes="small" VerticalAlignment="Center" TextWrapping="Wrap">
+                        <Run Text="{Binding What, Mode=OneWay}" FontWeight="SemiBold" />
+                        <Run Text="   " />
+                        <Run Text="{Binding Range, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" Foreground="{DynamicResource MutedBrush}" />
+                      </TextBlock>
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                        <ctl:Chip Text="{Binding Mark}" Tone="{Binding Tone}" />
+                        <TextBlock Classes="small faint" Text="{Binding Took}" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="small" Foreground="{DynamicResource BadBrush}"
+                                 Text="{Binding Error}" TextWrapping="Wrap" IsVisible="{Binding HasError}" Margin="0,4,0,0" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>

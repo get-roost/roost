@@ -27,6 +27,14 @@ public sealed record DesktopPrefs
     /// <summary>Mirar si hay una Roost nueva al abrir la app y mientras sigue abierta (una vez al día: la caché dura 24 h).</summary>
     public bool CheckUpdates { get; init; } = true;
 
+    // Git-app (oleada 4): Ajustes › Git › Novedades.
+
+    /// <summary>Con la app abierta, mirar cada <see cref="GitCheckMinutes"/> si los sitios de git tienen commits nuevos (solo ls-remote; nunca descarga).</summary>
+    public bool GitCheckUpdates { get; init; } = true;
+
+    /// <summary>Cada cuántos minutos se mira si hay novedades en los repositorios de los sitios.</summary>
+    public int GitCheckMinutes { get; init; } = 30;
+
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     public static string FilePath(RoostPaths paths) => Path.Combine(paths.State, "desktop.json");

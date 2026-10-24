@@ -70,6 +70,8 @@ public sealed partial class MainViewModel : ObservableObject
         // Servicios (oleada 3)
         Redis = new RedisViewModel(this);
         Mail = new MailViewModel(this);
+        // Git-app (oleada 4): Ajustes › Git, una página propia a la que lleva la tarjeta Git de Ajustes.
+        GitSettings = new GitSettingsViewModel(this);
 
         NavItem Nav(string label, string icon, PageViewModel page) =>
             new(label, Application.Current?.FindResource(icon) as Geometry, page, NavigateCommand);
@@ -135,6 +137,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Correo (Mailpit), en Componentes.</summary>
     public MailViewModel Mail { get; }
 
+    /// <summary>Ajustes › Git (Git-app): no va en la barra lateral, se llega desde Ajustes.</summary>
+    public GitSettingsViewModel GitSettings { get; }
+
     /// <summary>Los servicios de Windows que pueden quitarle puertos a Roost (Auditoría, Bienvenida, Redis).</summary>
     public MachineServices MachineServices { get; } = new();
 
@@ -195,6 +200,7 @@ public sealed partial class MainViewModel : ObservableObject
         _ = Audit.ScanAsync();
         _ = Updates.AutoCheckAsync();
         _updatePoll.Start();
+        Sites.StartGitChecks();   // Git-app: las novedades de los sitios de git, cada N minutos
         await Current.ShownAsync();
         if (App.Prefs.StartStackOnLaunch && !Stack.IsRunning)
             await StartStackAsync();

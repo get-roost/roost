@@ -1,0 +1,216 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             xmlns:sys="using:System"
+             x:Class="Roost.Desktop.Views.GitSettingsView"
+             x:DataType="vm:GitSettingsViewModel">
+  <!-- Git-app: Ajustes › Git (maqueta J del diseño de git) -->
+  <ScrollViewer>
+    <StackPanel>
+      <Grid ColumnDefinitions="*,Auto" Margin="24,18,24,14">
+        <StackPanel VerticalAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <Button Classes="link" Content="Ajustes" FontSize="20" FontWeight="SemiBold" Command="{Binding BackCommand}" Padding="0" />
+            <TextBlock Classes="h1" Text="› Git" />
+          </StackPanel>
+          <TextBlock Classes="sub" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button Grid.Column="1" Content="Volver a Ajustes" Command="{Binding BackCommand}" />
+      </Grid>
+
+      <Grid Margin="24,0,24,24" ColumnDefinitions="*,*" ColumnSpacing="16">
+        <StackPanel Spacing="16">
+          <!-- Binario -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Binario" />
+                  <TextBlock Classes="hint" Text="El git con el que clona y actualiza Roost" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                  <ctl:Dot Tone="{Binding GitTone}" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding GitText}" TextWrapping="Wrap" />
+                </Grid>
+                <RadioButton GroupName="gitexe" IsChecked="{Binding UseRoostGit}">
+                  <StackPanel>
+                    <TextBlock Classes="strong" Text="El de Roost (MinGit)" />
+                    <TextBlock Classes="faint" Text="{Binding GitBuildText}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </RadioButton>
+                <RadioButton GroupName="gitexe" IsChecked="{Binding UseOtherGit}">
+                  <TextBlock Classes="strong" Text="Usar otro git ([git] exe en roost.toml)" />
+                </RadioButton>
+                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6" IsEnabled="{Binding UseOtherGit}" Margin="28,0,0,0">
+                  <TextBox Classes="mono" Text="{Binding OtherGit}" PlaceholderText="C:\Program Files\Git\cmd\git.exe" AutomationProperties.Name="Ruta de tu git" />
+                  <Button Grid.Column="1" Classes="icon" Command="{Binding BrowseGitCommand}" ToolTip.Tip="Elegir git.exe" AutomationProperties.Name="Elegir git.exe">
+                    <ctl:Icon Data="{StaticResource IcFolder}" Size="15" />
+                  </Button>
+                </Grid>
+                <ctl:Note Tone="Bad" IsVisible="{Binding HasGitError}" Content="{Binding GitError}" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm primary" Content="Guardar" Command="{Binding SaveGitCommand}" />
+                  <Button Classes="sm" Content="Instalar MinGit ahora" Command="{Binding InstallGitCommand}" IsVisible="{Binding !GitInstalled}"
+                          ToolTip.Tip="Si no, se instala solo la primera vez que hace falta" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- SSH -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="SSH" /></Border>
+              <StackPanel Margin="16,14" Spacing="8">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                  <ctl:Dot Tone="{Binding SshTone}" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding SshText}" TextWrapping="Wrap" />
+                </Grid>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Classes="small" Text="{Binding AgentText}" TextWrapping="Wrap" MaxWidth="360" VerticalAlignment="Center" />
+                  <Button Classes="link" FontSize="12" Command="{Binding AgentHelpCommand}" VerticalAlignment="Center" ToolTip.Tip="Cómo arrancar el ssh-agent de Windows y añadir tu clave (ssh-add)">
+                    <StackPanel Orientation="Horizontal" Spacing="4">
+                      <TextBlock Text="Arrancar" />
+                      <ctl:Icon Data="{StaticResource IcExternal}" Size="12" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                </StackPanel>
+                <TextBlock Classes="faint" TextWrapping="Wrap"
+                           Text="Las claves de Roost van solo contra su known_hosts y sin ssh-agent; «Mi clave SSH» usa tus claves y el ssh-agent, y Roost nunca escribe en tu known_hosts." />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Novedades -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="Novedades" /></Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <CheckBox IsChecked="{Binding CheckUpdates}" Content="Mirar cada" VerticalAlignment="Center" />
+                  <ComboBox ItemsSource="{Binding MinuteChoices}" SelectedItem="{Binding CheckMinutes}" IsEnabled="{Binding CheckUpdates}" MinWidth="80"
+                            AutomationProperties.Name="Cada cuántos minutos" />
+                  <TextBlock Text="min si los sitios tienen commits nuevos" VerticalAlignment="Center" />
+                </StackPanel>
+                <TextBlock Classes="faint" TextWrapping="Wrap"
+                           Text="Con la app abierta y solo con ls-remote: nunca descarga nada ni toca las carpetas. Si un sitio no contesta, lo dice su chip; no hay avisos." />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm" Content="Comprobar ahora" Command="{Binding CheckNowCommand}" />
+                  <TextBlock Classes="small muted" Text="{Binding ChecksText}" VerticalAlignment="Center" TextWrapping="Wrap" MaxWidth="320" />
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Spacing="16">
+          <!-- Claves de Roost -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Claves de Roost" />
+                  <TextBlock Classes="hint" Text="Una por sitio, ed25519, solo lectura" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="16,10" Spacing="4">
+                <TextBlock Classes="faint" Text="Ninguna todavía: se crean en el paso Acceso de «Desde git…»." IsVisible="{Binding NoKeys}" TextWrapping="Wrap" Margin="0,4" />
+                <ItemsControl ItemsSource="{Binding Keys}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GitKeyRow">
+                      <Border Classes="tr" Padding="0,8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                          <StackPanel>
+                            <TextBlock Classes="mono strong" Text="{Binding Name}" />
+                            <TextBlock Classes="faint" Text="{Binding Detail}" TextWrapping="Wrap" />
+                            <TextBlock Classes="faint mono" FontSize="11" Text="{Binding Fingerprint}" TextTrimming="CharacterEllipsis" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Button Classes="sm" Content="Copiar" Command="{Binding $parent[ItemsControl].((vm:GitSettingsViewModel)DataContext).CopyKeyCommand}" CommandParameter="{Binding}" />
+                            <Button Classes="sm danger" Content="Quitar" Command="{Binding $parent[ItemsControl].((vm:GitSettingsViewModel)DataContext).RemoveKeyCommand}" CommandParameter="{Binding}" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Tokens -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Tokens" />
+                  <TextBlock Classes="hint" Text="Nunca se enseña el secreto" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="16,10" Spacing="4">
+                <TextBlock Classes="faint" Text="Ninguno todavía: se guardan en el paso Acceso de «Desde git…» o en Acceso… de un sitio." IsVisible="{Binding NoTokens}" TextWrapping="Wrap" Margin="0,4" />
+                <ItemsControl ItemsSource="{Binding Tokens}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GitTokenRow">
+                      <Border Classes="tr" Padding="0,8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                          <StackPanel>
+                            <TextBlock Classes="mono strong" Text="{Binding Where}" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="faint" Text="{Binding Detail}" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                            <Button Classes="sm" Content="Sustituir" Command="{Binding $parent[ItemsControl].((vm:GitSettingsViewModel)DataContext).ReplaceTokenCommand}" CommandParameter="{Binding}" />
+                            <Button Classes="sm danger" Content="Quitar" Command="{Binding $parent[ItemsControl].((vm:GitSettingsViewModel)DataContext).RemoveTokenCommand}" CommandParameter="{Binding}" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="faint" Text="{Binding TokensNote}" TextWrapping="Wrap" Margin="0,6,0,0" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Servidores conocidos -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h">
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <TextBlock Classes="h2" Text="Servidores conocidos" />
+                  <TextBlock Classes="hint" Text="Las huellas en las que confía Roost por SSH" />
+                </StackPanel>
+              </Border>
+              <StackPanel Margin="16,10" Spacing="4">
+                <ItemsControl ItemsSource="{Binding Hosts}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:GitHostRow">
+                      <Border Classes="tr" Padding="0,8">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                          <StackPanel>
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                              <TextBlock Classes="mono strong" Text="{Binding Token}" VerticalAlignment="Center" />
+                              <ctl:Chip Text="{Binding Source}" Tone="{Binding Tone}" />
+                            </StackPanel>
+                            <TextBlock Classes="faint mono" FontSize="11" Text="{Binding Fingerprint}" />
+                          </StackPanel>
+                          <Button Grid.Column="1" Classes="sm" Content="Olvidar" VerticalAlignment="Center" IsVisible="{Binding Stored}"
+                                  Command="{Binding $parent[ItemsControl].((vm:GitSettingsViewModel)DataContext).ForgetHostCommand}" CommandParameter="{Binding}" />
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="faint" TextWrapping="Wrap" Margin="0,6,0,0"
+                           Text="Las de GitHub, GitLab y Bitbucket vienen de serie con Roost. Si una huella cambia, Roost no conecta y lo dice en rojo." />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

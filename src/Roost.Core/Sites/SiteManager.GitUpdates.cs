@@ -21,6 +21,9 @@ public sealed record SiteUpdateCheck(
 {
     public DateTimeOffset When { get; init; } = DateTimeOffset.Now;
 
+    /// <summary>El estado del checkout que se leyó para compararlo (cambios locales incluidos); null si el remoto no contestó.</summary>
+    public RepoStatus? Status { get; init; }
+
     public bool Ok => Failure is null;
 
     /// <summary>La rama del remoto está en el mismo commit que el checkout.</summary>
@@ -66,6 +69,6 @@ public sealed partial class SiteManager
         if (remote is null || remote == local) behind = 0;
         else if (local is not null && await Client.HasCommitAsync(site.Folder, remote, cancellation))
             behind = await Client.CountCommitsAsync(site.Folder, local, remote, cancellation);
-        return new SiteUpdateCheck(site.Name, branch, local, remote, behind, probe.Branches, null);
+        return new SiteUpdateCheck(site.Name, branch, local, remote, behind, probe.Branches, null) { Status = status };
     }
 }
