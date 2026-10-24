@@ -1,8 +1,5 @@
-using System.Runtime.Versioning;
-using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
-using System.Security.Principal;
 using Roost.Core.Platform;
 
 namespace Roost.Core.Sites;
@@ -173,21 +170,6 @@ public sealed class LocalCa(RoostPaths paths)
         }
     }
 
-    /// <summary>Escribe una clave privada que solo puede leer el usuario actual.</summary>
-    private static void WritePrivate(string path, string content)
-    {
-        File.WriteAllText(path, content);
-        if (OperatingSystem.IsWindows()) RestrictToCurrentUser(path);
-        else File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
-    }
-
-    [SupportedOSPlatform("windows")]
-    private static void RestrictToCurrentUser(string path)
-    {
-        var security = new FileSecurity();
-        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false); // sin permisos heredados
-        security.AddAccessRule(new FileSystemAccessRule(
-            WindowsIdentity.GetCurrent().User!, FileSystemRights.FullControl, AccessControlType.Allow));
-        new FileInfo(path).SetAccessControl(security);
-    }
+    /// <summary>Escribe una clave privada que solo puede leer el usuario actual (la misma ACL que las claves SSH de los sitios).</summary>
+    private static void WritePrivate(string path, string content) => PrivateFile.Write(path, content);
 }

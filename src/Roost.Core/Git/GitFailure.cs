@@ -19,8 +19,29 @@ public enum GitFailureKind
     /// <summary>SSH: el servidor no acepta ninguna clave.</summary>
     KeyRejected,
 
-    /// <summary>SSH: la huella del servidor no está en el known_hosts o ha cambiado.</summary>
+    /// <summary>SSH: la huella del servidor no está en el known_hosts de Roost (ni en el del usuario, con «Mi clave SSH»).</summary>
     HostKeyUnverified,
+
+    /// <summary>SSH: el servidor presenta otra clave que la que Roost tenía guardada. No se ha conectado.</summary>
+    HostKeyChanged,
+
+    /// <summary>SSH sin acceso elegido: por SSH siempre hace falta una clave.</summary>
+    KeyRequired,
+
+    /// <summary>SSH: la clave no se puede usar (permisos de más, contraseña, formato).</summary>
+    KeyUnusable,
+
+    /// <summary>HTTPS con un token guardado: el servidor no lo acepta (caducado, de otra cuenta, sin permiso).</summary>
+    TokenRejected,
+
+    /// <summary>HTTPS con un token guardado: existe, pero la organización exige autorizarlo (SSO) o le falta el permiso de contenido (403).</summary>
+    TokenForbidden,
+
+    /// <summary>HTTPS: lo guardado es la contraseña de la cuenta, que el proveedor ya no acepta.</summary>
+    PasswordNotAccepted,
+
+    /// <summary>Un acceso que no casa con la dirección (un token por SSH).</summary>
+    AccessMismatch,
     BranchNotFound,
     FolderBusy,
     LocalChanges,
@@ -35,15 +56,28 @@ public sealed partial record GitFailure(GitFailureKind Kind, string Message, str
 {
     /// <summary>
     /// Clasifica el stderr de git (en inglés: el entorno lleva <c>LC_ALL=C</c>). <paramref name="url"/> y
-    /// <paramref name="folder"/> solo sirven para nombrar las cosas en el mensaje.
+    /// <paramref name="folder"/> solo sirven para nombrar las cosas en el mensaje. <paramref name="access"/>
+    /// es cómo se intentó entrar: con un token guardado, un «pide acceso» es que lo rechazó; con la
+    /// clave de Roost, se nombra la clave; con las huellas guardadas, se dice cuál cambió.
     /// </summary>
-    public static GitFailure Classify(int exitCode, string stderr, GitUrl? url = null, string? folder = null)
+    public static GitFailure Classify(int exitCode, string stderr, GitUrl? url = null, string? folder = null, GitAccess? access = null)
     {
         stderr ??= "";
+        url ??= access?.Url;
         var detail = GitOutput.Headline(stderr);
         var host = url?.Host ?? "el servidor";
         var label = url?.Label ?? "el repositorio";
         var where = folder ?? label;
+
+        // Lo de las huellas va antes que «no se encuentra»: el aviso de ssh habla de «connection».
+        if (ContainsAny(stderr, "REMOTE HOST IDENTIFICATION HAS CHANGED", "has changed and you have requested strict checking"))
+            return HostKeyChanged(url, stderr, access, detail);
+
+        if (ContainsAny(stderr, "Host key verification failed", "No ED25519 host key is known", "No RSA host key is known", "No ECDSA host key is known"))
+        {
+            var token = url?.Host is { } h ? KnownHosts.HostToken(h, url.Port) : host;
+            return new(GitFailureKind.HostKeyUnverified, $"Roost no conoce la huella de {token}, asi que no se ha conectado. Comprueba la huella y aceptala con: roost git hosts add {token}", detail);
+        }
 
         if (ContainsAny(stderr, "Could not resolve host", "Could not resolve hostname", "Name or service not known", "Failed to connect to", "Connection timed out", "Connection refused", "No route to host", "Temporary failure in name resolution"))
             return new(GitFailureKind.HostUnreachable, $"No se encuentra {host}. Comprueba el nombre y tu conexion. Si usas un proxy, Roost toma el de Windows.", detail);
@@ -51,11 +85,30 @@ public sealed partial record GitFailure(GitFailureKind Kind, string Message, str
         if (ContainsAny(stderr, "SSL certificate problem", "certificate verify failed", "unable to get local issuer certificate", "schannel: next InitializeSecurityContext failed", "SEC_E_UNTRUSTED_ROOT", "CRYPT_E_NO_REVOCATION_CHECK"))
             return new(GitFailureKind.TlsError, $"No se pudo comprobar el certificado de {host}. Si tu red tiene un proxy con certificado propio, instalalo en Windows: Roost usa el almacen de certificados del sistema.", detail);
 
-        if (ContainsAny(stderr, "REMOTE HOST IDENTIFICATION HAS CHANGED", "Host key verification failed", "No ED25519 host key is known", "No RSA host key is known", "No ECDSA host key is known"))
-            return new(GitFailureKind.HostKeyUnverified, $"No se pudo verificar la identidad de {host}: su huella SSH no esta entre las conocidas o ha cambiado. No se ha conectado.", detail);
+        if (ContainsAny(stderr, "UNPROTECTED PRIVATE KEY FILE", "bad permissions"))
+            return new(GitFailureKind.KeyUnusable, $"OpenSSH no usa la clave{KeyOf(access)} porque otros usuarios de este equipo pueden leerla. Quitale los permisos de mas (solo tu usuario) o vuelve a crearla con roost git key new.", detail);
+
+        if (ContainsAny(stderr, "incorrect passphrase supplied", "Load key") && ContainsAny(stderr, "passphrase", "invalid format", "error in libcrypto"))
+            return new(GitFailureKind.KeyUnusable, $"No se puede usar la clave{KeyOf(access)}: tiene contrasena o no tiene un formato de OpenSSH. Roost no puede preguntar la contrasena (git corre sin terminal).", detail);
 
         if (ContainsAny(stderr, "Permission denied (publickey", "Permission denied (publickey,"))
-            return new(GitFailureKind.KeyRejected, $"{host} no acepta ninguna clave SSH de este equipo (Permission denied (publickey)).", detail);
+            return KeyRejected(url, access, detail);
+
+        // La clave entra en el servidor pero no ve el repositorio: es la deploy key de otro.
+        if (access?.Kind == Sites.SiteGit.AccessKey && url?.Scheme == GitScheme.Ssh && ContainsAny(stderr, "Repository not found", "does not appear to be a git repository", "The project you were looking for could not be found"))
+            return new(GitFailureKind.KeyRejected, $"{host} acepta la clave de {access.KeyName}, pero con ella no se ve {label}: seguramente esta en las deploy keys de otro repositorio. Ponla en las de {label}" + (url.DeployKeysUrl is { } keys ? $" ({keys})." : "."), detail);
+
+        if (access is { HasCredential: true } && url?.Scheme == GitScheme.Https)
+        {
+            if (ContainsAny(stderr, "Support for password authentication was removed", "Password authentication is not supported", "stopped supporting account passwords", "App passwords are no longer"))
+                return new(GitFailureKind.PasswordNotAccepted, $"{url.ProviderName} ya no acepta la contrasena de la cuenta: hace falta un token" + (url.NewTokenUrl is { } create ? $". Crealo en {create} (permiso {url.TokenPermission})." : "."), detail);
+
+            if (ContainsAny(stderr, "SAML SSO", "SAML enforcement", "returned error: 403", "Permission to ", "is not authorized to access this resource"))
+                return new(GitFailureKind.TokenForbidden, $"El token existe pero la organizacion {url.Owner} exige autorizarlo (SSO) o no tiene el permiso de contenido ({url.TokenPermission}). Abrelo en {url.ProviderName} y autorizalo.", detail);
+
+            if (ContainsAny(stderr, "terminal prompts disabled", "could not read Username", "could not read Password", "Authentication failed", "HTTP Basic: Access denied", "Invalid username or token", "Invalid username or password", "Invalid credentials", "Repository not found", "The project you were looking for could not be found", "returned error: 401", "Bad credentials"))
+                return new(GitFailureKind.TokenRejected, $"{url.ProviderName} no acepta ese token. Puede haber caducado, ser de otra cuenta o no tener permiso en {label} (necesita {url.TokenPermission}). Crea otro y sustituyelo.", detail);
+        }
 
         if (ContainsAny(stderr, "already exists and is not an empty directory"))
         {
@@ -116,6 +169,65 @@ public sealed partial record GitFailure(GitFailureKind Kind, string Message, str
         return new(GitFailureKind.BranchNotFound, $"En {label} no hay ninguna rama '{branch}'.{list}", "");
     }
 
+    /// <summary>Una dirección SSH sin acceso elegido: por SSH siempre hace falta una clave.</summary>
+    public static GitFailure KeyRequired(GitUrl url) =>
+        new(GitFailureKind.KeyRequired, $"{url.Label} va por SSH, y por SSH siempre hace falta una clave: la de Roost para este sitio (--ssh), un fichero de clave (--ssh-key) o las tuyas de ~/.ssh y el ssh-agent (--own-ssh).", "");
+
+    /// <summary>Un token con una dirección SSH de un servidor del que Roost no sabe la https.</summary>
+    public static GitFailure TokenNeedsHttps(GitUrl url) =>
+        new(GitFailureKind.AccessMismatch, $"Un token solo vale por HTTPS, y {url.Original} es SSH. Pon la direccion https:// del repositorio o entra con una clave SSH.", "");
+
+    /// <summary>Una clave SSH con una dirección https de un servidor del que Roost no sabe la SSH.</summary>
+    public static GitFailure KeyNeedsSsh(GitUrl url) =>
+        new(GitFailureKind.AccessMismatch, $"Una clave SSH solo vale por SSH, y {url.Original} es https. Pon la direccion SSH del repositorio (git@{url.Host ?? "servidor"}:grupo/repo.git) o entra con un token.", "");
+
+    /// <summary>
+    /// La huella de un servidor que no coincide con la guardada (texto 8 del diseño): la de antes,
+    /// de las que tenía Roost del mismo algoritmo, y la que presenta ahora, del aviso de ssh.
+    /// </summary>
+    public static GitFailure HostKeyChanged(GitUrl? url, string stderr, GitAccess? access, string detail = "")
+    {
+        var host = url?.Host is { } h ? KnownHosts.HostToken(h, url.Port) : "el servidor";
+        var sent = SentKeyPattern().Match(stderr);
+        string change = "";
+        if (sent.Success)
+        {
+            var algorithm = sent.Groups["alg"].Value;
+            var now = sent.Groups["fp"].Value.TrimEnd('.');
+            var before = access?.HostKeys.FirstOrDefault(e => e.Key.Algorithm == algorithm)?.Key.Fingerprint;
+            change = before is null ? $" (ahora presenta {algorithm} {now})" : $" ({algorithm} {before} -> {now})";
+        }
+        var builtIn = access?.PublishedHost is { } published
+            ? $" Para {published.Host}, Roost trae la que publica {GitUrl.NameOf(published.Provider)}: si la ha cambiado, actualiza Roost."
+            : "";
+        return new(GitFailureKind.HostKeyChanged,
+            $"La huella de {host} ha cambiado respecto a la que Roost tenia guardada{change}. Puede ser que hayan cambiado la clave del servidor o que alguien se este haciendo pasar por el. "
+            + $"No se ha conectado. Si quien lo administra confirma el cambio, olvida la huella guardada (roost git hosts remove {host}) y vuelve a comprobar.{builtIn}",
+            detail.Length > 0 ? detail : GitOutput.Headline(stderr));
+    }
+
+    private static GitFailure KeyRejected(GitUrl? url, GitAccess? access, string detail)
+    {
+        var host = url?.Host ?? "el servidor";
+        var label = url?.Label ?? "el repositorio";
+        if (access?.Kind == Sites.SiteGit.AccessKey && access.KeyName is { } key)
+        {
+            var reuse = url?.Provider switch
+            {
+                GitProvider.GitHub => " (y en ese repositorio, no en otro: GitHub no permite reutilizarlas)",
+                GitProvider.Bitbucket => " (como clave de acceso del repositorio: Bitbucket no deja usar la misma clave en una cuenta)",
+                _ => "",
+            };
+            var where = url?.DeployKeysUrl is { } page ? $" {page}" : "";
+            return new(GitFailureKind.KeyRejected, $"{host} no acepta la clave de {key}. Asegurate de haber pegado la clave publica en las deploy keys de {label}{reuse}.{where}".TrimEnd(), detail);
+        }
+        if (access?.Kind == Sites.SiteGit.AccessOwn)
+            return new(GitFailureKind.KeyRejected, $"{host} no acepta ninguna de tus claves SSH (las de ~/.ssh y las del ssh-agent de Windows). Pruebalo en tu terminal: ssh -T git@{host}", detail);
+        return new(GitFailureKind.KeyRejected, $"{host} no acepta ninguna clave SSH de este equipo (Permission denied (publickey)).", detail);
+    }
+
+    private static string KeyOf(GitAccess? access) => access?.KeyName is { } key ? $" de {key}" : "";
+
     private static bool ContainsAny(string text, params string[] needles) =>
         needles.Any(n => text.Contains(n, StringComparison.OrdinalIgnoreCase));
 
@@ -134,6 +246,10 @@ public sealed partial record GitFailure(GitFailureKind Kind, string Message, str
         }
         return files;
     }
+
+    // «The fingerprint for the ED25519 key sent by the remote host is\nSHA256:….»
+    [GeneratedRegex(@"fingerprint for the (?<alg>[A-Z0-9]+) key sent by the remote host is\s+(?<fp>SHA256:[A-Za-z0-9+/=]+)")]
+    private static partial Regex SentKeyPattern();
 
     [GeneratedRegex(@"destination path '(?<path>[^']+)' already exists")]
     private static partial Regex FolderBusyPattern();
