@@ -52,4 +52,6 @@
   <!-- Git-app -->
   <StreamGeometry x:Key="IcGitBranch">M6 3 V15 M21 6 A3 3 0 1 1 15 6 A3 3 0 1 1 21 6 Z M9 18 A3 3 0 1 1 3 18 A3 3 0 1 1 9 18 Z M18 9 A9 9 0 0 1 9 18</StreamGeometry>
   <StreamGeometry x:Key="IcHistory">M3 12 A9 9 0 1 0 12 3 A9.75 9.75 0 0 0 5.26 5.74 L3 8 M3 3 V8 H8 M12 7 V12 L16 14</StreamGeometry>
+  <!-- BD-2 -->
+  <StreamGeometry x:Key="IcUpload">M12 15 V4 M7 9 L12 4 L17 9 M5 20 H19</StreamGeometry>
 </ResourceDictionary>

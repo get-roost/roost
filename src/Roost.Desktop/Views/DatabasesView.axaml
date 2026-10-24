@@ -324,6 +324,15 @@
                           ToolTip.Tip="Volver a leer las bases de datos y los usuarios" AutomationProperties.Name="Actualizar">
                     <ctl:Icon Data="{StaticResource IcRestart}" Size="15" />
                   </Button>
+                  <!-- BD-2: importar un .sql, .sql.gz o .zip -->
+                  <Button Classes="sm" Command="{Binding ImportCommand}" CommandParameter="{x:Null}" IsEnabled="{Binding DbRunning}"
+                          ToolTip.Tip="Importa un .sql, .sql.gz o .zip en una base de datos nueva o en una que ya existe" ToolTip.ShowOnDisabled="True"
+                          AutomationProperties.Name="Importar un volcado">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <ctl:Icon Data="{StaticResource IcUpload}" Size="14" />
+                      <TextBlock Text="Importar…" />
+                    </StackPanel>
+                  </Button>
                   <TextBlock Classes="lbl" Text="Nueva" VerticalAlignment="Center" Margin="8,0,0,0" />
                   <TextBox Classes="mono" Width="160" MinHeight="30" Height="30" PlaceholderText="nombre" Text="{Binding NewDatabase}"
                            AutomationProperties.Name="Nombre de la base de datos nueva" />
@@ -337,12 +346,16 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:DatabaseLine">
                   <Border Classes="tr" MinHeight="42" Padding="16,6">
-                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="10">
                       <TextBlock Classes="mono strong" Text="{Binding Name}" VerticalAlignment="Center" />
                       <TextBlock Grid.Column="1" Classes="faint" Text="{Binding UsedBy}" VerticalAlignment="Center" IsVisible="{Binding HasUsedBy}" />
                       <Button Grid.Column="2" Classes="sm ghost" Content="Consola"
                               Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).OpenConsoleCommand}" CommandParameter="{Binding Name}" />
-                      <Button Grid.Column="3" Classes="sm ghost danger" Content="Borrar"
+                      <!-- BD-2 -->
+                      <Button Grid.Column="3" Classes="sm ghost" Content="Exportar…" ToolTip.Tip="Guarda un .sql (o .sql.gz) con sus tablas, vistas, rutinas, triggers y eventos"
+                              Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).ExportCommand}" CommandParameter="{Binding}"
+                              AutomationProperties.Name="{Binding Name, StringFormat='Exportar {0}'}" />
+                      <Button Grid.Column="4" Classes="sm ghost danger" Content="Borrar"
                               Command="{Binding $parent[ItemsControl].((vm:DatabasesViewModel)DataContext).DropDatabaseCommand}" CommandParameter="{Binding}"
                               AutomationProperties.Name="{Binding Name, StringFormat='Borrar {0}'}" />
                     </Grid>

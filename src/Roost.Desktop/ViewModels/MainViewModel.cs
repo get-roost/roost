@@ -507,6 +507,9 @@ public sealed partial class MainViewModel : ObservableObject
         if (new Roost.Core.Install.PhpInstaller(App.Paths).ListInstalled().Count > 0 && !Stack.IsRunning)
             await StartStackAsync();
         NotifyConfigChanged();
+        // BD-2: las bases de datos de Laragon, con la de Roost ya en marcha. Si no se puede, lo dice y se sigue.
+        if (plan.LaragonDatabases is { Count: > 0 } laragonDbs)
+            await Databases.ImportFromLaragonAsync(laragonDbs, plan.LaragonPassword);
         if (plan.Sites.Count > 0) await OfferTrustAsync();
         await NavigateToAsync(Home);
     }

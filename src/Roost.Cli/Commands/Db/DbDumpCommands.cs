@@ -117,7 +117,7 @@ public sealed class DbExportCommand : AsyncCommand<DbExportCommand.Settings>
             DbExportResult? done = null;
             await AnsiConsole.Status().StartAsync($"Exportando {settings.Name}...", async ctx =>
             {
-                var written = new Progress<DbTransferProgress>(p => ctx.Status($"Exportando {settings.Name}... {DbDumpSupport.Size(p.Bytes)} escritos"));
+                var written = new Progress<DbTransferProgress>(p => ctx.Status($"Exportando {settings.Name}... {DbDumpSupport.Size(p.Bytes)} volcados"));
                 done = await DbDump.ExportAsync(tool, settings.Name, file, CommandRunner.Default, written, lines, cancellation);
             });
             result = done!;

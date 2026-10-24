@@ -120,7 +120,7 @@ public static partial class DbDump
     /// <c>.gz</c>). Escribe en un temporal al lado y lo renombra al acabar, pisando el que hubiera:
     /// quien llama ya ha preguntado. Si falla o se cancela, borra el temporal y lanza.
     /// </summary>
-    /// <param name="written">Los bytes escritos en el disco hasta ahora.</param>
+    /// <param name="written">Los bytes volcados hasta ahora (sin comprimir: lo que lleva el volcador).</param>
     /// <param name="lines">Lo que dice el volcador por stderr (avisos, errores).</param>
     public static async Task<DbExportResult> ExportAsync(DbTool tool, string database, string file, ICommandRunner runner,
         IProgress<DbTransferProgress>? written, IProgress<string>? lines, CancellationToken cancellation)
@@ -136,19 +136,20 @@ public static partial class DbDump
         {
             CommandResult result;
             await using (var disk = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1 << 16, FileOptions.Asynchronous))
-            await using (var counted = new ProgressStream(disk, null, written))
             {
-                if (compress)
-                {
-                    await using var gzip = new GZipStream(counted, CompressionLevel.Optimal, leaveOpen: true);
-                    result = await runner.RunAsync(spec with { StdoutStream = gzip }, lines, cancellation);
-                }
-                else
+                // Lo que se cuenta es lo que sale del volcador, antes de comprimirlo.
+                var gzip = compress ? new GZipStream(disk, CompressionLevel.Optimal, leaveOpen: true) : null;
+                await using var counted = new ProgressStream(gzip ?? (Stream)disk, null, written, leaveOpen: true);
+                try
                 {
                     result = await runner.RunAsync(spec with { StdoutStream = counted }, lines, cancellation);
+                    counted.ReportNow();
                 }
-                await counted.FlushAsync(cancellation);
-                counted.ReportNow();
+                finally
+                {
+                    if (gzip is not null) await gzip.DisposeAsync();   // el final del .gz
+                }
+                await disk.FlushAsync(cancellation);
             }
             if (!result.Succeeded)
                 throw new RoostException(DbDumpErrors.ExplainExport(database, result, tool));
@@ -351,7 +352,7 @@ public static partial class DbDump
 /// <see cref="DbDump.ProgressStep"/> bytes. Lo usan la exportación (lo escrito en el disco) y la
 /// importación (lo leído del fichero, aunque vaya comprimido).
 /// </summary>
-public sealed class ProgressStream(Stream inner, long? total, IProgress<DbTransferProgress>? progress) : Stream
+public sealed class ProgressStream(Stream inner, long? total, IProgress<DbTransferProgress>? progress, bool leaveOpen = false) : Stream
 {
     private long _bytes;
     private long _reported = -1;
@@ -438,7 +439,7 @@ public sealed class ProgressStream(Stream inner, long? total, IProgress<DbTransf
 
     protected override void Dispose(bool disposing)
     {
-        if (disposing) inner.Dispose();
+        if (disposing && !leaveOpen) inner.Dispose();
         base.Dispose(disposing);
     }
 }

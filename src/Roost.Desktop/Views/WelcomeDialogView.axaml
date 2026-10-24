@@ -95,6 +95,13 @@
                   <TextBlock Classes="faint" Text="{Binding DbHint}" TextWrapping="Wrap" />
                 </StackPanel>
               </CheckBox>
+              <!-- BD-2: las bases de datos de Laragon -->
+              <CheckBox IsChecked="{Binding ImportDatabases}" IsVisible="{Binding HasLaragonDatabases}">
+                <StackPanel>
+                  <TextBlock Text="{Binding DatabasesText}" TextWrapping="Wrap" />
+                  <TextBlock Classes="faint" Text="{Binding DatabasesHint}" TextWrapping="Wrap" />
+                </StackPanel>
+              </CheckBox>
             </StackPanel>
 
             <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
@@ -113,8 +120,8 @@
 
           <!-- Paso 2 -->
           <StackPanel Spacing="10" IsVisible="{Binding IsStep2}">
-            <TextBlock Classes="lbl" Text="{Binding LaragonWww, StringFormat='Carpetas de {0}'}" />
-            <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8">
+            <TextBlock Classes="lbl" Text="{Binding LaragonWww, StringFormat='Carpetas de {0}'}" IsVisible="{Binding ShowSitesStep2}" />
+            <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8" IsVisible="{Binding ShowSitesStep2}">
               <ItemsControl ItemsSource="{Binding Folders}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:FolderChoice">
@@ -131,6 +138,45 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
             </Border>
+
+            <!-- BD-2: qué bases de datos de Laragon se traen -->
+            <StackPanel Spacing="10" IsVisible="{Binding ShowDatabasesStep2}">
+              <TextBlock Classes="lbl" Text="{Binding DatabasesTitle}" />
+              <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8">
+                <ItemsControl ItemsSource="{Binding LaragonDatabases}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LaragonDbChoice">
+                      <Border Classes="tr" MinHeight="40" Padding="14,6">
+                        <CheckBox IsChecked="{Binding Checked}" IsEnabled="{Binding Importable}">
+                          <TextBlock>
+                            <Run Text="{Binding Name, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontWeight="SemiBold" />
+                            <Run Text="  " />
+                            <Run Text="{Binding Detail, Mode=OneWay}" Foreground="{DynamicResource FaintBrush}" />
+                          </TextBlock>
+                        </CheckBox>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Border>
+              <StackPanel Spacing="6">
+                <TextBlock Classes="lbl" Text="Contraseña de root de Laragon" />
+                <Grid ColumnDefinitions="260,Auto,*" ColumnSpacing="8">
+                  <TextBox Classes="mono" Text="{Binding LaragonPassword}" PasswordChar="•" RevealPassword="{Binding ShowLaragonPassword}"
+                           PlaceholderText="vacía (como viene Laragon)" AutomationProperties.Name="Contraseña de root de Laragon" />
+                  <Button Grid.Column="1" Classes="icon" Command="{Binding ToggleLaragonPasswordCommand}" AutomationProperties.Name="Ver u ocultar la contraseña" ToolTip.Tip="Ver u ocultar">
+                    <Panel>
+                      <ctl:Icon Data="{StaticResource IcEye}" Size="15" IsVisible="{Binding !ShowLaragonPassword}" />
+                      <ctl:Icon Data="{StaticResource IcEyeOff}" Size="15" IsVisible="{Binding ShowLaragonPassword}" />
+                    </Panel>
+                  </Button>
+                  <TextBlock Grid.Column="2" Classes="faint" VerticalAlignment="Center" TextWrapping="Wrap"
+                             Text="Solo si se la pusiste. Roost la usa para leer y no la guarda." />
+                </Grid>
+              </StackPanel>
+              <TextBlock Classes="faint" TextWrapping="Wrap"
+                         Text="Se traen con el mismo nombre a la base de datos de Roost, cuando esté en marcha. Si alguna ya existe, te pregunta." />
+            </StackPanel>
           </StackPanel>
 
           <ctl:Note Tone="Accent"

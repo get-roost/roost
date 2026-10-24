@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.Input;
 using Roost.Core;
 using Roost.Core.Audit;
 using Roost.Core.Install;
+using Roost.Core.Laragon;
 using Roost.Core.Models;
 using Roost.Core.Sites;
 using Roost.Core.Stack;
@@ -27,13 +28,32 @@ public sealed partial class FolderChoice(string name, string path) : ObservableO
     [ObservableProperty] public partial bool Checked { get; set; } = true;
 }
 
+/// <summary>BD-2: una base de datos de Laragon que se puede traer a Roost.</summary>
+public sealed partial class LaragonDbChoice(LaragonDatabase database) : ObservableObject
+{
+    public LaragonDatabase Database { get; } = database;
+    public string Name => Database.Name;
+    public bool Importable => Database.Importable;
+
+    /// <summary>Lo que ocupa en Laragon, o por qué no se puede traer.</summary>
+    public string Detail => Importable
+        ? Database.Bytes == 0 ? "vacía" : DbTransferDialogViewModel.Size(Database.Bytes, System.Globalization.CultureInfo.GetCultureInfo("es-ES"))
+        : "no se puede traer: en Roost el nombre solo admite letras, números y _";
+
+    [ObservableProperty] public partial bool Checked { get; set; } = database.Importable;
+}
+
 /// <summary>Lo que se ha decidido en la bienvenida, para que lo haga <see cref="MainViewModel.RunWelcomeAsync"/>.</summary>
+/// <param name="LaragonDatabases">BD-2: las de Laragon que se traen a la base de datos de Roost, ya en marcha.</param>
+/// <param name="LaragonPassword">La contraseña de root de Laragon, si se dio (por defecto no tiene).</param>
 public sealed record WelcomePlan(
     IReadOnlyList<PhpBuild> Php,
     string? GlobalBranch,
     DbBuild? Db,
     int? DbPort,
-    IReadOnlyList<FolderChoice> Sites);
+    IReadOnlyList<FolderChoice> Sites,
+    IReadOnlyList<LaragonDatabase>? LaragonDatabases = null,
+    string? LaragonPassword = null);
 
 /// <summary>
 /// La bienvenida del primer arranque (y «Importar desde Laragon…» en Ajustes): qué hay en la
@@ -54,11 +74,10 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
         var findings = main.Audit.Findings.Where(f => f.Component.Source != "Roost").ToList();
         Found = findings.GroupBy(f => f.Component.Source).Select(Describe).ToList();
 
-        // La www de Laragon sale de la ruta de sus binarios: C:\laragon\bin\php\... → C:\laragon\www.
-        var laragon = findings.Select(f => f.Component.ExecutablePath)
-            .Select(p => Regex.Match(p, @"^(.*?\\laragon)\\bin\\", RegexOptions.IgnoreCase))
-            .FirstOrDefault(m => m.Success)?.Groups[1].Value;
-        LaragonWww = laragon is null ? null : System.IO.Path.Combine(laragon, "www");
+        // La www de Laragon sale de la ruta de sus binarios: C:\laragon\bin\php\... → C:\laragon\www
+        // (o de ROOST_LARAGON_DIR, para probar con uno de pega).
+        var laragon = LaragonInstall.Locate(findings.Select(f => f.Component.ExecutablePath));
+        LaragonWww = laragon?.Www;
         if (LaragonWww is not null && Directory.Exists(LaragonWww))
         {
             Folders = Directory.EnumerateDirectories(LaragonWww)
@@ -68,8 +87,45 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
                 .ToList();
         }
         RegisterSites = Folders.Count > 0;
-        HasLaragon = laragon is not null;
+        HasLaragon = laragon is not null || findings.Any(f => f.Component.Source == "Laragon");
+
+        // BD-2: las bases de datos de su servidor (el que usa Laragon), leídas de sus carpetas.
+        LaragonServer = laragon?.DbServers().FirstOrDefault(s => s.Active);
+        LaragonDatabases = LaragonServer is null ? [] : LaragonInstall.Databases(LaragonServer).Select(d => new LaragonDbChoice(d)).ToList();
+        ImportDatabases = LaragonDatabases.Any(d => d.Importable);
     }
+
+    // BD-2: las bases de datos de Laragon.
+
+    public LaragonDbServer? LaragonServer { get; }
+
+    public IReadOnlyList<LaragonDbChoice> LaragonDatabases { get; } = [];
+
+    public bool HasLaragonDatabases => LaragonDatabases.Count > 0;
+
+    [ObservableProperty] public partial bool ImportDatabases { get; set; }
+
+    /// <summary>La contraseña de root de Laragon (vacía: sin contraseña, como viene).</summary>
+    [ObservableProperty] public partial string LaragonPassword { get; set; } = "";
+
+    [ObservableProperty] public partial bool ShowLaragonPassword { get; set; }
+
+    public string DatabasesText => LaragonServer is null ? ""
+        : $"Traer a Roost {LaragonDatabases.Count(d => d.Importable)} {(LaragonDatabases.Count(d => d.Importable) == 1 ? "base de datos" : "bases de datos")} del {LaragonServer.Label} de Laragon";
+
+    public string DatabasesHint =>
+        "Si Laragon está en marcha, se vuelcan de su servidor; si no, de una copia de sus datos que se borra al acabar. Laragon no se toca. Elige cuáles en el paso siguiente.";
+
+    public string DatabasesTitle => LaragonServer is null ? "" : $"Bases de datos del {LaragonServer.Label} de Laragon";
+
+    public bool ShowSitesStep2 => RegisterSites && HasFolders;
+
+    public bool ShowDatabasesStep2 => ImportDatabases && HasLaragonDatabases;
+
+    partial void OnImportDatabasesChanged(bool value) => NotifySteps();
+
+    [RelayCommand]
+    private void ToggleLaragonPassword() => ShowLaragonPassword = !ShowLaragonPassword;
 
     public override bool Wide => true;
 
@@ -121,7 +177,7 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
 
     public bool IsStep1 => Step == 1;
     public bool IsStep2 => Step == 2;
-    public bool HasStep2 => RegisterSites && HasFolders;
+    public bool HasStep2 => (RegisterSites && HasFolders) || (ImportDatabases && HasLaragonDatabases);
     public string StepText => $"Paso {Step} de {(HasStep2 ? 2 : 1)}";
     public bool ShowNext => IsStep1 && HasStep2;
     public bool ShowStart => !ShowNext;
@@ -138,6 +194,8 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
         OnPropertyChanged(nameof(StepText));
         OnPropertyChanged(nameof(ShowNext));
         OnPropertyChanged(nameof(ShowStart));
+        OnPropertyChanged(nameof(ShowSitesStep2));
+        OnPropertyChanged(nameof(ShowDatabasesStep2));
     }
 
     private FoundGroup Describe(IGrouping<string, AuditFinding> group)
@@ -269,5 +327,7 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
         InstallPhp ? _globalBranch : null,
         InstallDb ? _db : null,
         InstallDb ? _dbPort : null,
-        RegisterSites ? Folders.Where(f => f.Checked).ToList() : []));
+        RegisterSites ? Folders.Where(f => f.Checked).ToList() : [],
+        ImportDatabases ? LaragonDatabases.Where(d => d.Checked && d.Importable).Select(d => d.Database).ToList() : [],
+        LaragonPassword.Length == 0 ? null : LaragonPassword));
 }
