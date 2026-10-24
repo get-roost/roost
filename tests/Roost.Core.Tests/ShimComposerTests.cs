@@ -52,7 +52,7 @@ public class ShimComposerTests : IDisposable
         Assert.True(shims.Has("php"));
         Assert.True(shims.Has("composer"));
         Assert.Equal("shim", File.ReadAllText(shims.ToolPath("composer")));
-        Assert.Equal(["php", "composer"], ShimInstaller.Tools);
+        Assert.Equal(["php", "composer", "node", "npm", "npx"], ShimInstaller.Tools);
     }
 
     [Fact]

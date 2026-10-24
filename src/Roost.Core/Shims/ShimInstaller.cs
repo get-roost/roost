@@ -6,7 +6,8 @@ namespace Roost.Core.Shims;
 
 /// <summary>
 /// Pone y quita los shims en <see cref="RoostPaths.Shims"/>. El shim es <c>roost-shim.exe</c>
-/// (va junto a <c>roost.exe</c>) copiado como <c>php.exe</c> y como <c>composer.exe</c>. Publicado
+/// (va junto a <c>roost.exe</c>) copiado como <c>php.exe</c>, <c>composer.exe</c>, <c>node.exe</c>,
+/// <c>npm.exe</c> y <c>npx.exe</c>. Publicado
 /// con NativeAOT es un solo fichero; en una compilación normal lleva al lado su dll y sus
 /// dependencias, y se copian también. Se cambia la carpeta entera de una vez: si un <c>php.exe</c>
 /// está en uso, falla sin tocar nada.
@@ -17,17 +18,29 @@ public sealed class ShimInstaller(RoostPaths paths)
 
     /// <summary>
     /// Los nombres con los que se instala el shim (decide qué ejecutar por su propio nombre):
-    /// <c>php</c> y <c>composer</c>, que es <c>php composer.phar</c> con el PHP de la carpeta.
+    /// <c>php</c>; <c>composer</c>, que es <c>php composer.phar</c> con el PHP de la carpeta; y
+    /// <c>node</c>, <c>npm</c> y <c>npx</c>, con el Node de la carpeta (<c>.nvmrc</c>, <c>.node-version</c>…).
     /// </summary>
-    public static readonly IReadOnlyList<string> Tools = ["php", "composer"];
+    public static readonly IReadOnlyList<string> Tools = ["php", "composer", "node", "npm", "npx"];
+
+    /// <summary>Los shims de Node: van juntos, y solo con un Node de Roost instalado.</summary>
+    public static readonly IReadOnlyList<string> NodeTools = ["node", "npm", "npx"];
 
     /// <summary>
-    /// Los que se ponen aquí: <c>composer</c> solo si el Composer de Roost está instalado. Si no, el
-    /// shim taparía (va el primero en el PATH del usuario) el composer que ya tuviera el usuario, por
-    /// ejemplo el de Scoop, con un error. Al instalar el de Roost, <see cref="AddMissing"/> lo añade.
+    /// Los que se ponen aquí: <c>composer</c> solo si el Composer de Roost está instalado, y
+    /// <c>node</c>, <c>npm</c> y <c>npx</c> solo si hay algún Node de Roost. Si no, el shim taparía (va
+    /// el primero en el PATH del usuario) el composer o el node que ya tuviera el usuario (el de Scoop,
+    /// el de nvm-windows), con un error. Al instalar el de Roost, <see cref="AddMissing"/> los añade.
     /// </summary>
-    public IReadOnlyList<string> Wanted =>
-        Composer.ComposerTool.Locate(paths) is null ? Tools.Where(tool => tool != "composer").ToList() : Tools;
+    public IReadOnlyList<string> Wanted
+    {
+        get
+        {
+            var composer = Composer.ComposerTool.Locate(paths) is not null;
+            var node = new NodeInstaller(paths).ListInstalled().Count > 0;
+            return Tools.Where(tool => tool == "composer" ? composer : !NodeTools.Contains(tool) || node).ToList();
+        }
+    }
 
     public string Directory => paths.Shims;
 
@@ -68,6 +81,31 @@ public sealed class ShimInstaller(RoostPaths paths)
             throw new RoostException($"No se pudo poner el shim en {Directory}: {ex.Message}");
         }
         return missing;
+    }
+
+    /// <summary>
+    /// Con los shims puestos, quita los que ya no tocan (los de Node al quitar el último Node de Roost:
+    /// si no, <c>node</c> en la terminal sería un shim que solo da un error, delante del node del
+    /// usuario). No toca el PATH ni los demás. Devuelve los que ha quitado.
+    /// </summary>
+    public IReadOnlyList<string> RemoveUnwanted()
+    {
+        if (!IsInstalled) return [];
+        var wanted = Wanted;
+        var removed = new List<string>();
+        foreach (var tool in Tools.Where(t => t != "php" && !wanted.Contains(t) && Has(t)))
+        {
+            try
+            {
+                File.Delete(ToolPath(tool));
+                removed.Add(tool);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                throw new RoostException($"No se pudo quitar el shim de {tool} ({ToolPath(tool)}): {ex.Message}. Cierra lo que lo este usando y repite.");
+            }
+        }
+        return removed;
     }
 
     /// <summary>Copia el shim de <paramref name="sourceDirectory"/> (la carpeta de roost.exe).</summary>

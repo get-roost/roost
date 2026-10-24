@@ -49,6 +49,42 @@ public static class ShimShadowing
         return Find(tool, shimDirectory, machine, UserPath.Read(), File.Exists);
     }
 
+    /// <summary>
+    /// PURO (salvo <paramref name="exists"/>): lo mismo en el PATH de esta terminal (el del proceso).
+    /// Ahí sale también lo que pone cada shell al abrirse y que no está en el registro: <c>fnm env</c>
+    /// en el perfil de PowerShell, un <c>nvm use</c> de esa sesión. null si gana el shim.
+    /// </summary>
+    public static ShimShadow? FindInSession(string tool, string shimDirectory, string? processPath, Func<string, bool> exists) =>
+        Find(tool, shimDirectory, machinePath: null, userPath: processPath, exists);
+
+    /// <summary>
+    /// PURO: de quién es un <c>node</c>, <c>npm</c> o <c>npx</c> que le gana al shim, para decirlo por su
+    /// nombre: nvm-windows (su <c>NVM_SYMLINK</c> o su <c>NVM_HOME</c>, que por defecto es
+    /// <c>C:\Program Files\nodejs</c>, la misma carpeta que el instalador), Volta, fnm, el instalador de
+    /// nodejs.org, Scoop, Chocolatey, Laragon, Herd o nvs. null si no se reconoce.
+    /// </summary>
+    public static string? NodeOwner(string path, Func<string, string?>? env = null)
+    {
+        env ??= Environment.GetEnvironmentVariable;
+        var dir = System.IO.Path.GetDirectoryName(path) ?? path;
+        bool Under(string? root) => root is { Length: > 0 } r
+            && (Same(dir, Environment.ExpandEnvironmentVariables(r)) || dir.StartsWith(Environment.ExpandEnvironmentVariables(r).TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase));
+        bool Has(string part) => dir.Contains(part, StringComparison.OrdinalIgnoreCase);
+
+        if (Under(env("NVM_SYMLINK")) || Under(env("NVM_HOME")) || Has(@"\nvm\") || dir.EndsWith(@"\nvm", StringComparison.OrdinalIgnoreCase))
+            return Has(@"\.config\herd\") ? "el nvm de Herd" : "nvm-windows";
+        if (Has(@"\Volta\") || dir.EndsWith(@"\Volta", StringComparison.OrdinalIgnoreCase)) return "Volta";
+        if (Has("fnm_multishells") || Has(@"\fnm\")) return "fnm";
+        if (Has(@"\.config\herd\")) return "Herd";
+        if (Has(@"\scoop\")) return "Scoop";
+        if (Has(@"\chocolatey\")) return "Chocolatey";
+        if (Has(@"\laragon\")) return "Laragon";
+        if (Has(@"\nvs\")) return "nvs";
+        if (dir.EndsWith(@"\nodejs", StringComparison.OrdinalIgnoreCase) && (Has(@"\Program Files\") || Has(@"\Program Files (x86)\")))
+            return "el instalador de Node (nodejs.org)";
+        return null;
+    }
+
     private static IEnumerable<(string Dir, bool System)> Entries(string? path, bool system) =>
         (path ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(entry => (Environment.ExpandEnvironmentVariables(entry.Trim('"')), system))
