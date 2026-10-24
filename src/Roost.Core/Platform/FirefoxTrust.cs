@@ -20,11 +20,34 @@ public static class FirefoxTrust
     /// <summary>Para probar sin tocar el Firefox de verdad: otra carpeta con su <c>profiles.ini</c>.</summary>
     public const string DirVariable = "ROOST_FIREFOX_DIR";
 
-    /// <summary>La carpeta de Firefox con <c>profiles.ini</c>: <c>%APPDATA%\Mozilla\Firefox</c> (o la de <see cref="DirVariable"/>).</summary>
-    public static string DefaultRoot() =>
-        Environment.GetEnvironmentVariable(DirVariable) is { Length: > 0 } dir
-            ? dir
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Mozilla", "Firefox");
+    /// <summary>La carpeta de Firefox con <c>profiles.ini</c>: <c>%APPDATA%\Mozilla\Firefox</c> (o la de <see cref="DirVariable"/>); en Linux, la primera de <see cref="Roots"/>.</summary>
+    public static string DefaultRoot() => Roots()[0];
+
+    /// <summary>
+    /// Las carpetas de Firefox que puede haber en este sistema (cada una con su <c>profiles.ini</c>):
+    /// en Windows la de <c>%APPDATA%</c>; en Linux el de la distro (<c>~/.mozilla/firefox</c>), el de snap
+    /// (<c>~/snap/firefox/common/.mozilla/firefox</c>, el de Ubuntu) y el de flatpak
+    /// (<c>~/.var/app/org.mozilla.firefox/.mozilla/firefox</c>). Con <see cref="DirVariable"/>, solo esa.
+    /// </summary>
+    public static IReadOnlyList<string> Roots()
+    {
+        if (Environment.GetEnvironmentVariable(DirVariable) is { Length: > 0 } dir) return [dir];
+        return OperatingSystem.IsWindows()
+            ? [Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Mozilla", "Firefox")]
+            : LinuxRoots(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile));
+    }
+
+    /// <summary>PURO: las tres carpetas de Firefox de Linux bajo una home (existan o no).</summary>
+    public static IReadOnlyList<string> LinuxRoots(string home) =>
+    [
+        Path.Combine(home, ".mozilla", "firefox"),
+        Path.Combine(home, "snap", "firefox", "common", ".mozilla", "firefox"),
+        Path.Combine(home, ".var", "app", "org.mozilla.firefox", ".mozilla", "firefox"),
+    ];
+
+    /// <summary>Los perfiles de todas las carpetas de <see cref="Roots"/>, sin repetidos.</summary>
+    public static IReadOnlyList<string> AllProfiles() =>
+        Roots().SelectMany(Profiles).Distinct(StringComparer.Ordinal).ToList();
 
     /// <summary>Los perfiles de <c>profiles.ini</c> que existen en disco; vacío si no hay Firefox.</summary>
     public static IReadOnlyList<string> Profiles(string firefoxRoot)

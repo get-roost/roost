@@ -177,7 +177,9 @@ public sealed record LanProbeResult(IReadOnlyDictionary<int, NetworkCategory> Ca
 /// <summary>
 /// Lee, SIN privilegios (con el PowerShell del sistema y sin cambiar nada), el tipo de cada red
 /// (<c>Get-NetConnectionProfile</c>) y las reglas del grupo «Roost» del cortafuegos
-/// (<c>Get-NetFirewallRule</c>). Poner y quitar reglas solo lo hace <c>roost-helper</c>.
+/// (<c>Get-NetFirewallRule</c>). Poner y quitar reglas solo lo hace <c>roost-helper</c>. En Linux no
+/// hay perfiles de red: el tipo es siempre «desconocido» (la CLI y la app lo avisan) y los puertos
+/// abiertos los recuerda <see cref="LanFirewall"/>, porque leer ufw pide root.
 /// </summary>
 public static class LanProbe
 {

@@ -333,6 +333,15 @@ app.Configure(config =>
             .WithExample("dns", "status");
     });
 
+    // Linux (L1, Privilegios): la carpeta de proyectos compartida, /var/www/roost, la crea una vez roost-helper.
+    config.AddBranch("www", www =>
+    {
+        www.SetDescription("La carpeta de proyectos compartida de Linux (/var/www/roost).");
+        www.AddCommand<WwwInitCommand>("init")
+            .WithDescription("Crea /var/www/roost con tu usuario como dueno (pide permiso de administrador una vez). En Windows no hace falta.")
+            .WithExample("www", "init");
+    });
+
     config.AddBranch("git", git =>
     {
         git.SetDescription("El git con el que Roost clona y actualiza los sitios: un MinGit verificado en bin/git, o el que diga [[git]] exe en roost.toml.");

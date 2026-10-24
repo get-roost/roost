@@ -62,12 +62,17 @@ public class SitesTests : IDisposable
         Assert.Throws<InvalidDataException>(() => HostsBlock.Apply(SystemHosts + "# roost:begin\r\n127.0.0.1 a.test\r\n", ["b.test"]));
     }
 
+    // Rutas de este sistema (en Linux, Path.GetFullPath de una de Windows la colgaría del directorio actual).
+    private static readonly string WwwRoot = OperatingSystem.IsWindows() ? @"C:\www" : "/srv/www";
+    private static readonly string RoostRoot = OperatingSystem.IsWindows() ? @"C:\roost" : "/home/ana/.local/share/roost";
+
     private static SiteConf.Input Input(Site site) =>
-        new(site, "php-8.3", 8765, 8443, @"C:\roost\certs\sites\tienda.crt", @"C:\roost\certs\sites\tienda.key", @"C:\roost\bin\nginx\1.30.6\conf\fastcgi_params");
+        new(site, "php-8.3", 8765, 8443, Path.Combine(RoostRoot, "certs", "sites", "tienda.crt"), Path.Combine(RoostRoot, "certs", "sites", "tienda.key"),
+            Path.Combine(RoostRoot, "bin", "nginx", "1.30.6", "conf", "fastcgi_params"));
 
-    private static readonly Site Tienda = new() { Name = "tienda", Folder = @"C:\www\tienda", Root = "public" };
+    private static readonly Site Tienda = new() { Name = "tienda", Folder = Path.Combine(WwwRoot, "tienda"), Root = "public" };
 
-    [WindowsFact("Pendiente en Linux: Privilegios y confianza (L1).")]
+    [Fact]
     public void SiteConf_Nuevo_TieneHttpYHttpsSoloLocalYElFrontalFueraDeLasMarcas()
     {
         var conf = SiteConf.RenderNew(Input(Tienda));
@@ -76,9 +81,9 @@ public class SitesTests : IDisposable
         Assert.Contains("    listen 127.0.0.1:8443 ssl;\n    listen [::1]:8443 ssl;\n    http2 on;", conf);
         Assert.DoesNotContain("[::1]", SiteConf.RenderNew(Input(Tienda) with { Ipv6 = false }));   // máquina sin IPv6
         Assert.Contains("server_name tienda.test *.tienda.test;", conf);
-        Assert.Contains("root \"C:/www/tienda/public\";", conf);
+        Assert.Contains($"root \"{NginxConf.Nginx(Path.Combine(WwwRoot, "tienda", "public"))}\";", conf);   // C:/www/tienda/public
         Assert.Contains("fastcgi_pass php-8.3;", conf);
-        Assert.Contains("ssl_certificate \"C:/roost/certs/sites/tienda.crt\";", conf);
+        Assert.Contains($"ssl_certificate \"{NginxConf.Nginx(Path.Combine(RoostRoot, "certs", "sites", "tienda.crt"))}\";", conf);
         var end = conf.IndexOf(SiteConf.End, StringComparison.Ordinal);
         Assert.True(conf.IndexOf("try_files $uri $uri/ /index.php", StringComparison.Ordinal) > end); // editable
     }

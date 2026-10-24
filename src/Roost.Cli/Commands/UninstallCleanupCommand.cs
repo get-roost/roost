@@ -15,14 +15,17 @@ using Spectre.Console.Cli;
 namespace Roost.Cli.Commands;
 
 /// <summary>
-/// <c>roost uninstall-cleanup</c> (oculto): lo lanza el desinstalador, ya elevado, antes de borrar
-/// los ficheros. Quita lo que Roost puso FUERA de su carpeta: la regla NRPT (sin ella, los .test de
-/// otras herramientas dejarian de resolver), el bloque del hosts, los shims del PATH del usuario,
-/// las reglas «Roost LAN» del cortafuegos (roost share --lan),
-/// el arranque con Windows (la app y la tarea que arranca el stack) y, salvo <c>--keep-ca</c>, la CA de los certificados de confianza y lo
-/// de Firefox. Nunca toca los datos, los proyectos ni la configuracion (salvo volver a
-/// <c>[sites] resolver = "hosts"</c> si quita la regla). Cada paso va por su cuenta: si uno falla,
-/// se apunta y se sigue; siempre sale con 0, para no dejar el desinstalador a medias.
+/// <c>roost uninstall-cleanup</c> (oculto): lo lanza el desinstalador de Windows, ya elevado, antes
+/// de borrar los ficheros; en Linux lo lanza el usuario antes de quitar el paquete (el postrm del
+/// .deb no puede tocar las homes). Quita lo que Roost puso FUERA de su carpeta: la regla de DNS (la
+/// NRPT, o el drop-in de resolved; sin ella, los .test de otras herramientas dejarian de resolver),
+/// el bloque del hosts, los shims del PATH del usuario, las reglas «Roost LAN» del cortafuegos
+/// (roost share --lan), el arranque con Windows (la app y la tarea que arranca el stack) y, salvo
+/// <c>--keep-ca</c>, la CA de los certificados de confianza (en Linux, de los NSS de Chrome y Firefox
+/// y de la del sistema si se puso) y lo de Firefox. Nunca toca los datos, los proyectos ni la
+/// configuracion (salvo volver a <c>[sites] resolver = "hosts"</c> si quita la regla). Cada paso va
+/// por su cuenta: si uno falla, se apunta y se sigue; siempre sale con 0, para no dejar el
+/// desinstalador a medias.
 /// </summary>
 public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Settings>
 {
@@ -35,17 +38,17 @@ public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Se
 
     public override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!OperatingSystem.IsWindows()) return 0;
+        var windows = OperatingSystem.IsWindows();
         var paths = RoostPaths.Default();
         var log = new List<string>();
 
         Step(log, "DNS local", () =>
         {
-            if (!LocalDns.IsRuleInstalled()) return "no habia regla NRPT de Roost";
+            if (!LocalDns.IsRuleInstalled()) return windows ? "no habia regla NRPT de Roost" : "no habia drop-in de resolved de Roost";
             LocalDns.RemoveRule(SiteSupport.HelperExe);
             if (File.Exists(paths.ConfigFile) && RoostConfig.Load(paths.ConfigFile).UsesLocalDns)
                 RoostConfig.SetResolver(paths.ConfigFile, RoostConfig.ResolverHosts);
-            return "regla NRPT quitada; [sites] resolver vuelve a hosts";
+            return (windows ? "regla NRPT quitada" : "drop-in de resolved quitado") + "; [sites] resolver vuelve a hosts";
         });
 
         Step(log, "hosts", () =>
@@ -53,11 +56,12 @@ public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Se
             var hosts = new HostsUpdater();
             if (hosts.Current().Count == 0) return "sin bloque de Roost";
             hosts.Sync([], SiteSupport.HelperExe, Path.Combine(paths.Run, "hosts-request.txt"));
-            return "bloque # roost:begin/end quitado";
+            return $"bloque # roost:begin/end quitado de {hosts.HostsFile}";
         });
 
         Step(log, "shims", () =>
         {
+            if (!windows) return "en Linux los shims se quitan con roost shims remove";
             var shims = new ShimInstaller(paths);
             var inPath = UserPath.Remove(shims.Directory);
             shims.Remove();
@@ -74,18 +78,20 @@ public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Se
             return "quitado de HKCU\\...\\Run";
         });
 
-        // Compartir (oleada 6): las reglas "Roost LAN <puerto>" de roost share --lan que hayan quedado.
+        // Compartir (oleada 6): las reglas "Roost LAN <puerto>" de roost share --lan que hayan quedado
+        // (en Linux, las que Roost apunto al abrirlas: ufw no se puede leer sin root).
         Step(log, "cortafuegos", () =>
         {
-            var ports = LanFirewall.RulePortsAsync(Roost.Core.Scanning.CommandRunner.Default).GetAwaiter().GetResult();
+            var ports = LanFirewall.RulePortsAsync(Roost.Core.Scanning.CommandRunner.Default, cancellation, paths).GetAwaiter().GetResult();
             if (ports.Count == 0) return "no habia reglas de Roost";
-            foreach (var port in ports) LanFirewall.Remove(SiteSupport.HelperExe, port);
+            foreach (var port in ports) LanFirewall.Remove(SiteSupport.HelperExe, port, paths);
             return $"quitada(s) {string.Join(", ", ports.Select(LanFirewall.RuleName))}";
         });
 
         // E4: la tarea que arranca el stack al iniciar sesion lanzaria un roost.exe que ya no esta.
         Step(log, "tarea al iniciar sesion", () =>
         {
+            if (!windows) return "no aplica";
             var task = new LogonTask(Roost.Core.Scanning.CommandRunner.Default);
             if (!task.StatusAsync().GetAwaiter().GetResult().Exists) return "no estaba";
             task.DisableAsync().GetAwaiter().GetResult();
@@ -94,20 +100,33 @@ public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Se
 
         if (settings.KeepCa)
         {
-            log.Add("CA: se deja (--keep-ca). Para quitarla: certmgr.msc, Entidades de certificacion raiz de confianza, «Roost Local CA (...)», o roost cert untrust antes de desinstalar.");
+            log.Add(windows
+                ? "CA: se deja (--keep-ca). Para quitarla: certmgr.msc, Entidades de certificacion raiz de confianza, «Roost Local CA (...)», o roost cert untrust antes de desinstalar."
+                : "CA: se deja (--keep-ca). Para quitarla: roost cert untrust antes de desinstalar (o certutil -D -n 'Roost Local CA' en cada almacen NSS).");
         }
         else
         {
             Step(log, "CA", () =>
             {
                 var ca = new LocalCa(paths);
-                if (!ca.IsTrusted()) return "no estaba en los certificados de confianza";
-                ca.Untrust();
-                return ca.IsTrusted() ? "sigue: se rechazo el aviso de Windows" : "quitada de los certificados de confianza del usuario";
+                if (!ca.IsTrusted()) return $"no estaba en {ca.Store.Description}";
+                var report = ca.Untrust();
+                return ca.IsTrusted() ? "sigue: se rechazo el aviso de Windows" : $"quitada de {report.Summary}";
             });
+            if (!windows && !Wsl.IsWsl)
+            {
+                Step(log, "CA del sistema", () =>
+                {
+                    var ca = new LocalCa(paths);
+                    if (!ca.IsTrustedBySystem()) return "no estaba";
+                    ca.UntrustSystem(SiteSupport.HelperExe);
+                    return $"quitada ({LocalCa.SystemCaFile()})";
+                });
+            }
             Step(log, "Firefox", () =>
             {
-                var profiles = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot()).Where(FirefoxTrust.IsEnabled).ToList();
+                if (!windows) return "en Linux va con la CA (certutil en cada perfil)";
+                var profiles = FirefoxTrust.AllProfiles().Where(FirefoxTrust.IsEnabled).ToList();
                 foreach (var profile in profiles) FirefoxTrust.Disable(profile);
                 return profiles.Count == 0 ? "nada que quitar" : $"quitado de {profiles.Count} perfil(es)";
             });

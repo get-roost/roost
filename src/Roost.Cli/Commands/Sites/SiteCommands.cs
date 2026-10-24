@@ -18,12 +18,18 @@ namespace Roost.Cli.Commands.Sites;
 /// <summary>Lo comun de los comandos de sitios: el hosts (via roost-helper) y como contar URLs.</summary>
 internal static class SiteSupport
 {
-    /// <summary>roost-helper.exe va junto a roost.exe.</summary>
-    public static string HelperExe => Path.Combine(AppContext.BaseDirectory, "roost-helper.exe");
+    /// <summary>roost-helper va junto a roost (o, en Linux, el del paquete en /usr/libexec/roost).</summary>
+    public static string HelperExe => HelperLocator.Find(AppContext.BaseDirectory);
+
+    /// <summary>El aviso de que se va a pedir permiso de administrador para <paramref name="what"/>, segun el sistema (el UAC, o pkexec/sudo).</summary>
+    public static string ElevationNotice(string what) =>
+        OperatingSystem.IsWindows()
+            ? $"Windows va a pedir permiso de administrador para {what}..."
+            : $"Hace falta permiso de administrador para {what} (pkexec o sudo)...";
 
     /// <summary>
     /// Deja en el hosts los .test de <paramref name="sites"/>. Solo pide permiso de administrador
-    /// (UAC) si el bloque de Roost cambia de verdad.
+    /// si el bloque de Roost cambia de verdad.
     /// </summary>
     public static void SyncHosts(RoostPaths paths, IReadOnlyList<Site> sites)
     {
@@ -42,8 +48,10 @@ internal static class SiteSupport
             return;
         }
 
-        if (hosts.IsSystemFile)
-            AnsiConsole.MarkupLine("Windows va a pedir permiso de administrador para actualizar el fichero hosts (solo las lineas .test de Roost)...");
+        if (hosts.IsWindowsHostsFromWsl)
+            AnsiConsole.MarkupLine("[grey]En WSL el hosts que vale es el de Windows: lo actualiza el roost-helper de Windows, con su aviso de permiso.[/]");
+        else if (hosts.IsSystemFile)
+            AnsiConsole.MarkupLine(ElevationNotice("actualizar el fichero hosts (solo las lineas .test de Roost)"));
         hosts.Sync(names, HelperExe, Path.Combine(paths.Run, "hosts-request.txt"));
         AnsiConsole.MarkupLineInterpolated($"[green]hosts actualizado[/] [grey]({hosts.HostsFile})[/]");
     }
@@ -86,8 +94,6 @@ public sealed class SiteAddCommand : AsyncCommand<SiteAddCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("site add")) return 1;
-
         var paths = RoostPaths.Default();
         var sites = new SiteManager(paths);
         try
@@ -330,7 +336,7 @@ public sealed class SiteListCommand : Command<SiteListCommand.Settings>
 
             if (rows.Count == 0)
             {
-                AnsiConsole.MarkupLine("Ningun sitio todavia." + PlatformGate.WindowsHint(" Prueba: roost site add tienda"));
+                AnsiConsole.MarkupLine("Ningun sitio todavia. Prueba: roost site add tienda");
                 return 0;
             }
 
@@ -357,39 +363,58 @@ public sealed class SiteListCommand : Command<SiteListCommand.Settings>
     }
 }
 
-/// <summary><c>roost cert trust</c>: anade la CA de Roost a los certificados de confianza del usuario.</summary>
-public sealed class CertTrustCommand : Command<EmptyCommandSettings>
+/// <summary>
+/// <c>roost cert trust</c>: anade la CA de Roost a los certificados de confianza del usuario: en
+/// Windows el almacen raiz del usuario (con su aviso) y el user.js de Firefox; en Linux los NSS del
+/// usuario con certutil (Chrome, Chromium, Edge, Brave y cada perfil de Firefox, sin permisos) y, con
+/// <c>--system</c>, tambien la CA del sistema por roost-helper; desde WSL, el almacen de Windows.
+/// </summary>
+public sealed class CertTrustCommand : Command<CertTrustCommand.Settings>
 {
-    public override int Execute(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
+    public sealed class Settings : CommandSettings
     {
-        if (!PlatformGate.Require("cert trust")) return 1;
+        [CommandOption("--system")]
+        [Description("Linux: ademas, en la CA del sistema (curl, wget, el PHP de la distro...), con permiso de administrador por roost-helper. En Windows no hace falta.")]
+        public bool System { get; init; }
+    }
 
+    public override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
+    {
         var paths = RoostPaths.Default();
         var ca = new LocalCa(paths);
+        var windowsStore = OperatingSystem.IsWindows() || Wsl.IsWsl;
         try
         {
-            using (var cert = ca.LoadOrCreate())
-            {
-                if (ca.IsTrusted())
-                {
-                    AnsiConsole.MarkupLineInterpolated($"[green]Ya confias en la CA de Roost[/] ({cert.Subject}).");
-                    ConfigureFirefox();
-                    return 0;
-                }
+            string name;
+            using (var cert = ca.LoadOrCreate()) name = cert.GetNameInfo(X509NameType.SimpleName, false);
 
-                AnsiConsole.MarkupLineInterpolated($"Windows va a pedirte que confirmes que confias en [bold]{cert.GetNameInfo(X509NameType.SimpleName, false)}[/].");
+            if (ca.IsTrusted())
+            {
+                AnsiConsole.MarkupLineInterpolated($"[green]Ya confias en la CA de Roost[/] ({name}) en {ca.Store.Description}.");
+                if (OperatingSystem.IsWindows()) ConfigureFirefox();
+            }
+            else
+            {
+                if (windowsStore)
+                    AnsiConsole.MarkupLineInterpolated($"Windows va a pedirte que confirmes que confias en [bold]{name}[/].");
+                else
+                    AnsiConsole.MarkupLineInterpolated($"Se anade [bold]{name}[/] a {ca.Store.Description}; no pide permisos.");
                 AnsiConsole.MarkupLineInterpolated($"[grey]Es la CA que firma los certificados de tus sitios .test. Esta solo en este equipo y su clave privada ({ca.CaKeyFile}) solo la puede leer tu usuario.[/]");
+
+                var report = ca.Trust();
+                if (!ca.IsTrusted())
+                {
+                    AnsiConsole.MarkupLine("[red]La CA no se ha anadido[/]" + (windowsStore ? " (rechazaste el aviso de Windows?)." : "."));
+                    return 1;
+                }
+                AnsiConsole.MarkupLineInterpolated($"[green]Hecho:[/] ya confia en https://*.test: {report.Summary}.");
+                foreach (var skipped in report.Skipped)
+                    AnsiConsole.MarkupLineInterpolated($"[yellow]Sin anadir:[/] {skipped}");
+                if (OperatingSystem.IsWindows()) ConfigureFirefox();
+                else if (!Wsl.IsWsl) AnsiConsole.MarkupLine("[grey]Los navegadores lo leen al abrirse: si estaban abiertos, cierralos y vuelve a abrirlos.[/]");
             }
 
-            ca.Trust();
-            if (!ca.IsTrusted())
-            {
-                AnsiConsole.MarkupLine("[red]La CA no se ha anadido[/] (rechazaste el aviso de Windows?).");
-                return 1;
-            }
-            AnsiConsole.MarkupLine("[green]Hecho:[/] Chrome y Edge ya confian en https://*.test.");
-            ConfigureFirefox();
-            return 0;
+            return settings.System ? TrustSystem(ca) : 0;
         }
         catch (RoostException ex)
         {
@@ -398,13 +423,33 @@ public sealed class CertTrustCommand : Command<EmptyCommandSettings>
         }
     }
 
+    /// <summary>Linux: la CA del sistema, por roost-helper (ca-trust), para curl, wget y el PHP de la distro.</summary>
+    private static int TrustSystem(LocalCa ca)
+    {
+        if (OperatingSystem.IsWindows() || Wsl.IsWsl)
+        {
+            AnsiConsole.MarkupLine("[grey]--system no hace falta aqui: el almacen de tu usuario de Windows vale para todo.[/]");
+            return 0;
+        }
+        if (ca.IsTrustedBySystem())
+        {
+            AnsiConsole.MarkupLineInterpolated($"[green]El sistema ya confia en la CA de Roost[/] ({LocalCa.SystemCaFile()}).");
+            return 0;
+        }
+        AnsiConsole.MarkupLine(SiteSupport.ElevationNotice("anadir la CA de Roost a las del sistema"));
+        ca.TrustSystem(SiteSupport.HelperExe);
+        AnsiConsole.MarkupLineInterpolated($"[green]CA del sistema:[/] {LocalCa.SystemCaFile()} [grey](curl, wget y el PHP de la distro ya confian; la quita roost cert untrust)[/]");
+        return 0;
+    }
+
     /// <summary>
-    /// Firefox usa su propio almacen: con security.enterprise_roots.enabled en el user.js de cada
-    /// perfil lee las CA de confianza de Windows (las del usuario incluidas). Sin Firefox, nada.
+    /// Windows: Firefox usa su propio almacen, y con security.enterprise_roots.enabled en el user.js
+    /// de cada perfil lee las CA de confianza de Windows (las del usuario incluidas). Sin Firefox,
+    /// nada. En Linux no hace falta: la CA entra en cada perfil con certutil.
     /// </summary>
     private static void ConfigureFirefox()
     {
-        var profiles = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot());
+        var profiles = FirefoxTrust.AllProfiles();
         if (profiles.Count == 0) return;
         foreach (var profile in profiles) FirefoxTrust.Enable(profile);
         AnsiConsole.MarkupLineInterpolated($"[green]Firefox tambien[/] ({profiles.Count} perfil{(profiles.Count == 1 ? "" : "es")}): [grey]cierralo y vuelve a abrirlo para que lo aplique.[/]");
@@ -413,37 +458,49 @@ public sealed class CertTrustCommand : Command<EmptyCommandSettings>
 
 /// <summary>
 /// <c>roost cert untrust</c>: quita la CA de Roost de los certificados de confianza del usuario
-/// (Windows pide confirmarlo) y lo que puso en Firefox. La CA y los certificados siguen en disco.
+/// (en Windows pide confirmarlo; en Linux, de los NSS de Chrome y Firefox y, si estaba, de la del
+/// sistema con permiso de administrador) y lo que puso en Firefox. La CA y los certificados siguen en disco.
 /// </summary>
 public sealed class CertUntrustCommand : Command<EmptyCommandSettings>
 {
     public override int Execute(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("cert untrust")) return 1;
         var ca = new LocalCa(RoostPaths.Default());
+        var windowsStore = OperatingSystem.IsWindows() || Wsl.IsWsl;
         try
         {
-            var firefox = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot()).Where(FirefoxTrust.IsEnabled).ToList();
+            var firefox = OperatingSystem.IsWindows() ? FirefoxTrust.AllProfiles().Where(FirefoxTrust.IsEnabled).ToList() : [];
             if (ca.IsTrusted())
             {
-                AnsiConsole.MarkupLine("Windows va a pedirte que confirmes que quitas la CA de Roost de tus certificados de confianza.");
-                ca.Untrust();
+                if (windowsStore)
+                    AnsiConsole.MarkupLine("Windows va a pedirte que confirmes que quitas la CA de Roost de tus certificados de confianza.");
+                var report = ca.Untrust();
                 if (ca.IsTrusted())
                 {
-                    AnsiConsole.MarkupLine("[red]La CA sigue en tus certificados de confianza[/] (rechazaste el aviso de Windows?).");
+                    AnsiConsole.MarkupLine("[red]La CA sigue en tus certificados de confianza[/]" + (windowsStore ? " (rechazaste el aviso de Windows?)." : "."));
                     return 1;
                 }
-                AnsiConsole.MarkupLine("[green]Hecho:[/] el navegador volvera a avisar en tus sitios .test. [grey]Para volver a confiar: roost cert trust[/]");
+                AnsiConsole.MarkupLineInterpolated($"[green]Hecho:[/] quitada de {report.Summary}. El navegador volvera a avisar en tus sitios .test. [grey]Para volver a confiar: roost cert trust[/]");
+                foreach (var skipped in report.Skipped)
+                    AnsiConsole.MarkupLineInterpolated($"[yellow]Sin quitar:[/] {skipped}");
             }
             else
             {
-                AnsiConsole.MarkupLine("La CA de Roost no estaba en tus certificados de confianza.");
+                AnsiConsole.MarkupLineInterpolated($"La CA de Roost no estaba en {ca.Store.Description}.");
             }
 
             // Lo de Firefox lo puso Roost para esta CA: se quita también.
             foreach (var profile in firefox) FirefoxTrust.Disable(profile);
             if (firefox.Count > 0)
                 AnsiConsole.MarkupLineInterpolated($"[green]Firefox tambien[/] ({firefox.Count} perfil{(firefox.Count == 1 ? "" : "es")}): [grey]cierralo y vuelve a abrirlo para que lo aplique.[/]");
+
+            // Linux: la del sistema, si se puso con --system (pide permiso de administrador).
+            if (!windowsStore && ca.IsTrustedBySystem())
+            {
+                AnsiConsole.MarkupLine(SiteSupport.ElevationNotice("quitar la CA de Roost de las del sistema"));
+                ca.UntrustSystem(SiteSupport.HelperExe);
+                AnsiConsole.MarkupLineInterpolated($"[green]CA del sistema quitada[/] ({LocalCa.SystemCaFile()}).");
+            }
             return 0;
         }
         catch (RoostException ex)
