@@ -1,6 +1,7 @@
 using Roost.Core.Config;
 using Roost.Core.Install;
 using Roost.Core.Models;
+using Roost.Core.Node;
 using Roost.Core.Platform;
 using Roost.Core.Scanning;
 using Roost.Core.Sites;
@@ -155,6 +156,8 @@ public static class ProjectTemplates
     {
         var config = DeployTarget.LoadConfig(paths);
         var site = new Site { Name = plan.Name, Folder = plan.Folder };
+        // El Node de la carpeta que va a ser (aún no existe: un .nvmrc de más arriba, o el global).
+        var node = TerminalNode.TryResolve(paths, plan.Folder, out var nodeProblem);
         return new DeployTarget
         {
             SiteName = plan.Name,
@@ -166,6 +169,9 @@ public static class ProjectTemplates
             MailSmtpPort = config.MailEnabled ? config.MailSmtpPort : null,
             RedisPort = config.RedisEnabled ? config.RedisPort : null,
             Fresh = true,
+            Node = node,
+            NodeProblem = nodeProblem,
+            NodeMissing = node is null ? TerminalNode.MissingSpec(paths, plan.Folder) : null,
         };
     }
 

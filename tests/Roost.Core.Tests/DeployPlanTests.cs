@@ -59,6 +59,21 @@ internal sealed class DeployRoot : IDisposable
     /// <summary>El sitio registrado sobre esa carpeta.</summary>
     public Site Site(string name, string folder) => new SiteManager(Paths).Add(name, folder).Site;
 
+    /// <summary>Un Node de Roost «instalado» (ficheros vacíos: nada lo ejecuta), con corepack o sin él.</summary>
+    public InstalledNode Node(string version = "24.22.1", bool corepack = false)
+    {
+        var dir = Path.Combine(Paths.NodeBin, version);
+        Directory.CreateDirectory(Path.Combine(dir, "node_modules", "npm", "bin"));
+        File.WriteAllText(Path.Combine(dir, "node.exe"), "");
+        File.WriteAllText(Path.Combine(dir, "node_modules", "npm", "bin", "npm-cli.js"), "");
+        if (corepack)
+        {
+            Directory.CreateDirectory(Path.Combine(dir, "node_modules", "corepack", "dist"));
+            File.WriteAllText(Path.Combine(dir, "node_modules", "corepack", "dist", "corepack.js"), "");
+        }
+        return new InstalledNode(version, dir);
+    }
+
     /// <summary>El destino de los pasos con la base de datos en este estado.</summary>
     public DeployTarget Target(Site site, DbState state = DbState.Empty, int tables = 0)
     {
@@ -103,11 +118,69 @@ public class DeployPlanTests
         Assert.Equal("Instala las dependencias (hay composer.lock).", steps[0].Hint);
         Assert.True(steps[0].RunsProjectCode);
 
-        // npm sale, pero apagado y sin poder marcarse: llega con Node.
+        // npm sale, pero apagado y sin poder marcarse: no hay ningún Node de Roost.
         var npm = steps[^1];
         Assert.False(npm.Available);
         Assert.False(npm.Checked);
-        Assert.Equal("Llega con Node en Roost.", npm.Hint);
+        Assert.Equal("npm install", npm.Label);   // package.json sin scripts ni lockfile
+        Assert.Equal("No hay ningun Node instalado por Roost. Instala uno: roost node install 24", npm.Hint);
+    }
+
+    private const string LaravelPackage = """{ "private": true, "scripts": { "build": "vite build", "dev": "vite" }, "devDependencies": { "vite": "^7.0" } }""";
+
+    [Fact]
+    public void Npm_ConUnNodeDeRoost_NpmCiYBuild_MarcadoSiFaltaNodeModules()
+    {
+        using var root = new DeployRoot();
+        root.Node();
+        var folder = root.Project("tienda", new Dictionary<string, string>
+        {
+            ["artisan"] = "", ["composer.json"] = LaravelComposer, ["vendor/"] = "", ["package.json"] = LaravelPackage, ["package-lock.json"] = "{}",
+        });
+
+        var npm = DeployPlan.For(ProjectKind.Detect(folder), root.Target(root.Site("tienda", folder))).Single(s => s.Id == "npm");
+
+        Assert.True(npm.Available);
+        Assert.True(npm.Checked);
+        Assert.True(npm.RunsProjectCode);
+        Assert.Equal("npm ci y npm run build", npm.Label);
+        Assert.Equal("Con Node 24.22.1: lo que fija package-lock.json.", npm.Hint);
+        Assert.True(npm.HasBuildScript);
+        Assert.Equal(Roost.Core.Node.NodeManager.Npm, npm.NodeManager);
+
+        // Con node_modules/, sale pero sin marcar.
+        Directory.CreateDirectory(Path.Combine(folder, "node_modules"));
+        npm = DeployPlan.For(ProjectKind.Detect(folder), root.Target(root.Site("tienda", folder))).Single(s => s.Id == "npm");
+        Assert.True(npm.Available);
+        Assert.False(npm.Checked);
+        Assert.Contains("node_modules/ ya esta", npm.Hint);
+    }
+
+    [Fact]
+    public void Npm_ElNodeQuePideElNvmrc_SiNoEstaLoDice_YPnpmSinCorepackTampoco()
+    {
+        using var root = new DeployRoot();
+        root.Node();
+        var folder = root.Project("legacy", new Dictionary<string, string> { ["package.json"] = LaravelPackage, [".nvmrc"] = "18\n", ["index.php"] = "" });
+        var target = root.Target(root.Site("legacy", folder));
+
+        var npm = DeployPlan.For(ProjectKind.Detect(folder), target).Single(s => s.Id == "npm");
+        Assert.False(npm.Available);
+        Assert.Contains(".nvmrc pide 18, pero no hay ningun Node de Roost que case. Instalalo: roost node install 18", npm.Hint);
+        Assert.Equal("18", target.NodeMissing);
+
+        File.Delete(Path.Combine(folder, ".nvmrc"));
+        File.WriteAllText(Path.Combine(folder, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+        npm = DeployPlan.For(ProjectKind.Detect(folder), root.Target(root.Site("legacy", folder))).Single(s => s.Id == "npm");
+        Assert.Equal("pnpm install --frozen-lockfile y pnpm run build", npm.Label);
+        Assert.False(npm.Available);
+        Assert.Contains("corepack", npm.Hint);
+
+        root.Node("22.23.4", corepack: true);
+        File.WriteAllText(Path.Combine(folder, ".nvmrc"), "22");
+        npm = DeployPlan.For(ProjectKind.Detect(folder), root.Target(root.Site("legacy", folder))).Single(s => s.Id == "npm");
+        Assert.True(npm.Available);
+        Assert.Equal("Con Node 22.23.4 y el pnpm de corepack: lo que fija pnpm-lock.yaml.", npm.Hint);
     }
 
     [Fact]
