@@ -333,7 +333,22 @@ roost git install | status                                     # el git que usa 
 - **Nunca pisa tu trabajo.** `site pull` solo avanza (fast-forward) y `site branch` solo cambia de rama si no hay cambios sin guardar. Si los hay, o si la rama ha divergido, Roost lo dice y no toca nada. Nada de `stash` ni `reset` por su cuenta.
 - **Un git propio.** La primera vez que hace falta, Roost descarga MinGit (el git de Git for Windows para aplicaciones), comprueba su SHA-256 y lo deja en `C:\roost\bin\git`. Lo usa con una configuración aislada en `C:\roost\state\git`: tu `.gitconfig` no se lee ni se toca. Para usar otro git, `[git] exe = 'C:\Program Files\Git\cmd\git.exe'` en `roost.toml`.
 - **El historial.** Cada clonado, actualización y cambio de rama queda en `C:\roost\state\git\<sitio>\history.json`, y la salida completa de git en `C:\roost\logs\git-<sitio>.log` (sin usuarios ni contraseñas, aunque git los imprimiera).
-- **De momento, repositorios públicos y carpetas locales.** El acceso a repositorios privados, con token HTTPS o clave SSH, llega en una versión próxima.
+- **Repositorios privados.** Elige cómo entrar al clonar; si no lo dices y el repositorio lo pide, Roost te pregunta (con `--json`, nunca: falla y dice qué opción falta).
+
+  ```sh
+  roost site clone https://github.com/acme/privado --token        # pide el token sin eco (o una línea por stdin) o usa el guardado
+  roost site clone git@github.com:acme/privado.git --ssh         # crea la clave de este sitio y te enseña la pública
+  roost site clone git@git.acme.es:web/tienda.git --ssh-key C:\claves\deploy_tienda
+  roost site clone git@github.com:acme/privado.git --own-ssh     # tus claves de ~/.ssh y el ssh-agent de Windows
+  roost git token set github.com/acme/tienda | remove … | list   # tokens en el Administrador de credenciales
+  roost git key new | show | remove tienda                       # la clave SSH de un sitio
+  roost git hosts list | add git.acme.es | remove git.acme.es    # servidores SSH conocidos, con su huella
+  ```
+
+- **Tokens.** Se guardan en el Administrador de credenciales de Windows (genéricos, del equipo local, cifrados para tu usuario), con el nombre `Roost:git:https://servidor/ruta`. Un token vale para su ruta y lo que cuelga de ella: el de `github.com/acme/tienda`, solo para ese repositorio; el de `github.com/acme`, para todos los de acme. git los pide a Roost por una tubería (el helper `roost git-credential`, que Roost le pasa solo en cada orden): nunca van en la dirección, en los argumentos, en el entorno ni en los registros. Crea tokens con el permiso justo: en GitHub, fine-grained con *Contents: Read*; en GitLab, `read_repository`.
+- **Claves SSH.** Una ed25519 por sitio en `C:\roost\state\git\keys\<sitio>`, sin contraseña (como Plesk, Forge o Coolify) y solo legible por tu usuario. Pégala como deploy key **de solo lectura**, una por repositorio (GitHub no deja reutilizarlas). Usa el cliente OpenSSH de Windows; si falta, es una característica opcional: Configuración › Sistema › Características opcionales › Cliente OpenSSH.
+- **Huellas.** El ssh de Roost solo se fía de su propio `known_hosts` (`C:\roost\state\git\known_hosts`), siempre con `StrictHostKeyChecking=yes`. Trae de serie las claves de GitHub, GitLab y Bitbucket, comprobadas con las que publica cada uno; cualquier otro servidor se acepta solo tras ver su huella (`roost git hosts add`, o `--fingerprint SHA256:…` para scripts). Si un servidor conocido presenta otra huella, no conecta. Con `--own-ssh` se leen también tus `known_hosts`, pero Roost nunca escribe en ellos.
+- **Quitar un sitio** quita también su clave y su token, salvo los que use otro sitio (`--keep-access` para dejarlos).
 
 ### Composer (solo Windows, por ahora)
 
@@ -392,6 +407,20 @@ export default defineConfig({
 
 Sin Laravel es lo mismo: las opciones de `server` valen para cualquier proyecto con Vite.
 
+### Redis, correo de pruebas y Adminer (solo Windows, por ahora)
+
+```sh
+roost redis install              # Redis 8.10 en el stack (127.0.0.1:6379); en tu .env, REDIS_CLIENT=predis
+roost redis port 6380            # otro puerto; también enable | disable | remove | status [--json]
+roost mail install               # Mailpit: el correo de PHP se queda en una bandeja de tu equipo
+roost mail open                  # abre la bandeja (http://localhost:8025/); también port --smtp 1025 --web 8025
+```
+
+- **Redis** es la build de redis-windows (Redis de verdad, compilado del código oficial en GitHub Actions), verificada con su SHA-256. Arranca después de la base de datos, solo en 127.0.0.1, se para limpio (guarda en disco antes de salir) y sus datos (`C:\roost\data\redis`) no los borra nada, tampoco `roost redis remove`. Tus ajustes van en `C:\roost\etc\redis\conf.d\99-usuario.conf`, que Roost no toca (si pones `requirepass`, Roost lo usa para pararlo). No hace falta ninguna extensión de PHP: con `composer require predis/predis` y `REDIS_CLIENT=predis` funciona Laravel, y WordPress Redis Object Cache ya trae predis.
+- **Mailpit** recoge el correo que mandan tus proyectos (`mail()` de PHP, Laravel, WordPress) en vez de dejarlo salir a internet. Con Mailpit en el stack, el `mail()` de PHP va a él en todas las versiones y también en la terminal (`C:\roost\etc\php\conf.d\20-roost-mail.ini`). Para Laravel: `MAIL_MAILER=smtp`, `MAIL_HOST=127.0.0.1`, `MAIL_PORT=1025`; acepta cualquier usuario y contraseña. La bandeja se guarda en `C:\roost\data\mailpit` y sobrevive a los reinicios.
+- **Adminer:** «Abrir Adminer» en Bases de datos abre `http://localhost/adminer` con el servidor y root ya puestos. La primera vez lo instala (un solo fichero, verificado) en `C:\roost\bin\adminer`, fuera de tu www. Solo atiende a `localhost` y deja entrar a root aunque aún no tenga contraseña. Si tienes tu propia `www\adminer`, Roost no pone la suya.
+- **Servicios de Windows que se quedan los puertos.** Un MySQL o una MariaDB instalados con su instalador, Apache, IIS u otro Redis que arrancan con Windows le quitan el puerto a Roost. `roost up` avisa antes de arrancar y, si un puerto está ocupado por uno de ellos, el error dice cuál y cómo dejarlo en Manual (services.msc, o `sc config "<servicio>" start= demand` como administrador). Auditoría los enseña con un botón a Servicios de Windows y la bienvenida propone otro puerto para la base de datos. Roost nunca cambia servicios de Windows por su cuenta.
+
 ### `roost dns`: los `.test` sin tocar el hosts (solo Windows, por ahora)
 
 ```sh
@@ -436,8 +465,13 @@ roost update --install   # con el instalador de Windows: descarga el setup nuevo
 | El vhost de cada sitio (editable fuera de las marcas) | `C:\roost\etc\nginx\sites\<nombre>.conf`, o `C:\roost\etc\apache\sites\<nombre>.conf` con Apache |
 | CA local y certificados de los sitios | `C:\roost\certs\ca\`, `C:\roost\certs\sites\` |
 | Sitios registrados | `C:\roost\state\sites.json` |
+| Claves SSH de los sitios y servidores SSH conocidos | `C:\roost\state\git\keys\`, `C:\roost\state\git\known_hosts` |
+| Tokens HTTPS de git | El Administrador de credenciales de Windows (`Roost:git:…`) |
+| Redis, Mailpit y Adminer | `C:\roost\bin\redis\<versión>\`, `C:\roost\bin\mailpit\<versión>\`, `C:\roost\bin\adminer\<versión>\` (se sirve en `http://localhost/adminer`) |
+| Datos de Redis y bandeja de Mailpit (Roost nunca los borra) | `C:\roost\data\redis\`, `C:\roost\data\mailpit\` |
+| Configuración de Redis (generada) y tus ajustes | `C:\roost\etc\redis\redis.conf`, `C:\roost\etc\redis\conf.d\99-usuario.conf` |
 | El git de Roost, su configuración aislada y el historial de cada sitio | `C:\roost\bin\git\<versión>\`, `C:\roost\state\git\` |
-| Logs (daemon, nginx, cada php-cgi, git de cada sitio) | `C:\roost\logs\` |
+| Logs (daemon, nginx, cada php-cgi, Redis, Mailpit, git de cada sitio) | `C:\roost\logs\` |
 | Proyectos | `C:\roost\www\` |
 | Tu configuración | `%APPDATA%\Roost\roost.toml` |
 | Zips descargados (se reutilizan) | `%LOCALAPPDATA%\Roost\cache\downloads\` |
@@ -481,7 +515,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
 - La app de escritorio no tiene aún plantillas de proyecto (Laravel, WordPress…).
-- `roost site clone` solo clona repositorios públicos y carpetas locales, y de momento solo desde la CLI: el acceso a privados (token o clave SSH) y «Desde git…» en la app llegan después.
+- «Desde git…» en la app, con su acceso, llega en la próxima versión: de momento, los repositorios (públicos o privados) se clonan desde la CLI. SSH por un proxy no se soporta: usa un token HTTPS.
 
 ## Desarrollo
 
