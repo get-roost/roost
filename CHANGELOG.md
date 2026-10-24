@@ -2,7 +2,7 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
-## 0.1.6 — en preparación
+## 0.1.6 — 24-oct-2026
 
 - **Cambios sin cortar:** con Roost en marcha, dar de alta o de baja un sitio, cambiar su raíz web o renovar los certificados ya no lo rearranca todo: el servidor web lee la configuración nueva en caliente, sin cortar las conexiones, y la base de datos, PHP, Redis y Mailpit siguen como estaban. La terminal dice lo que ha hecho, por ejemplo «recargado nginx; arrancado php-7.4».
 - **Otro PHP para un sitio:** Roost arranca solo esa versión de PHP antes de mandarle nada, y la quita cuando ya no la usa nadie. Cambiar el PHP global también cambia de versión sin cortar.
