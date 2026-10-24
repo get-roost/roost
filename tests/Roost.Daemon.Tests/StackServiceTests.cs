@@ -49,9 +49,9 @@ public class StackServiceTests : IDisposable
         new SiteRegistry(_paths).Upsert(new Site { Name = name, Folder = folder });
     }
 
-    private StackService Service() => new(_paths, _log.Add, ExtensionSet.Empty, new StackEnvironment(
+    private StackService Service(IProcessRunner? runner = null) => new(_paths, _log.Add, ExtensionSet.Empty, new StackEnvironment(
         _launcher,
-        new NginxTestOk(),
+        runner ?? new NginxTestOk(),
         ports => ports.Where(_busy.Contains).ToList(),
         (_, _) => Task.FromResult(true),
         TimeSpan.FromSeconds(5),
@@ -416,7 +416,67 @@ public class StackServiceTests : IDisposable
         Assert.Equal(mailText, File.ReadAllText(mailIni));
     }
 
+    // Cambiar de servidor web con el stack en marcha: el -t no puede abrir puertos que son nuestros
+
+    private const string OwnPortBind = "nginx: [emerg] bind() to 127.0.0.1:8765 failed (10013: An attempt was made to access a socket in a way forbidden by its access permissions)\nnginx: configuration file test failed";
+
+    [Fact]
+    public async Task Up_ElTestNoPuedeAbrirNuestrosPuertos_ParaLoDeAntesYValidaOtraVez()
+    {
+        // Lo que pasa al pasar de Apache a nginx: nginx -t abre el 8765 y Apache lo tiene en exclusiva.
+        var runner = new NginxTestScripted();
+        var stack = Service(runner);
+        Assert.True((await stack.UpAsync()).Ok);
+        runner.FailNext(OwnPortBind);
+
+        var second = await stack.UpAsync();
+
+        Assert.True(second.Ok, second.Error);
+        Assert.True(second.Status.Running);
+        Assert.Equal(2, _launcher.StartsOf("nginx"));
+        Assert.Contains(_log, l => l.Contains("se para antes de validar", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Up_ElTestNoPuedeAbrirUnPuertoAjeno_NoParaNada()
+    {
+        var runner = new NginxTestScripted();
+        var stack = Service(runner);
+        Assert.True((await stack.UpAsync()).Ok);
+        runner.FailNext(OwnPortBind.Replace(":8765", ":8445", StringComparison.Ordinal));
+
+        var second = await stack.UpAsync();
+
+        Assert.False(second.Ok);
+        Assert.StartsWith("No se ha aplicado el cambio", second.Error);
+        Assert.True(second.Status.Running);
+        Assert.Equal(1, _launcher.StartsOf("nginx"));
+    }
+
+    [Theory]
+    [InlineData("bind() to 127.0.0.1:80 failed (10013: forbidden)", true)]
+    [InlineData("bind() to [::1]:443 failed (10048: in use)\nbind() to 127.0.0.1:80 failed (10013: x)", true)]
+    [InlineData("bind() to 127.0.0.1:80 failed (10013: x)\nbind() to 127.0.0.1:8080 failed (10013: x)", false)]   // uno no es nuestro
+    [InlineData("bind() to 127.0.0.1:80 failed (10049: address not valid)", false)]
+    [InlineData("unknown directive \"servr\" in sites/tienda.conf:3", false)]
+    public void FailsOnlyOnOwnPorts_SoloSiTodosLosBindSonNuestrosPuertos(string message, bool expected) =>
+        Assert.Equal(expected, StackService.FailsOnlyOnOwnPorts(message, [80, 443, 3407]));
+
     // Dobles
+
+    /// <summary>nginx -t falso que falla las veces que se le diga y luego da por buena la configuración.</summary>
+    private sealed class NginxTestScripted : IProcessRunner
+    {
+        private readonly Queue<string> _failures = new();
+
+        public void FailNext(string output) { lock (_failures) _failures.Enqueue(output); }
+
+        public string? Run(string executablePath, string arguments, TimeSpan timeout)
+        {
+            lock (_failures)
+                return _failures.Count > 0 ? _failures.Dequeue() : "nginx: configuration file test is successful";
+        }
+    }
 
     /// <summary>nginx -t falso: siempre da por buena la configuración.</summary>
     private sealed class NginxTestOk : IProcessRunner

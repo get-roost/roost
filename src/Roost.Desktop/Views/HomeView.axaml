@@ -100,7 +100,7 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="10">
                   <TextBlock Classes="h2" Text="Servicios" />
-                  <TextBlock Classes="hint" Text="Arrancan en este orden y se paran al revés: base de datos, PHP, servidor web" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Classes="hint" Text="Arrancan en este orden y se paran al revés: base de datos, Redis y correo, PHP, servidor web" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
               </DockPanel>
             </Border>

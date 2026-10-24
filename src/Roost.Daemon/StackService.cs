@@ -106,12 +106,15 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
             var sites = new SiteRegistry(paths).Load();
             var extra = extensions.StackServices(new StackContext(paths, config));
 
+            StackPlan Prepare() => planner.Prepare(config, php, nginx, db, sites, installedPhp, new LocalCa(paths), extra, apache);
+
             var before = GeneratedConfig.Snapshot(paths);
             StackPlan plan;
             var dnsStartedHere = false;
+            var stoppedFirst = false;
             try
             {
-                plan = planner.Prepare(config, php, nginx, db, sites, installedPhp, new LocalCa(paths), extra, apache);
+                plan = Prepare();
 
                 // Los puertos del stack en marcha son nuestros: se liberan al pararlo.
                 var busy = _env.BusyPorts(plan.Ports.Except(_plan?.Ports ?? []));
@@ -126,6 +129,28 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
                     dnsStartedHere = true;
                 }
             }
+            catch (RoostException ex) when (wasRunning && _plan is { } running && FailsOnlyOnOwnPorts(ex.Message, running.Ports))
+            {
+                // En Windows, nginx -t abre los puertos de verdad, y el Apache en marcha los tiene en
+                // exclusiva: pasar de Apache a nginx no se puede validar con lo de antes en marcha. Esos
+                // puertos son nuestros, así que se para lo de antes y se valida otra vez.
+                log("el -t no puede abrir puertos que tiene el stack en marcha: se para antes de validar");
+                before.Restore();
+                if (dnsStartedHere) await SetDnsAsync(false);
+                await StopCurrentAsync();
+                stoppedFirst = true;
+                try
+                {
+                    plan = Prepare();
+                    var busy = _env.BusyPorts(plan.Ports);
+                    if (busy.Count > 0)
+                        throw new RoostException(BusyPortsMessage(busy, config));
+                }
+                catch (RoostException again)
+                {
+                    throw new RoostException($"{again.Message}\nPara validarlo habia que parar lo que estaba en marcha (el servidor web de antes tenia sus puertos), y lo nuevo no vale: el stack ha quedado parado.");
+                }
+            }
             catch (Exception ex) when (wasRunning)
             {
                 // Rechazado con lo de antes en marcha: se le devuelven sus ficheros tal como estaban.
@@ -137,7 +162,7 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
 
             // Punto sin retorno: lo nuevo vale. Se para lo de antes con sus ficheros de siempre (la
             // parada limpia de la base de datos lee el puerto de su my.ini) y luego quedan los nuevos.
-            if (wasRunning)
+            if (wasRunning && !stoppedFirst)
             {
                 var after = GeneratedConfig.Snapshot(paths);
                 before.Restore();
@@ -403,6 +428,22 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
             log("dns: parado");
         }
     }
+
+    /// <summary>
+    /// PURO: true si el <c>-t</c> del servidor web solo ha fallado por no poder abrir puertos que
+    /// tiene el stack en marcha (<c>bind() to …:puerto failed (10013</c> o <c>10048</c>). Pasa al
+    /// cambiar de Apache a nginx: nginx -t abre los puertos y Apache los tiene en exclusiva.
+    /// </summary>
+    internal static bool FailsOnlyOnOwnPorts(string message, IEnumerable<int> ownPorts)
+    {
+        var own = ownPorts.ToHashSet();
+        var binds = BindFailure.Matches(message);
+        return binds.Count > 0 && binds.All(m =>
+            own.Contains(int.Parse(m.Groups[1].Value)) && m.Groups[2].Value is "10013" or "10048");
+    }
+
+    private static readonly System.Text.RegularExpressions.Regex BindFailure =
+        new(@"bind\(\) to \S*?:(\d+) failed \((\d+)", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
 
     private async Task StopCurrentAsync()
     {
