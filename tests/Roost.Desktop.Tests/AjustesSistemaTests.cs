@@ -366,7 +366,9 @@ public class AjustesSistemaTests
             Calls.Add(spec.Arguments[0]);
             var result = spec.Arguments[0] switch
             {
-                "/query" => Exists ? new Roost.Core.Scanning.CommandResult(0, Roost.Core.Platform.LogonTask.Xml(@"C:\Program Files\Roost\roost.exe", "PC\\ana", "conhost.exe"), "", false) : new(1, "", "ERROR: no existe", false),
+                // El roost.exe de la tarea tiene que existir (si no, el panel la da por rota): el del propio
+                // proceso de tests, que existe en cualquier máquina, también en el runner sin Roost instalado.
+                "/query" => Exists ? new Roost.Core.Scanning.CommandResult(0, Roost.Core.Platform.LogonTask.Xml(Environment.ProcessPath!, "PC\\ana", "conhost.exe"), "", false) : new(1, "", "ERROR: no existe", false),
                 "/create" when Deny => new(1, "", "ERROR: Acceso denegado.", false),
                 "/create" => Ok(() => Exists = true),
                 "/delete" => Ok(() => Exists = false),
