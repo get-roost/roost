@@ -89,6 +89,47 @@ public sealed partial class PhpViewModel : PageViewModel
     [ObservableProperty] public partial bool LoadingCatalog { get; private set; }
     [ObservableProperty] public partial string? Installing { get; private set; }
 
+    // PHP (oleada 3): la conf.d de la rama, Xdebug y los ajustes rápidos de la instalación elegida.
+
+    /// <summary>Lo que ejecuta php.exe (phpinfo, módulos, la comprobación tras un cambio); los tests ponen uno guionizado.</summary>
+    internal ICommandRunner Runner { get; set; } = CommandRunner.Default;
+
+    private PhpConfigurator Configurator => new(Main.App.Paths, Runner);
+
+    [ObservableProperty] public partial string BranchIniText { get; private set; } = "";
+    [ObservableProperty] public partial string BranchHint { get; private set; } = "";
+
+    [ObservableProperty] public partial bool XdebugOn { get; private set; }
+    [ObservableProperty] public partial bool XdebugAvailable { get; private set; }
+    [ObservableProperty] public partial bool XdebugBusy { get; private set; }
+    [ObservableProperty] public partial string XdebugText { get; private set; } = "";
+
+    [ObservableProperty] public partial string MemoryLimit { get; set; } = "";
+    [ObservableProperty] public partial string UploadMaxFilesize { get; set; } = "";
+    [ObservableProperty] public partial string PostMaxSize { get; set; } = "";
+    [ObservableProperty] public partial string MaxExecutionTime { get; set; } = "";
+    [ObservableProperty] public partial string? SettingsError { get; private set; }
+    [ObservableProperty] public partial bool SettingsDirty { get; private set; }
+
+    public bool HasSettingsError => SettingsError is not null;
+    public bool CanSaveSettings => SettingsDirty && SettingsError is null;
+
+    private PhpSettings _savedSettings = PhpSettings.Default;
+    private string? _settingsFor;
+
+    partial void OnMemoryLimitChanged(string value) => CheckSettings();
+    partial void OnUploadMaxFilesizeChanged(string value) => CheckSettings();
+    partial void OnPostMaxSizeChanged(string value) => CheckSettings();
+    partial void OnMaxExecutionTimeChanged(string value) => CheckSettings();
+
+    partial void OnSettingsErrorChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasSettingsError));
+        OnPropertyChanged(nameof(CanSaveSettings));
+    }
+
+    partial void OnSettingsDirtyChanged(bool value) => OnPropertyChanged(nameof(CanSaveSettings));
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(VariantHint))]
     public partial bool ThreadSafe { get; set; }
@@ -236,10 +277,66 @@ public sealed partial class PhpViewModel : PageViewModel
                 ? $"{ports.Count} procesos · {ports.Min(p => p.Port)}–{ports.Max(p => p.Port)} · en marcha"
                 : "Se arranca con el stack";
 
+        // Xdebug tiene su interruptor: no va entre las extensiones aunque haya un php_xdebug.dll en ext/.
         var available = PhpIni.AvailableExtensions(card.Php.Directory);
         var enabled = PhpIni.Enabled(available, PhpExtensionChoice.Load(planner.PhpExtensionChoicePath(card.Php)));
-        Extensions = available.Order(StringComparer.Ordinal).Select(n => new ExtensionToggle(n, enabled.Contains(n))).ToList();
+        Extensions = available.Where(n => n != PhpIni.Xdebug).Order(StringComparer.Ordinal)
+            .Select(n => new ExtensionToggle(n, enabled.Contains(n))).ToList();
         ExtensionSummary = $"{Extensions.Count(e => e.IsOn)} de {Extensions.Count} activas";
+
+        BranchIniText = $@"conf.d\{card.Branch}\{PhpIni.UserFragmentName}";
+        BranchHint = $"solo la {card.Branch}: va después y manda";
+        BuildXdebug(card);
+        // Los campos solo se recargan al cambiar de versión: un aviso del stack no borra lo tecleado.
+        if (_settingsFor != card.Php.Name) LoadSettings(card);
+    }
+
+    private void BuildXdebug(PhpCard card)
+    {
+        var php = card.Php;
+        var configurator = Configurator;
+        XdebugOn = configurator.Choice(php).On.Contains(PhpIni.Xdebug);
+        XdebugAvailable = XdebugCatalog.WhyNot(php) is null;
+        var build = XdebugCatalog.For(php);
+        var dll = new XdebugInstaller(Main.App.Paths).Locate(php);
+        var version = dll is null ? build?.Version : Path.GetFileName(Path.GetDirectoryName(dll));
+        XdebugText = !XdebugAvailable
+            ? php.ThreadSafe ? "Solo en las NTS, que son las que sirve Roost."
+            : !php.Name.EndsWith("-x64", StringComparison.OrdinalIgnoreCase) ? "Solo en las de 64 bits."
+            : $"Roost no tiene Xdebug para PHP {card.Branch}."
+            : XdebugOn && dll is null ? "Activado, pero falta su DLL: apágalo y vuelve a encenderlo para bajarla."
+            : XdebugOn ? $"Xdebug {version} · depura la petición que trae XDEBUG_TRIGGER · el editor escucha en 127.0.0.1:9003"
+            : dll is not null ? $"Apagado (Xdebug {version} ya está en bin\\xdebug). Encenderlo reinicia solo el pool de la {card.Branch}."
+            : $"Apagado. La primera vez se baja Xdebug {build!.Version} de xdebug.org ({build.Size / 1024} KB, con su SHA-256 comprobado).";
+    }
+
+    private void LoadSettings(PhpCard card)
+    {
+        _settingsFor = card.Php.Name;
+        _savedSettings = Configurator.Settings(card.Php);
+        ShowSettings(_savedSettings);
+    }
+
+    private void ShowSettings(PhpSettings settings)
+    {
+        MemoryLimit = settings.MemoryLimit;
+        UploadMaxFilesize = settings.UploadMaxFilesize;
+        PostMaxSize = settings.PostMaxSize;
+        MaxExecutionTime = settings.MaxExecutionTime.ToString(CultureInfo.InvariantCulture);
+        CheckSettings();
+    }
+
+    /// <summary>Lo tecleado, o null si max_execution_time no es un número.</summary>
+    private PhpSettings? TypedSettings() =>
+        int.TryParse(MaxExecutionTime.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var seconds)
+            ? new PhpSettings(MemoryLimit.Trim(), UploadMaxFilesize.Trim(), PostMaxSize.Trim(), seconds)
+            : null;
+
+    private void CheckSettings()
+    {
+        var typed = TypedSettings();
+        SettingsError = typed is null ? "max_execution_time: pon segundos (0 es sin límite)." : typed.Validate();
+        SettingsDirty = typed is null || typed.Normalized() != _savedSettings.Normalized();
     }
 
     private void BuildCatalog()
@@ -347,24 +444,181 @@ public sealed partial class PhpViewModel : PageViewModel
         return Task.CompletedTask;
     });
 
-    /// <summary>Activa o quita una extensión: rehace el php.ini de esa versión y reinicia solo su pool.</summary>
+    /// <summary>
+    /// Activa o quita una extensión: rehace el php.ini de esa versión, comprueba con php -v que la
+    /// carga (si no, la deja como estaba y lo dice) y reinicia solo su pool.
+    /// </summary>
     [RelayCommand]
     private Task ToggleExtensionAsync(ExtensionToggle extension) => Main.RunAsync($"No se pudo cambiar {extension.Name}", async () =>
     {
         if (Selected is not { } card) return;
-        var planner = new StackPlanner(Main.App.Paths, ProcessRunner.Default);
-        var file = planner.PhpExtensionChoicePath(card.Php);
-        PhpExtensionChoice.Load(file).With(extension.Name, !extension.IsOn).Save(file);
+        var check = await Configurator.SetExtensionAsync(card.Php, extension.Name, !extension.IsOn);
         extension.IsOn = !extension.IsOn;
         ExtensionSummary = $"{Extensions.Count(e => e.IsOn)} de {Extensions.Count} activas";
-        planner.WritePhpIni(card.Php);
-        if (card.DotTone == Tone.Ok)
-        {
-            var response = await Main.App.Daemon.RestartAsync($"php-{card.Branch}");
-            if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
-            await Main.Stack.RefreshAsync();
-        }
+        await RestartPoolAsync(card);
+        WarnAboutStartup(check);
     });
+
+    // PHP (oleada 3)
+
+    /// <summary>Si el pool de esa versión está en marcha, lo reinicia (solo ese: el resto del stack sigue).</summary>
+    private async Task RestartPoolAsync(PhpCard card)
+    {
+        if (card.DotTone != Tone.Ok) return;
+        var response = await Main.App.Daemon.RestartAsync($"php-{card.Branch}");
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        await Main.Stack.RefreshAsync();
+    }
+
+    private void WarnAboutStartup(PhpCheck check)
+    {
+        if (check.Warnings.Count > 0) Main.Flash($"Aviso de PHP al arrancar: {check.Warnings[0]}");
+    }
+
+    [RelayCommand]
+    private Task EditBranchIniAsync() => Main.RunAsync("No se pudo abrir el fichero", () =>
+    {
+        if (Selected is { } card) Shell.OpenFile(new StackPlanner(Main.App.Paths, ProcessRunner.Default).EnsureBranchUserIni(card.Php));
+        return Task.CompletedTask;
+    });
+
+    /// <summary>«Ver»: el php.ini generado, tal cual, de solo lectura (se rehace antes para que esté al día).</summary>
+    [RelayCommand]
+    private async Task ShowIniAsync()
+    {
+        if (Selected is not { } card) return;
+        var planner = new StackPlanner(Main.App.Paths, ProcessRunner.Default);
+        var ini = planner.PhpIniPath(card.Php);
+        var dialog = new PhpTextDialogViewModel(
+            $"php.ini de PHP {card.Version}", "Lo genera Roost en cada roost up: no se edita. Tus ajustes van en conf.d.", ini,
+            _ => Task.Run(() =>
+            {
+                planner.WritePhpIni(card.Php);
+                return File.ReadAllText(ini);
+            }),
+            text => Main.CopyAsync(text, "php.ini copiado"),
+            Shell.OpenFolder);
+        var loading = dialog.LoadAsync();
+        await Main.ShowDialogAsync(dialog);
+        await loading;
+    }
+
+    [RelayCommand]
+    private Task PhpInfoAsync() => ShowPhpOutputAsync(modules: false);
+
+    [RelayCommand]
+    private Task ModulesAsync() => ShowPhpOutputAsync(modules: true);
+
+    /// <summary>phpinfo (<c>php -i</c>) o los módulos (<c>php -m</c>) en un diálogo con búsqueda, fuera del hilo de la UI.</summary>
+    private async Task ShowPhpOutputAsync(bool modules)
+    {
+        if (Selected is not { } card) return;
+        var dialog = PhpTextDialogViewModel.ForPhp(card.Php, Configurator, Runner, modules,
+            text => Main.CopyAsync(text, modules ? "Módulos copiados" : "phpinfo copiado"));
+        var loading = dialog.LoadAsync();
+        await Main.ShowDialogAsync(dialog);
+        await loading;
+    }
+
+    /// <summary>
+    /// El interruptor de Xdebug. La primera vez baja la DLL de su rama con el diálogo Instalando
+    /// (verificada); luego la activa en el php.ini, comprueba con php -v que carga y reinicia solo su pool.
+    /// </summary>
+    [RelayCommand]
+    private async Task ToggleXdebugAsync()
+    {
+        if (Selected is not { } card || XdebugBusy) return;
+        var wanted = !XdebugOn;
+        XdebugBusy = true;
+        try
+        {
+            if (wanted && !await EnsureXdebugAsync(card)) return;
+            await Main.RunAsync(wanted ? "No se pudo activar Xdebug" : "No se pudo apagar Xdebug", async () =>
+            {
+                var check = await Configurator.SetXdebugAsync(card.Php, wanted);
+                await RestartPoolAsync(card);
+                if (wanted)
+                    Main.Flash(check.XdebugVersion is { } v ? $"Xdebug {v} activado en PHP {card.Version}" : $"Xdebug activado en PHP {card.Version} (no se ha podido comprobar con php -v)");
+                else
+                    Main.Flash($"Xdebug apagado en PHP {card.Version}");
+                WarnAboutStartup(check);
+            });
+        }
+        finally
+        {
+            XdebugBusy = false;
+            if (Selected is { } now) BuildXdebug(now);
+            OnPropertyChanged(nameof(XdebugOn));   // el interruptor vuelve a lo que de verdad hay si se canceló o falló
+        }
+    }
+
+    /// <summary>La DLL de Xdebug de la rama: si no está, la instala con el diálogo Instalando. false si no se ha instalado.</summary>
+    private async Task<bool> EnsureXdebugAsync(PhpCard card)
+    {
+        if (XdebugCatalog.WhyNot(card.Php) is { } why)
+        {
+            await Main.InfoAsync("Xdebug no está disponible para esta versión", why, Tone.Warn);
+            return false;
+        }
+        var build = XdebugCatalog.For(card.Php)!;
+        var installer = new XdebugInstaller(Main.App.Paths, Main.App.Http);
+        if (installer.Find(build) is not null) return true;
+
+        var steps = new List<InstallStep>
+        {
+            new($"{build.Label} para PHP {build.PhpBranch}", $"· {build.FileName}"),
+            new("Descargando de xdebug.org", null),
+            new("Verificar el SHA-256", "· fijado en Roost, antes de usarla"),
+            new($"Dejarla en {Path.GetDirectoryName(installer.DllPath(build))}", null),
+        };
+        var dialog = new InstallDialogViewModel(
+            $"Instalando {build.Label}",
+            $"Para PHP {build.PhpBranch} · NTS · x64 · {build.Compiler} · desde xdebug.org",
+            build.Size,
+            steps,
+            async (d, cancel) =>
+            {
+                d.Step(1, "Descargando");
+                var bytes = new Progress<long>(b =>
+                {
+                    d.Downloaded(b);
+                    if (b >= build.Size) d.Step(2, "Verificando");
+                });
+                await installer.InstallAsync(build, bytes, cancel);
+                d.Step(3, "Instalando");
+            });
+        await RunInstallAsync(dialog, build.Label);
+        return !dialog.Failed && await dialog.Finished && installer.Find(build) is not null;
+    }
+
+    /// <summary>Copia un <c>.vscode/launch.json</c> para PHP Debug con esta versión (ver README).</summary>
+    [RelayCommand]
+    private Task CopyLaunchJsonAsync() => Main.RunAsync("No se pudo copiar el launch.json", async () =>
+    {
+        if (Selected is not { } card) return;
+        var json = await Task.Run(() => Configurator.VsCodeLaunchJson(card.Php));
+        await Main.CopyAsync(json, "launch.json copiado: pégalo en .vscode/launch.json del proyecto");
+    });
+
+    /// <summary>Guarda los ajustes rápidos (validados), rehace el php.ini y reinicia solo el pool.</summary>
+    [RelayCommand]
+    private Task SaveSettingsAsync() => Main.RunAsync("No se pudieron guardar los ajustes", async () =>
+    {
+        if (Selected is not { } card || TypedSettings() is not { } typed) return;
+        if (typed.Validate() is { } error)
+        {
+            SettingsError = error;
+            return;
+        }
+        await Task.Run(() => Configurator.SetSettings(card.Php, typed));
+        LoadSettings(card);
+        await RestartPoolAsync(card);
+        Main.Flash($"Ajustes guardados en el php.ini de PHP {card.Version}");
+    });
+
+    /// <summary>«De serie»: pone en los campos los valores de Roost (se guardan con «Guardar»).</summary>
+    [RelayCommand]
+    private void DefaultSettings() => ShowSettings(PhpSettings.Default);
 
     [RelayCommand]
     private Task InstallAsync(PhpCatalogRow row) => InstallBuildAsync(row.Build);

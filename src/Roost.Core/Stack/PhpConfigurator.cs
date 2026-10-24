@@ -144,6 +144,59 @@ public sealed partial class PhpConfigurator(RoostPaths paths, ICommandRunner run
         throw new RoostException($"PHP {php.Name} no puede cargar {activated}; se deja como estaba. {failed[0]}");
     }
 
+    /// <summary>
+    /// Un <c>.vscode/launch.json</c> para la extensión PHP Debug (<c>xdebug.php-debug</c>) con esta
+    /// instalación: «Escuchar Xdebug» (las peticiones web con XDEBUG_TRIGGER, sin <c>pathMappings</c>
+    /// porque todo es local) y «Este script», que lanza el fichero abierto con el <c>php.exe</c> de la
+    /// instalación y el php.ini y las conf.d de Roost (sin depender de los shims).
+    /// </summary>
+    public string VsCodeLaunchJson(InstalledPhp php)
+    {
+        var env = new Dictionary<string, string>(TerminalPhp.Environment(paths, php))
+        {
+            ["XDEBUG_MODE"] = "debug,develop",
+            ["XDEBUG_CONFIG"] = "client_port=${port}",
+        };
+        using var buffer = new MemoryStream();
+        using (var json = new System.Text.Json.Utf8JsonWriter(buffer, new System.Text.Json.JsonWriterOptions
+               {
+                   Indented = true,
+                   Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+               }))
+        {
+            json.WriteStartObject();
+            json.WriteString("version", "0.2.0");
+            json.WriteStartArray("configurations");
+
+            json.WriteStartObject();
+            json.WriteString("name", "Escuchar Xdebug (Roost)");
+            json.WriteString("type", "php");
+            json.WriteString("request", "launch");
+            json.WriteNumber("port", 9003);
+            json.WriteEndObject();
+
+            json.WriteStartObject();
+            json.WriteString("name", $"Este script con PHP {php.Version?.ToString() ?? php.Name} (Roost)");
+            json.WriteString("type", "php");
+            json.WriteString("request", "launch");
+            json.WriteString("program", "${file}");
+            json.WriteString("cwd", "${fileDirname}");
+            json.WriteNumber("port", 0);
+            json.WriteString("runtimeExecutable", php.Executable);
+            json.WriteStartArray("runtimeArgs");
+            json.WriteStringValue("-dxdebug.start_with_request=yes");
+            json.WriteEndArray();
+            json.WriteStartObject("env");
+            foreach (var (name, value) in env) json.WriteString(name, value);
+            json.WriteEndObject();
+            json.WriteEndObject();
+
+            json.WriteEndArray();
+            json.WriteEndObject();
+        }
+        return System.Text.Encoding.UTF8.GetString(buffer.ToArray());
+    }
+
     /// <summary><c>php_curl.dll</c>, <c>php_curl</c> o <c>Curl</c> → <c>curl</c>.</summary>
     public static string NormalizeName(string name)
     {
