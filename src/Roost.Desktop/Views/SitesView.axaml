@@ -248,9 +248,11 @@
                   <ctl:Note Tone="{Binding NodeDev.ResultTone, FallbackValue=Accent}" IsVisible="{Binding HasNodeDev}">
                     <StackPanel Spacing="6">
                       <TextBlock Text="{Binding NodeDev.StatusText, FallbackValue=''}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                      <TextBlock Classes="small" Text="{Binding NodeDev.UrlWarning, FallbackValue=''}" TextWrapping="Wrap" Foreground="{DynamicResource WarnBrush}"
+                                 IsVisible="{Binding NodeDev.HasUrlWarning, FallbackValue=False}" />
                       <WrapPanel ItemSpacing="6" LineSpacing="6">
                         <Button Classes="sm" Content="Ver salida" Command="{Binding NodeShowDevCommand}" />
-                        <Button Classes="sm" Content="Abrir" Command="{Binding NodeOpenDevCommand}" IsVisible="{Binding NodeDev.HasUrl, FallbackValue=False}"
+                        <Button Classes="sm" Content="Abrir" Command="{Binding NodeOpenDevCommand}" IsVisible="{Binding NodeDev.CanOpen, FallbackValue=False}"
                                 ToolTip.Tip="{Binding NodeDev.Url, FallbackValue=''}" />
                         <Button Classes="sm danger" Content="Parar" Command="{Binding NodeStopDevCommand}" IsVisible="{Binding NodeDev.Running, FallbackValue=False}"
                                 ToolTip.Tip="Termina el proceso y todo lo que haya lanzado" />

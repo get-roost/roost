@@ -75,7 +75,7 @@ public sealed partial class NodeDevSession : ObservableObject
     public ObservableCollection<LogLine> Lines { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Done), nameof(StatusText), nameof(ResultText), nameof(ResultTone))]
+    [NotifyPropertyChangedFor(nameof(Done), nameof(StatusText), nameof(ResultText), nameof(ResultTone), nameof(CanOpen), nameof(UrlWarning), nameof(HasUrlWarning))]
     public partial bool Running { get; private set; }
 
     public bool Done => !Running;
@@ -96,10 +96,23 @@ public sealed partial class NodeDevSession : ObservableObject
 
     /// <summary>La dirección que anuncia el servidor de desarrollo (la de Vite), en cuanto la dice.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasUrl), nameof(StatusText))]
+    [NotifyPropertyChangedFor(nameof(HasUrl), nameof(StatusText), nameof(CanOpen), nameof(UrlWarning), nameof(HasUrlWarning))]
     public partial string? Url { get; private set; }
 
     public bool HasUrl => Url is not null;
+
+    /// <summary>«Abrir» la dirección que anuncia: solo mientras sigue en marcha.</summary>
+    public bool CanOpen => Running && Url is not null;
+
+    /// <summary>
+    /// Vite en http: la página del sitio va por https, así que el navegador bloquea sus assets y el
+    /// HMR (contenido mixto). Lo dice, con la salida: el certificado del sitio en vite.config.js.
+    /// </summary>
+    public string? UrlWarning => Running && Url?.StartsWith("http://", StringComparison.OrdinalIgnoreCase) == true
+        ? $"Sirve en http: desde https://{Host} el navegador bloquea sus assets y el HMR (contenido mixto). Ponle el certificado del sitio en vite.config.js («Copiar server de Vite», en el panel del sitio)."
+        : null;
+
+    public bool HasUrlWarning => UrlWarning is not null;
 
     /// <summary>Una línea para el panel y la cabecera del diálogo.</summary>
     public string StatusText =>

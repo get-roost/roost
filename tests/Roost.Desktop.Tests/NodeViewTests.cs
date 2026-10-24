@@ -238,6 +238,8 @@ public class NodeViewTests
         Assert.StartsWith("npm run dev en marcha desde las ", session.StatusText);
         Assert.EndsWith(" · https://tienda.test:5173/", session.StatusText);
         Assert.Equal("npm run dev · tienda.test", dialog.Title);
+        Assert.True(session.CanOpen);
+        Assert.False(session.HasUrlWarning);   // en https: nada que avisar
         Snapshot(window, "node-npm-run-dev");
 
         // «Dejar en marcha»: se cierra la ventana, el proceso sigue y el panel lo dice.
@@ -269,6 +271,7 @@ public class NodeViewTests
         Assert.True(runner.WasCanceled);
         Assert.True(session.Stopped);
         Assert.Equal("npm run dev parado", session.StatusText);
+        Assert.False(session.CanOpen);
         Assert.StartsWith("Parado", session.ResultText);
         Assert.Contains("VITE v7.1.3", session.Output);
         ((NodeDevServerDialogViewModel)main.Dialog!).FinishCommand.Execute(null);
@@ -343,6 +346,48 @@ public class NodeViewTests
 
         dialog.DismissCommand.Execute(null);
         await showing;
+    }
+
+    [AvaloniaFact]
+    public async Task SitiosNode_ViteEnHttp_AvisaDelContenidoMixto()
+    {
+        var (main, window, fake) = await OpenAsync();
+        using var _ = fake;
+        fake.InstallFakeNode("24.22.1");
+        ViteProject(fake);
+        var runner = new ScriptedCommandRunner("  VITE v8.3.5  ready in 271 ms", "", "  ➜  Local:   http://localhost:5173/");
+
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        sites.Runner = runner;
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "tienda.test"));
+        var showing = sites.NodeRunScriptCommand.ExecuteAsync(sites.NodeScripts.Single(s => s.Script.Name == "dev"));
+        await UntilAsync(() => main.Dialog is NodeDevServerDialogViewModel);
+        var dialog = (NodeDevServerDialogViewModel)main.Dialog!;
+        dialog.Session.FlushLines();
+
+        Assert.Equal("http://localhost:5173/", dialog.Session.Url);
+        Assert.StartsWith("Sirve en http: desde https://tienda.test el navegador bloquea", dialog.Session.UrlWarning);
+        Snapshot(window, "node-vite-en-http");
+
+        dialog.StopCommand.Execute(null);
+        await UntilAsync(() => dialog.Session.Done);
+        Assert.False(dialog.Session.HasUrlWarning);
+        dialog.FinishCommand.Execute(null);
+        await showing;
+    }
+
+    [Fact]
+    public void ServerDeVite_ConElCertificadoDelSitio_RutasConBarraYCorsDeSuPagina()
+    {
+        var snippet = SitesViewModel.ViteServer("tienda.test", @"C:\roost\certs\sites\tienda.key", @"C:\roost\certs\sites\tienda.crt", "https://tienda.test:8444");
+
+        Assert.StartsWith("server: {", snippet);
+        Assert.Contains("host: 'tienda.test',", snippet);
+        Assert.Contains("key: fs.readFileSync('C:/roost/certs/sites/tienda.key'),", snippet);
+        Assert.Contains("cert: fs.readFileSync('C:/roost/certs/sites/tienda.crt'),", snippet);
+        Assert.Contains("hmr: { host: 'tienda.test' },", snippet);
+        Assert.Contains("cors: { origin: 'https://tienda.test:8444' },", snippet);
     }
 
     /// <summary>Un zip como el de nodejs.org (todo dentro de node-v&lt;versión&gt;-win-x64/), con npm.</summary>

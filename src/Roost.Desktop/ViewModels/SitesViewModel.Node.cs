@@ -248,20 +248,29 @@ public sealed partial class SitesViewModel
     {
         if (Selected is not { } row) return Task.CompletedTask;
         var ca = new LocalCa(Main.App.Paths);
-        string Js(string path) => path.Replace('\\', '/');
-        var origin = Urls.Split(Environment.NewLine)[0];
-        var snippet = $$"""
+        var snippet = ViteServer(row.Host, ca.SiteKeyFile(row.Site.Name), ca.SiteCertFile(row.Site.Name), Urls.Split(Environment.NewLine)[0]);
+        return Main.CopyAsync(snippet, "server de Vite copiado (con import fs from 'node:fs' arriba)");
+    }
+
+    /// <summary>
+    /// PURO: el <c>server</c> de vite.config.js para el sitio: escucha en su nombre (que Vite admite así
+    /// en la cabecera Host), HTTPS con su certificado y su clave (rutas con <c>/</c>), el HMR por ese
+    /// nombre y CORS para la página del sitio (<paramref name="origin"/>, con su puerto si no es el 443).
+    /// </summary>
+    internal static string ViteServer(string host, string keyFile, string certFile, string origin)
+    {
+        static string Js(string path) => path.Replace('\\', '/');
+        return $$"""
             server: {
-                host: '{{row.Host}}',
+                host: '{{host}}',
                 https: {
-                    key: fs.readFileSync('{{Js(ca.SiteKeyFile(row.Site.Name))}}'),
-                    cert: fs.readFileSync('{{Js(ca.SiteCertFile(row.Site.Name))}}'),
+                    key: fs.readFileSync('{{Js(keyFile)}}'),
+                    cert: fs.readFileSync('{{Js(certFile)}}'),
                 },
-                hmr: { host: '{{row.Host}}' },
+                hmr: { host: '{{host}}' },
                 cors: { origin: '{{origin}}' },
             },
             """;
-        return Main.CopyAsync(snippet, "server de Vite copiado (con import fs from 'node:fs' arriba)");
     }
 
     /// <summary>

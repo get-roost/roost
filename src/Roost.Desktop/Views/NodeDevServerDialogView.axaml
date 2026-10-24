@@ -10,7 +10,7 @@
         <DockPanel>
           <Button DockPanel.Dock="Left" Content="Copiar la salida" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
           <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
-            <Button Command="{Binding OpenCommand}" IsVisible="{Binding Session.HasUrl}" ToolTip.Tip="{Binding Session.Url}"
+            <Button Command="{Binding OpenCommand}" IsVisible="{Binding Session.CanOpen}" ToolTip.Tip="{Binding Session.Url}"
                     AutomationProperties.Name="Abrir en el navegador">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <ctl:Icon Data="{StaticResource IcExternal}" Size="14" VerticalAlignment="Center" />
@@ -61,6 +61,7 @@
           </ScrollViewer>
         </Border>
 
+        <ctl:Note Tone="Warn" IsVisible="{Binding Session.HasUrlWarning}" Content="{Binding Session.UrlWarning}" />
         <ctl:Note Tone="{Binding Session.ResultTone}" Content="{Binding Session.ResultText}" />
       </StackPanel>
     </DockPanel>
