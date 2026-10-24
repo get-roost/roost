@@ -1,6 +1,6 @@
 {
     "##": "Lo mantiene .github/workflows/packages.yml (packaging/packages.py scoop): con cada release estable cambia version, url y hash, sacado de SHA256SUMS.txt.",
-    "version": "0.1.2",
+    "version": "0.1.3",
     "description": "Entorno de desarrollo PHP local (PHP, MariaDB/MySQL, nginx y https://*.test) que avisa de lo que esta fuera de soporte o tiene CVE.",
     "homepage": "https://github.com/get-roost/roost",
     "license": "MIT",
@@ -15,8 +15,8 @@
     },
     "architecture": {
         "64bit": {
-            "url": "https://github.com/get-roost/roost/releases/download/v0.1.2/roost-0.1.2-win-x64.zip",
-            "hash": "5cc2c73efddace5b1e161ff8c3a1c538e7d1c962e73c552526a2a619e689debc"
+            "url": "https://github.com/get-roost/roost/releases/download/v0.1.3/roost-0.1.3-win-x64.zip",
+            "hash": "557e8ef4fc039cea70348670e550a05ae96d7c1dd9a2160e3532ea28906644d4"
         }
     },
     "bin": "roost.exe",
