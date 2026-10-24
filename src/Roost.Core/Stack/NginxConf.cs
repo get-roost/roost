@@ -60,12 +60,16 @@ public static class NginxConf
         var run = Nginx(input.RunDirectory);
         var logs = Nginx(input.LogsDirectory);
 
+        // max_fails=0: un php-cgi que se reinicia (o que se cae) no deja su servidor «caído» 10 s.
+        // Con lo de serie, al reiniciar el pool uno a uno nginx acababa con todos marcados y daba
+        // 502 («no live upstreams») aunque los demás ya estuvieran en marcha: así, si uno no
+        // contesta, la petición pasa al siguiente sin más (probado en real con carga).
         var upstreams = new StringBuilder();
         foreach (var upstream in input.Upstreams)
         {
             upstreams.Append($"    upstream {upstream.Name} {{\n");
             foreach (var port in upstream.Ports)
-                upstreams.Append($"        server 127.0.0.1:{port};\n");
+                upstreams.Append($"        server 127.0.0.1:{port} max_fails=0;\n");
             upstreams.Append("    }\n\n");
         }
 

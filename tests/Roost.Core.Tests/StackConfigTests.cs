@@ -181,7 +181,8 @@ public class StackConfigTests : IDisposable
             "php-8.4",
             @"C:\roost\etc\nginx\sites"));
 
-        Assert.Contains("upstream php-8.4 {\n        server 127.0.0.1:9840;\n        server 127.0.0.1:9841;\n    }", conf);
+        // max_fails=0: al reiniciar el pool uno a uno, ninguno queda «caído» y no hay 502 (E2).
+        Assert.Contains("upstream php-8.4 {\n        server 127.0.0.1:9840 max_fails=0;\n        server 127.0.0.1:9841 max_fails=0;\n    }", conf);
         Assert.Contains("        listen 127.0.0.1:8765;\n        listen [::1]:8765;\n        server_name localhost;", conf);   // solo loopback, en las dos
         Assert.DoesNotContain("listen 8765", conf);
         Assert.Contains("fastcgi_read_timeout 600s;", conf);   // Xdebug y tareas largas, sin 504 a los 60 s

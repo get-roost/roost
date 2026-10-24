@@ -32,8 +32,17 @@ public sealed record StatusResponse(
 }
 
 /// <summary>
-/// Respuesta de <c>POST /up</c>, <c>/down</c>, <c>/restart</c>, <c>/stop</c> y <c>/start</c>.
+/// Respuesta de <c>POST /up</c>, <c>/down</c>, <c>/restart</c>, <c>/reload</c>, <c>/stop</c> y <c>/start</c>.
 /// Tras un <c>up</c> que no se pudo aplicar, <c>Status.Running</c> dice si lo de antes sigue en
 /// marcha (la configuración nueva se rechazó antes de parar nada) o si el stack ha quedado parado.
 /// </summary>
-public sealed record CommandResponse(bool Ok, string? Error, StatusResponse Status);
+public sealed record CommandResponse(bool Ok, string? Error, StatusResponse Status)
+{
+    /// <summary>
+    /// Lo que se ha hecho con el stack en marcha, en palabras: «recargado nginx», «reiniciado
+    /// php-8.3 (uno a uno)», «arrancado php-7.4» (E2, la recarga selectiva). Vacío si no se ha
+    /// tocado nada, si el stack no estaba en marcha (un <c>up</c> que lo arranca) o en un daemon
+    /// viejo. Con <see cref="Ok"/> a false y algo aquí, el cambio se ha aplicado a medias.
+    /// </summary>
+    public IReadOnlyList<string> Applied { get; init; } = [];
+}

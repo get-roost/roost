@@ -68,6 +68,13 @@ public sealed class Supervisor
     // Cambiar el stack en marcha (E2, la recarga selectiva): añadir, quitar y sustituir servicios
     // sin parar el resto. Quien llama decide el orden (Arrange) y espera a que lo nuevo responda.
 
+    /// <summary>Las definiciones de los servicios que tiene ahora, en su orden (también los parados).</summary>
+    public IReadOnlyList<ServiceDefinition> Definitions()
+    {
+        lock (_gate)
+            return _slots.Select(s => s.Definition).ToList();
+    }
+
     /// <summary>
     /// Añade un servicio con el supervisor en marcha (un pool de PHP nuevo, Redis al activarlo) y
     /// lo arranca como <see cref="Start"/>: el primer arranque, síncrono, y la vigilancia en segundo
