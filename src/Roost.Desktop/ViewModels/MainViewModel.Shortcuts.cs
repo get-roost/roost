@@ -10,7 +10,7 @@ namespace Roost.Desktop.ViewModels;
 public sealed partial class MainViewModel
 {
     /// <summary>Los atajos, para Ajustes › General y los tooltips.</summary>
-    public const string ShortcutsText = "Ctrl+N nuevo sitio · F5 actualizar la pantalla · Ctrl+L registros · Ctrl+, ajustes";
+    public const string ShortcutsText = "Ctrl+N nuevo sitio · F5 actualizar la pantalla · Ctrl+L registros · Ctrl+, ajustes";
 
     /// <summary>Ctrl+N: Sitios y el diálogo «Nuevo sitio», como el botón de Inicio.</summary>
     [RelayCommand]

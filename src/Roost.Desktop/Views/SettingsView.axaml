@@ -87,8 +87,9 @@
                   </StackPanel>
                 </CheckBox>
                 <ctl:Note Tone="Warn" IsVisible="{Binding HasShimsWarning}" Content="{Binding ShimsWarning}" />
-                <CheckBox IsEnabled="False" ToolTip.Tip="Próximamente: llega con el feed de avisos, que se actualiza solo" ToolTip.ShowOnDisabled="True"
-                          Content="Avisarme en la bandeja si algo pasa a rojo en la auditoría · próximamente" />
+                <CheckBox IsChecked="{Binding NotifyServiceDown}" Content="Avisarme en la bandeja si un servicio se cae" />
+                <CheckBox IsChecked="{Binding NotifyAuditRed}" Content="Avisarme en la bandeja si algo pasa a rojo en la auditoría (una vez por cambio)" />
+                <TextBlock Classes="faint" TextWrapping="Wrap" Text="{Binding ShortcutsText, StringFormat='Atajos: {0}'}" />
                 <StackPanel Spacing="6" Margin="0,4,0,0">
                   <TextBlock Classes="lbl" Text="Tema" />
                   <Border Classes="seg">
@@ -99,6 +100,30 @@
                     </StackPanel>
                   </Border>
                 </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Ajustes y sistema (J3 + C4): con qué se abren las cosas -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="Programas" /></Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <Grid ColumnDefinitions="90,*,Auto" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                  <TextBlock Classes="muted" Text="Editor" VerticalAlignment="Center" />
+                  <ComboBox Grid.Column="1" ItemsSource="{Binding EditorChoices}" SelectedItem="{Binding EditorChoice}" HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Editor" />
+                  <Button Grid.Column="2" Classes="sm ghost" Content="Probar" Command="{Binding TryEditorCommand}" ToolTip.Tip="Abre la carpeta www en el editor" />
+                  <TextBlock Grid.Row="1" Classes="muted" Text="Terminal" VerticalAlignment="Center" />
+                  <ComboBox Grid.Row="1" Grid.Column="1" ItemsSource="{Binding TerminalChoices}" SelectedItem="{Binding TerminalChoice}" HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Terminal" />
+                  <Button Grid.Row="1" Grid.Column="2" Classes="sm ghost" Content="Probar" Command="{Binding TryTerminalCommand}" ToolTip.Tip="Abre una terminal en la www, con el PHP de Roost" />
+                  <TextBlock Grid.Row="2" Classes="muted" Text="Navegador" VerticalAlignment="Center" />
+                  <ComboBox Grid.Row="2" Grid.Column="1" ItemsSource="{Binding BrowserChoices}" SelectedItem="{Binding BrowserChoice}" HorizontalAlignment="Stretch"
+                            AutomationProperties.Name="Navegador" />
+                  <Button Grid.Row="2" Grid.Column="2" Classes="sm ghost" Content="Probar" Command="{Binding TryBrowserCommand}" ToolTip.Tip="Abre localhost" />
+                </Grid>
+                <TextBlock Classes="faint" TextWrapping="Wrap" Text="{Binding ProgramsHint}" />
               </StackPanel>
             </StackPanel>
           </Border>
@@ -242,10 +267,36 @@
                   </StackPanel>
                 </RadioButton>
                 <TextBlock Classes="faint" Text="{Binding DnsStateText}" TextWrapping="Wrap" />
-                <StackPanel Orientation="Horizontal" Spacing="8">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                  <ctl:Dot Tone="{Binding DnsProbeTone}" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding DnsProbeText}" TextWrapping="Wrap" />
+                </Grid>
+                <WrapPanel ItemSpacing="8" LineSpacing="8">
                   <Button Classes="sm" Content="Ver el bloque del hosts" Command="{Binding ShowHostsBlockCommand}" />
+                  <Button Classes="sm ghost" Content="¿Contesta el DNS local?" Command="{Binding CheckDnsCommand}" />
                   <Button Classes="sm ghost" Content="Registro del helper" Command="{Binding OpenHelperLogCommand}" />
-                </StackPanel>
+                </WrapPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Ajustes y sistema (J6, J7): roostd y el log de la app -->
+          <Border Classes="card">
+            <StackPanel>
+              <Border Classes="card-h"><TextBlock Classes="h2" Text="roostd y la app" /></Border>
+              <StackPanel Margin="16,14" Spacing="10">
+                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                  <ctl:Dot Tone="{Binding DaemonTone}" VerticalAlignment="Top" Margin="0,5,0,0" />
+                  <TextBlock Grid.Column="1" Classes="small" Text="{Binding DaemonText}" TextWrapping="Wrap" />
+                </Grid>
+                <TextBlock Classes="faint" TextWrapping="Wrap"
+                           Text="roostd sirve tus sitios aunque cierres la app. Reiniciarlo para todo, lo vuelve a lanzar y, si estaba en marcha, arranca el stack." />
+                <TextBlock Classes="faint mono" FontSize="11" Text="{Binding AppLogPath}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding AppLogPath}" />
+                <WrapPanel ItemSpacing="8" LineSpacing="8">
+                  <Button Classes="sm" Content="Reiniciar roostd" Command="{Binding RestartDaemonCommand}" IsEnabled="{Binding CanRestartDaemon}" />
+                  <Button Classes="sm ghost" Content="Registro de roostd" Command="{Binding OpenDaemonLogCommand}" />
+                  <Button Classes="sm ghost" Content="Abrir el log de la app" Command="{Binding OpenAppLogCommand}" />
+                </WrapPanel>
               </StackPanel>
             </StackPanel>
           </Border>

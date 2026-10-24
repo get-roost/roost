@@ -21,6 +21,8 @@ public sealed class AppServices : IDisposable
         Daemon = new DaemonClient(Paths);
         Prefs = DesktopPrefs.Load(Paths);
         Version = version ?? Roost.Core.Updates.RoostVersion.Current;
+        // Ajustes y sistema (J3 + C4): Shell abre con el editor, la terminal y el navegador elegidos.
+        Shell.Preferences = () => Prefs;
     }
 
     public RoostPaths Paths { get; }
