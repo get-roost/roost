@@ -122,11 +122,11 @@ public sealed partial class AuditState : ObservableObject
         {
             await UpdateFeedAsync(forceFeed);
             var result = await Task.Run(() => (_app is null ? EnvironmentScanner.CreateDefault() : _app.Extensions.Scanner(_app.Paths)).ScanAll());
-            Findings = _evaluator.EvaluateAll(result.Components)
-                .OrderByDescending(f => f.Color)
-                .ThenBy(f => f.Component.Kind)
-                .ThenByDescending(f => f.Component.Version)
-                .ToList();
+            IReadOnlyList<AuditFinding> findings = _evaluator.EvaluateAll(result.Components).ToList();
+            // K4: las mitigaciones de cada PHP frente a su php -i (solo lee), fuera del hilo de la UI.
+            if (Mitigations is { } mitigations)
+                findings = await Task.Run(() => mitigations.CheckAllAsync(findings));
+            Findings = Sorted(findings);
             OsDescription = result.OsDescription;
             LastScan = DateTime.Now;
             Record();   // K1: qué ha cambiado desde la anterior
@@ -148,6 +148,34 @@ public sealed partial class AuditState : ObservableObject
         OnPropertyChanged(nameof(Summary));
     }
 
+    private static List<AuditFinding> Sorted(IEnumerable<AuditFinding> findings) => findings
+        .OrderByDescending(f => f.Color)
+        .ThenBy(f => f.Component.Kind)
+        .ThenByDescending(f => f.Component.Version)
+        .ToList();
+
+    // K4: mitigaciones
+
+    /// <summary>Con qué se ejecuta <c>php -i</c>; los tests ponen uno de pega.</summary>
+    internal Roost.Core.Scanning.ICommandRunner Runner { get; set; } = CommandRunner.Default;
+
+    /// <summary>Comprobar, aplicar y deshacer las mitigaciones; null sin raíz (los tests sin app).</summary>
+    public AuditMitigations? Mitigations => _app is null ? null : new AuditMitigations(_app.Paths, Runner);
+
+    /// <summary>
+    /// Vuelve a comprobar las mitigaciones de un hallazgo (tras aplicar o deshacer) y lo pone en su
+    /// sitio del inventario, con los contadores al día. No es un escaneo: no cuenta para «qué ha cambiado».
+    /// </summary>
+    public async Task<AuditFinding> RecheckAsync(AuditFinding finding)
+    {
+        if (Mitigations is not { } mitigations) return finding;
+        var updated = await Task.Run(() => mitigations.CheckAsync(finding));
+        var path = finding.Component.ExecutablePath;
+        Findings = Sorted(Findings.Select(f => f.Component.ExecutablePath == path ? updated : f));
+        OnPropertyChanged(nameof(Summary));
+        return updated;
+    }
+
     /// <summary>Evalúa una versión suelta (de un catálogo o instalada por Roost).</summary>
     public AuditFinding Evaluate(ComponentKind kind, ComponentVersion version, string path = "", string source = "Roost") =>
         _evaluator.Evaluate(new DetectedComponent { Kind = kind, Version = version, ExecutablePath = path, Source = source });
@@ -162,12 +190,14 @@ public sealed partial class AuditState : ObservableObject
     /// <summary>La chip de un hallazgo: «VULNERABLE · KEV», «EOL», «hay 8.4.11», «al dia».</summary>
     public static string ChipText(AuditFinding finding) => finding.Verdict switch
     {
+        AuditVerdict.Vulnerable when finding.Mitigated => "VULNERABLE · mitigada",
         AuditVerdict.Vulnerable when finding.MatchedAdvisories.Any(a => a.Kev) => "VULNERABLE · KEV",
         AuditVerdict.Vulnerable => "VULNERABLE",
         AuditVerdict.Eol => "EOL",
         AuditVerdict.Unknown => "desconocida",
         _ when finding.Uncertain => "sin verificar",
-        _ when finding.BranchLatest is { } latest && latest != finding.Component.Version.ToString() => $"hay {latest}",
+        // Solo si es más nueva: con un dataset de antes de una versión, la instalada puede pasarle.
+        _ when finding.BranchLatest is { } latest && ComponentVersion.TryParse(latest, out var l) && l > finding.Component.Version => $"hay {latest}",
         _ => "al día",
     };
 }

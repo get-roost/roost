@@ -7,6 +7,7 @@ using Roost.Core;
 using Roost.Core.Audit;
 using Roost.Core.Models;
 using Roost.Core.Platform;
+using Roost.Core.Stack;
 using Roost.Desktop.Controls;
 using Roost.Desktop.Services;
 
@@ -36,6 +37,17 @@ public sealed record AdvisoryLine(string Id, string Meta, bool Kev, string Title
     public bool HasUrl => Url is not null;
 }
 
+/// <summary>
+/// Una mitigación del hallazgo elegido frente al php.ini efectivo (K4): el ajuste, si PHP lo cumple
+/// y por qué, y si se puede aplicar o deshacer (solo en los PHP de Roost).
+/// </summary>
+public sealed record MitigationLine(Mitigation Mitigation, string Setting, string? Note, string Status, Tone Tone, string? Detail, bool CanApply, bool CanUndo)
+{
+    public bool HasNote => Note is not null;
+    public bool HasDetail => Detail is not null;
+    public bool HasActions => CanApply || CanUndo;
+}
+
 /// <summary>Una línea de «qué ha cambiado» (K1): «Nuevo: PHP 8.3.18 · Laragon · VULNERABLE».</summary>
 public sealed record ChangeLine(string Text, Tone Tone);
 
@@ -57,6 +69,7 @@ public sealed partial class AuditViewModel : PageViewModel
     public AuditViewModel(MainViewModel main) : base(main)
     {
         Subtitle = "Todo lo instalado en este equipo, de Roost o no, frente a los avisos de seguridad y las fechas de fin de vida.";
+        RestartService = service => main.App.Daemon.RestartAsync(service);
         main.Audit.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(AuditState.Findings) or nameof(AuditState.Scanning) or nameof(AuditState.LastScan)) Build();
@@ -162,7 +175,22 @@ public sealed partial class AuditViewModel : PageViewModel
     [ObservableProperty] public partial int Green { get; private set; }
     [ObservableProperty] public partial string ScanText { get; private set; } = "";
     [ObservableProperty] public partial IReadOnlyList<AdvisoryLine> Advisories { get; private set; } = [];
-    [ObservableProperty] public partial IReadOnlyList<string> Mitigations { get; private set; } = [];
+    [ObservableProperty] public partial IReadOnlyList<MitigationLine> Mitigations { get; private set; } = [];
+
+    /// <summary>K4: «PHP lee, en este orden: php.ini → conf.d\99-usuario.ini → …»; null si no se ha comprobado.</summary>
+    [ObservableProperty] public partial string? IniFilesText { get; private set; }
+
+    /// <summary>K4: qué hace «Aplicar» en este PHP, o por qué aquí no se aplica nada.</summary>
+    [ObservableProperty] public partial string? MitigationNote { get; private set; }
+
+    /// <summary>K4: más de una se puede aplicar (sale «Aplicar todas»).</summary>
+    [ObservableProperty] public partial bool CanApplyAll { get; private set; }
+
+    /// <summary>
+    /// K4: reinicia un servicio del stack (el pool de una rama tras aplicar o deshacer). Los tests lo
+    /// cambian para no hablar con un daemon.
+    /// </summary>
+    internal Func<string, Task<Roost.Daemon.CommandResponse>> RestartService { get; set; }
     [ObservableProperty] public partial string? RealFix { get; private set; }
     [ObservableProperty] public partial string LongText { get; private set; } = "";
     [ObservableProperty] public partial string? ActionLabel { get; private set; }
@@ -331,6 +359,9 @@ public sealed partial class AuditViewModel : PageViewModel
         {
             Advisories = [];
             Mitigations = [];
+            IniFilesText = null;
+            MitigationNote = null;
+            CanApplyAll = false;
             ActionLabel = null;
             Notify();
             return;
@@ -342,7 +373,7 @@ public sealed partial class AuditViewModel : PageViewModel
             a.Id,
             string.Join(" · ", a.Aliases.Append(Gravity(a))),
             a.Kev, a.Title, AdvisoryUrl(a))).ToList();
-        Mitigations = f.Mitigations.Select(m => m.ToString()).ToList();
+        BuildMitigations(f);
         RealFix = RealFixText(f);
 
         var latest = f.BranchLatest is { } l && ComponentVersion.TryParse(l, out var lv) ? lv : (ComponentVersion?)null;
@@ -519,6 +550,110 @@ public sealed partial class AuditViewModel : PageViewModel
         {
             await Main.NavigateToAsync(Main.Databases);
         }
+    }
+
+    // K4: mitigaciones
+
+    private void BuildMitigations(AuditFinding f)
+    {
+        var roost = Main.Audit.Mitigations?.RoostPhpOf(f);
+        Mitigations = AuditReport.DistinctMitigations(f).Select(m => LineOf(f.StateOf(m))).ToList();
+        CanApplyAll = Mitigations.Count(l => l.CanApply) > 1;
+        IniFilesText = f.IniFiles.Count == 0 ? null : "PHP lee, en este orden: " + string.Join(" → ", f.IniFiles.Select(ShortPath));
+        var branch = $"{f.Component.Version.Major}.{f.Component.Version.Minor}";
+        MitigationNote = Mitigations.Count == 0 ? null
+            : f.MitigationStates.Count == 0 ? "Sin comprobar todavía: se comprueban con php -i al escanear el equipo."
+            : roost is not null ? $"«Aplicar» las escribe en conf.d\\{branch}\\{PhpMitigations.FileName} (nunca en tus 99-usuario.ini) y reinicia solo el pool de la {branch}. Son un tapón: el arreglo es actualizar."
+            : $"Este PHP es de {f.Component.Source}: Roost solo lo lee. Cambia su php.ini ({Path.GetDirectoryName(f.Component.ExecutablePath)}); y su servidor web puede leer otro.";
+    }
+
+    /// <summary>PURO: la línea de una mitigación con sus textos (con tildes; nunca el texto de Core).</summary>
+    public static MitigationLine LineOf(MitigationState s, Func<string, string>? shortPath = null)
+    {
+        shortPath ??= p => p;
+        var m = s.Mitigation;
+        string Value(string? v) => v is null ? "" : v.Length == 0 ? "«» (vacío)" : $"«{v}»";
+        var (status, tone, detail) = s.Status switch
+        {
+            MitigationStatus.Mitigated => ("Mitigada", Tone.Ok, $"PHP aplica {Value(s.Effective)}" + (s.AppliedByRoost ? " · la aplicó Roost" : "")),
+            MitigationStatus.Unmitigated => ("Sin mitigar", Tone.Bad,
+                s.OverriddenBy is { } who ? $"La aplicó Roost, pero la pisa {shortPath(who)}, que PHP lee después"
+                : s.AppliedByRoost ? $"La aplicó Roost, pero PHP aplica {Value(s.Effective)}"
+                : $"PHP aplica {Value(s.Effective)}"),
+            MitigationStatus.Unknown => ("Sin saber", Tone.Warn,
+                MitigationCheck.CliForced.Contains(m.Ini) ? "El PHP de la terminal fija este ajuste: desde aquí no se puede comprobar."
+                : s.Effective is null ? "php -i no da esta directiva (¿la extensión no está cargada?)."
+                : $"El aviso no da un valor que comparar con {Value(s.Effective)}."),
+            _ => ("Sin comprobar", Tone.Neutral, s.Detail is null ? "Se comprueba con php -i al escanear el equipo." : "No se ha podido ejecutar php -i."),
+        };
+        return new MitigationLine(m, m.Setting, string.IsNullOrEmpty(m.Note) ? null : m.Note, status, tone, detail, s.CanApply, s.AppliedByRoost);
+    }
+
+    private MitigationLine LineOf(MitigationState s) => LineOf(s, ShortPath);
+
+    /// <summary>Las rutas de Roost, desde etc\php («conf.d\8.4\99-usuario.ini»); las de fuera, enteras.</summary>
+    private string ShortPath(string path)
+    {
+        var etc = Path.Combine(Main.App.Paths.Etc, "php");
+        var relative = Path.GetRelativePath(etc, path);
+        return relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative) ? path : relative;
+    }
+
+    [RelayCommand]
+    private Task ApplyMitigationAsync(MitigationLine line) => ChangeMitigationsAsync([line.Mitigation], undo: false);
+
+    [RelayCommand]
+    private Task UndoMitigationAsync(MitigationLine line) => ChangeMitigationsAsync([line.Mitigation], undo: true);
+
+    [RelayCommand]
+    private Task ApplyAllMitigationsAsync() => ChangeMitigationsAsync(null, undo: false);
+
+    /// <summary>
+    /// Escribe (o quita) en el fichero de mitigaciones de su rama, reinicia solo ese pool si está en
+    /// marcha y vuelve a comprobar con php -i, lo elegido y lo demás de la misma rama.
+    /// </summary>
+    private Task ChangeMitigationsAsync(IReadOnlyCollection<Mitigation>? which, bool undo) =>
+        Main.RunAsync(undo ? "No se pudo deshacer la mitigación" : "No se pudo aplicar la mitigación", async () =>
+        {
+            if (Selected is not { } row || Main.Audit.Mitigations is not { } mitigations) return;
+            var change = undo ? mitigations.Undo(row.Finding, which) : mitigations.Apply(row.Finding, which);
+            if (change.Keys.Count == 0)
+            {
+                Main.Flash(undo ? "Roost no la había aplicado: no hay nada que deshacer" : "No hay nada que aplicar: ya se cumple o no se puede escribir");
+                return;
+            }
+
+            var restarted = await RestartPoolAsync(change.Branch);
+            var updated = await Main.Audit.RecheckAsync(row.Finding);
+            // El fichero es de la rama: los otros PHP de Roost de la misma rama también cambian.
+            foreach (var other in Main.Audit.Findings.Where(f => f.Component.ExecutablePath != row.Finding.Component.ExecutablePath
+                                                                 && mitigations.RoostPhpOf(f) is { } p && AuditMitigations.BranchOf(p) == change.Branch).ToList())
+                await Main.Audit.RecheckAsync(other);
+
+            var where = restarted ? $" · reiniciado solo el pool de la {change.Branch}" : " · se usará al arrancar Roost";
+            var keys = string.Join(", ", change.Keys);
+            if (undo)
+            {
+                Main.Flash($"Deshecha: {keys} en PHP {change.Branch}{where}");
+                return;
+            }
+            var pending = change.Keys.Select(k => updated.MitigationStates.FirstOrDefault(s => s.Mitigation.Ini.Equals(k, StringComparison.OrdinalIgnoreCase)))
+                .FirstOrDefault(s => s is not null && s.Status != MitigationStatus.Mitigated);
+            Main.Flash(pending is null
+                ? $"Aplicada: {keys} en PHP {change.Branch}{where}"
+                : $"Aplicada, pero PHP aún no cumple {pending.Mitigation.Ini}{(pending.OverriddenBy is { } who ? $": la pisa {ShortPath(who)}" : "")}");
+        });
+
+    /// <summary>Reinicia solo el pool de esa rama si está en marcha; false si no lo está (se usará al arrancar).</summary>
+    private async Task<bool> RestartPoolAsync(string branch)
+    {
+        var pool = $"php-{branch}";
+        if (Main.Stack.Status is not { Running: true } status
+            || !status.Services.Any(s => s.Name.StartsWith(pool + "-", StringComparison.Ordinal) && s.State == "Running"))
+            return false;
+        var response = await RestartService(pool);
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        return true;
     }
 
     [RelayCommand]

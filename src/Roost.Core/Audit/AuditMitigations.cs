@@ -154,6 +154,7 @@ public sealed class AuditMitigations(RoostPaths paths, ICommandRunner runner)
         if (php is null) return state;
         var applied = ours.Any(e => e.Key.Equals(state.Mitigation.Ini, StringComparison.OrdinalIgnoreCase));
         var detail = state.Detail;
+        string? overriddenBy = null;
         if (applied && state.Status == MitigationStatus.Unmitigated)
         {
             var file = FileFor(php);
@@ -163,7 +164,8 @@ public sealed class AuditMitigations(RoostPaths paths, ICommandRunner runner)
             else
             {
                 var later = snapshot.Files.Skip(index + 1).Select(f => (File: f, Text: SafeRead(f)));
-                detail = PhpMitigations.WhoOverrides(state.Mitigation.Ini, later) is { } who
+                overriddenBy = PhpMitigations.WhoOverrides(state.Mitigation.Ini, later);
+                detail = overriddenBy is { } who
                     ? $"aplicada por Roost, pero la pisa {who}"
                     : $"aplicada por Roost, pero PHP aplica '{state.Effective}'";
             }
@@ -171,6 +173,7 @@ public sealed class AuditMitigations(RoostPaths paths, ICommandRunner runner)
         return state with
         {
             Detail = detail,
+            OverriddenBy = overriddenBy,
             AppliedByRoost = applied,
             CanApply = state.Status == MitigationStatus.Unmitigated && !applied && PhpMitigations.IsWritable(state.Mitigation),
         };

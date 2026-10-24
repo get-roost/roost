@@ -119,6 +119,9 @@ public sealed record MitigationState(Mitigation Mitigation, MitigationStatus Sta
     /// <summary>Roost puede escribirla en ese fichero: es un PHP de Roost, no está cumplida y el valor se puede escribir.</summary>
     public bool CanApply { get; init; }
 
+    /// <summary>El fichero que PHP lee después del de Roost y la pisa (aplicada, pero sin cumplir); null si no hay.</summary>
+    public string? OverriddenBy { get; init; }
+
     /// <summary>«mitigated», «unmitigated», «unknown» o «unchecked», para el JSON.</summary>
     public string StatusKey => Status switch
     {

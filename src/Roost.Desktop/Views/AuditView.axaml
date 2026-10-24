@@ -182,18 +182,41 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                 </StackPanel>
+                <!-- K4: cada mitigación frente a lo que aplica PHP (php -i), con «Aplicar» y «Deshacer» en los de Roost -->
                 <StackPanel Grid.Column="1" Spacing="6" IsVisible="{Binding HasMitigations}">
-                  <TextBlock Classes="lbl" Text="Mitigaciones (no sustituyen al parche)" />
+                  <DockPanel>
+                    <Button DockPanel.Dock="Right" Classes="sm" Content="Aplicar todas" IsVisible="{Binding CanApplyAll}"
+                            Command="{Binding ApplyAllMitigationsCommand}"
+                            ToolTip.Tip="Escribe las que faltan en el fichero de mitigaciones de su rama y reinicia solo su pool" />
+                    <TextBlock Classes="lbl" Text="Mitigaciones (no sustituyen al parche)" VerticalAlignment="Center" />
+                  </DockPanel>
                   <ItemsControl ItemsSource="{Binding Mitigations}">
                     <ItemsControl.ItemsPanel>
                       <ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
-                      <DataTemplate x:DataType="sys:String">
-                        <TextBlock Classes="mono" Text="{Binding}" TextWrapping="Wrap" />
+                      <DataTemplate x:DataType="vm:MitigationLine">
+                        <Border BorderBrush="{DynamicResource Line2Brush}" BorderThickness="1" CornerRadius="8" Padding="10,8">
+                          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="3">
+                            <TextBlock Classes="mono strong" Text="{Binding Setting}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <ctl:Chip Grid.Column="1" Text="{Binding Status}" Tone="{Binding Tone}" ShowDot="True" VerticalAlignment="Top" />
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="faint" Text="{Binding Note}" TextWrapping="Wrap" IsVisible="{Binding HasNote}" />
+                            <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Classes="small" Text="{Binding Detail}" TextWrapping="Wrap" IsVisible="{Binding HasDetail}" />
+                            <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="6" Margin="0,4,0,0" IsVisible="{Binding HasActions}">
+                              <Button Classes="sm primary" Content="Aplicar" IsVisible="{Binding CanApply}"
+                                      Command="{Binding $parent[ItemsControl].((vm:AuditViewModel)DataContext).ApplyMitigationCommand}" CommandParameter="{Binding}"
+                                      ToolTip.Tip="La escribe en el fichero de mitigaciones de Roost de su rama y reinicia solo su pool" />
+                              <Button Classes="sm ghost" Content="Deshacer" IsVisible="{Binding CanUndo}"
+                                      Command="{Binding $parent[ItemsControl].((vm:AuditViewModel)DataContext).UndoMitigationCommand}" CommandParameter="{Binding}"
+                                      ToolTip.Tip="La quita del fichero de mitigaciones de Roost y reinicia solo su pool" />
+                            </StackPanel>
+                          </Grid>
+                        </Border>
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
+                  <TextBlock Classes="faint" Text="{Binding MitigationNote}" TextWrapping="Wrap" IsVisible="{Binding MitigationNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                  <TextBlock Classes="faint mono" FontSize="11" Text="{Binding IniFilesText}" TextWrapping="Wrap" IsVisible="{Binding IniFilesText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                   <TextBlock Classes="faint" Text="{Binding RealFix}" TextWrapping="Wrap" />
                 </StackPanel>
               </Grid>
