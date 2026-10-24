@@ -14,7 +14,9 @@ namespace Roost.Core.Stack;
 /// <remarks>
 /// La build MSYS2 de Redis entiende en el <c>.conf</c> rutas con letra de unidad y <c>/</c>, pero en
 /// la línea de órdenes solo las de Cygwin (<c>/c/roost/...</c>) o las relativas: por eso el servicio
-/// arranca desde <c>etc/redis</c> con <c>redis-server redis.conf</c>, y el include es relativo.
+/// arranca desde <c>etc/redis</c> con <c>redis-server redis.conf</c>. Dentro del <c>.conf</c>, las
+/// rutas son absolutas: Redis hace <c>chdir</c> al leer <c>dir</c>, y un include relativo que vaya
+/// después se buscaría en la carpeta de datos (probado en real).
 /// </remarks>
 public static class RedisConf
 {
@@ -29,7 +31,7 @@ public static class RedisConf
     public static string UserFragmentPath(RoostPaths paths) => Path.Combine(Directory(paths), "conf.d", UserFragmentName);
 
     /// <summary>PURO: el texto del redis.conf.</summary>
-    public static string Render(string version, int port, string dataDirectory) => $"""
+    public static string Render(string version, int port, string dataDirectory, string userFragment) => $"""
         # Generado por Roost para Redis {version}. NO lo edites: se regenera en cada `roost up`.
         # Lo tuyo va en conf.d/{UserFragmentName} (se incluye al final, asi que manda).
         bind 127.0.0.1
@@ -37,6 +39,8 @@ public static class RedisConf
         protected-mode yes
         daemonize no
         databases 16
+        # Windows le deja unos 3.200 descriptores: con los 10.000 de serie, Redis avisa en cada arranque.
+        maxclients 1000
         dir "{Slashes(dataDirectory)}"
         dbfilename dump.rdb
         save 3600 1 300 100 60 10000
@@ -48,7 +52,7 @@ public static class RedisConf
         # El log a la salida estandar: lo guarda Roost en logs/redis.log.
         logfile ""
         loglevel notice
-        include conf.d/{UserFragmentName}
+        include "{Slashes(userFragment)}"
 
         """;
 
@@ -76,7 +80,7 @@ public static class RedisConf
         System.IO.Directory.CreateDirectory(paths.RedisData);
 
         var conf = ConfPath(paths);
-        File.WriteAllText(conf, Render(version, port, paths.RedisData));
+        File.WriteAllText(conf, Render(version, port, paths.RedisData, userFile));
         return conf;
     }
 
