@@ -260,7 +260,8 @@ public static partial class DeployPlan
         var db = target.Database;
         var usesDb = kind.Type is ProjectType.Laravel or ProjectType.Symfony or ProjectType.WordPress;
 
-        if (kind.HasComposerJson && kind.Type != ProjectType.WordPress)
+        // Recién creado por una plantilla, create-project ya ha instalado vendor/: no se repite.
+        if (kind.HasComposerJson && kind.Type != ProjectType.WordPress && !(target.Fresh && kind.HasVendor))
         {
             steps.Add(new DeployStep
             {
