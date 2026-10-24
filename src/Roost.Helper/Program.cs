@@ -55,7 +55,8 @@ using Roost.Helper;
 //     La CA del sistema, opcional (curl, wget, el PHP de la distro). ca-trust recibe el PEM por STDIN y
 //     solo lo instala si es una CA local de Roost (CaCertRules: X.509 autofirmado, CA:TRUE, KeyCertSign,
 //     CN "Roost Local CA (...", 10 anos como mucho), en /usr/local/share/ca-certificates/roost-<uid>.crt,
-//     y lanza update-ca-certificates. ca-untrust quita ese fichero y vuelve a lanzarlo.
+//     y lanza update-ca-certificates. ca-untrust quita ese fichero y lanza update-ca-certificates --fresh
+//     (sin --fresh quedan colgando los enlaces de /etc/ssl/certs).
 //
 //   roost-helper firewall-allow <puerto> | firewall-remove <puerto>
 //     Con ufw o firewalld, y solo si estan activos (si no, 0 y nada): entrada TCP a ese puerto desde las

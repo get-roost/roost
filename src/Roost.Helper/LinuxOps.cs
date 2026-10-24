@@ -294,8 +294,9 @@ internal static class LinuxOps
         }
         if (File.Exists(UpdateCaCertificates))
         {
-            // Sin el fichero, update-ca-certificates quita su enlace de /etc/ssl/certs y rehace el bundle.
-            var (exitCode, output) = Run(UpdateCaCertificates, []);
+            // Con --fresh: sin el, update-ca-certificates deja colgando en /etc/ssl/certs los enlaces de un
+            // .crt que ya no esta (probado en Ubuntu 24.04); --fresh rehace los enlaces y el bundle desde cero.
+            var (exitCode, output) = Run(UpdateCaCertificates, ["--fresh"]);
             if (exitCode != 0)
             {
                 Log.Write($"ca-untrust: update-ca-certificates salio con {exitCode}: {output}");
