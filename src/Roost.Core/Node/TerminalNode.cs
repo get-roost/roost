@@ -106,6 +106,15 @@ public static class TerminalNode
         return global;
     }
 
+    /// <summary>El Node global (<c>[node] version</c> o el más nuevo instalado), sin mirar ninguna carpeta. Lanza como <see cref="Resolve"/>.</summary>
+    public static NodeChoice ResolveGlobal(RoostPaths paths, DateOnly? today = null)
+    {
+        var installed = new NodeInstaller(paths).ListInstalled();
+        if (installed.Count == 0)
+            throw new RoostException($"No hay ningun Node instalado por Roost. Instala uno: roost node install {NodeCatalog.Default.Major}");
+        return Global(paths, installed, today ?? NodeCatalog.Today);
+    }
+
     /// <summary>Lo mismo sin lanzar: el Node, o null y por qué no (para la app y los pasos de instalación).</summary>
     public static NodeChoice? TryResolve(RoostPaths paths, string directory, out string? problem, DateOnly? today = null)
     {

@@ -2,6 +2,7 @@ using System.Text;
 using Roost.Cli.Commands;
 using Roost.Cli.Commands.Db;
 using Roost.Cli.Commands.Git;
+using Roost.Cli.Commands.Node;
 using Roost.Cli.Commands.Php;
 using Roost.Cli.Commands.Shims;
 using Roost.Cli.Commands.Sites;
@@ -128,10 +129,10 @@ app.Configure(config =>
 
     config.AddBranch("shims", shims =>
     {
-        shims.SetDescription("php y composer en la terminal con el PHP de la carpeta del proyecto (de momento, solo en Windows).");
+        shims.SetDescription("php y composer en la terminal con el PHP de la carpeta del proyecto, y node, npm y npx con su Node (de momento, solo en Windows).");
 
         shims.AddCommand<ShimsInstallCommand>("install")
-            .WithDescription("Pone los shims de php y composer y su carpeta delante en el PATH de tu usuario (sin administrador).")
+            .WithDescription("Pone los shims de php y composer (y node, npm y npx si hay un Node de Roost) y su carpeta delante en el PATH de tu usuario (sin administrador).")
             .WithExample("shims", "install");
 
         shims.AddCommand<ShimsRemoveCommand>("remove")
@@ -139,7 +140,7 @@ app.Configure(config =>
             .WithExample("shims", "remove");
 
         shims.AddCommand<ShimsStatusCommand>("status")
-            .WithDescription("Si estan puestos y en el PATH, y si otro php o composer (el del PATH del sistema) les gana.")
+            .WithDescription("Si estan puestos y en el PATH, y si otro php, composer o node (el del PATH del sistema, nvm-windows, Volta, fnm) les gana.")
             .WithExample("shims", "status");
     });
 
@@ -372,6 +373,42 @@ app.Configure(config =>
             .WithDescription("Que Composer usa Roost, con que PHP en esta carpeta, y si el shim composer esta puesto y otro le gana.")
             .WithExample("composer", "status")
             .WithExample("composer", "status", "--json");
+    });
+
+    // Node (oleada 5): las LTS de nodejs.org verificadas, en bin/node, y los shims node, npm y npx.
+    config.AddBranch("node", node =>
+    {
+        node.SetDescription("Node de nodejs.org en bin/node (las LTS fijadas en Roost, verificadas con su SHA-256), con el Node de cada carpeta en la terminal: .nvmrc, .node-version, engines.node o el global.");
+
+        node.AddCommand<NodeListCommand>("list")
+            .WithDescription("Los Node de Roost instalados y las LTS que ofrece, con su estado (LTS, mantenimiento, EOL).")
+            .WithExample("node", "list")
+            .WithExample("node", "list", "--json");
+
+        node.AddCommand<NodeInstallCommand>("install")
+            .WithDescription("Descarga un Node de nodejs.org, verifica su SHA-256 y lo instala en bin/node (sin version, la LTS mas nueva).")
+            .WithExample("node", "install", "24")
+            .WithExample("node", "install", "lts/jod")
+            .WithExample("node", "install", "22.11.0");
+
+        node.AddCommand<NodeRemoveCommand>("remove")
+            .WithDescription("Quita un Node de Roost (nunca el de nvm, Volta o el instalador de Node).")
+            .WithExample("node", "remove", "22.23.4");
+
+        node.AddCommand<NodeUseCommand>("use")
+            .WithDescription("Fija el Node global ([node] version en roost.toml), o con --here el de la carpeta actual (.nvmrc).")
+            .WithExample("node", "use", "24")
+            .WithExample("node", "use", "22", "--here");
+
+        node.AddCommand<NodeWhichCommand>("which")
+            .WithDescription("Que Node usa la terminal en esta carpeta, y por que (.nvmrc, .node-version, engines.node, el global).")
+            .WithExample("node", "which")
+            .WithExample("node", "which", "--dir", @"C:\roost\www\tienda");
+
+        node.AddCommand<NodeStatusCommand>("status")
+            .WithDescription("Que Node toca aqui y por que, el global, los shims node, npm y npx y si otro node les gana (nvm-windows, Volta, fnm, el instalador de Node).")
+            .WithExample("node", "status")
+            .WithExample("node", "status", "--json");
     });
 
     // Servicios (oleada 3): Redis y el correo de pruebas (Mailpit).
