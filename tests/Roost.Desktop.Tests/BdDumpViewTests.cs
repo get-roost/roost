@@ -11,6 +11,7 @@ using Roost.Desktop.Services;
 using Roost.Desktop.Tests;
 using Roost.Desktop.ViewModels;
 using Roost.Desktop.Views;
+using Roost.Core.Platform;
 
 // BD-2: ningún test lee el C:\laragon de verdad (la bienvenida lo buscaría por la ruta de los PHP
 // de la auditoría): la variable apunta a una carpeta que no existe salvo que un test ponga la suya.
@@ -233,7 +234,7 @@ public class BdDumpViewTests
 
         // Su volcador con su my.ini, y el progreso en lo volcado (antes de comprimir).
         var spec = runner.Calls.Single();
-        Assert.EndsWith("mariadb-dump.exe", spec.Exe);
+        Assert.EndsWith(OsNames.Exe("mariadb-dump"), spec.Exe);
         Assert.StartsWith("--defaults-file=", spec.Arguments[0]);
         Assert.Equal("tienda", spec.Arguments[^1]);
         Assert.True(dialog.Running);
@@ -308,7 +309,7 @@ public class BdDumpViewTests
         Dispatcher.UIThread.RunJobs();
         Assert.Contains(server.Calls, c => c.Contains("CREATE DATABASE IF NOT EXISTS `blog_mysql`", StringComparison.Ordinal));
         var spec = runner.Calls.Single();
-        Assert.EndsWith("mariadb.exe", spec.Exe);
+        Assert.EndsWith(OsNames.Exe("mariadb"), spec.Exe);
         Assert.Contains("--sandbox", spec.Arguments);
         Assert.Equal("blog_mysql", spec.Arguments[^1]);
         Assert.False(dialog.Indeterminate);
@@ -398,7 +399,7 @@ public class BdDumpViewTests
         {
             Root = Path.Combine(Path.GetTempPath(), "roost-laragon-app-" + Guid.NewGuid().ToString("N"), "laragon");
             var version = Path.Combine(Root, "bin", "mysql", "mysql-8.4.11-winx64");
-            foreach (var exe in new[] { "mysqld.exe", "mysql.exe", "mysqldump.exe" }) Write(Path.Combine(version, "bin", exe), "");
+            foreach (var exe in new[] { OsNames.Exe("mysqld"), OsNames.Exe("mysql"), OsNames.Exe("mysqldump") }) Write(Path.Combine(version, "bin", exe), "");
             Write(Path.Combine(version, "my.ini"), $"[mysqld]\ndatadir={Root.Replace('\\', '/')}/data/mysql-8\nport = 3419\n");
             Write(Path.Combine(Root, "usr", "laragon.ini"), "[mysql]\nVersion=mysql-8.4.11-winx64\nPort=3419\n");
             Write(Path.Combine(Root, "data", "mysql-8", "mysql", "db.opt"), "");
@@ -522,7 +523,7 @@ public class BdDumpViewTests
         Assert.Equal("blog_laragon", import.Calls.Single().Arguments[^1]);
         // Su volcador, con root y su puerto, sin contraseña en la línea de órdenes; y la carpeta de trabajo ya no está.
         var dump = laragonRunner.Calls.Single(c => c.StdoutStream is not null);
-        Assert.Equal(Path.Combine(laragon.Root, "bin", "mysql", "mysql-8.4.11-winx64", "bin", "mysqldump.exe"), dump.Exe);
+        Assert.Equal(Path.Combine(laragon.Root, "bin", "mysql", "mysql-8.4.11-winx64", "bin", OsNames.Exe("mysqldump")), dump.Exe);
         Assert.Empty(Directory.Exists(fake.Paths.Run) ? Directory.GetDirectories(fake.Paths.Run) : []);
         Snapshot(window, "bd2-bienvenida-laragon-traidas");
         dialog.FinishCommand.Execute(null);

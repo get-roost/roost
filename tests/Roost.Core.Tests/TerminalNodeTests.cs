@@ -25,7 +25,7 @@ public class TerminalNodeTests : IDisposable
         {
             var dir = Path.Combine(Paths.NodeBin, version);
             Directory.CreateDirectory(Path.Combine(dir, "node_modules", "npm", "bin"));
-            File.WriteAllText(Path.Combine(dir, "node.exe"), "");
+            File.WriteAllText(Path.Combine(dir, OsNames.Exe("node")), "");
             File.WriteAllText(Path.Combine(dir, "node_modules", "npm", "bin", "npm-cli.js"), "");
         }
     }

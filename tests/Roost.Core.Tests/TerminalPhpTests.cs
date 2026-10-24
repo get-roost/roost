@@ -18,7 +18,7 @@ public class TerminalPhpTests : IDisposable
         foreach (var name in names)
         {
             Directory.CreateDirectory(Path.Combine(Paths.PhpBin, name));
-            File.WriteAllText(Path.Combine(Paths.PhpBin, name, "php.exe"), "");
+            File.WriteAllText(Path.Combine(Paths.PhpBin, name, OsNames.Exe("php")), "");
         }
     }
 
@@ -170,7 +170,7 @@ public class TerminalPhpTests : IDisposable
         shims.Install(source);   // repetirlo sustituye la carpeta entera
 
         Assert.True(shims.IsInstalled);
-        Assert.Equal("roost-shim.exe", File.ReadAllText(Path.Combine(Paths.Shims, OperatingSystem.IsWindows() ? "php.exe" : "php")));
+        Assert.Equal("roost-shim.exe", File.ReadAllText(Path.Combine(Paths.Shims, OperatingSystem.IsWindows() ? OsNames.Exe("php") : "php")));
         Assert.True(File.Exists(Path.Combine(Paths.Shims, "Tomlyn.dll")));
         Assert.True(File.Exists(Path.Combine(Paths.Shims, "roost-shim.runtimeconfig.json")));
         Assert.False(File.Exists(Path.Combine(Paths.Shims, "Otra.dll")));   // no la pide el deps.json

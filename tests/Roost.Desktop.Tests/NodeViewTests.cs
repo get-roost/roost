@@ -11,6 +11,7 @@ using Roost.Desktop.Controls;
 using Roost.Desktop.Services;
 using Roost.Desktop.ViewModels;
 using Roost.Desktop.Views;
+using Roost.Core.Platform;
 
 namespace Roost.Desktop.Tests;
 
@@ -314,7 +315,7 @@ public class NodeViewTests
         }
         await installing;
 
-        Assert.True(File.Exists(Path.Combine(fake.Paths.NodeBin, "20.20.2", "node.exe")));
+        Assert.True(File.Exists(Path.Combine(fake.Paths.NodeBin, "20.20.2", OsNames.Exe("node"))));
         Assert.True(sites.NodeReady);
         Assert.Equal("Node 20.20.2 · el que pide .nvmrc (20)", sites.NodeText);
         Assert.Equal("Node 20.20.2 instalado", main.FlashText);
@@ -406,7 +407,7 @@ public class NodeViewTests
         using var buffer = new MemoryStream();
         using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var name in new[] { "node.exe", "node_modules/npm/bin/npm-cli.js", "node_modules/npm/bin/npx-cli.js", "node_modules/corepack/dist/corepack.js" })
+            foreach (var name in new[] { OsNames.Exe("node"), "node_modules/npm/bin/npm-cli.js", "node_modules/npm/bin/npx-cli.js", "node_modules/corepack/dist/corepack.js" })
             {
                 using var writer = new StreamWriter(zip.CreateEntry($"node-v{version}-win-x64/{name}").Open());
                 writer.Write("// de pega");
@@ -444,7 +445,7 @@ internal static class FakeRoostNode
     public static InstalledNode InstallFakeNode(this FakeRoost fake, string version, bool corepack = true)
     {
         var dir = Path.Combine(fake.Paths.NodeBin, version);
-        foreach (var file in new[] { "node.exe", Path.Combine("node_modules", "npm", "bin", "npm-cli.js"), Path.Combine("node_modules", "npm", "bin", "npx-cli.js") })
+        foreach (var file in new[] { OsNames.Exe("node"), Path.Combine("node_modules", "npm", "bin", "npm-cli.js"), Path.Combine("node_modules", "npm", "bin", "npx-cli.js") })
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(dir, file))!);
             File.WriteAllText(Path.Combine(dir, file), "");

@@ -54,11 +54,11 @@ public class PhpXdebugTests : IDisposable
     {
         var dir = Path.Combine(Paths.PhpBin, name);
         Directory.CreateDirectory(Path.Combine(dir, "ext"));
-        File.WriteAllText(Path.Combine(dir, "php.exe"), "");
-        File.WriteAllText(Path.Combine(dir, "php-cgi.exe"), "");
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php")), "");
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php-cgi")), "");
         foreach (var ext in extensions.DefaultIfEmpty("curl").Concat(["opcache"]))
             File.WriteAllText(Path.Combine(dir, "ext", $"php_{ext}.dll"), "");
-        return new InstalledPhp(name, dir, Path.Combine(dir, "php.exe"));
+        return new InstalledPhp(name, dir, Path.Combine(dir, OsNames.Exe("php")));
     }
 
     /// <summary>El build de la 8.4 del catálogo, pero con el SHA-256 de los bytes de pega.</summary>

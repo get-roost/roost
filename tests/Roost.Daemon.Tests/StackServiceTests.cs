@@ -35,14 +35,14 @@ public class StackServiceTests : IDisposable
         _launcher = new FakeLauncher(_events);
         _runner = new FakeRunner(_events);
         _paths = new RoostPaths(_root, Path.Combine(_root, "cache"));
-        Touch(Path.Combine(_paths.PhpBin, "8.4.27-nts-x64", "php.exe"));
-        Touch(Path.Combine(_paths.PhpBin, "8.4.27-nts-x64", "php-cgi.exe"));
-        Touch(Path.Combine(_paths.PhpBin, "7.4.33-nts-x64", "php.exe"));
-        Touch(Path.Combine(_paths.PhpBin, "7.4.33-nts-x64", "php-cgi.exe"));
-        Touch(Path.Combine(_paths.NginxBin, "1.30.6", "nginx.exe"));
+        Touch(Path.Combine(_paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")));
+        Touch(Path.Combine(_paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php-cgi")));
+        Touch(Path.Combine(_paths.PhpBin, "7.4.33-nts-x64", OsNames.Exe("php")));
+        Touch(Path.Combine(_paths.PhpBin, "7.4.33-nts-x64", OsNames.Exe("php-cgi")));
+        Touch(Path.Combine(_paths.NginxBin, "1.30.6", OsNames.Exe("nginx")));
         Touch(Path.Combine(_paths.ApacheBin, "2.4.69", "bin", "httpd.exe"));
-        Touch(Path.Combine(_paths.DbBin("mariadb"), "11.4.13", "bin", "mariadbd.exe"));
-        Touch(Path.Combine(_paths.DbBin("mariadb"), "11.4.13", "bin", "mariadb-admin.exe"));
+        Touch(Path.Combine(_paths.DbBin("mariadb"), "11.4.13", "bin", OsNames.Exe("mariadbd")));
+        Touch(Path.Combine(_paths.DbBin("mariadb"), "11.4.13", "bin", OsNames.Exe("mariadb-admin")));
         // Un datadir ya creado: Prepare no tiene que ejecutar mariadb-install-db.
         Directory.CreateDirectory(Path.Combine(_paths.Data, "mariadb", "11.4", "mysql"));
         Config(httpPort: 8765, httpsPort: 8443, dbPort: 3407);
@@ -437,9 +437,9 @@ public class StackServiceTests : IDisposable
 
     private void InstallRedisAndMail()
     {
-        Touch(Path.Combine(_paths.RedisBin, "8.10.2", "redis-server.exe"));
-        Touch(Path.Combine(_paths.RedisBin, "8.10.2", "redis-cli.exe"));
-        Touch(Path.Combine(_paths.MailpitBin, "1.32.0", "mailpit.exe"));
+        Touch(Path.Combine(_paths.RedisBin, "8.10.2", OsNames.Exe("redis-server")));
+        Touch(Path.Combine(_paths.RedisBin, "8.10.2", OsNames.Exe("redis-cli")));
+        Touch(Path.Combine(_paths.MailpitBin, "1.32.0", OsNames.Exe("mailpit")));
     }
 
     [Fact]

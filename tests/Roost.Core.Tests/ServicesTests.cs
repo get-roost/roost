@@ -68,7 +68,7 @@ public class ServicesTests : IDisposable
 
         var redis = await installer.InstallAsync(RedisBuildFor(zip));
 
-        Assert.Equal(Path.Combine(Paths.RedisBin, "8.10.2", "redis-server.exe"), redis.Server);
+        Assert.Equal(Path.Combine(Paths.RedisBin, "8.10.2", OsNames.Exe("redis-server")), redis.Server);
         Assert.True(File.Exists(redis.Cli));
         Assert.True(File.Exists(Path.Combine(redis.Directory, "msys-2.0.dll")));
         Assert.Equal(redis, installer.Find(RedisBuildFor(zip)));
@@ -98,7 +98,7 @@ public class ServicesTests : IDisposable
 
         var ex = await Assert.ThrowsAsync<RoostException>(() => installer.InstallAsync(RedisBuildFor(zip)));
 
-        Assert.Contains("redis-cli.exe", ex.Message);
+        Assert.Contains(OsNames.Exe("redis-cli"), ex.Message);
         Assert.Null(installer.Locate());
     }
 
@@ -123,16 +123,16 @@ public class ServicesTests : IDisposable
         foreach (var version in new[] { "7.4.6", "8.8.3" })
         {
             Directory.CreateDirectory(Path.Combine(Paths.RedisBin, version));
-            File.WriteAllText(Path.Combine(Paths.RedisBin, version, "redis-server.exe"), "");
-            File.WriteAllText(Path.Combine(Paths.RedisBin, version, "redis-cli.exe"), "");
+            File.WriteAllText(Path.Combine(Paths.RedisBin, version, OsNames.Exe("redis-server")), "");
+            File.WriteAllText(Path.Combine(Paths.RedisBin, version, OsNames.Exe("redis-cli")), "");
         }
         Directory.CreateDirectory(Path.Combine(Paths.RedisBin, ".tmp-x"));
 
         Assert.Equal("8.8.3", new RedisInstaller(Paths).Locate()!.Version);   // el de RedisCatalog (8.10.2) no está
 
         Directory.CreateDirectory(Path.Combine(Paths.RedisBin, RedisCatalog.Windows.Version));
-        File.WriteAllText(Path.Combine(Paths.RedisBin, RedisCatalog.Windows.Version, "redis-server.exe"), "");
-        File.WriteAllText(Path.Combine(Paths.RedisBin, RedisCatalog.Windows.Version, "redis-cli.exe"), "");
+        File.WriteAllText(Path.Combine(Paths.RedisBin, RedisCatalog.Windows.Version, OsNames.Exe("redis-server")), "");
+        File.WriteAllText(Path.Combine(Paths.RedisBin, RedisCatalog.Windows.Version, OsNames.Exe("redis-cli")), "");
         Assert.Equal(RedisCatalog.Windows.Version, new RedisInstaller(Paths).Locate()!.Version);
     }
 
@@ -215,13 +215,13 @@ public class ServicesTests : IDisposable
     [Fact]
     public async Task Mailpit_Install_ZipPlano_YNoSePisa()
     {
-        var zip = Zip("mailpit.exe", "LICENSE", "README.md");
+        var zip = Zip(OsNames.Exe("mailpit"), "LICENSE", "README.md");
         var build = new MailpitBuild("1.32.0", new Uri("https://example.test/mailpit-windows-amd64.zip"), Sha(zip));
         var installer = new MailpitInstaller(Paths, new HttpClient(new FakeHandler(zip)));
 
         var mailpit = await installer.InstallAsync(build);
 
-        Assert.Equal(Path.Combine(Paths.MailpitBin, "1.32.0", "mailpit.exe"), mailpit.Executable);
+        Assert.Equal(Path.Combine(Paths.MailpitBin, "1.32.0", OsNames.Exe("mailpit")), mailpit.Executable);
         Assert.True(File.Exists(mailpit.Executable));
         Assert.Equal("mailpit-1.32.0-windows-amd64.zip", build.FileName);   // en la caché, con la versión
         Assert.True(File.Exists(Path.Combine(Paths.Downloads, build.FileName)));
@@ -231,7 +231,7 @@ public class ServicesTests : IDisposable
     [Fact]
     public async Task Mailpit_Install_ConUnShaQueNoCuadra_NoInstalaNada_YLaBandejaNoSeToca()
     {
-        var zip = Zip("mailpit.exe");
+        var zip = Zip(OsNames.Exe("mailpit"));
         var build = new MailpitBuild("1.32.0", new Uri("https://example.test/mailpit-windows-amd64.zip"), new string('a', 64));
         Directory.CreateDirectory(Paths.MailpitData);
         File.WriteAllText(Path.Combine(Paths.MailpitData, "mailpit.db"), "bandeja");
@@ -481,9 +481,9 @@ public class ServicesTests : IDisposable
     {
         var dir = Path.Combine(Paths.PhpBin, name);
         Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "php.exe"), "");
-        File.WriteAllText(Path.Combine(dir, "php-cgi.exe"), "");
-        return new InstalledPhp(name, dir, Path.Combine(dir, "php.exe"));
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php")), "");
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php-cgi")), "");
+        return new InstalledPhp(name, dir, Path.Combine(dir, OsNames.Exe("php")));
     }
 
     private void FakeInstall(string bin, string version, params string[] files)
@@ -507,8 +507,8 @@ public class ServicesTests : IDisposable
     public void Prepare_ConRedisYMailpit_VanTrasLaBaseDeDatos_YAntesDeLasExtensiones()
     {
         var (php, nginx, db) = FakeStack();
-        FakeInstall(Paths.RedisBin, "8.10.2", "redis-server.exe", "redis-cli.exe");
-        FakeInstall(Paths.MailpitBin, "1.32.0", "mailpit.exe");
+        FakeInstall(Paths.RedisBin, "8.10.2", OsNames.Exe("redis-server"), OsNames.Exe("redis-cli"));
+        FakeInstall(Paths.MailpitBin, "1.32.0", OsNames.Exe("mailpit"));
         var extension = new ServiceDefinition { Name = "memcached", Executable = "memcached.exe", Port = 11211 };
         var config = new RoostConfig { HttpPort = 8766, PhpPool = 1, DbPort = 3408, RedisEnabled = true, RedisPort = 6380, MailEnabled = true, MailSmtpPort = 1026, MailWebPort = 8026 };
 
@@ -524,7 +524,7 @@ public class ServicesTests : IDisposable
         Assert.Equal(RedisConf.Directory(Paths), redis.WorkingDirectory);
         Assert.Equal(6380, redis.Port);
         Assert.Equal("-h 127.0.0.1 -p 6380 shutdown", redis.StopCommand!.Arguments);
-        Assert.EndsWith("redis-cli.exe", redis.StopCommand.Executable);
+        Assert.EndsWith(OsNames.Exe("redis-cli"), redis.StopCommand.Executable);
         Assert.Empty(redis.StopCommand.Environment);
         Assert.Contains("port 6380", File.ReadAllText(RedisConf.ConfPath(Paths)));
         Assert.True(File.Exists(RedisConf.UserFragmentPath(Paths)));
@@ -557,7 +557,7 @@ public class ServicesTests : IDisposable
     public void Prepare_ConRequirepass_LaParadaLimpiaLlevaLaContrasenaPorElEntorno()
     {
         var (php, nginx, _) = FakeStack();
-        FakeInstall(Paths.RedisBin, "8.10.2", "redis-server.exe", "redis-cli.exe");
+        FakeInstall(Paths.RedisBin, "8.10.2", OsNames.Exe("redis-server"), OsNames.Exe("redis-cli"));
         Directory.CreateDirectory(Path.GetDirectoryName(RedisConf.UserFragmentPath(Paths))!);
         File.WriteAllText(RedisConf.UserFragmentPath(Paths), "requirepass s3creta\n");
 

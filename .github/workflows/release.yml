@@ -116,6 +116,22 @@ jobs:
           dotnet test Roost.slnx -c Release --no-build
           exit $LASTEXITCODE
 
+  # Los mismos tests en Linux. Informativo mientras se lleva Roost a Linux (oleada L1 del plan): no está
+  # en los needs de release y un fallo no para la publicación. Al cerrar L1 pasa a ser obligatorio.
+  test-linux:
+    name: Build y tests (Linux)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - name: Build
+        run: dotnet build Roost.slnx -c Release
+      - name: Tests
+        run: dotnet test Roost.slnx -c Release --no-build
+
   windows:
     name: Windows x64
     needs: version
@@ -518,8 +534,27 @@ jobs:
           "$roost" audit --json > /dev/null || code=$?
           # 0 = nada bloqueante, 1 = hay algo vulnerable en el runner; 2 = no carga el dataset.
           if [ "$code" -gt 1 ]; then echo "::error::roost audit ha salido con $code: no carga el dataset"; exit 1; fi
-          # La ayuda (los [corchetes] sin escapar la rompen; en Windows se recorren todos los comandos).
-          "$roost" --help > /dev/null || { echo "::error::roost --help ha fallado"; exit 1; }
+          # La ayuda de todos los comandos, tres niveles (los [corchetes] sin escapar la rompen), y que
+          # ningún texto cite ROOST.md, que es un documento interno.
+          walk() {
+            local out names
+            out="$("$roost" "$@" --help 2>&1)" || { echo "::error::roost $* --help ha fallado"; exit 1; }
+            if grep -q "ROOST.md" <<< "$out"; then echo "::error::roost $* --help cita ROOST.md"; exit 1; fi
+            count=$((count + 1))
+            [ "$#" -ge 3 ] && return
+            names="$(sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' <<< "$out" | sed -n '/^COMMANDS:/,$p' | grep -E '^    [a-z]' | awk '{print $1}' | sort -u)"
+            for n in $names; do walk "$@" "$n"; done
+          }
+          count=0
+          walk
+          # Hoy son más de cien: con menos de 50, el recorrido no ha bajado a las ramas y no ha comprobado nada.
+          [ "$count" -ge 50 ] || { echo "::error::solo $count comandos con ayuda: el recorrido no ha bajado a las ramas"; exit 1; }
+          echo "La ayuda sale bien en $count comandos."
+          # Lo que en Linux aún no va dice lo mismo en todos los comandos, y tampoco cita ROOST.md.
+          for cmd in "up" "php install 8.4" "db install mariadb@11.4" "site add tienda" "web use nginx" "cert trust"; do
+            out="$("$roost" $cmd < /dev/null 2>&1 || true)"
+            if grep -q "ROOST.md" <<< "$out"; then echo "::error::roost $cmd cita ROOST.md"; exit 1; fi
+          done
 
       - name: Empaquetar
         run: |

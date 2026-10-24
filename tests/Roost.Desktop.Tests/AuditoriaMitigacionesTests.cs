@@ -5,6 +5,7 @@ using Roost.Core.Stack;
 using Roost.Daemon;
 using Roost.Desktop.Controls;
 using Roost.Desktop.ViewModels;
+using Roost.Core.Platform;
 
 namespace Roost.Desktop.Tests;
 
@@ -71,11 +72,11 @@ public class AuditoriaMitigacionesTests
         var evaluator = new AuditEvaluator(Dataset(), Today);
         main.Audit.Show(Sorted(evaluator.EvaluateAll(
         [
-            C(ComponentKind.Nginx, "1.30.6", "Roost", Path.Combine(fake.Paths.NginxBin, "1.30.6", "nginx.exe")),
+            C(ComponentKind.Nginx, "1.30.6", "Roost", Path.Combine(fake.Paths.NginxBin, "1.30.6", OsNames.Exe("nginx"))),
             C(ComponentKind.Nginx, "1.27.4", "Laragon", @"C:\laragon\bin\nginx\nginx-1.27.4\nginx.exe"),
             C(ComponentKind.Apache, "2.4.69", "Roost", Path.Combine(fake.Paths.Root, "bin", "apache", "2.4.69", "bin", "httpd.exe")),
             C(ComponentKind.Apache, "2.4.58", "XAMPP", @"C:\xampp\apache\bin\httpd.exe"),
-            C(ComponentKind.Php, "8.4.28", "Roost", Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe")),
+            C(ComponentKind.Php, "8.4.28", "Roost", Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php"))),
         ])));
         await main.NavigateToAsync(main.AuditPage);
         var audit = main.AuditPage;
@@ -136,7 +137,7 @@ public class AuditoriaMitigacionesTests
             restarts.Add(service);
             return Task.FromResult(new CommandResponse(true, null, FakeRoost.Running));
         };
-        var roost = Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe");
+        var roost = Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php"));
         var laragon = @"C:\laragon\bin\php\php-8.4.20-nts-Win32-vs17-x64\php.exe";
         var evaluator = new AuditEvaluator(Dataset(), Today);
         var found = evaluator.EvaluateAll([C(ComponentKind.Php, "8.4.27", "Roost", roost), C(ComponentKind.Php, "8.4.20", "Laragon", laragon)]).ToList();

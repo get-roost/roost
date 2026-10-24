@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Roost.Desktop.Services;
 using Roost.Desktop.ViewModels;
 using Roost.Desktop.Views;
+using Roost.Core.Platform;
 
 namespace Roost.Desktop.Tests;
 
@@ -474,7 +475,7 @@ public class AjustesSistemaTests
         await dialog.StartCommand.ExecuteAsync(null);
         Assert.Null(dialog.Error);
         Assert.True(dialog.Done);
-        Assert.True(File.Exists(Path.Combine(target, "bin", "php", "8.4.27-nts-x64", "php.exe")));
+        Assert.True(File.Exists(Path.Combine(target, "bin", "php", "8.4.27-nts-x64", OsNames.Exe("php"))));
         Assert.True(File.Exists(Path.Combine(target, "state", "sites.json")));
         Assert.Equal(target, Roost.Core.Config.RoostConfig.ReadRoot(fake.Paths.ConfigFile));
         // El roost.toml vivía dentro de la raíz (como con ROOST_HOME): no se copia y la de antes no se renombra.
@@ -512,7 +513,7 @@ public class AjustesSistemaTests
         Assert.True(File.Exists(Path.Combine(target, "state", "desktop.json")));
         Assert.False(prefs.WelcomeDone);
         Assert.Equal(target, Roost.Core.Config.RoostConfig.ReadRoot(fake.Paths.ConfigFile));
-        Assert.True(File.Exists(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe")));   // la de antes, intacta
+        Assert.True(File.Exists(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php"))));   // la de antes, intacta
         Assert.StartsWith($"Roost usará {target}", dialog.ResultText);
     }
 

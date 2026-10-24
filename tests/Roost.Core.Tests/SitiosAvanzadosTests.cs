@@ -38,8 +38,8 @@ public class SitiosAvanzadosTests : IDisposable
         foreach (var name in names)
         {
             Directory.CreateDirectory(Path.Combine(Paths.PhpBin, name));
-            File.WriteAllText(Path.Combine(Paths.PhpBin, name, "php.exe"), "");
-            File.WriteAllText(Path.Combine(Paths.PhpBin, name, "php-cgi.exe"), "");
+            File.WriteAllText(Path.Combine(Paths.PhpBin, name, OsNames.Exe("php")), "");
+            File.WriteAllText(Path.Combine(Paths.PhpBin, name, OsNames.Exe("php-cgi")), "");
         }
     }
 
@@ -287,7 +287,7 @@ public class SitiosAvanzadosTests : IDisposable
     public void Prepare_EscribeLosRegistrosPorSitio_YCreaSuCarpeta()
     {
         Php("8.4.27-nts-x64");
-        var php = new InstalledPhp("8.4.27-nts-x64", Path.Combine(Paths.PhpBin, "8.4.27-nts-x64"), Path.Combine(Paths.PhpBin, "8.4.27-nts-x64", "php.exe"));
+        var php = new InstalledPhp("8.4.27-nts-x64", Path.Combine(Paths.PhpBin, "8.4.27-nts-x64"), Path.Combine(Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")));
         var nginx = new InstalledNginx("1.30.6", Path.Combine(_root, "bin", "nginx", "1.30.6"));
         Site[] sites = [new() { Name = "tienda", Folder = Folder("www", "tienda"), Aliases = ["api.tienda.test"] }];
 

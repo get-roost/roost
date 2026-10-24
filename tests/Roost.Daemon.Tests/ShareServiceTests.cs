@@ -34,11 +34,11 @@ public class ShareServiceTests : IDisposable
     public ShareServiceTests()
     {
         _paths = new RoostPaths(_root, Path.Combine(_root, "cache"));
-        Touch(Path.Combine(_paths.PhpBin, "8.4.27-nts-x64", "php.exe"));
-        Touch(Path.Combine(_paths.PhpBin, "8.4.27-nts-x64", "php-cgi.exe"));
-        Touch(Path.Combine(_paths.NginxBin, "1.30.6", "nginx.exe"));
+        Touch(Path.Combine(_paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")));
+        Touch(Path.Combine(_paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php-cgi")));
+        Touch(Path.Combine(_paths.NginxBin, "1.30.6", OsNames.Exe("nginx")));
         Touch(Path.Combine(_paths.ApacheBin, "2.4.69", "bin", "httpd.exe"));
-        Touch(Path.Combine(_paths.CloudflaredBin, "2026.10.3", "cloudflared.exe"));
+        Touch(Path.Combine(_paths.CloudflaredBin, "2026.10.3", OsNames.Exe("cloudflared")));
         Config("nginx");
         AddSite("tienda");
     }
@@ -126,7 +126,7 @@ public class ShareServiceTests : IDisposable
 
         // cloudflared, aislado de lo del usuario y hacia la escucha propia.
         var spec = _tunnels.Specs.Single();
-        Assert.EndsWith(Path.Combine("cloudflared", "2026.10.3", "cloudflared.exe"), spec.Exe);
+        Assert.EndsWith(Path.Combine("cloudflared", "2026.10.3", OsNames.Exe("cloudflared")), spec.Exe);
         var args = string.Join(' ', spec.Arguments);
         Assert.StartsWith("tunnel --config ", args);
         Assert.Contains("--no-autoupdate", args);

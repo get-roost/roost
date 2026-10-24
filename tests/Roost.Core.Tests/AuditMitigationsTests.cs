@@ -20,7 +20,7 @@ public class AuditMitigationsTests : IDisposable
     public AuditMitigationsTests()
     {
         _paths = new RoostPaths(Path.Combine(_root, "roost"), Path.Combine(_root, "cache"));
-        _php85 = Path.Combine(_paths.PhpBin, "8.5.12-nts-x64", "php.exe");
+        _php85 = Path.Combine(_paths.PhpBin, "8.5.12-nts-x64", OsNames.Exe("php"));
         Directory.CreateDirectory(Path.GetDirectoryName(_php85)!);
         File.WriteAllText(_php85, "");
     }
@@ -271,7 +271,7 @@ public class AuditMitigationsTests : IDisposable
     [Fact]
     public async Task UnPhpDeFuera_SoloSeLee_ConSuPhpIni_YNoBajaDeRojo()
     {
-        var laragon = Path.Combine(_root, "laragon", "bin", "php", "php-8.5.12-nts-Win32-vs17-x64", "php.exe");
+        var laragon = Path.Combine(_root, "laragon", "bin", "php", "php-8.5.12-nts-Win32-vs17-x64", OsNames.Exe("php"));
         Directory.CreateDirectory(Path.GetDirectoryName(laragon)!);
         File.WriteAllText(laragon, "");
         var runner = new FakeCommandRunner().On("-i", stdout: PhpI(uploadProgress: "Off", exposePhp: "Off"));

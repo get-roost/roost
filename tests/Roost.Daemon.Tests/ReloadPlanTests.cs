@@ -1,5 +1,6 @@
 using Roost.Core.Services;
 using Roost.Daemon;
+using Roost.Core.Platform;
 
 namespace Roost.Daemon.Tests;
 
@@ -12,10 +13,10 @@ public class ReloadPlanTests
     private static ServiceDefinition Db(int port = 3407) => new()
     {
         Name = "mariadb-11.4",
-        Executable = "mariadbd.exe",
+        Executable = OsNames.Exe("mariadbd"),
         Arguments = "--defaults-file=\"my.ini\" --console",
         Port = port,
-        StopCommand = new ServiceDefinition { Name = "mariadb-11.4-shutdown", Executable = "mariadb-admin.exe" },
+        StopCommand = new ServiceDefinition { Name = "mariadb-11.4-shutdown", Executable = OsNames.Exe("mariadb-admin") },
     };
 
     private static ServiceDefinition Php(string branch, int i, string install = "8.4.27") => new()
@@ -144,8 +145,8 @@ public class ReloadPlanTests
     [Fact]
     public void RedisQueSeVaYMailpitQueLlega()
     {
-        var redis = new ServiceDefinition { Name = "redis", Executable = "redis-server.exe", Port = 6379 };
-        var mailpit = new ServiceDefinition { Name = "mailpit", Executable = "mailpit.exe", Port = 1025 };
+        var redis = new ServiceDefinition { Name = "redis", Executable = OsNames.Exe("redis-server"), Port = 6379 };
+        var mailpit = new ServiceDefinition { Name = "mailpit", Executable = OsNames.Exe("mailpit"), Port = 1025 };
 
         var plan = Compute(Stack(Db(), redis, Php("8.4", 0), Web()), Stack(Db(), mailpit, Php("8.4", 0), Web()));
 

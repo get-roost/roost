@@ -1,6 +1,7 @@
 using Roost.Core.Scanning;
 using Roost.Core.Services;
 using Roost.Daemon;
+using Roost.Core.Platform;
 
 namespace Roost.Daemon.Tests;
 
@@ -28,7 +29,7 @@ public class WebReloadTests : IDisposable
     private static ServiceDefinition Nginx => new()
     {
         Name = "nginx",
-        Executable = "nginx.exe",
+        Executable = OsNames.Exe("nginx"),
         Arguments = "-p \"C:/roost/\" -c \"C:/roost/etc/nginx/nginx.conf\"",
     };
 
@@ -50,7 +51,7 @@ public class WebReloadTests : IDisposable
 
     [Fact]
     public void OtroServicio_NoSeSabeRecargar() =>
-        Assert.Contains("no se sabe recargar", WebReload.Signal(new Runner(""), new ServiceDefinition { Name = "mailpit", Executable = "mailpit.exe" }, 1));
+        Assert.Contains("no se sabe recargar", WebReload.Signal(new Runner(""), new ServiceDefinition { Name = "mailpit", Executable = OsNames.Exe("mailpit") }, 1));
 
     [Fact]
     public void ApacheChildStarted_BuscaElAH00354DeEseHijo()

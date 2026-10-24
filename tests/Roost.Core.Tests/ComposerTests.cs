@@ -41,7 +41,7 @@ public class ComposerTests : IDisposable
     {
         var dir = Path.Combine(Paths.PhpBin, name);
         Directory.CreateDirectory(Path.Combine(dir, "ext"));
-        File.WriteAllText(Path.Combine(dir, "php.exe"), "");
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php")), "");
         foreach (var ext in new[] { "curl", "mbstring", "openssl", "zip" })
             File.WriteAllText(Path.Combine(dir, "ext", $"php_{ext}.dll"), "");
         return new PhpInstaller(Paths).ListInstalled().Single(p => p.Name == name);
@@ -189,7 +189,7 @@ public class ComposerTests : IDisposable
         Assert.Contains("legacy.test", choice.Reason);
 
         ComposerTool.CheckPhp(legacy);   // 7.4 >= 7.2.5: vale
-        var old = new InstalledPhp("7.1.33-nts-x64", _root, Path.Combine(_root, "php.exe"));
+        var old = new InstalledPhp("7.1.33-nts-x64", _root, Path.Combine(_root, OsNames.Exe("php")));
         var ex = Assert.Throws<RoostException>(() => ComposerTool.CheckPhp(old));
         Assert.Contains("7.2.5", ex.Message);
     }

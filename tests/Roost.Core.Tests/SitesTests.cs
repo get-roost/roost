@@ -193,9 +193,9 @@ public class SitesTests : IDisposable
     {
         var dir = Path.Combine(Paths.PhpBin, name);
         Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "php.exe"), "");
-        File.WriteAllText(Path.Combine(dir, "php-cgi.exe"), "");
-        return new InstalledPhp(name, dir, Path.Combine(dir, "php.exe"));
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php")), "");
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php-cgi")), "");
+        return new InstalledPhp(name, dir, Path.Combine(dir, OsNames.Exe("php")));
     }
 
     [Fact]
@@ -244,7 +244,7 @@ public class SitesTests : IDisposable
     {
         var php84 = FakePhp("8.4.27-nts-x64");
         var nginx = new InstalledNginx("1.30.6", Path.Combine(_root, "bin", "nginx", "1.30.6"));
-        var redis = new Services.ServiceDefinition { Name = "redis", Executable = "redis-server.exe", Port = 6379 };
+        var redis = new Services.ServiceDefinition { Name = "redis", Executable = OsNames.Exe("redis-server"), Port = 6379 };
         var config = new RoostConfig { HttpPort = 8765, PhpPool = 1 };
 
         var plan = new StackPlanner(Paths, new NginxTestOk()).Prepare(config, php84, nginx, extraServices: [redis]);

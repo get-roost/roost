@@ -157,9 +157,9 @@ public class ApacheTests : IDisposable
     {
         var dir = Path.Combine(Paths.PhpBin, name);
         Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "php.exe"), "");
-        File.WriteAllText(Path.Combine(dir, "php-cgi.exe"), "");
-        return new InstalledPhp(name, dir, Path.Combine(dir, "php.exe"));
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php")), "");
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php-cgi")), "");
+        return new InstalledPhp(name, dir, Path.Combine(dir, OsNames.Exe("php")));
     }
 
     [Fact]

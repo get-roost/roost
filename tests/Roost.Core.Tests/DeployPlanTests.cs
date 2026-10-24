@@ -21,12 +21,12 @@ internal sealed class DeployRoot : IDisposable
         {
             var dir = Path.Combine(Paths.PhpBin, php);
             Directory.CreateDirectory(Path.Combine(dir, "ext"));
-            File.WriteAllText(Path.Combine(dir, "php.exe"), "");
+            File.WriteAllText(Path.Combine(dir, OsNames.Exe("php")), "");
             foreach (var ext in new[] { "curl", "mbstring", "openssl", "pdo_mysql", "zip" })
                 File.WriteAllText(Path.Combine(dir, "ext", $"php_{ext}.dll"), "");
         }
         Directory.CreateDirectory(Path.Combine(Paths.DbBin("mariadb"), "11.4.13", "bin"));
-        File.WriteAllText(Path.Combine(Paths.DbBin("mariadb"), "11.4.13", "bin", "mariadbd.exe"), "");
+        File.WriteAllText(Path.Combine(Paths.DbBin("mariadb"), "11.4.13", "bin", OsNames.Exe("mariadbd")), "");
         Directory.CreateDirectory(Paths.Root);
         File.WriteAllText(Paths.ConfigFile,
             "[php]\nversion = \"8.4\"\n\n[web]\nport = 8767\nhttps_port = 8445\n\n[db]\nengine = \"mariadb\"\nversion = \"11.4\"\nport = 3409\n"
@@ -64,7 +64,7 @@ internal sealed class DeployRoot : IDisposable
     {
         var dir = Path.Combine(Paths.NodeBin, version);
         Directory.CreateDirectory(Path.Combine(dir, "node_modules", "npm", "bin"));
-        File.WriteAllText(Path.Combine(dir, "node.exe"), "");
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("node")), "");
         File.WriteAllText(Path.Combine(dir, "node_modules", "npm", "bin", "npm-cli.js"), "");
         if (corepack)
         {

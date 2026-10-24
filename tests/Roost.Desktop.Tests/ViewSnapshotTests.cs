@@ -6,6 +6,7 @@ using Avalonia.VisualTree;
 using Roost.Desktop.Services;
 using Roost.Desktop.ViewModels;
 using Roost.Desktop.Views;
+using Roost.Core.Platform;
 
 namespace Roost.Desktop.Tests;
 
@@ -1226,7 +1227,7 @@ public class ViewSnapshotTests
 
         // La orden: el PHP del sitio con el composer.phar de Roost, en su carpeta y sin preguntas.
         var spec = runner.Calls.Single();
-        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), spec.Exe);
+        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")), spec.Exe);
         Assert.Equal([phar, "install", "--no-progress"], spec.Arguments);
         Assert.Equal(sites.Selected!.Site.Folder, spec.WorkingDirectory);
         Assert.Equal("1", spec.Environment!["COMPOSER_NO_INTERACTION"]);
@@ -1598,7 +1599,7 @@ public class ViewSnapshotTests
         dialog.Query = "XDEBUG.";
         Assert.Equal(["xdebug.mode => debug,develop => debug,develop", "xdebug.client_port => 9003 => 9003"], dialog.Lines.Select(l => l.Text));
         var spec = runner.Calls.Single();
-        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), spec.Exe);
+        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")), spec.Exe);
         Assert.Equal(["-i"], spec.Arguments);
         Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64"), spec.Environment!["PHPRC"]);
         Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "conf.d") + ";" + Path.Combine(fake.Paths.Etc, "php", "conf.d", "8.4"), spec.Environment["PHP_INI_SCAN_DIR"]);
@@ -2039,7 +2040,7 @@ public class ViewSnapshotTests
         Assert.False(dialog.Rows[0].Editable);   // crear el proyecto no se desmarca
         Assert.True(dialog.Rows[0].IsActive);
         var spec = runner.Calls[0];
-        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), spec.Exe);
+        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")), spec.Exe);
         Assert.Equal(["create-project", "laravel/laravel"], spec.Arguments.Skip(1).Take(2));
         Assert.StartsWith(Path.Combine(fake.Paths.Www, ".tmp-"), spec.Arguments[3]);
         Assert.Equal(fake.Paths.Www, spec.WorkingDirectory);
@@ -2120,7 +2121,7 @@ public class ViewSnapshotTests
         Assert.False(dialog.Rows[1].Editable);   // corriendo, no se tocan las casillas
         Assert.Equal("> composer install", dialog.Lines[0].Text);
         Assert.True(dialog.Lines[0].IsMuted);
-        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), runner.Calls[0].Exe);
+        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")), runner.Calls[0].Exe);
         Assert.Equal(folder, runner.Calls[0].WorkingDirectory);
         Snapshot(window, "pasos-tras-clonar-en-marcha");
 
@@ -2237,7 +2238,7 @@ public class ViewSnapshotTests
             SiteName = "estatica",
             Folder = fake.Paths.Www,
             Url = "https://estatica.test",
-            Php = new Roost.Core.Install.InstalledPhp("8.4.27-nts-x64", fake.Paths.PhpBin, "php.exe"),
+            Php = new Roost.Core.Install.InstalledPhp("8.4.27-nts-x64", fake.Paths.PhpBin, OsNames.Exe("php")),
         };
         var dialog = new DeployStepsDialogViewModel(DeployDialogMode.Panel, new Roost.Core.Sites.ProjectKind(Roost.Core.Sites.ProjectType.Plain, null, false, false, false),
             target, [], (_, _, _) => Task.FromResult(Roost.Core.Deploy.DeployOutcome.Done()));

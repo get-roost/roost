@@ -5,6 +5,7 @@ using Roost.Daemon;
 using Roost.Desktop.Controls;
 using Roost.Desktop.Services;
 using Roost.Desktop.ViewModels;
+using Roost.Core.Platform;
 
 namespace Roost.Desktop.Tests;
 
@@ -225,8 +226,8 @@ public class AuditoriaBandejaTests
 
         // Dos instalaciones de la misma rama: la vieja se elige exacta.
         Directory.CreateDirectory(Path.Combine(fake.Paths.PhpBin, "8.4.20-nts-x64"));
-        File.WriteAllText(Path.Combine(fake.Paths.PhpBin, "8.4.20-nts-x64", "php.exe"), "");
-        File.WriteAllText(Path.Combine(fake.Paths.PhpBin, "8.4.20-nts-x64", "php-cgi.exe"), "");
+        File.WriteAllText(Path.Combine(fake.Paths.PhpBin, "8.4.20-nts-x64", OsNames.Exe("php")), "");
+        File.WriteAllText(Path.Combine(fake.Paths.PhpBin, "8.4.20-nts-x64", OsNames.Exe("php-cgi")), "");
         snapshot = TraySnapshot.Read(fake.Paths, ui, _ => false);
         Assert.Equal("8.4.20-nts-x64", snapshot.Php.Single(p => p.Label == "8.4.20").Spec);
         Assert.Equal("8.4", snapshot.Php.Single(p => p.Label == "8.4.27").Spec);

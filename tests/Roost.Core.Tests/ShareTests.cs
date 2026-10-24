@@ -504,7 +504,7 @@ public class ShareTests : IDisposable
 
         var installed = await installer.InstallAsync(build);
 
-        Assert.Equal(Path.Combine(Paths.CloudflaredBin, "2026.10.3", "cloudflared.exe"), installed.Executable);
+        Assert.Equal(Path.Combine(Paths.CloudflaredBin, "2026.10.3", OsNames.Exe("cloudflared")), installed.Executable);
         Assert.Equal(exe, File.ReadAllBytes(installed.Executable));
         Assert.Equal(installed, installer.Find(build));
         Assert.Equal("2026.10.3", Assert.Single(installer.ListInstalled()).Version);
@@ -595,9 +595,9 @@ public class ShareTests : IDisposable
     {
         var dir = Path.Combine(Paths.PhpBin, "8.4.27-nts-x64");
         Directory.CreateDirectory(dir);
-        File.WriteAllText(Path.Combine(dir, "php.exe"), "");
-        File.WriteAllText(Path.Combine(dir, "php-cgi.exe"), "");
-        return (new InstalledPhp("8.4.27-nts-x64", dir, Path.Combine(dir, "php.exe")), new InstalledNginx("1.30.6", Path.Combine(_root, "bin", "nginx", "1.30.6")));
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php")), "");
+        File.WriteAllText(Path.Combine(dir, OsNames.Exe("php-cgi")), "");
+        return (new InstalledPhp("8.4.27-nts-x64", dir, Path.Combine(dir, OsNames.Exe("php"))), new InstalledNginx("1.30.6", Path.Combine(_root, "bin", "nginx", "1.30.6")));
     }
 
     /// <summary>Lo que genera Roost va sin tildes (como el resto de su configuración).</summary>

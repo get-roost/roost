@@ -1,4 +1,5 @@
 using Roost.Core.Services;
+using Roost.Core.Platform;
 
 namespace Roost.Core.Tests;
 
@@ -84,8 +85,8 @@ public class SupervisorTests
     private static ServiceDefinition Database(string name) => new()
     {
         Name = name,
-        Executable = "mysqld.exe",
-        StopCommand = new ServiceDefinition { Name = name + "-shutdown", Executable = "mysqladmin.exe" },
+        Executable = OsNames.Exe("mysqld"),
+        StopCommand = new ServiceDefinition { Name = name + "-shutdown", Executable = OsNames.Exe("mysqladmin") },
         StopTimeout = TimeSpan.FromMilliseconds(300),
     };
 
@@ -366,14 +367,14 @@ public class SupervisorTests
         var supervisor = new Supervisor(launcher, restartDelay: TimeSpan.Zero, healthyUptime: TimeSpan.FromHours(1));
         var old = Database("mysql-8.4") with
         {
-            StopCommand = new ServiceDefinition { Name = "mysql-8.4-shutdown", Executable = "mysqladmin.exe", Arguments = "--port=3306 shutdown" },
+            StopCommand = new ServiceDefinition { Name = "mysql-8.4-shutdown", Executable = OsNames.Exe("mysqladmin"), Arguments = "--port=3306 shutdown" },
         };
         supervisor.Start([old, Service("php-8.4-0"), Service("nginx")]);
         await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
         var replacement = old with
         {
             Arguments = "--port=3307",
-            StopCommand = new ServiceDefinition { Name = "mysql-8.4-shutdown", Executable = "mysqladmin.exe", Arguments = "--port=3307 shutdown" },
+            StopCommand = new ServiceDefinition { Name = "mysql-8.4-shutdown", Executable = OsNames.Exe("mysqladmin"), Arguments = "--port=3307 shutdown" },
         };
 
         Assert.True(await supervisor.ReplaceAsync(replacement));
@@ -399,7 +400,7 @@ public class SupervisorTests
         static ServiceDefinition Php(string scanDir) => new()
         {
             Name = "php-8.4-0",
-            Executable = "php-cgi.exe",
+            Executable = OsNames.Exe("php-cgi"),
             Arguments = "-b 127.0.0.1:9840",
             Environment = new Dictionary<string, string> { ["PHP_FCGI_MAX_REQUESTS"] = "500", ["PHP_INI_SCAN_DIR"] = scanDir },
             Port = 9840,
