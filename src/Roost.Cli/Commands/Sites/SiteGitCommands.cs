@@ -157,7 +157,10 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
             RemoteProbe probe;
             while (true)
             {
-                if (url.Scheme == GitScheme.Ssh && access is not null && url.Host is { } host)
+                // Con la clave de Roost, ssh solo mira el known_hosts de Roost: antes de conectar se
+                // comprueba (y se ofrece aceptar) la huella. Con «Mi clave SSH» mira tambien el del
+                // usuario, asi que decide ssh (sin escribir nunca en el); si no la conoce, el fallo lo dice.
+                if (url.Scheme == GitScheme.Ssh && access is { Kind: not SiteGit.AccessOwn } && url.Host is { } host)
                 {
                     var why = await GitAccessSupport.EnsureTrustedAsync(factory.KnownHosts, host, url.Port, settings.Yes || settings.Json, null, quiet: settings.Json, cancellation);
                     if (why is not null) throw new GitException(new GitFailure(GitFailureKind.HostKeyUnverified, why, ""));
