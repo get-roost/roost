@@ -34,9 +34,13 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             var config = RoostConfig.Load(paths.ConfigFile);
             var planner = new StackPlanner(paths, ProcessRunner.Default);
             var php = planner.ResolvePhp(config, new PhpInstaller(paths).ListInstalled());
-            planner.ResolveDb(config, new DbInstaller(paths).ListInstalled());
+            var globalDb = planner.ResolveDb(config, new DbInstaller(paths).ListInstalled());
 
             await WebServerSetup.EnsureAsync(paths, config.WebServer, cancellation);
+            // Redis y Mailpit, si van en el stack y aun no hay ninguno (roost.toml editado a mano).
+            if (config.RedisEnabled) await Services.ServiceSetup.EnsureRedisAsync(paths, cancellation);
+            if (config.MailEnabled) await Services.ServiceSetup.EnsureMailpitAsync(paths, cancellation);
+            WarnAboutWindowsServices(config, paths, globalDb is not null);
 
             using var client = new DaemonClient(paths);
             await client.EnsureRunningAsync(DaemonLauncher.ForCurrentCli(), cancellation);
@@ -70,6 +74,10 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
                 catch (RoostException) { /* se queda el texto de siempre */ }
                 AnsiConsole.MarkupLineInterpolated($"  {status.Db} en 127.0.0.1:{status.DbPort} [grey]({root})[/]");
             }
+            if (status.Services.FirstOrDefault(s => s.Name == "redis") is { Port: { } redisPort })
+                AnsiConsole.MarkupLineInterpolated($"  Redis en 127.0.0.1:{redisPort}");
+            if (status.Services.FirstOrDefault(s => s.Name == "mailpit") is { Port: { } smtpPort })
+                AnsiConsole.MarkupLineInterpolated($"  Mailpit: SMTP en 127.0.0.1:{smtpPort} · bandeja en [bold]{config.MailWebUrl}[/] [grey](el mail() de PHP va ahi)[/]");
             foreach (var site in status.Sites)
                 AnsiConsole.MarkupLineInterpolated($"  [bold]{site.Url}[/] [grey](PHP {site.Php})[/]");
             AnsiConsole.MarkupLineInterpolated($"  [grey]www: {paths.Www}   logs: {paths.Logs}[/]");
@@ -83,6 +91,26 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
         }
     }
 
+    /// <summary>
+    /// E7: los servicios de Windows (un MySQL80 o una MariaDB de su MSI, Apache, IIS, otro Redis) que
+    /// arrancan con Windows o estan en marcha y suelen usar un puerto de este stack. Solo avisa:
+    /// Roost nunca cambia, para ni arranca servicios. Si al final se queda el puerto, el daemon lo
+    /// dice en el error con el nombre del servicio.
+    /// </summary>
+    private static void WarnAboutWindowsServices(RoostConfig config, RoostPaths paths, bool withDb)
+    {
+        var sites = 0;
+        try { sites = new Roost.Core.Sites.SiteRegistry(paths).Load().Count; } catch (Exception ex) when (ex is IOException or RoostException) { }
+        var conflicts = WindowsServices.Conflicts(WindowsServices.Find(ProcessRunner.Default), config.PlannedPorts(sites > 0, withDb));
+        foreach (var conflict in conflicts)
+        {
+            var service = conflict.Service;
+            AnsiConsole.MarkupLineInterpolated(
+                $"[yellow]Aviso:[/] el servicio de Windows {WindowsServices.Label(service)} {WindowsServices.StateText(service)} y suele usar el puerto {string.Join(" y el ", conflict.Ports)}, que tambien es de este stack.");
+            AnsiConsole.MarkupLineInterpolated(
+                $"  [grey]Si se lo queda, Roost no podra arrancar. Ponlo en Manual en services.msc (o, en una consola de administrador: {WindowsServices.ManualCommand(service)}) y paralo ({WindowsServices.StopCommand(service)}), o cambia el puerto en {paths.ConfigFile}. Roost no toca servicios de Windows.[/]");
+        }
+    }
 }
 
 /// <summary><c>roost down</c>: para el stack y el daemon.</summary>
@@ -108,7 +136,7 @@ public sealed class DownCommand : AsyncCommand<EmptyCommandSettings>
 public sealed class ServiceSettings : CommandSettings
 {
     [CommandArgument(0, "<servicio>")]
-    [Description("nginx, apache, php-<rama> (todo su pool), <motor>-<rama> o dns, como los muestra roost status.")]
+    [Description("nginx, apache, php-<rama> (todo su pool), <motor>-<rama>, redis, mailpit o dns, como los muestra roost status.")]
     public string Service { get; init; } = "";
 }
 
@@ -121,7 +149,7 @@ public sealed class RestartCommand : AsyncCommand<RestartCommand.Settings>
     public sealed class Settings : CommandSettings
     {
         [CommandArgument(0, "[servicio]")]
-        [Description("nginx, apache, php-<rama> (todo su pool), <motor>-<rama> o dns, como los muestra roost status. Sin servicio, se reinicia todo.")]
+        [Description("nginx, apache, php-<rama> (todo su pool), <motor>-<rama>, redis, mailpit o dns, como los muestra roost status. Sin servicio, se reinicia todo.")]
         public string? Service { get; init; }
     }
 

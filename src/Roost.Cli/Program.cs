@@ -248,6 +248,71 @@ app.Configure(config =>
             .WithExample("composer", "status", "--json");
     });
 
+    // Servicios (oleada 3): Redis y el correo de pruebas (Mailpit).
+    config.AddBranch("redis", redis =>
+    {
+        redis.SetDescription("Redis en el stack (cache, colas, sesiones): la build MSYS2 de redis-windows, verificada, solo en 127.0.0.1 (de momento, solo en Windows).");
+
+        redis.AddCommand<Roost.Cli.Commands.Services.RedisInstallCommand>("install")
+            .WithDescription("Descarga Redis, verifica su SHA-256, lo instala en bin/redis y lo pone en el stack. Si esta en marcha, lo aplica ya.")
+            .WithExample("redis", "install");
+
+        redis.AddCommand<Roost.Cli.Commands.Services.RedisRemoveCommand>("remove")
+            .WithDescription("Saca Redis del stack y quita sus binarios. Sus datos (data/redis) se conservan.")
+            .WithExample("redis", "remove");
+
+        redis.AddCommand<Roost.Cli.Commands.Services.RedisEnableCommand>("enable")
+            .WithDescription("Pone Redis en el stack (lo instala si falta).")
+            .WithExample("redis", "enable");
+
+        redis.AddCommand<Roost.Cli.Commands.Services.RedisEnableCommand>("disable")
+            .WithDescription("Saca Redis del stack sin quitar sus binarios ni sus datos.")
+            .WithExample("redis", "disable");
+
+        redis.AddCommand<Roost.Cli.Commands.Services.RedisPortCommand>("port")
+            .WithDescription("Cambia el puerto de Redis ([redis] port, 6379 por defecto) y lo aplica si el stack esta en marcha.")
+            .WithExample("redis", "port", "6380");
+
+        redis.AddCommand<Roost.Cli.Commands.Services.RedisStatusCommand>("status")
+            .WithDescription("Que Redis hay, si va en el stack, si contesta al PING y donde estan su configuracion y sus datos.")
+            .WithExample("redis", "status")
+            .WithExample("redis", "status", "--json");
+    });
+
+    config.AddBranch("mail", mail =>
+    {
+        mail.SetDescription("Mailpit en el stack: el correo de PHP (mail(), Laravel, WordPress) se queda en una bandeja local en vez de salir del equipo (de momento, solo en Windows).");
+
+        mail.AddCommand<Roost.Cli.Commands.Services.MailInstallCommand>("install")
+            .WithDescription("Descarga Mailpit, verifica su SHA-256, lo instala en bin/mailpit, lo pone en el stack y lleva a el el mail() de PHP.")
+            .WithExample("mail", "install");
+
+        mail.AddCommand<Roost.Cli.Commands.Services.MailRemoveCommand>("remove")
+            .WithDescription("Saca Mailpit del stack, quita el mail() de PHP hacia el y sus binarios. La bandeja (data/mailpit) se conserva.")
+            .WithExample("mail", "remove");
+
+        mail.AddCommand<Roost.Cli.Commands.Services.MailEnableCommand>("enable")
+            .WithDescription("Pone Mailpit en el stack (lo instala si falta).")
+            .WithExample("mail", "enable");
+
+        mail.AddCommand<Roost.Cli.Commands.Services.MailEnableCommand>("disable")
+            .WithDescription("Saca Mailpit del stack sin quitar sus binarios ni la bandeja.")
+            .WithExample("mail", "disable");
+
+        mail.AddCommand<Roost.Cli.Commands.Services.MailPortCommand>("port")
+            .WithDescription("Cambia los puertos de Mailpit ([mail] smtp_port y web_port) y los aplica si el stack esta en marcha.")
+            .WithExample("mail", "port", "--smtp", "1026", "--web", "8026");
+
+        mail.AddCommand<Roost.Cli.Commands.Services.MailOpenCommand>("open")
+            .WithDescription("Abre la bandeja de Mailpit en el navegador.")
+            .WithExample("mail", "open");
+
+        mail.AddCommand<Roost.Cli.Commands.Services.MailStatusCommand>("status")
+            .WithDescription("Que Mailpit hay, si va en el stack, sus puertos y si el mail() de PHP va a el.")
+            .WithExample("mail", "status")
+            .WithExample("mail", "status", "--json");
+    });
+
     config.AddBranch("cert", cert =>
     {
         cert.SetDescription("La CA local que firma los certificados de los sitios .test.");
