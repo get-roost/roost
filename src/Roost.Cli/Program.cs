@@ -236,6 +236,10 @@ app.Configure(config =>
             .WithDescription("Anade la CA de Roost a los certificados de confianza de tu usuario (Windows pide confirmacion).")
             .WithExample("cert", "trust");
 
+        cert.AddCommand<CertUntrustCommand>("untrust")
+            .WithDescription("Quita la CA de Roost de los certificados de confianza de tu usuario, y lo de Firefox (Windows pide confirmacion).")
+            .WithExample("cert", "untrust");
+
         cert.AddCommand<CertRenewCommand>("renew")
             .WithDescription("Vuelve a emitir el certificado de todos los sitios (roost up ya los renueva solo antes de caducar).")
             .WithExample("cert", "renew");
@@ -282,6 +286,9 @@ app.Configure(config =>
 
     // roostd: lo lanza la CLI cuando hace falta, no el usuario.
     config.AddCommand<DaemonCommand>("daemon").IsHidden();
+
+    // Lo lanza el desinstalador (ya elevado): quita lo que Roost puso fuera de su carpeta.
+    config.AddCommand<UninstallCleanupCommand>("uninstall-cleanup").IsHidden();
 
     // Lo ultimo: los comandos de las extensiones no pueden pisar los de Roost.
     extensions.AddCommands(config);

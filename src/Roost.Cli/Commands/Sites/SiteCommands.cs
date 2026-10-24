@@ -336,6 +336,49 @@ public sealed class CertTrustCommand : Command<EmptyCommandSettings>
     }
 }
 
+/// <summary>
+/// <c>roost cert untrust</c>: quita la CA de Roost de los certificados de confianza del usuario
+/// (Windows pide confirmarlo) y lo que puso en Firefox. La CA y los certificados siguen en disco.
+/// </summary>
+public sealed class CertUntrustCommand : Command<EmptyCommandSettings>
+{
+    public override int Execute(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
+    {
+        if (!WindowsOnly.Check("cert untrust")) return 1;
+        var ca = new LocalCa(RoostPaths.Default());
+        try
+        {
+            var firefox = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot()).Where(FirefoxTrust.IsEnabled).ToList();
+            if (ca.IsTrusted())
+            {
+                AnsiConsole.MarkupLine("Windows va a pedirte que confirmes que quitas la CA de Roost de tus certificados de confianza.");
+                ca.Untrust();
+                if (ca.IsTrusted())
+                {
+                    AnsiConsole.MarkupLine("[red]La CA sigue en tus certificados de confianza[/] (rechazaste el aviso de Windows?).");
+                    return 1;
+                }
+                AnsiConsole.MarkupLine("[green]Hecho:[/] el navegador volvera a avisar en tus sitios .test. [grey]Para volver a confiar: roost cert trust[/]");
+            }
+            else
+            {
+                AnsiConsole.MarkupLine("La CA de Roost no estaba en tus certificados de confianza.");
+            }
+
+            // Lo de Firefox lo puso Roost para esta CA: se quita también.
+            foreach (var profile in firefox) FirefoxTrust.Disable(profile);
+            if (firefox.Count > 0)
+                AnsiConsole.MarkupLineInterpolated($"[green]Firefox tambien[/] ({firefox.Count} perfil{(firefox.Count == 1 ? "" : "es")}): [grey]cierralo y vuelve a abrirlo para que lo aplique.[/]");
+            return 0;
+        }
+        catch (RoostException ex)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]{ex.Message}[/]");
+            return 1;
+        }
+    }
+}
+
 /// <summary><c>roost cert renew</c>: vuelve a emitir el certificado de todos los sitios.</summary>
 public sealed class CertRenewCommand : AsyncCommand<EmptyCommandSettings>
 {
