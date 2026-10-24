@@ -212,7 +212,10 @@ public sealed partial class SitesViewModel
         if (Prepare(row, arguments) is not { } prepared) return;
         var (spec, choice, manager) = prepared;
         var session = new NodeDevSession(row.Site.Name, row.Host, NodeTool.Display(manager, arguments),
-            $"{choice.Node.Label} · {row.Site.Folder}", spec, Runner);
+            $"{choice.Node.Label} · {row.Site.Folder}", spec, Runner)
+        {
+            HotFile = Path.Combine(row.Site.Folder, "public", "hot"),
+        };
         session.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(NodeDevSession.Running) && !session.Running)

@@ -211,6 +211,7 @@ public class NodeViewTests
             "",
             "\u001b[32m  VITE v7.1.3\u001b[39m  ready in 412 ms",
             "",
+            "  ➜  Local:   https://127.0.0.1:5173/",
             "  ➜  Local:   https://tienda.test:5173/",
             "  ➜  Network: use --host to expose",
             "",
@@ -258,9 +259,13 @@ public class NodeViewTests
         await UntilAsync(() => main.Dialog is NodeDevServerDialogViewModel);
         Assert.Same(session, ((NodeDevServerDialogViewModel)main.Dialog!).Session);
 
-        // «Parar» mata el proceso; la ventana se queda para leer cómo acabó.
+        // «Parar» mata el proceso; la ventana se queda para leer cómo acabó. El public/hot que dejó
+        // laravel-vite-plugin (sin Ctrl+C no lo quita él) se borra: la página vuelve a los assets compilados.
+        var hot = Path.Combine(sites.Selected!.Site.Folder, "public", "hot");
+        File.WriteAllText(hot, "https://tienda.test:5173");
         ((NodeDevServerDialogViewModel)main.Dialog!).StopCommand.Execute(null);
         await UntilAsync(() => !session.Running);
+        Assert.False(File.Exists(hot));
         Assert.True(runner.WasCanceled);
         Assert.True(session.Stopped);
         Assert.Equal("npm run dev parado", session.StatusText);

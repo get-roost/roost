@@ -62,6 +62,14 @@ public sealed partial class NodeDevSession : ObservableObject
 
     public string? Folder => _spec.WorkingDirectory;
 
+    /// <summary>
+    /// El fichero que el servidor de desarrollo deja mientras corre y quita al pararse por las buenas:
+    /// el <c>public/hot</c> de laravel-vite-plugin, con la dirección de Vite. Parado por Roost (que mata
+    /// el proceso, sin Ctrl+C), se quedaría y la página seguiría pidiendo los assets a un Vite que ya no
+    /// está: al acabar, se borra si lo escribió esta sesión.
+    /// </summary>
+    public string? HotFile { get; init; }
+
     public DateTimeOffset Started { get; private set; }
 
     public ObservableCollection<LogLine> Lines { get; } = [];
@@ -161,12 +169,23 @@ public sealed partial class NodeDevSession : ObservableObject
         finally
         {
             lock (Live) Live.Remove(this);
+            RemoveHotFile();
             Dispatcher.UIThread.Post(() =>
             {
                 FlushLines();
                 Running = false;
             });
         }
+    }
+
+    private void RemoveHotFile()
+    {
+        try
+        {
+            if (HotFile is { } hot && File.Exists(hot) && File.GetLastWriteTimeUtc(hot) >= Started.UtcDateTime.AddSeconds(-2))
+                File.Delete(hot);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* se queda: lo quita el siguiente npm run dev */ }
     }
 
     /// <summary>Para todos los que sigan en marcha y espera un poco a que acaben (al salir de Roost).</summary>
@@ -203,7 +222,10 @@ public sealed partial class NodeDevSession : ObservableObject
                 if (_kept.Count >= MaxKept) _kept.RemoveAt(0);
                 _kept.Add(line);
             }
-            if (Url is null && UrlIn(line) is { } url) Url = url;
+            // La primera con .test (la del certificado del sitio); si no hay, la primera que diga.
+            if (Url?.Contains(".test", StringComparison.OrdinalIgnoreCase) != true && UrlIn(line) is { } url
+                && (Url is null || url.Contains(".test", StringComparison.OrdinalIgnoreCase)))
+                Url = url;
             if (Lines.Count > 0 && CommandOutputDialogViewModel.IsProgressUpdate(Lines[^1].Text, line))
                 Lines[^1] = new LogLine(line, CommandOutputDialogViewModel.LevelOf(line));
             else

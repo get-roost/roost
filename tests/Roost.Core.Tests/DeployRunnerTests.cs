@@ -373,7 +373,7 @@ public class DeployRunnerTests
         });
         Assert.Contains("> npm ci", lines.Lines);
         Assert.Contains("> npm run build", lines.Lines);
-        Assert.StartsWith("Con Node 24.22.1 (el Node global", lines.Lines[0]);
+        Assert.StartsWith("Con Node 24.22.1: el Node global", lines.Lines[0]);
         Assert.Contains("npm ci", File.ReadAllText(DeployLog.FilePath(root.Paths, "tienda")));
 
         var failing = new FakeCommandRunner().On(node.NpmCli + " ci", exitCode: 1, stderr: "npm ERR! The `npm ci` command can only install with an existing package-lock.json\n");

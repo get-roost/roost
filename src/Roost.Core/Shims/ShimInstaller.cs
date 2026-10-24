@@ -135,7 +135,7 @@ public sealed class ShimInstaller(RoostPaths paths)
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             InstallFiles.TryDeleteDirectory(temp);
-            throw new RoostException($"No se pudieron poner los shims en {Directory}: {ex.Message}. Cierra las terminales que esten usando php y repite.");
+            throw new RoostException($"No se pudieron poner los shims en {Directory}: {ex.Message}. Cierra las terminales que esten usando php o node y repite.");
         }
         catch
         {

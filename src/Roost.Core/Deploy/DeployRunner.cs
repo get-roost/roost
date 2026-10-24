@@ -458,7 +458,7 @@ public sealed class DeployRunner(RoostPaths paths, ICommandRunner commands, IPro
         if (project.Unreadable) throw new RoostException("El package.json del proyecto no es JSON valido: arreglalo y repite el paso.");
         if (NodeTool.WhyNot(project.Manager, choice.Node) is { } why) throw new RoostException(why);
 
-        lines.Report($"Con {choice.Node.Label} ({choice.Reason}).");
+        lines.Report($"Con {choice.Node.Label}: {choice.Reason}.");
         var install = NodeTool.InstallArguments(project, clean: true);
         var display = NodeTool.Display(project.Manager, install);
         lines.Report($"> {display}");
