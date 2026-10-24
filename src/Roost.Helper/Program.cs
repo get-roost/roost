@@ -1,18 +1,21 @@
-using System.Diagnostics;
-using System.Text;
 using Roost.Core.Dns;
-using Roost.Core.Share;
-using Roost.Core.Sites;
+using Roost.Core.Platform;
+using Roost.Helper;
 
-// roost-helper: lo UNICO de Roost que se ejecuta con privilegios de administrador (ROOST.md §5.1,
-// decision 5). Una lista cerrada de operaciones, sin nada libre que llegue al sistema:
+// roost-helper: lo UNICO de Roost que se ejecuta con privilegios (ROOST.md §5.1, decision 5). Una
+// lista cerrada de operaciones, sin nada libre que llegue al sistema: ni rutas de escritura que
+// vengan de fuera (todas son fijas), ni variables de entorno (solo PKEXEC_UID / SUDO_UID, para saber
+// que usuario lo invoca), ni dependencias (solo la BCL y unos ficheros de Core enlazados como fuente,
+// que son los que deciden que se admite). Cualquier operacion nueva tiene que ser igual de cerrada.
+//
+// En Windows, elevado con el UAC (Verb = runas):
 //
 //   roost-helper hosts-sync <fichero>
 //     <fichero> trae un nombre por linea. Solo valen nombres .test de 1 a 4 etiquetas DNS en ASCII
-//     (tienda.test, api.tienda.test), de 253 caracteres como mucho (HostsBlock.IsValidHost).
-//     En el hosts del sistema (ruta fija, no se acepta otra) solo se reescribe el bloque
-//     "# roost:begin" / "# roost:end" con lineas "127.0.0.1 <nombre>"; lo demas queda intacto byte a
-//     byte (Latin-1 lee y escribe cada byte tal cual).
+//     (tienda.test, api.tienda.test), de 253 caracteres como mucho (HostsBlock.IsValidHost); la
+//     peticion, 64 KB y 1000 nombres como mucho. En el hosts del sistema (ruta fija) solo se
+//     reescribe el bloque "# roost:begin" / "# roost:end" con lineas "127.0.0.1 <nombre>"; lo demas
+//     queda intacto byte a byte (Latin-1 lee y escribe cada byte tal cual).
 //
 //   roost-helper dns-enable | dns-disable
 //     Pone o quita la regla NRPT ".test" -> 127.53.0.1 (el DNS local de Roost, ROOST.md §5.7). Sin
@@ -22,170 +25,89 @@ using Roost.Core.Sites;
 //     Pone o quita la regla del cortafuegos "Roost LAN <puerto>" de roost share --lan: entrada TCP a ese
 //     puerto, solo en el perfil privado y solo desde la subred local. Lo unico que llega de fuera es el
 //     puerto, validado (FirewallRule.TryParsePort: 80, 443 o de 1024 a 65535, sin los de administracion
-//     remota ni los de bases de datos); el script es fijo (FirewallRule) y lo ejecuta el mismo PowerShell.
+//     remota ni los de bases de datos); el script es fijo (FirewallRule).
 //
-// Cada ejecucion deja una linea en un registro de ruta fija: %ProgramData%\Roost\roost-helper.log.
+// En Linux, como root (lo lanza roost con pkexec y la politica dev.roost.helper, o con sudo):
+//
+//   roost-helper hosts-sync
+//     Los nombres llegan por STDIN, uno por linea (nada de rutas: el helper no lee ficheros del
+//     usuario), con las mismas reglas que en Windows. El hosts es /etc/hosts (ruta fija): solo el bloque
+//     de Roost, escrito en un temporal del mismo /etc y renombrado encima (nunca queda a medias), con \n.
+//
+//   roost-helper dns-enable | dns-disable
+//     Pone o quita el drop-in fijo /etc/systemd/resolved.conf.d/roost.conf (DNS=127.53.0.1:5353,
+//     Domains=~test; ResolvedDropIn) y reinicia systemd-resolved. Sin systemd-resolved, 71; si otro
+//     fichero de resolved ya enruta "test", 69 y no se toca nada.
+//
+//   roost-helper setcap-nginx <ruta>
+//     setcap cap_net_bind_service=+ep sobre el nginx de Roost, para que escuche en el 80 y el 443 sin ser
+//     root. Solo si <ruta> es absoluta y limpia, se llama nginx, se abre sin seguir enlaces, su ruta real
+//     es esa misma (ningun enlace en el camino), cuelga de la home del usuario que invoca (getpwuid de
+//     PKEXEC_UID/SUDO_UID, nunca $HOME), es un fichero normal de ese usuario y empieza por la firma ELF.
+//     Todo se comprueba sobre el descriptor ya abierto, y setcap se aplica a ese mismo descriptor.
+//
+//   roost-helper www-init
+//     Crea /var/www/roost (0755) con dueno el usuario que invoca. Si ya existe y es suyo, nada; si es de
+//     otro, 73. No se acepta otra ruta.
+//
+//   roost-helper ca-trust | ca-untrust
+//     La CA del sistema, opcional (curl, wget, el PHP de la distro). ca-trust recibe el PEM por STDIN y
+//     solo lo instala si es una CA local de Roost (CaCertRules: X.509 autofirmado, CA:TRUE, KeyCertSign,
+//     CN "Roost Local CA (...", 10 anos como mucho), en /usr/local/share/ca-certificates/roost-<uid>.crt,
+//     y lanza update-ca-certificates. ca-untrust quita ese fichero y vuelve a lanzarlo.
+//
+//   roost-helper firewall-allow <puerto> | firewall-remove <puerto>
+//     Con ufw o firewalld, y solo si estan activos (si no, 0 y nada): entrada TCP a ese puerto desde las
+//     redes privadas (10/8, 172.16/12, 192.168/16), con el comentario "Roost LAN <puerto>".
+//
+// Cada ejecucion deja una linea en un registro de ruta fija: %ProgramData%\Roost\roost-helper.log en
+// Windows y /var/log/roost/roost-helper.log en Linux. Lo rechazado se apunta sin copiar el contenido.
+//
+// Codigos de salida (HelperExit): 0 bien; 64 uso; 65 peticion invalida; 69 ya hay una regla de .test
+// que no es de Roost; 70 fallo la orden (PowerShell, systemctl, setcap, update-ca-certificates, ufw);
+// 71 sin systemd-resolved; 73 ya existe y es de otro; 74 error de E/S (no esta elevado); 77 no es root.
 
-const int Ok = 0, Usage = 64, BadInput = 65, ForeignRule = 69, ScriptFailed = 70, IoError = 74;
-
+var windows = OperatingSystem.IsWindows();
 switch (args)
 {
-    case ["hosts-sync", var requestFile]:
-        return HostsSync(requestFile);
+    case ["hosts-sync", var requestFile] when windows:
+        return Hosts.Sync(Hosts.ReadRequestFile(requestFile));
+    case ["hosts-sync"] when !windows:
+        return AsRoot(() => Hosts.Sync(Hosts.ReadRequestStdin()));
+
     case ["dns-enable"]:
-        return RunNrpt("dns-enable", NrptScripts.Enable);
+        return windows ? WindowsOps.Nrpt("dns-enable", NrptScripts.Enable) : AsRoot(LinuxOps.DnsEnable);
     case ["dns-disable"]:
-        return RunNrpt("dns-disable", NrptScripts.Disable);
+        return windows ? WindowsOps.Nrpt("dns-disable", NrptScripts.Disable) : AsRoot(LinuxOps.DnsDisable);
+
     case ["firewall-allow", var port]:
-        return RunFirewall("firewall-allow", port, allow: true);
+        return windows ? WindowsOps.Firewall("firewall-allow", port, allow: true) : AsRoot(() => LinuxOps.Firewall("firewall-allow", port, allow: true));
     case ["firewall-remove", var port]:
-        return RunFirewall("firewall-remove", port, allow: false);
+        return windows ? WindowsOps.Firewall("firewall-remove", port, allow: false) : AsRoot(() => LinuxOps.Firewall("firewall-remove", port, allow: false));
+
+    case ["setcap-nginx", var nginx] when !windows:
+        return AsRoot(() => LinuxOps.SetcapNginx(nginx));
+    case ["www-init"] when !windows:
+        return AsRoot(LinuxOps.WwwInit);
+    case ["ca-trust"] when !windows:
+        return AsRoot(LinuxOps.CaTrust);
+    case ["ca-untrust"] when !windows:
+        return AsRoot(LinuxOps.CaUntrust);
+
     default:
-        Console.Error.WriteLine("Uso: roost-helper hosts-sync <fichero con un nombre .test por linea> | dns-enable | dns-disable | firewall-allow <puerto> | firewall-remove <puerto>");
-        return Usage;
+        Console.Error.WriteLine(windows
+            ? "Uso: roost-helper hosts-sync <fichero con un nombre .test por linea> | dns-enable | dns-disable | firewall-allow <puerto> | firewall-remove <puerto>"
+            : "Uso: roost-helper hosts-sync (nombres .test por stdin) | dns-enable | dns-disable | setcap-nginx <ruta> | www-init | ca-trust (PEM por stdin) | ca-untrust | firewall-allow <puerto> | firewall-remove <puerto>");
+        return HelperExit.Usage;
 }
 
-static int HostsSync(string requestFile)
+// En Linux nada se intenta sin ser root: asi un fallo de permisos no se confunde con una peticion mala.
+static int AsRoot(Func<int> operation)
 {
-    var hostsFile = OperatingSystem.IsWindows() ? Path.Combine(Environment.SystemDirectory, "drivers", "etc", "hosts") : "/etc/hosts";
-
-    List<string> names;
-    try
+    if (!Posix.IsRoot)
     {
-        var request = new FileInfo(requestFile);
-        if (!request.Exists || request.Length > 64 * 1024)
-        {
-            Log("rechazado: la peticion no existe o es demasiado grande");
-            return BadInput;
-        }
-        names = File.ReadAllLines(request.FullName).Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        Console.Error.WriteLine("roost-helper tiene que ejecutarse como root: roost lo lanza con pkexec o con sudo.");
+        return HelperExit.NotRoot;
     }
-    catch (Exception ex)
-    {
-        Log($"rechazado: no se pudo leer la peticion ({ex.GetType().Name})");
-        return BadInput;
-    }
-
-    if (names.Count > 1000 || names.Any(n => !HostsBlock.IsValidHost(n)))
-    {
-        // No se registra el contenido rechazado: podria ser cualquier cosa.
-        Log($"rechazado: {names.Count} lineas, y no todas son un nombre .test valido");
-        return BadInput;
-    }
-
-    for (var attempt = 1; ; attempt++)
-    {
-        try
-        {
-            var current = File.Exists(hostsFile) ? File.ReadAllText(hostsFile, Encoding.Latin1) : "";
-            var updated = HostsBlock.Apply(current, names);
-            if (updated != current) File.WriteAllText(hostsFile, updated, Encoding.Latin1);
-            Log($"hosts-sync: {names.Count} nombres ({string.Join(", ", names)})");
-            return Ok;
-        }
-        catch (InvalidDataException ex)
-        {
-            Log("rechazado: " + ex.Message);
-            return BadInput;
-        }
-        catch (IOException) when (attempt < 5)
-        {
-            Thread.Sleep(200 * attempt); // un antivirus puede tener el hosts abierto un momento
-        }
-        catch (Exception ex)
-        {
-            Log("error al escribir el hosts: " + ex.Message);
-            return IoError;
-        }
-    }
-}
-
-static int RunNrpt(string operation, string script)
-{
-    var result = RunPowerShell(operation, script);
-    if (result is null) return ScriptFailed;
-    var (exitCode, output) = result.Value;
-    switch (exitCode)
-    {
-        case 0:
-            Log($"{operation}: regla {NrptScripts.Namespace} -> {NrptScripts.Address} {(operation == "dns-enable" ? "puesta" : "quitada")}");
-            return Ok;
-        case NrptScripts.ForeignRuleExit:
-            Log($"{operation}: ya hay una regla para {NrptScripts.Namespace} que no es de Roost; no se toca");
-            return ForeignRule;
-        default:
-            Log($"{operation}: PowerShell salio con {exitCode}: {output}");
-            return ScriptFailed;
-    }
-}
-
-static int RunFirewall(string operation, string portText, bool allow)
-{
-    if (!FirewallRule.TryParsePort(portText, out var port))
-    {
-        // Como en hosts-sync, lo rechazado no se copia al registro: podria ser cualquier cosa.
-        Log($"rechazado: {operation} con un puerto que no vale");
-        return BadInput;
-    }
-
-    var result = RunPowerShell(operation, allow ? FirewallRule.AllowScript(port) : FirewallRule.RemoveScript(port));
-    if (result is null) return ScriptFailed;
-    var (exitCode, output) = result.Value;
-    if (exitCode != 0)
-    {
-        Log($"{operation}: PowerShell salio con {exitCode}: {output}");
-        return ScriptFailed;
-    }
-    Log($"{operation}: regla \"{FirewallRule.DisplayName(port)}\" {(allow ? "puesta (TCP, perfil privado, subred local)" : "quitada")}");
-    return Ok;
-}
-
-// El codigo de salida del script y lo que escribio (stderr y stdout), o null si no se pudo ejecutar o
-// no termino a tiempo (ya registrado).
-static (int ExitCode, string Output)? RunPowerShell(string operation, string script)
-{
-    // El PowerShell del sistema por su ruta, nunca el que encuentre el PATH; el script va en
-    // -EncodedCommand (UTF-16LE en base64), sin comillas que escapar.
-    var powershell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
-    var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
-    var start = new ProcessStartInfo(powershell, $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand {encoded}")
-    {
-        UseShellExecute = false,
-        CreateNoWindow = true,
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-    };
-    try
-    {
-        using var process = Process.Start(start)!;
-        var output = process.StandardOutput.ReadToEndAsync();
-        var error = process.StandardError.ReadToEndAsync();
-        if (!process.WaitForExit(60_000))
-        {
-            process.Kill(entireProcessTree: true);
-            Log($"{operation}: PowerShell no termino en 60 s");
-            return null;
-        }
-        return (process.ExitCode, $"{error.Result.Trim()} {output.Result.Trim()}");
-    }
-    catch (Exception ex)
-    {
-        Log($"{operation}: no se pudo ejecutar PowerShell ({ex.Message})");
-        return null;
-    }
-}
-
-static void Log(string message)
-{
-    try
-    {
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Roost");
-        Directory.CreateDirectory(dir);
-        File.AppendAllText(Path.Combine(dir, "roost-helper.log"),
-            $"{DateTime.Now:yyyy-MM-dd HH:mm:ss} {Environment.UserName}: {message}{Environment.NewLine}");
-    }
-    catch
-    {
-        // sin registro no se deja de hacer el trabajo
-    }
+    return operation();
 }
