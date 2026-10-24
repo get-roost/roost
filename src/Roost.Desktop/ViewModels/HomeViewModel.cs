@@ -202,7 +202,7 @@ public sealed partial class HomeViewModel : PageViewModel
             }
             else if (!group.Key.StartsWith("mariadb-", StringComparison.Ordinal) && !group.Key.StartsWith("mysql-", StringComparison.Ordinal))
             {
-                // Un servicio de una extensión (un Redis, un Mailpit): con su nombre y su puerto.
+                // Un servicio de una extensión (un Memcached, un Meilisearch): con su nombre y su puerto.
                 var port = list.FirstOrDefault(s => s.Port is not null)?.Port;
                 rows.Add(new ServiceRow(group.Key, "extensión", Tone.Neutral, "Lo añade una extensión", "",
                     port is null ? "-" : $"127.0.0.1:{port}", state, tone, restarts, group.Key, alive));

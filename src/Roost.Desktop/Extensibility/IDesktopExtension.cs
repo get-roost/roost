@@ -7,7 +7,7 @@ namespace Roost.Desktop.Extensibility;
 /// <summary>Dónde sale una pantalla de extensión en la barra lateral.</summary>
 public enum DesktopSection
 {
-    /// <summary>Con PHP, Servidor web y Bases de datos (un Redis, un Mailpit).</summary>
+    /// <summary>Con PHP, Servidor web, Bases de datos, Redis y Correo (un Memcached, un Meilisearch).</summary>
     Components,
 
     /// <summary>Con Auditoría, Registros y Ajustes.</summary>
