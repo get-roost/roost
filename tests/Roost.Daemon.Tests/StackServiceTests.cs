@@ -334,6 +334,88 @@ public class StackServiceTests : IDisposable
         File.WriteAllText(ca.SiteKeyFile(site.Name), key.ExportPkcs8PrivateKeyPem());
     }
 
+    // Servicios (oleada 3): Redis y Mailpit
+
+    private void EnableRedisAndMail()
+    {
+        Touch(Path.Combine(_paths.RedisBin, "8.10.2", "redis-server.exe"));
+        Touch(Path.Combine(_paths.RedisBin, "8.10.2", "redis-cli.exe"));
+        Touch(Path.Combine(_paths.MailpitBin, "1.32.0", "mailpit.exe"));
+        File.AppendAllText(_paths.ConfigFile, "\n[redis]\nenabled = true\nport = 6380\n\n[mail]\nenabled = true\nsmtp_port = 1026\nweb_port = 8026\n");
+    }
+
+    [Fact]
+    public async Task Up_ConRedisYMailpit_ArrancanTrasLaBaseDeDatos_YRedisSeParaLimpio()
+    {
+        EnableRedisAndMail();
+        var stack = Service();
+
+        var up = await stack.UpAsync();
+
+        Assert.True(up.Ok, up.Error);
+        Assert.Equal(["mariadb-11.4", "redis", "mailpit", "php-8.4-0", "php-8.4-1", "nginx"], up.Status.Services.Select(s => s.Name));
+        Assert.Equal([3407, 6380, 1026, 9840, 9841, 8765, 8026], up.Status.Ports);   // la bandeja (8026) también es nuestra
+        Assert.Contains(_log, l => l.Contains("Redis 8.10.2 en el 6380", StringComparison.Ordinal) && l.Contains("Mailpit 1.32.0", StringComparison.Ordinal));
+
+        await stack.DownAsync();
+
+        // Al revés que el arranque; Redis y la base de datos, con su comando de parada.
+        Assert.Equal(1, _launcher.StartsOf("redis-shutdown"));
+        Assert.Equal(1, _launcher.StartsOf("mariadb-11.4-shutdown"));
+        Assert.Equal(["nginx", "php-8.4-1", "php-8.4-0", "mailpit"], _launcher.KillOrder());
+    }
+
+    [Fact]
+    public async Task Up_ConElPuertoDeRedisOcupado_LoDiceYComoSalir()
+    {
+        EnableRedisAndMail();
+        _busy.Add(6380);
+
+        var response = await Service().UpAsync();
+
+        Assert.False(response.Ok);
+        Assert.StartsWith("El puerto 6380 (Redis) ya esta en uso", response.Error);
+        Assert.Contains("roost redis port", response.Error);
+        Assert.Contains("roost redis disable", response.Error);
+    }
+
+    [Fact]
+    public async Task Up_ConLaBandejaDeMailpitOcupada_TambienSeRechazaAntesDeArrancar()
+    {
+        EnableRedisAndMail();
+        _busy.Add(8026);
+
+        var response = await Service().UpAsync();
+
+        Assert.False(response.Ok);
+        Assert.StartsWith("El puerto 8026 (Mailpit)", response.Error);
+        Assert.Contains("[mail] web_port", response.Error);
+        Assert.Empty(_launcher.StartOrder());
+    }
+
+    [Fact]
+    public async Task Up_Rechazado_DevuelveTambienElRedisConfYElFragmentoDelCorreo()
+    {
+        EnableRedisAndMail();
+        var stack = Service();
+        var first = await stack.UpAsync();
+        Assert.True(first.Ok, first.Error);
+        HoldPorts(first.Status);
+        var redisConf = File.ReadAllText(Roost.Core.Stack.RedisConf.ConfPath(_paths));
+        var mailIni = Path.Combine(_paths.Etc, "php", "conf.d", Roost.Core.Stack.MailConf.PhpIniName);
+        var mailText = File.ReadAllText(mailIni);
+
+        // Otros puertos para Redis y el correo, y el de la web cogido por otro: se rechaza.
+        Config(httpPort: 9999, httpsPort: 8443, dbPort: 3407);
+        File.AppendAllText(_paths.ConfigFile, "\n[redis]\nenabled = true\nport = 6390\n\n[mail]\nenabled = true\nsmtp_port = 1036\nweb_port = 8036\n");
+        _busy.Add(9999);
+        var second = await stack.UpAsync();
+
+        Assert.False(second.Ok);
+        Assert.Equal(redisConf, File.ReadAllText(Roost.Core.Stack.RedisConf.ConfPath(_paths)));   // un Redis relanzado leería el puerto viejo
+        Assert.Equal(mailText, File.ReadAllText(mailIni));
+    }
+
     // Dobles
 
     /// <summary>nginx -t falso: siempre da por buena la configuración.</summary>
