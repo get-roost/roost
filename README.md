@@ -271,6 +271,28 @@ roost cert renew                                         # vuelve a emitir los c
 - **La CA local.** Roost tiene su propia CA (ECDSA P-256, 10 años) en `C:\roost\certs\ca`. Su clave privada solo la puede leer tu usuario. Con ella firma un certificado por sitio, de 397 días, que `roost up` renueva cuando le quedan menos de 30. `roost cert trust` la añade al almacén de **tu usuario** (no al de la máquina), y Windows te pide confirmarlo. Firefox usa su propio almacén: `roost cert trust` (o «Configurar Firefox» en Ajustes y en el diálogo de la CA) pone `security.enterprise_roots.enabled` en el `user.js` de cada perfil, para que Firefox lea las CA de confianza de Windows. Hay que reiniciar Firefox. «Dejar de confiar» lo quita también.
 - **Con el `curl` de Windows** (Schannel) añade `--ssl-no-revoke`. Los certificados de una CA local no tienen lista de revocación, y Schannel la exige por defecto. Los navegadores no la piden.
 
+### Sitios desde git (solo Windows, por ahora)
+
+Un sitio puede nacer de un repositorio, como en Plesk, pero en local: Roost prepara el proyecto para trabajar, no despliega.
+
+```sh
+roost site clone https://github.com/acme/tienda                 # sitio https://tienda.test/ en C:\roost\www\tienda
+roost site clone https://github.com/acme/tienda.git --name tienda --branch develop --php 8.3
+roost site clone C:\repos\tienda.git --path C:\proyectos\tienda   # también una carpeta local
+roost site pull tienda                                         # trae lo nuevo (solo fast-forward)
+roost site branch tienda                                       # las ramas del remoto
+roost site branch tienda feature/checkout                      # cambia de rama
+roost site git tienda [--check]                                # rama, si vas por detrás, último commit e historial
+roost site git legacy --adopt                                  # adopta un proyecto que ya tenía su .git
+roost git install | status                                     # el git que usa Roost
+```
+
+- **Primero comprueba, luego clona.** `site clone` pregunta al remoto sin descargar nada (el proveedor, si es público, la rama por defecto y las ramas) y, en una terminal, pide confirmación (`--yes` para no preguntar, `--json` para scripts). Clona en una carpeta temporal junto a la definitiva y solo al acabar la renombra: si algo falla o lo cancelas, no queda nada a medias.
+- **Nunca pisa tu trabajo.** `site pull` solo avanza (fast-forward) y `site branch` solo cambia de rama si no hay cambios sin guardar. Si los hay, o si la rama ha divergido, Roost lo dice y no toca nada. Nada de `stash` ni `reset` por su cuenta.
+- **Un git propio.** La primera vez que hace falta, Roost descarga MinGit (el git de Git for Windows para aplicaciones), comprueba su SHA-256 y lo deja en `C:\roost\bin\git`. Lo usa con una configuración aislada en `C:\roost\state\git`: tu `.gitconfig` no se lee ni se toca. Para usar otro git, `[git] exe = 'C:\Program Files\Git\cmd\git.exe'` en `roost.toml`.
+- **El historial.** Cada clonado, actualización y cambio de rama queda en `C:\roost\state\git\<sitio>\history.json`, y la salida completa de git en `C:\roost\logs\git-<sitio>.log` (sin usuarios ni contraseñas, aunque git los imprimiera).
+- **De momento, repositorios públicos y carpetas locales.** El acceso a repositorios privados, con token HTTPS o clave SSH, llega en una versión próxima.
+
 ### `roost dns`: los `.test` sin tocar el hosts (solo Windows, por ahora)
 
 ```sh
@@ -310,7 +332,8 @@ roost update --json   # lo mismo para scripts (código 0 si se pudo comprobar, 1
 | El vhost de cada sitio (editable fuera de las marcas) | `C:\roost\etc\nginx\sites\<nombre>.conf`, o `C:\roost\etc\apache\sites\<nombre>.conf` con Apache |
 | CA local y certificados de los sitios | `C:\roost\certs\ca\`, `C:\roost\certs\sites\` |
 | Sitios registrados | `C:\roost\state\sites.json` |
-| Logs (daemon, nginx, cada php-cgi) | `C:\roost\logs\` |
+| El git de Roost, su configuración aislada y el historial de cada sitio | `C:\roost\bin\git\<versión>\`, `C:\roost\state\git\` |
+| Logs (daemon, nginx, cada php-cgi, git de cada sitio) | `C:\roost\logs\` |
 | Proyectos | `C:\roost\www\` |
 | Tu configuración | `%APPDATA%\Roost\roost.toml` |
 | Zips descargados (se reutilizan) | `%LOCALAPPDATA%\Roost\cache\downloads\` |
@@ -354,6 +377,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
 - La app de escritorio no tiene aún plantillas de proyecto (Laravel, WordPress…).
+- `roost site clone` solo clona repositorios públicos y carpetas locales, y de momento solo desde la CLI: el acceso a privados (token o clave SSH) y «Desde git…» en la app llegan después.
 
 ## Desarrollo
 

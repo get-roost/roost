@@ -25,6 +25,9 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 - **`roost php remove`:** ya no quita el PHP global ni uno que necesite un sitio.
 - **Textos:** donde decía «nginx» y también vale Apache, ahora dice «servidor web»; Inicio ya no dice «Todo en marcha» si hay algo caído.
 - **Registros:** con «Seguir», los ficheros nuevos y los contadores aparecen solos.
+- **Sitios desde git:** `roost site clone <url>` crea un sitio clonando un repositorio público de GitHub, GitLab, Bitbucket o de tu servidor (o una carpeta local). Se clona en una carpeta temporal y solo al acabar pasa a ser el sitio: si algo falla, no queda nada a medias.
+- **Actualizar y cambiar de rama sin sustos:** `roost site pull` solo avanza (fast-forward) y `roost site branch` solo cambia de rama si no hay cambios locales; si los hay, Roost lo dice y no toca nada. `roost site git` enseña la rama, si vas por detrás, el último commit y el historial; con `--adopt`, adopta un proyecto que ya tenía su `.git`.
+- **Un git propio y verificado:** Roost descarga MinGit (el git de Git for Windows para aplicaciones) la primera vez que hace falta, comprueba su SHA-256 y lo usa con una configuración aislada: tu `.gitconfig` no se lee ni se toca. `roost git install` y `roost git status`; `[git] exe` en `roost.toml` para usar otro git. De momento, repositorios públicos y locales, y desde la CLI; los privados y la app llegan en las próximas versiones.
 - **Linux y macOS:** los comandos del stack explican lo mismo: de momento, en esos sistemas Roost es `roost scan` y `roost audit`.
 
 ## 0.1.2 — 23-oct-2026
