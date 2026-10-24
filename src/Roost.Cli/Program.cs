@@ -174,6 +174,16 @@ app.Configure(config =>
             .WithDescription("Borra una base de datos y todas sus tablas (nunca las del sistema). Pregunta antes, salvo con --yes.")
             .WithExample("db", "drop", "tienda");
 
+        db.AddCommand<DbExportCommand>("export")
+            .WithDescription("Vuelca una base de datos a un .sql (o .sql.gz, comprimido) con el mariadb-dump/mysqldump de la instalacion: rutinas, triggers y eventos incluidos.")
+            .WithExample("db", "export", "tienda")
+            .WithExample("db", "export", "tienda", "--out", "tienda.sql.gz");
+
+        db.AddCommand<DbImportCommand>("import")
+            .WithDescription("Importa un .sql, .sql.gz o .zip en una base de datos, en streaming y con su progreso. --create la crea; si ya tiene tablas, pregunta.")
+            .WithExample("db", "import", "tienda", "tienda.sql.gz", "--create")
+            .WithExample("db", "import", "blog", "blog-mysql8.sql", "--compat");
+
         db.AddCommand<DbPasswordCommand>("password")
             .WithDescription("Pone o cambia la contrasena de root (vacia = sin contrasena) y la guarda para los comandos de Roost. --save-only si ya la cambiaste por fuera.")
             .WithExample("db", "password")
