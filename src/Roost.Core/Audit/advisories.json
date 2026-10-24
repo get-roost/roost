@@ -82,7 +82,7 @@
       "cvss": 9.2,
       "kev": true,
       "mitigations": [
-        { "ini": "memory_limit", "value": "128M (razonable)", "note": "y upload_max_filesize / post_max_size bajos" }
+        { "ini": "memory_limit", "value": "128M", "compare": "<=", "note": "razonable; y upload_max_filesize / post_max_size bajos" }
       ],
       "refs": ["https://www.php.net/releases/", "https://github.com/php/php-src/security/advisories/"]
     },

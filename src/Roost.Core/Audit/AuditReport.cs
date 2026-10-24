@@ -75,8 +75,26 @@ public static class AuditReport
                     kev = a.Kev,
                     title = a.Title,
                 }),
-                mitigations = f.Mitigations.Select(m => new { ini = m.Ini, value = m.Value, note = m.Note }),
+                // K4: lo de antes (ini, value, note) y, detrás, cómo se compara y qué dice el php.ini efectivo.
+                mitigations = f.Mitigations.Select(m =>
+                {
+                    var s = f.StateOf(m);
+                    return new
+                    {
+                        ini = m.Ini,
+                        value = m.Value,
+                        note = m.Note,
+                        compare = m.Compare ?? "=",
+                        status = s.StatusKey,
+                        effective = s.Effective,
+                        appliedByRoost = s.AppliedByRoost,
+                        canApply = s.CanApply,
+                        detail = s.Detail,
+                    };
+                }),
                 notes = f.Notes,
+                mitigated = f.Mitigated,
+                iniFiles = f.IniFiles,
             }),
         };
         return JsonSerializer.Serialize(payload, options);
@@ -118,7 +136,8 @@ public static class AuditReport
             {
                 md.AppendLine();
                 md.AppendLine($"{dataset.Remediation.MitigationHeader}");
-                foreach (var m in f.Mitigations) md.AppendLine($"- `{m}`");
+                foreach (var m in DistinctMitigations(f)) md.AppendLine($"- `{m.Setting}`{(m.Note is { Length: > 0 } n ? $" ({n})" : "")}{StateText(f.StateOf(m))}");
+                if (f.IniFiles.Count > 0) md.AppendLine($"- PHP lee, en este orden: {string.Join(" → ", f.IniFiles.Select(x => $"`{x}`"))}");
                 md.AppendLine();
                 md.AppendLine($"Arreglo real: {dataset.Remediation.RealFix}");
             }
@@ -128,4 +147,20 @@ public static class AuditReport
     }
 
     private static string Cell(string text) => text.Replace("|", "\\|").Replace("\r", "").Replace("\n", " ");
+
+    /// <summary>Las mitigaciones de un hallazgo sin repetir (dos avisos pueden pedir la misma).</summary>
+    public static IReadOnlyList<Mitigation> DistinctMitigations(AuditFinding finding)
+    {
+        var list = new List<Mitigation>();
+        foreach (var m in finding.Mitigations)
+            if (!list.Any(x => x.SameAs(m))) list.Add(m);
+        return list;
+    }
+
+    /// <summary>« · **mitigada** (vale Off)», « · **sin mitigar** (vale On)»; nada si no se ha comprobado.</summary>
+    private static string StateText(MitigationState s) => s.Status switch
+    {
+        MitigationStatus.Unchecked => "",
+        _ => $" · **{s.StatusLabel}**{(s.Effective is null ? "" : $" (vale `{(s.Effective.Length == 0 ? "vacio" : s.Effective)}`)")}{(s.Detail is { } d ? $": {d}" : "")}",
+    };
 }

@@ -2,8 +2,8 @@
 
 El feed firmado de avisos (`roost-catalog`) se genera cada día con
 `.github/workflows/catalog.yml` y se publica en la rama `catalog` de este repo. Casi todo es
-automático (endoflife.date, php.net, los avisos de GitHub de `php/php-src` y el catálogo KEV de
-CISA); esta carpeta es el resto:
+automático (endoflife.date, php.net, los avisos de GitHub de `php/php-src`, los boletines de
+nginx.org y de httpd.apache.org y el catálogo KEV de CISA); esta carpeta es el resto:
 
 - `catalog.json`: los productos que lleva el feed y los textos de remediación.
 - `advisories/<id>.json`: un fichero por aviso que necesita una persona.
@@ -30,6 +30,13 @@ nuevo y necesita `product` y `affected`.
 
 - **Rangos:** restricciones separadas por espacios que se cumplen todas (`>=8.3.0 <8.3.36`); el
   aviso aplica si casa alguno. Versiones siempre X.Y.Z. Un rango que no se lee para el feed.
+- **Mitigaciones:** `ini` es la directiva y `value`, el valor que mitiga, tal como se escribe en un
+  `php.ini`. `compare` dice cómo se compara con lo que aplica PHP (`php -i`): `"="` (por defecto;
+  On/1/true son lo mismo, y los tamaños se comparan en bytes), `"<="` o `">="` (un tamaño o un
+  número como mucho o como poco, como `memory_limit <= 128M`) o `"includes"` (una lista como
+  `disable_functions` que tiene que llevarlos todos). Roost lo enseña como «mitigada / sin mitigar»
+  y, en sus PHP, la puede aplicar en `conf.d/<rama>/50-roost-mitigaciones.ini`: un valor con comillas,
+  `;`, `$` o llaves no se publica.
 - **`kev`** no se escribe: sale del catálogo de CISA.
 - **`"ignore": true`** quita del feed un aviso automático que está mal (explica por qué en `note`).
 

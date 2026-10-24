@@ -147,6 +147,10 @@ public static class CatalogBuilder
             }
             foreach (var bad in (manual.Affected ?? []).Where(r => !RangeIsValid(r)))
                 errors.Add($"{manual.File}: el rango '{bad}' no se puede leer");
+            // K4: Roost compara las mitigaciones con el php.ini efectivo y puede escribirlas en uno:
+            // una que no se entiende, o que dejaría un php.ini roto, no se publica.
+            foreach (var bad in (manual.Mitigations ?? []).Where(m => !Roost.Core.Stack.PhpMitigations.IsWritable(m)))
+                errors.Add($"{manual.File}: la mitigacion '{bad.Setting}' no vale (directiva, valor sin comillas ni ';', y compare: {string.Join(", ", Mitigation.CompareModes)})");
 
             // Solo por su id (que puede ser el CVE o el GHSA del aviso), nunca por sus alias: un
             // nombre público como «PHP2Shell» lo comparten varios avisos.

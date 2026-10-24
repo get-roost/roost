@@ -160,9 +160,38 @@ public sealed class Advisory
 public sealed class Mitigation
 {
     public string Ini { get; init; } = "";
+
+    /// <summary>El valor que mitiga, tal como se escribe en un php.ini (<c>0</c>, <c>128M</c>, <c>exec,system</c>).</summary>
     public string Value { get; init; } = "";
+
     public string? Note { get; init; }
 
+    /// <summary>
+    /// Cómo se compara con el valor efectivo (K4): <c>"="</c> (por defecto; los sí/no, sin distinguir
+    /// On/1/true, y los tamaños, en bytes), <c>"&lt;="</c> o <c>"&gt;="</c> (un tamaño o un número como
+    /// mucho o como poco: <c>memory_limit &lt;= 128M</c>) o <c>"includes"</c> (una lista separada por
+    /// comas, como <c>disable_functions</c>, que los lleva todos). Un cliente viejo lo ignora y enseña
+    /// <see cref="Value"/>.
+    /// </summary>
+    public string? Compare { get; init; }
+
+    /// <summary>Los modos de <see cref="Compare"/> que se entienden (null es <c>"="</c>).</summary>
+    public static readonly IReadOnlyList<string> CompareModes = ["=", "<=", ">=", "includes"];
+
+    /// <summary>La misma mitigación (mismo ajuste, valor y comparación), aunque venga de dos avisos.</summary>
+    public bool SameAs(Mitigation other) =>
+        string.Equals(Ini, other.Ini, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(Value.Trim(), other.Value.Trim(), StringComparison.OrdinalIgnoreCase)
+        && string.Equals(Compare ?? "=", other.Compare ?? "=", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>«memory_limit &lt;= 128M», «disable_functions incluye exec», «session.upload_progress.enabled = 0».</summary>
+    public string Setting => (Compare ?? "=").ToLowerInvariant() switch
+    {
+        "<=" or ">=" => $"{Ini} {Compare} {Value}",
+        "includes" => $"{Ini} incluye {Value}",
+        _ => $"{Ini} = {Value}",
+    };
+
     public override string ToString()
-        => string.IsNullOrEmpty(Note) ? $"{Ini} = {Value}" : $"{Ini} = {Value}  ({Note})";
+        => string.IsNullOrEmpty(Note) ? Setting : $"{Setting}  ({Note})";
 }

@@ -244,6 +244,28 @@ public class CatalogBuilderTests
     }
 
     [Fact]
+    public void AMano_UnaMitigacionQueNoSePuedeComparar_NoSePublica_YLaBuenaLlevaSuComparacion()
+    {
+        var page = GhsaPage(Ghsa("GHSA-6wmf-4rv5-p3rp", "CVE-2026-109619", "RCE via stale global state", "critical", null, Php2ShellBranches));
+
+        var bad = CatalogBuilder.Build(Inputs(page, [new ManualAdvisory
+        {
+            Id = "CVE-2026-109619", File = "malo.json",
+            Mitigations = [new Mitigation { Ini = "memory_limit", Value = "128M (razonable)" }, new Mitigation { Ini = "expose_php", Value = "Off", Compare = "~" }],
+        }]));
+        Assert.Equal(2, bad.Errors.Count(e => e.StartsWith("malo.json: la mitigacion", StringComparison.Ordinal)));
+
+        var good = CatalogBuilder.Build(Inputs(page, [new ManualAdvisory
+        {
+            Id = "CVE-2026-109619", File = "bueno.json",
+            Mitigations = [new Mitigation { Ini = "memory_limit", Value = "128M", Compare = "<=", Note = "razonable" }],
+        }]));
+        Assert.Empty(good.Errors);
+        var dataset = AuditDataset.Load(new MemoryStream(CatalogBuilder.Serialize(good.Dataset)));
+        Assert.Equal("<=", dataset.Advisories.Single().Mitigations.Single().Compare);
+    }
+
+    [Fact]
     public void UnAvisoQueDejariaEnRojoLaUltima_SeRetiene_HastaQueLoConfirmaUnFichero()
     {
         // Sin parche aún (o mal leído): afecta a la 8.4.27, que es la última de la 8.4.
