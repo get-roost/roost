@@ -40,6 +40,8 @@
     <!-- BD-1 -->
     <DataTemplate DataType="vm:DbPasswordDialogViewModel"><v:DbPasswordDialogView /></DataTemplate>
     <DataTemplate DataType="vm:DbUserDialogViewModel"><v:DbUserDialogView /></DataTemplate>
+    <!-- Composer y Sitios-2 -->
+    <DataTemplate DataType="vm:CommandOutputDialogViewModel"><v:CommandOutputDialogView /></DataTemplate>
 
     <DataTemplate DataType="vm:NavItem">
       <Button Classes="nav" Classes.on="{Binding IsActive}" Command="{Binding Navigate}" CommandParameter="{Binding Page}"
