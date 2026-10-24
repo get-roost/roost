@@ -3,6 +3,7 @@ using Roost.Core.Composer;
 using Roost.Core.Config;
 using Roost.Core.Install;
 using Roost.Core.Models;
+using Roost.Core.Node;
 using Roost.Core.Platform;
 using Roost.Core.Shims;
 using Roost.Core.Sites;
@@ -40,7 +41,10 @@ public enum DeployStepKind
     /// <summary>El mu-plugin para que WordPress se fíe de los certificados <c>.test</c>.</summary>
     WpLoopback,
 
-    /// <summary><c>npm install</c> y <c>npm run build</c>: llega con Node en Roost, de momento nunca se ejecuta.</summary>
+    /// <summary>
+    /// <c>npm ci</c> (o <c>npm install</c>, o el pnpm o el yarn del lockfile, con corepack) y, si hay
+    /// script <c>build</c>, <c>npm run build</c>, con el Node de Roost que toca en la carpeta.
+    /// </summary>
     Npm,
 }
 
@@ -129,6 +133,15 @@ public sealed record DeployTarget
     /// <summary>El proyecto lo acaba de crear una plantilla: su <c>.env</c> es de Roost (<see cref="EnvMode.Fresh"/>).</summary>
     public bool Fresh { get; init; }
 
+    /// <summary>El Node de Roost con el que se hace el paso npm (el de la carpeta: <see cref="TerminalNode"/>); null si no hay.</summary>
+    public NodeChoice? Node { get; init; }
+
+    /// <summary>Sin <see cref="Node"/>: por qué (sin tildes; no hay ningún Node de Roost, el .nvmrc pide uno que no está).</summary>
+    public string? NodeProblem { get; init; }
+
+    /// <summary>Sin <see cref="Node"/>: el Node que habría que instalar («24», o el que pide el .nvmrc), si se sabe.</summary>
+    public string? NodeMissing { get; init; }
+
     public string Host => $"{SiteName}.test";
 
     /// <summary>
@@ -142,6 +155,7 @@ public sealed record DeployTarget
     {
         var config = LoadConfig(paths);
         var php = ComposerTool.PhpFor(paths, site.Folder);
+        var node = TerminalNode.TryResolve(paths, site.Folder, out var nodeProblem);
         return new DeployTarget
         {
             SiteName = site.Name,
@@ -152,6 +166,9 @@ public sealed record DeployTarget
             Database = DatabaseFor(paths, config, SiteManager.DatabaseOf(site), dbRunning, dbPort),
             MailSmtpPort = config.MailEnabled ? config.MailSmtpPort : null,
             RedisPort = config.RedisEnabled ? config.RedisPort : null,
+            Node = node,
+            NodeProblem = nodeProblem,
+            NodeMissing = node is null ? TerminalNode.MissingSpec(paths, site.Folder) : null,
         };
     }
 
@@ -206,7 +223,7 @@ public sealed record DeployStep
     /// <summary>Si va marcado de entrada.</summary>
     public bool Checked { get; init; }
 
-    /// <summary>false si ahora no se puede (la base de datos parada, Node que aún no está): sale, pero no se marca.</summary>
+    /// <summary>false si ahora no se puede (la base de datos parada, sin Node de Roost): sale, pero no se marca.</summary>
     public bool Available { get; init; } = true;
 
     /// <summary>No se puede desmarcar (crear el proyecto, en una plantilla).</summary>
@@ -238,6 +255,13 @@ public sealed record DeployStep
 
     /// <summary>El .env usa Redis con predis y el proyecto no lo tiene (<c>composer require predis/predis</c>).</summary>
     public bool PredisMissing { get; init; }
+
+    /// <summary>Con <see cref="DeployStepKind.Npm"/>: el gestor (el del lockfile), si ya hay node_modules/ y si hay script build.</summary>
+    public NodeManager NodeManager { get; init; }
+
+    public bool HasNodeModules { get; init; }
+
+    public bool HasBuildScript { get; init; }
 }
 
 /// <summary>
@@ -251,7 +275,7 @@ public static partial class DeployPlan
 {
     /// <summary>El texto del aviso: Composer, artisan y bin/console ejecutan código del propio proyecto.</summary>
     public const string ScriptsWarning =
-        "composer install, php artisan y bin/console ejecutan scripts del propio proyecto: hazlo solo con repositorios de confianza.";
+        "composer install, npm, php artisan y bin/console ejecutan scripts del propio proyecto: hazlo solo con repositorios de confianza.";
 
     /// <summary>Los pasos, en el orden en que se hacen.</summary>
     public static IReadOnlyList<DeployStep> For(ProjectKind kind, DeployTarget target)
@@ -306,18 +330,48 @@ public static partial class DeployPlan
                 break;
         }
 
-        if (kind.HasPackageJson)
-        {
-            steps.Add(new DeployStep
-            {
-                Id = "npm",
-                Kind = DeployStepKind.Npm,
-                Label = "npm install y npm run build",
-                Hint = "Llega con Node en Roost.",
-                Available = false,
-            });
-        }
+        if (kind.HasPackageJson) steps.Add(NpmStep(target));
         return steps;
+    }
+
+    /// <summary>
+    /// El paso npm: instalar las dependencias como fija el lockfile (<c>npm ci</c>, o <c>npm install</c>
+    /// si no hay <c>package-lock.json</c>; pnpm o yarn con corepack si es su lockfile) y, si hay script
+    /// <c>build</c>, <c>npm run build</c>. Con el Node de Roost de la carpeta; sin él (o con bun), sale
+    /// apagado y dice qué falta. En una plantilla el proyecto aún no existe: npm, y build como trae Laravel.
+    /// </summary>
+    private static DeployStep NpmStep(DeployTarget target)
+    {
+        var project = NodeProject.Read(target.Folder);
+        var exists = project.HasPackageJson;
+        var manager = exists ? project.Manager : NodeManager.Npm;
+        var name = NodeTool.Name(manager);
+        var install = exists ? NodeTool.Display(manager, NodeTool.InstallArguments(project, clean: true)) : "npm install";
+        var build = !exists || project.HasScript("build");
+        var label = build ? $"{install} y {name} run build" : install;
+        var node = target.Node;
+        var why = node is null ? null : NodeTool.WhyNot(manager, node.Node);
+        var with = node is null ? "" : manager is NodeManager.Pnpm or NodeManager.Yarn ? $"Con {node.Node.Label} y el {name} de corepack" : $"Con {node.Node.Label}";
+        return new DeployStep
+        {
+            Id = "npm",
+            Kind = DeployStepKind.Npm,
+            Label = label,
+            Command = label,
+            Hint = node is null
+                ? (target.NodeProblem ?? "No hay ningun Node de Roost.") + (target.NodeMissing is { } missing && target.NodeProblem?.Contains("roost node install", StringComparison.Ordinal) != true ? $" Instalalo: roost node install {missing}" : "")
+                : why ?? (project.HasNodeModules ? $"{with}. node_modules/ ya esta: marcalo solo si quieres repetirlo."
+                    : !exists ? $"{with}: las dependencias del package.json de la plantilla y los assets de Vite."
+                    : project.LockFile is null ? $"{with}. No hay lockfile: npm install resuelve las versiones y crea package-lock.json."
+                    : $"{with}: lo que fija {project.LockFile}."),
+            Checked = node is not null && why is null && !project.HasNodeModules,
+            Available = node is not null && why is null,
+            RunsProjectCode = true,
+            NodeManager = manager,
+            HasNodeModules = project.HasNodeModules,
+            HasBuildScript = build,
+            HasLock = project.LockFile is not null,
+        };
     }
 
     private static void AddLaravel(List<DeployStep> steps, ProjectKind kind, DeployTarget target)

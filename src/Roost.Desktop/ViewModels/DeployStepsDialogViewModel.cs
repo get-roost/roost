@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Roost.Core;
 using Roost.Core.Deploy;
+using Roost.Core.Node;
 using Roost.Core.Sites;
 using Roost.Desktop.Controls;
 
@@ -66,7 +67,7 @@ public sealed partial class DeployStepRow : ObservableObject
 
     public bool Available => Step.Available;
 
-    /// <summary>Lo que ahora no se puede (npm, que llega con Node; migrar con la base de datos parada), atenuado.</summary>
+    /// <summary>Lo que ahora no se puede (npm sin un Node de Roost; migrar con la base de datos parada), atenuado.</summary>
     public double RowOpacity => Step.Available ? 1 : 0.55;
 
     [ObservableProperty] public partial bool IsChecked { get; set; }
@@ -445,7 +446,6 @@ internal static class DeployTexts
     public static string Label(DeployStep step) => step.Kind switch
     {
         DeployStepKind.WpLoopback => "Que WordPress se fíe de los certificados .test",
-        DeployStepKind.Npm => "npm install y npm run build",
         _ => step.Label,
     };
 
@@ -493,7 +493,7 @@ internal static class DeployTexts
                 ? "No hay base de datos en Roost: el instalador de WordPress te la pedirá."
                 : $"{db.Name} en {WpConfig.Host(db.Port)}, {root}; las 8 claves y salts, nuevas.",
             DeployStepKind.WpLoopback => "Un mu-plugin: las peticiones de WordPress a su propio https://….test (Salud del sitio, WP-Cron) usan el bundle de CA de Roost.",
-            DeployStepKind.Npm => "Llega con Node en Roost.",
+            DeployStepKind.Npm => NodeTexts.DeployHint(step, target),
             _ => step.Hint,
         };
     }
@@ -518,6 +518,7 @@ internal static class DeployTexts
             return "Composer baja los paquetes de Packagist y ejecuta los scripts de la plantilla (los de su composer.json), como al hacerlo a mano.";
         var who = new List<string>();
         if (steps.Any(s => s.Kind == DeployStepKind.ComposerInstall)) who.Add("composer install");
+        if (steps.Any(s => s.Kind == DeployStepKind.Npm && s.Available)) who.Add(NodeTool.Name(steps.First(s => s.Kind == DeployStepKind.Npm).NodeManager));
         if (steps.Any(s => s.Command?.StartsWith("php artisan", StringComparison.Ordinal) == true)) who.Add("php artisan");
         if (steps.Any(s => s.Command?.StartsWith("php bin/console", StringComparison.Ordinal) == true)) who.Add("bin/console");
         var subject = who.Count switch

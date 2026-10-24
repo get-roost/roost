@@ -225,6 +225,65 @@
                 </StackPanel>
               </Border>
 
+              <!-- Node: solo si la carpeta tiene package.json -->
+              <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10" IsVisible="{Binding HasNode}">
+                <StackPanel Spacing="8">
+                  <DockPanel>
+                    <ctl:Chip DockPanel.Dock="Right" Text="{Binding NodeChip}" Tone="{Binding NodeChipTone}" IsVisible="{Binding HasNodeChip}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <ctl:Icon Data="{StaticResource IcNode}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                      <TextBlock Classes="lbl" Text="Node" VerticalAlignment="Center" />
+                      <ctl:Chip Text="Vite" Tone="Accent" IsVisible="{Binding NodeUsesVite}" />
+                    </StackPanel>
+                  </DockPanel>
+                  <TextBlock Classes="small" Text="{Binding NodeText}" TextWrapping="Wrap" IsVisible="{Binding NodeReady}" />
+                  <TextBlock Classes="faint" Text="{Binding NodeManagerText}" TextWrapping="Wrap" />
+                  <ctl:Note Tone="Warn" IsVisible="{Binding HasNodeProblem}">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="{Binding NodeProblemText}" TextWrapping="Wrap" />
+                      <Button Classes="sm primary" Content="{Binding NodeInstallNodeLabel}" Command="{Binding NodeInstallNodeCommand}" IsVisible="{Binding CanInstallNode}"
+                              IsEnabled="{Binding NodeIdle}" HorizontalAlignment="Left" ToolTip.Tip="El zip de nodejs.org, con su SHA-256 comprobado antes de instalar nada" />
+                    </StackPanel>
+                  </ctl:Note>
+                  <ctl:Note Tone="{Binding NodeDev.ResultTone, FallbackValue=Accent}" IsVisible="{Binding HasNodeDev}">
+                    <StackPanel Spacing="6">
+                      <TextBlock Text="{Binding NodeDev.StatusText, FallbackValue=''}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                      <TextBlock Classes="small" Text="{Binding NodeDev.UrlWarning, FallbackValue=''}" TextWrapping="Wrap" Foreground="{DynamicResource WarnBrush}"
+                                 IsVisible="{Binding NodeDev.HasUrlWarning, FallbackValue=False}" />
+                      <WrapPanel ItemSpacing="6" LineSpacing="6">
+                        <Button Classes="sm" Content="Ver salida" Command="{Binding NodeShowDevCommand}" />
+                        <Button Classes="sm" Content="Abrir" Command="{Binding NodeOpenDevCommand}" IsVisible="{Binding NodeDev.CanOpen, FallbackValue=False}"
+                                ToolTip.Tip="{Binding NodeDev.Url, FallbackValue=''}" />
+                        <Button Classes="sm danger" Content="Parar" Command="{Binding NodeStopDevCommand}" IsVisible="{Binding NodeDev.Running, FallbackValue=False}"
+                                ToolTip.Tip="Termina el proceso y todo lo que haya lanzado" />
+                      </WrapPanel>
+                    </StackPanel>
+                  </ctl:Note>
+                  <StackPanel Spacing="6" IsVisible="{Binding NodeReady}" IsEnabled="{Binding NodeIdle}">
+                    <Button Classes="sm" Classes.primary="{Binding NodeNeedsInstall}" Content="{Binding NodeInstallLabel}" Command="{Binding NodeInstallDepsCommand}"
+                            IsVisible="{Binding NodeCanInstallDeps}" HorizontalAlignment="Left" ToolTip.Tip="Instala las dependencias del package.json (crea node_modules/)" />
+                    <ItemsControl ItemsSource="{Binding NodeScripts}" IsVisible="{Binding HasNodeScripts}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:NodeScriptButton">
+                          <Button Classes="sm" Content="{Binding Label}" ToolTip.Tip="{Binding Tip}"
+                                  Command="{Binding $parent[ItemsControl].((vm:SitesViewModel)DataContext).NodeRunScriptCommand}" CommandParameter="{Binding}" />
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                  <StackPanel Spacing="6" IsVisible="{Binding NodeUsesVite}">
+                    <TextBlock Classes="faint" Text="{Binding NodeViteHint}" TextWrapping="Wrap" />
+                    <Button Classes="sm" Content="Copiar server de Vite" Command="{Binding NodeCopyViteCommand}" HorizontalAlignment="Left"
+                            ToolTip.Tip="host, https (el certificado y la clave del sitio), hmr y cors, para vite.config.js" />
+                  </StackPanel>
+                  <TextBlock Classes="faint" TextWrapping="Wrap"
+                             Text="npm ejecuta los scripts del package.json y los de instalación de sus dependencias: úsalo con proyectos en los que confíes." />
+                </StackPanel>
+              </Border>
+
               <!-- La base de datos del sitio -->
               <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10">
                 <StackPanel Spacing="8">

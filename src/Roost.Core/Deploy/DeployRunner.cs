@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Roost.Core.Composer;
 using Roost.Core.Install;
+using Roost.Core.Node;
 using Roost.Core.Platform;
 using Roost.Core.Scanning;
 using Roost.Core.Shims;
@@ -80,7 +81,8 @@ public sealed record DeployRun(IReadOnlyList<(DeployStep Step, DeployOutcome Out
 /// (<see cref="TerminalPhp.Environment"/>), y lo de Roost (el .env, el wp-config.php, la base de
 /// datos) en C#. Las órdenes van sobre <see cref="ICommandRunner"/>: salida en vivo, cancelables
 /// (matan el árbol de procesos) y sin preguntas. Cada paso deja su salida en
-/// <c>logs/pasos-&lt;sitio&gt;.log</c>. Nunca ejecuta <c>npm</c>: llega con Node en Roost.
+/// <c>logs/pasos-&lt;sitio&gt;.log</c>. npm va con el Node de Roost de la carpeta (<see cref="NodeTool"/>),
+/// nunca con un <c>npm</c> o un <c>node</c> del sistema.
 /// </summary>
 public sealed class DeployRunner(RoostPaths paths, ICommandRunner commands, IProcessRunner? processes = null)
 {
@@ -208,8 +210,7 @@ public sealed class DeployRunner(RoostPaths paths, ICommandRunner commands, IPro
         DeployStepKind.StorageLink => StorageLinkAsync(target, lines, cancellation),
         DeployStepKind.WpConfig => Task.FromResult(WriteWpConfig(target, lines)),
         DeployStepKind.WpLoopback => Task.FromResult(WriteLoopbackPlugin(target, lines)),
-        // Node aún no está en Roost: el paso sale en el plan, pero nunca ejecuta un npm del sistema.
-        DeployStepKind.Npm => Task.FromResult(DeployOutcome.Skipped("Llega con Node en Roost: no se ha ejecutado nada.")),
+        DeployStepKind.Npm => NpmAsync(target, lines, cancellation),
         _ => throw new ArgumentOutOfRangeException(nameof(step)),
     };
 
@@ -440,6 +441,34 @@ public sealed class DeployRunner(RoostPaths paths, ICommandRunner commands, IPro
         var link = Path.Combine(target.Folder, "public", "storage");
         if (Directory.Exists(link) || File.Exists(link)) return DeployOutcome.Skipped("public/storage ya esta.");
         return await PhpAsync(target, ["artisan", "storage:link", "--no-interaction"], lines, cancellation);
+    }
+
+    // --- npm ---
+
+    /// <summary>
+    /// Las dependencias como fija el lockfile y, si hay script <c>build</c>, el build, con el Node de Roost
+    /// de la carpeta. Se lee el package.json ahora (en una plantilla, lo acaba de crear create-project).
+    /// </summary>
+    private async Task<DeployOutcome> NpmAsync(DeployTarget target, Sink lines, CancellationToken cancellation)
+    {
+        var choice = target.Node
+            ?? throw new RoostException(target.NodeProblem ?? $"No hay ningun Node de Roost: instala uno (roost node install {NodeCatalog.Default.Major}).");
+        var project = NodeProject.Read(target.Folder);
+        if (!project.HasPackageJson) return DeployOutcome.Skipped("No hay package.json: no hay nada que instalar.");
+        if (project.Unreadable) throw new RoostException("El package.json del proyecto no es JSON valido: arreglalo y repite el paso.");
+        if (NodeTool.WhyNot(project.Manager, choice.Node) is { } why) throw new RoostException(why);
+
+        lines.Report($"Con {choice.Node.Label}: {choice.Reason}.");
+        var install = NodeTool.InstallArguments(project, clean: true);
+        var display = NodeTool.Display(project.Manager, install);
+        lines.Report($"> {display}");
+        var outcome = Outcome(await commands.RunAsync(NodeTool.Command(paths, choice.Node, project.Manager, install, target.Folder), lines, cancellation), display);
+        if (!outcome.Ok || !project.HasScript("build")) return outcome;
+
+        var build = NodeTool.RunArguments("build");
+        display = NodeTool.Display(project.Manager, build);
+        lines.Report($"> {display}");
+        return Outcome(await commands.RunAsync(NodeTool.Command(paths, choice.Node, project.Manager, build, target.Folder), lines, cancellation), display);
     }
 
     private static DeployOutcome Outcome(CommandResult result, string what) =>

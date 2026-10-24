@@ -324,7 +324,7 @@ public class DeployRunnerTests
     }
 
     [Fact]
-    public async Task Npm_NuncaEjecutaNada()
+    public async Task Npm_SinNodeDeRoost_NuncaEjecutaNada()
     {
         using var root = new DeployRoot();
         var folder = root.Project("tienda", "artisan", "package.json");
@@ -333,12 +333,63 @@ public class DeployRunnerTests
         var npm = DeployPlan.For(ProjectKind.Detect(folder), target).Single(s => s.Id == "npm");
 
         var outcome = await new DeployRunner(root.Paths, commands).RunStepAsync(target, npm, null, CancellationToken.None);
-        Assert.Equal(DeployOutcomeKind.Skipped, outcome.Kind);
-        Assert.Empty(commands.Calls);
+        Assert.Equal(DeployOutcomeKind.Failed, outcome.Kind);
+        Assert.Contains("roost node install 24", outcome.Note);
+        Assert.Empty(commands.Calls);   // ni un npm del sistema
 
         // Y RunAsync ni lo intenta: no está disponible.
         var run = await new DeployRunner(root.Paths, commands).RunAsync(target, [npm with { Checked = true }], null, CancellationToken.None);
         Assert.Empty(run.Results);
+    }
+
+    [Fact]
+    public async Task Npm_ConElNodeDeRoost_CiYBuild_YSiCiFallaNoHaceElBuild()
+    {
+        using var root = new DeployRoot();
+        var node = root.Node();
+        var folder = root.Project("tienda", new Dictionary<string, string>
+        {
+            ["artisan"] = "",
+            ["package.json"] = """{ "scripts": { "build": "vite build", "dev": "vite" } }""",
+            ["package-lock.json"] = "{}",
+        });
+        var target = root.Target(root.Site("tienda", folder));
+        var npm = DeployPlan.For(ProjectKind.Detect(folder), target).Single(s => s.Id == "npm");
+        var commands = new FakeCommandRunner()
+            .On(node.NpmCli + " ci", stdout: "added 112 packages in 9s\n")
+            .On(node.NpmCli + " run build", stdout: "vite v7.1.3 building for production...\n✓ built in 1.20s\n");
+        var lines = new SyncLines();
+
+        var outcome = await new DeployRunner(root.Paths, commands).RunStepAsync(target, npm, lines, CancellationToken.None);
+
+        Assert.Equal(DeployOutcomeKind.Done, outcome.Kind);
+        Assert.Equal([$"{node.NpmCli} ci", $"{node.NpmCli} run build"], commands.Commands);
+        Assert.All(commands.Calls, c =>
+        {
+            Assert.Equal(node.Executable, c.Exe);   // el node de Roost, nunca uno del sistema
+            Assert.Equal(folder, c.WorkingDirectory);
+            Assert.StartsWith(node.Directory + Path.PathSeparator, c.Environment!["PATH"]);
+            Assert.Equal("1", c.Environment["NO_COLOR"]);
+        });
+        Assert.Contains("> npm ci", lines.Lines);
+        Assert.Contains("> npm run build", lines.Lines);
+        Assert.StartsWith("Con Node 24.22.1: el Node global", lines.Lines[0]);
+        Assert.Contains("npm ci", File.ReadAllText(DeployLog.FilePath(root.Paths, "tienda")));
+
+        var failing = new FakeCommandRunner().On(node.NpmCli + " ci", exitCode: 1, stderr: "npm ERR! The `npm ci` command can only install with an existing package-lock.json\n");
+        outcome = await new DeployRunner(root.Paths, failing).RunStepAsync(target, npm, null, CancellationToken.None);
+        Assert.Equal(DeployOutcomeKind.Failed, outcome.Kind);
+        Assert.Equal("npm ci termino con el codigo 1.", outcome.Note);
+        Assert.Single(failing.Calls);
+        Assert.Contains("npm ERR!", outcome.Tail[^1]);
+
+        // Sin lockfile ni script build: npm install, y ya.
+        File.Delete(Path.Combine(folder, "package-lock.json"));
+        File.WriteAllText(Path.Combine(folder, "package.json"), """{ "dependencies": { "alpinejs": "^3" } }""");
+        var install = new FakeCommandRunner().On(node.NpmCli + " install");
+        outcome = await new DeployRunner(root.Paths, install).RunStepAsync(target, npm, null, CancellationToken.None);
+        Assert.Equal(DeployOutcomeKind.Done, outcome.Kind);
+        Assert.Equal([$"{node.NpmCli} install"], install.Commands);
     }
 
     // --- Plantillas ---

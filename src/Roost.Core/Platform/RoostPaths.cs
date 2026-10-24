@@ -64,6 +64,9 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     /// <summary>El Composer de Roost, una subcarpeta por versión: <c>bin/composer/2.10.3/composer.phar</c>.</summary>
     public string ComposerBin => Path.Combine(Root, "bin", "composer");
 
+    /// <summary>El Node de Roost, una subcarpeta por versión: <c>bin/node/24.22.1</c> (el zip de nodejs.org tal cual).</summary>
+    public string NodeBin => Path.Combine(Root, "bin", "node");
+
     /// <summary>
     /// Lo que git necesita aparte de los repositorios: el <c>gitconfig</c> aislado de Roost, el
     /// historial de cada sitio (<c>state/git/&lt;sitio&gt;/history.json</c>) y, más adelante, las
