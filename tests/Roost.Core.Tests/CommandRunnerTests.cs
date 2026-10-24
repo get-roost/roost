@@ -136,6 +136,122 @@ public class CommandRunnerTests
         await Assert.ThrowsAsync<RoostException>(() => CommandRunner.Default.RunAsync(spec, null, CancellationToken.None));
     }
 
+    // BD-2: stdin y stdout en streaming (los volcados de varios GB)
+
+    /// <summary>Una fuente que da <paramref name="bytes"/> y después falla, como un .gz roto a mitad.</summary>
+    private sealed class FailingSource(int bytes) : Stream
+    {
+        private int _given;
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            if (_given >= bytes) throw new InvalidDataException("gz roto");
+            var n = Math.Min(count, bytes - _given);
+            for (var i = 0; i < n; i++) buffer[offset + i] = (byte)(i % 50 == 49 ? '\n' : 'x');
+            _given += n;
+            return n;
+        }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => _given; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    /// <summary>Un destino que se llena: falla al escribir, como un disco sin sitio.</summary>
+    private sealed class FullDisk : MemoryStream
+    {
+        public override void Write(byte[] buffer, int offset, int count) => throw new IOException("No queda espacio en el disco.");
+        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) => throw new IOException("No queda espacio en el disco.");
+        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default) => throw new IOException("No queda espacio en el disco.");
+    }
+
+    [Fact]
+    public async Task Run_StdinStream_LeLlegaEntero_PorBloques()
+    {
+        // 20 000 líneas (unos 200 KB, más que el buffer de una tubería): la orden las cuenta.
+        var text = string.Concat(Enumerable.Range(0, 20_000).Select(i => $"linea {i}\n"));
+        using var source = new MemoryStream(System.Text.Encoding.ASCII.GetBytes(text));
+        var spec = Shell("sort") with { StdinStream = source };
+
+        var result = await CommandRunner.Default.RunAsync(spec, null, CancellationToken.None);
+
+        Assert.True(result.Succeeded, result.Stderr);
+        Assert.Equal(20_000, result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+        Assert.Equal(source.Length, source.Position);
+    }
+
+    [Fact]
+    public async Task Run_StdinStream_SiLaFuenteFalla_MataLaOrdenYLanzaEseError()
+    {
+        var watch = Stopwatch.StartNew();
+        // La orden espera más entrada para siempre: si no se la matara, esto no acabaría.
+        var spec = Shell("sort") with { StdinStream = new FailingSource(300_000) };
+
+        var ex = await Assert.ThrowsAsync<InvalidDataException>(() => CommandRunner.Default.RunAsync(spec, null, CancellationToken.None));
+
+        Assert.Equal("gz roto", ex.Message);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(12), $"tardo {watch.Elapsed}");
+    }
+
+    [Fact]
+    public async Task Run_StdinStream_SiLaOrdenAcabaAntes_NoEsUnErrorNuestro()
+    {
+        // `exit 2` no lee nada: escribir en su stdin da IOException, y lo que cuenta es su código.
+        using var source = new MemoryStream(new byte[2_000_000]);
+        var spec = Shell("exit 2") with { StdinStream = source };
+
+        var result = await CommandRunner.Default.RunAsync(spec, null, CancellationToken.None);
+
+        Assert.Equal(2, result.ExitCode);
+    }
+
+    [Fact]
+    public async Task Run_StdinStream_Cancelado_LanzaYNoDejaElProcesoColgado()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        var watch = Stopwatch.StartNew();
+        var spec = Shell(Sleep(20)) with { StdinStream = new MemoryStream(new byte[100]) };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CommandRunner.Default.RunAsync(spec, null, cts.Token));
+
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(12), $"tardo {watch.Elapsed}");
+    }
+
+    [Fact]
+    public async Task Run_StdoutStream_RecibeLosBytesTalCual_YNoVanAlResultado()
+    {
+        using var sink = new MemoryStream();
+        var lines = new Lines();
+        var spec = Shell("echo hola& echo aviso 1>&2") with { StdoutStream = sink };
+        if (!OperatingSystem.IsWindows()) spec = Shell("echo hola; echo aviso 1>&2") with { StdoutStream = sink };
+
+        var result = await CommandRunner.Default.RunAsync(spec, lines, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("hola", System.Text.Encoding.ASCII.GetString(sink.ToArray()).Trim());
+        Assert.Equal("", result.Stdout);
+        Assert.Equal("aviso", result.Stderr.Trim());
+        Assert.DoesNotContain("hola", lines.Items);   // stdout no sale por líneas; stderr sí
+        Assert.Contains("aviso", lines.Items.Select(l => l.Trim()));
+    }
+
+    [Fact]
+    public async Task Run_StdoutStream_SiElDestinoFalla_MataLaOrdenYLanzaEseError()
+    {
+        var watch = Stopwatch.StartNew();
+        var script = OperatingSystem.IsWindows() ? "for /l %i in (1,1,2000000) do @echo una linea bastante larga de volcado" : "yes una linea bastante larga de volcado";
+        var spec = Shell(script) with { StdoutStream = new FullDisk() };
+
+        var ex = await Assert.ThrowsAsync<IOException>(() => CommandRunner.Default.RunAsync(spec, null, CancellationToken.None));
+
+        Assert.Contains("espacio", ex.Message);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(12), $"tardo {watch.Elapsed}");
+    }
+
     [Fact]
     public void Display_EntrecomillaSoloLoQueHaceFalta()
     {

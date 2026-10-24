@@ -27,6 +27,8 @@ public sealed class CommandRunner : ICommandRunner
     public async Task<CommandResult> RunAsync(CommandSpec spec, IProgress<string>? lines, CancellationToken cancellation)
     {
         cancellation.ThrowIfCancellationRequested();
+        if (spec.Stdin is not null && spec.StdinStream is not null)
+            throw new ArgumentException("Stdin y StdinStream no van juntos.", nameof(spec));
 
         var psi = new ProcessStartInfo
         {
@@ -35,7 +37,7 @@ public sealed class CommandRunner : ICommandRunner
             CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
-            RedirectStandardInput = spec.Stdin is not null,
+            RedirectStandardInput = spec.Stdin is not null || spec.StdinStream is not null,
             StandardOutputEncoding = Utf8,
             StandardErrorEncoding = Utf8,
         };
@@ -64,8 +66,13 @@ public sealed class CommandRunner : ICommandRunner
 
         var stdout = new StringBuilder();
         var stderr = new StringBuilder();
+        // Un fallo de la fuente de stdin o del destino de stdout: la orden se quedaría esperando
+        // (más entrada, o a que alguien vacíe su salida), así que se mata y se lanza ese error.
+        var broken = new TaskCompletionSource<Exception>(TaskCreationOptions.RunContinuationsAsynchronously);
         var pumps = Task.WhenAll(
-            PumpAsync(process.StandardOutput, stdout, lines),
+            spec.StdoutStream is { } sink
+                ? CopyOutAsync(process.StandardOutput.BaseStream, sink, broken)
+                : PumpAsync(process.StandardOutput, stdout, lines),
             PumpAsync(process.StandardError, stderr, lines));
 
         if (spec.Stdin is not null)
@@ -82,10 +89,25 @@ public sealed class CommandRunner : ICommandRunner
         using var timeout = spec.Timeout is { } limit ? new CancellationTokenSource(limit) : null;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, timeout?.Token ?? CancellationToken.None);
 
+        var feed = spec.StdinStream is { } source
+            ? FeedAsync(source, process.StandardInput.BaseStream, broken, linked.Token)
+            : Task.CompletedTask;
+
         var timedOut = false;
+        Exception? failure = null;
         try
         {
-            await process.WaitForExitAsync(linked.Token);
+            var exit = process.WaitForExitAsync(linked.Token);
+            if (await Task.WhenAny(exit, broken.Task) == broken.Task && !exit.IsCompleted)
+            {
+                failure = broken.Task.Result;
+                KillTree(process);
+                try { await process.WaitForExitAsync(CancellationToken.None).WaitAsync(DrainGrace); } catch { /* ya no hay más que hacer */ }
+            }
+            else
+            {
+                await exit;
+            }
         }
         catch (OperationCanceledException)
         {
@@ -95,14 +117,87 @@ public sealed class CommandRunner : ICommandRunner
             if (cancellation.IsCancellationRequested)
             {
                 await DrainAsync(pumps);
+                await DrainAsync(feed);
                 cancellation.ThrowIfCancellationRequested();
             }
             timedOut = true;
         }
 
         await DrainAsync(pumps);
+        await DrainAsync(feed);
+        // También si falló justo al acabar (el último bloque del volcado no cupo en el disco).
+        failure ??= broken.Task.IsCompletedSuccessfully ? broken.Task.Result : null;
+        if (failure is not null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(failure);
         var exitCode = timedOut ? CommandResult.TimedOutExitCode : SafeExitCode(process);
         return new CommandResult(exitCode, stdout.ToString(), stderr.ToString(), timedOut);
+    }
+
+    /// <summary>
+    /// Copia <paramref name="source"/> a stdin por bloques y lo cierra. Un fallo al leer la fuente
+    /// rompe la orden (<paramref name="broken"/>); uno al escribir es que la orden ya cerró su
+    /// entrada (terminó, o falló a mitad), y eso lo cuenta su código de salida.
+    /// </summary>
+    private static async Task FeedAsync(Stream source, Stream stdin, TaskCompletionSource<Exception> broken, CancellationToken cancellation)
+    {
+        await Task.Yield();   // que no lea el primer bloque en el hilo de quien lanza
+        var buffer = new byte[81920];
+        try
+        {
+            while (true)
+            {
+                int read;
+                try
+                {
+                    read = await source.ReadAsync(buffer, cancellation);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    broken.TrySetResult(ex);
+                    return;
+                }
+                if (read == 0) break;
+                await stdin.WriteAsync(buffer.AsMemory(0, read), cancellation);
+            }
+            await stdin.FlushAsync(cancellation);
+        }
+        catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+        {
+            return;
+        }
+        finally
+        {
+            try { stdin.Close(); } catch { /* la tubería ya estaba cerrada */ }
+        }
+    }
+
+    /// <summary>stdout tal cual al destino; si escribir falla, rompe la orden.</summary>
+    private static async Task CopyOutAsync(Stream stdout, Stream sink, TaskCompletionSource<Exception> broken)
+    {
+        var buffer = new byte[81920];
+        try
+        {
+            int read;
+            while ((read = await stdout.ReadAsync(buffer)) > 0)
+            {
+                try
+                {
+                    await sink.WriteAsync(buffer.AsMemory(0, read));
+                }
+                catch (Exception ex)
+                {
+                    broken.TrySetResult(ex);
+                    return;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+        {
+            // La tubería se cerró de golpe (se mató la orden): con lo copiado basta.
+        }
     }
 
     private static int SafeExitCode(Process process)
