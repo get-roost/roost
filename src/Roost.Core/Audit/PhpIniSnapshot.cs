@@ -72,6 +72,9 @@ public static class MitigationCheck
             return new MitigationState(mitigation, MitigationStatus.Unknown, null, "el PHP de la terminal fija este ajuste siempre: desde aqui no se puede comprobar");
         if (!snapshot.Values.TryGetValue(mitigation.Ini, out var effective))
             return new MitigationState(mitigation, MitigationStatus.Unknown, null, "php -i no da esta directiva (puede que la extension no este cargada)");
+        // Un feed anterior traía texto libre («128M (razonable)»): eso no se compara con nada.
+        if (!PhpMitigations.IsWritable(mitigation))
+            return new MitigationState(mitigation, MitigationStatus.Unknown, effective, $"el aviso no da un valor de php.ini que comparar ('{mitigation.Value}')");
         return Satisfies(mitigation.Compare, mitigation.Value, effective) switch
         {
             true => new MitigationState(mitigation, MitigationStatus.Mitigated, effective),

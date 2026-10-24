@@ -147,9 +147,31 @@ public sealed class AdvisoryFeed
         if (cached is not null && cached.Generated >= embedded.Generated)
         {
             var stale = _now() - cached.Generated > StaleAfter ? "es viejo: no se ha podido actualizar" : null;
-            return (cached, new DatasetOrigin(DatasetKind.Feed, stale));
+            return (WithMissingProducts(cached, embedded), new DatasetOrigin(DatasetKind.Feed, stale));
         }
         return (embedded, new DatasetOrigin(DatasetKind.Embedded, cached is not null ? null : problem));
+    }
+
+    /// <summary>
+    /// PURO: el feed con las ramas de los productos que no trae y el empaquetado sí (un feed de un
+    /// generador anterior a este Roost: sin Apache, la 2.4 saldría «no reconocida»). Solo las ramas y
+    /// sus fechas, nunca avisos: lo que el feed sí trae no se toca.
+    /// </summary>
+    public static AuditDataset WithMissingProducts(AuditDataset feed, AuditDataset embedded)
+    {
+        var missing = embedded.Products.Where(p => !feed.Products.ContainsKey(p.Key)).ToList();
+        if (missing.Count == 0) return feed;
+        var products = new Dictionary<string, ProductInfo>(feed.Products, StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, product) in missing) products[key] = product;
+        return new AuditDataset
+        {
+            SchemaVersion = feed.SchemaVersion,
+            Generated = feed.Generated,
+            Source = feed.Source,
+            Remediation = feed.Remediation,
+            Products = products,
+            Advisories = feed.Advisories,
+        };
     }
 
     /// <summary>

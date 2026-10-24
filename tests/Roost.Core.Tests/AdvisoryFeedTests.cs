@@ -190,6 +190,27 @@ public class AdvisoryFeedTests : IDisposable
         Assert.Contains("404", update.Detail);
     }
 
+    [Fact]
+    public async Task UnFeedDeUnGeneradorAnterior_SinApache_TomaSusRamasDelEmpaquetado_YNadaMas()
+    {
+        Serve(Json(Now));   // solo trae PHP
+        Assert.Equal(FeedUpdateStatus.Updated, (await Feed().UpdateAsync()).Status);
+        var embedded = AuditDataset.LoadEmbedded();
+
+        var (dataset, origin) = Feed().LoadBest(new AuditDataset
+        {
+            Generated = Now.AddDays(-1),
+            Products = new() { ["php"] = embedded.Products["php"], ["apache"] = embedded.Products["apache"] },
+            Advisories = embedded.Advisories,
+        });
+
+        Assert.Equal(DatasetKind.Feed, origin.Kind);
+        Assert.Equal("8.3.36", dataset.Products["php"].Branches["8.3"].Latest);
+        Assert.Single(dataset.Products["php"].Branches);                   // lo del feed no se toca
+        Assert.Equal("2.4.69", dataset.Products["apache"].Branches["2.4"].Latest);   // lo que le falta, sí
+        Assert.Equal(["CVE-2026-109619"], dataset.Advisories.Select(a => a.Id));   // y los avisos son solo los del feed
+    }
+
     public void Dispose()
     {
         _key.Dispose();

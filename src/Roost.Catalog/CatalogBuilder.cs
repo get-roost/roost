@@ -70,7 +70,8 @@ public sealed class CatalogResult
 /// </summary>
 public static class CatalogBuilder
 {
-    public const string SchemaVersion = "1.0.0";
+    /// <summary>1.1: las mitigaciones llevan <c>compare</c> (K4) y hay productos nginx y apache; un 1.0 los ignora.</summary>
+    public const string SchemaVersion = "1.1.0";
 
     public static CatalogResult Build(CatalogInputs input)
     {

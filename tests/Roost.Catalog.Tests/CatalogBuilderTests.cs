@@ -316,7 +316,7 @@ public class CatalogBuilderTests
         var bytes = CatalogBuilder.Serialize(result.Dataset);
         Assert.DoesNotContain((byte)'\r', bytes);
         var dataset = AuditDataset.Load(new MemoryStream(bytes));
-        Assert.Equal("1.0.0", dataset.SchemaVersion);
+        Assert.Equal("1.1.0", dataset.SchemaVersion);
         Assert.Equal(Now, dataset.Generated);
         Assert.Equal("Actualiza a la ultima de tu rama: 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).", dataset.Remediation.RealFix);
 

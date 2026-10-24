@@ -92,8 +92,15 @@ public static class AuditRenderer
         if (f.Mitigations.Count > 0)
         {
             rows.Add($"[bold]{Markup.Escape(dataset.Remediation.MitigationHeader)}[/]");
-            foreach (var m in f.Mitigations)
-                rows.Add($"  · {Markup.Escape(m.ToString())}");
+            foreach (var m in AuditReport.DistinctMitigations(f))
+                rows.Add($"  · {Markup.Escape(m.ToString())}  {StateMarkup(f.StateOf(m))}");
+            // K4: lo que lee PHP, en orden, y cómo aplicar lo que falta.
+            if (f.IniFiles.Count > 0)
+                rows.Add($"  [grey]PHP lee, en este orden: {Markup.Escape(string.Join(" -> ", f.IniFiles))}[/]");
+            if (f.MitigationStates.Any(s => s.CanApply))
+                rows.Add($"  [grey]Para aplicarlas: roost audit --apply-mitigations {f.Component.Version.Major}.{f.Component.Version.Minor}[/]");
+            else if (f.MitigationStates.Any(s => s.AppliedByRoost))
+                rows.Add($"  [grey]Para quitar las de Roost: roost audit --undo-mitigations {f.Component.Version.Major}.{f.Component.Version.Minor}[/]");
             rows.Add($"[bold]ARREGLO REAL:[/] {Markup.Escape(dataset.Remediation.RealFix)}");
         }
 
@@ -110,6 +117,22 @@ public static class AuditRenderer
         console.Write(panel);
     }
 
+    /// <summary>«[green]mitigada[/] (vale Off, la puso Roost)», «[red]sin mitigar[/] (vale On)».</summary>
+    private static string StateMarkup(MitigationState s)
+    {
+        var color = s.Status switch
+        {
+            MitigationStatus.Mitigated => "green",
+            MitigationStatus.Unmitigated => "red",
+            _ => "yellow",
+        };
+        var extra = new List<string>();
+        if (s.Effective is not null) extra.Add($"vale {(s.Effective.Length == 0 ? "vacio" : s.Effective)}");
+        if (s.AppliedByRoost && s.Status == MitigationStatus.Mitigated) extra.Add("la puso Roost");
+        if (s.Detail is { } d) extra.Add(d);
+        return $"[{color}]{Markup.Escape(s.StatusLabel)}[/]" + (extra.Count > 0 ? $" [grey]({Markup.Escape(string.Join("; ", extra))})[/]" : "");
+    }
+
     private static void RenderSummary(IAnsiConsole console, IReadOnlyList<AuditFinding> findings)
     {
         int red = findings.Count(f => f.Color == AuditColor.Red);
@@ -119,6 +142,9 @@ public static class AuditRenderer
 
         console.MarkupLineInterpolated(
             $"[bold]Resumen:[/]  [red]{red} rojo[/]  ·  [yellow]{amber} ambar[/]  ·  [green]{green} verde[/]");
+        var mitigated = findings.Count(f => f.Mitigated);
+        if (mitigated > 0)
+            console.MarkupLineInterpolated($"[yellow]{mitigated} instalacion(es) vulnerable(s) mitigada(s) por configuracion: ambar, no bloquea, pero hay que actualizar.[/]");
         if (blocking > 0)
             console.MarkupLineInterpolated($"[red bold]{blocking} instalacion(es) vulnerable(s) o EOL con certeza → exit != 0.[/]");
         else if (amber > 0)
