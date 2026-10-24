@@ -41,6 +41,8 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             if (config.RedisEnabled) await Services.ServiceSetup.EnsureRedisAsync(paths, cancellation);
             if (config.MailEnabled) await Services.ServiceSetup.EnsureMailpitAsync(paths, cancellation);
             WarnAboutWindowsServices(config, paths, globalDb is not null);
+            // Sitios avanzados: lo que cambie en un .roost.toml o en una carpeta aparcada, antes de aplicar.
+            Sites.SiteSources.PrintSync(paths);
 
             using var client = new DaemonClient(paths);
             var wasRunning = (await client.EnsureRunningAsync(DaemonLauncher.ForCurrentCli(), cancellation)).Running;

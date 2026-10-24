@@ -113,6 +113,8 @@ public static class DaemonHost
             _ = UpdateRefresher.RunAsync(paths, log, app.Lifetime.ApplicationStopping);
             // Y los certificados de los sitios, que un daemon de semanas vería caducar.
             _ = CertRenewer.RunAsync(stack, log.Write, app.Lifetime.ApplicationStopping);
+            // Sitios avanzados (C3): una subcarpeta nueva o borrada en una carpeta aparcada.
+            _ = ParkWatch.RunAsync(stack, paths, log.Write, app.Lifetime.ApplicationStopping);
             await app.WaitForShutdownAsync(cancellation);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

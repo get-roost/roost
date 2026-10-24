@@ -58,7 +58,7 @@ internal sealed record StackEnvironment(
 /// caliente, un PHP nuevo arranca su pool, un php.ini cambiado reinicia ese pool uno a uno, y la
 /// base de datos, Redis o Mailpit solo se reinician si cambia lo suyo.
 /// </summary>
-internal sealed class StackService(RoostPaths paths, Action<string> log, ExtensionSet extensions, StackEnvironment? environment = null)
+internal sealed partial class StackService(RoostPaths paths, Action<string> log, ExtensionSet extensions, StackEnvironment? environment = null)
 {
     private readonly StackEnvironment _env = environment ?? StackEnvironment.Real;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -128,6 +128,7 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
             var nginx = new NginxInstaller(paths).Find(NginxCatalog.Windows);
             var apache = new ApacheInstaller(paths).Find(ApacheCatalog.Windows);
             var db = planner.ResolveDb(config, new DbInstaller(paths).ListInstalled());
+            SyncSiteSources();   // Sitios avanzados: el .roost.toml de cada sitio y las carpetas aparcadas
             var sites = new SiteRegistry(paths).Load();
             var extra = extensions.StackServices(new StackContext(paths, config));
 
