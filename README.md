@@ -130,6 +130,41 @@ roost php use 8.3                 # PHP global: el que sirve http://localhost/ (
 - Al terminar arranca `php -v`. Si no responde, avisa de que suele faltar el Visual C++ Redistributable y da el enlace.
 - Lo instalado aparece en `scan` y `audit` con origen `Roost`.
 
+```sh
+roost php ext list [--php 8.4]                    # las extensiones de una instalación (activa, de serie, zend)
+roost php ext enable soap --php 8.4               # la activa si PHP puede cargarla; si no, dice por qué y no toca nada
+roost php ini 8.4 --set memory_limit=1G           # ajustes rápidos: memory_limit, upload_max_filesize, post_max_size, max_execution_time
+roost php ini 8.4 --reset                         # vuelve a los de serie
+```
+
+- **Ajustes para una sola versión.** Además de `C:\roost\etc\php\conf.d\99-usuario.ini`, que vale para todas, cada versión tiene su `conf.d\<versión>\99-usuario.ini` (por ejemplo, `conf.d\7.4\`). Lo leen el servidor y la terminal, y lo de esa carpeta manda.
+- **Cada cambio reinicia solo esa versión de PHP** si el stack está en marcha; el resto sigue igual. En la app, la pantalla PHP tiene los mismos ajustes, «Ver» el php.ini generado, phpinfo() y la lista de módulos, con buscador.
+
+#### Depurar con Xdebug
+
+1. Enciéndelo en la versión que uses: el interruptor de Xdebug en la pantalla PHP de la app, o `roost php xdebug on 8.4` (`off` y `status` también). La primera vez baja de xdebug.org la DLL de esa versión, comprobada con su SHA-256 (PHP 7.4 usa Xdebug 3.1.6; de la 8.0 a la 8.5, la 3.5.3). Si Roost está en marcha, reinicia solo esa versión de PHP. Viene apagado.
+2. En VS Code, instala la extensión **PHP Debug** (`xdebug.php-debug`) y pon este `.vscode/launch.json` en el proyecto («Copiar launch.json» en la app te da uno con las rutas de tu versión, que funciona también sin los shims):
+
+   ```json
+   {
+     "version": "0.2.0",
+     "configurations": [
+       { "name": "Escuchar Xdebug (Roost)", "type": "php", "request": "launch", "port": 9003 },
+       {
+         "name": "Este script (Roost)", "type": "php", "request": "launch",
+         "program": "${file}", "cwd": "${fileDirname}", "port": 0,
+         "runtimeArgs": ["-dxdebug.start_with_request=yes"],
+         "env": { "XDEBUG_MODE": "debug,develop", "XDEBUG_CONFIG": "client_port=${port}" }
+       }
+     ]
+   }
+   ```
+3. Arranca «Escuchar Xdebug (Roost)» y abre tu sitio con `?XDEBUG_TRIGGER=1` (o con la extensión «Xdebug helper» del navegador). En la terminal: `$env:XDEBUG_TRIGGER=1` en PowerShell, o `set XDEBUG_TRIGGER=1` en cmd, antes de `php artisan …`.
+
+Roost lo deja en `xdebug.mode = debug,develop` y `xdebug.start_with_request = trigger`: solo se depura la petición que lo pide y el resto va igual de rápido (Composer y artisan tampoco se paran). Para cambiarlo (por ejemplo, el profiler), ponlo en `C:\roost\etc\php\conf.d\<versión>\99-usuario.ini`. Un punto de ruptura largo no corta la petición: `max_execution_time` no cuenta mientras el depurador la tiene parada.
+
+**PhpStorm:** Settings › PHP › Debug con el puerto 9003, «Start Listening for PHP Debug Connections» y la extensión del navegador; la primera conexión pregunta por el servidor («Accept», sin path mappings). Para la CLI, el intérprete `C:\roost\bin\shims\php.exe` (con los shims) o el `php.exe` de la versión con su `C:\roost\etc\php\<versión>\php.ini`.
+
 ### `roost db` (solo Windows, por ahora)
 
 Instala y elige la base de datos: **MariaDB** (cualquier rama estable) o **MySQL** (8.4 LTS, 8.0 y 5.7), cada versión en su carpeta:
