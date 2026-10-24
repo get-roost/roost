@@ -51,9 +51,17 @@ public partial class App : Application
             _window.Closing += OnWindowClosing;
 
             CreateTray();
-            _main.StackChanged += (_, _) => UpdateTray();
+            _main.StackChanged += (_, _) =>
+            {
+                UpdateTray();
+                AlertServicesDown();
+            };
             _main.Stack.PropertyChanged += (_, _) => UpdateTray();
-            _main.Audit.PropertyChanged += (_, _) => UpdateTray();
+            _main.Audit.PropertyChanged += (_, e) =>
+            {
+                UpdateTray();
+                if (e.PropertyName == nameof(AuditState.Changes)) AlertAuditRed();
+            };
             _main.Updates.PropertyChanged += (_, _) => UpdateTray();
 
             var args = StartupArgs.Parse(desktop.Args);
@@ -62,6 +70,7 @@ public partial class App : Application
             desktop.Exit += (_, _) =>
             {
                 _tray?.Dispose();
+                _notifier.Dispose();
                 services.Dispose();
                 AppLog.Stop("Roost se cierra");
             };
@@ -218,6 +227,11 @@ public partial class App : Application
 
     // Bandeja
 
+    private readonly TrayAlerts _alerts = new();
+    private readonly ITrayNotifier _notifier = new TrayBalloon();
+    private bool _trayReading;
+    private bool _trayDirty;
+
     private void CreateTray()
     {
         _tray = new TrayIcon { ToolTipText = "Roost", Icon = AppIcon.Tray(null), IsVisible = true };
@@ -226,7 +240,11 @@ public partial class App : Application
         UpdateTray();
     }
 
-    /// <summary>Rehace el menú de la bandeja, solo si ha cambiado algo de lo que enseña.</summary>
+    /// <summary>
+    /// Rehace el menú de la bandeja, solo si ha cambiado algo de lo que enseña. Lo del disco se lee
+    /// fuera del hilo de la UI (A16): si llega otro aviso mientras se lee, se vuelve a leer al acabar,
+    /// una sola vez.
+    /// </summary>
     private void UpdateTray()
     {
         if (_tray is null || _main is null) return;
@@ -235,15 +253,44 @@ public partial class App : Application
             Dispatcher.UIThread.Post(UpdateTray);
             return;
         }
+        if (_trayReading)
+        {
+            _trayDirty = true;
+            return;
+        }
+        _ = RefreshTrayAsync();
+    }
 
-        var snapshot = TraySnapshot.Read(_main);
-        var signature = snapshot.Signature;
-        if (signature == _traySignature) return;
-        _traySignature = signature;
-
-        _tray.ToolTipText = $"Roost · {snapshot.Headline}";
-        _tray.Icon = AppIcon.Tray(_main.Stack.Busy ? Color.Parse("#E29A00") : _main.Stack.IsRunning ? Color.Parse("#22A05B") : null);
-        _tray.Menu = BuildMenu(snapshot);
+    private async Task RefreshTrayAsync()
+    {
+        if (_tray is null || _main is null) return;
+        _trayReading = true;
+        try
+        {
+            do
+            {
+                _trayDirty = false;
+                var main = _main;
+                var ui = TraySnapshot.Capture(main);
+                var paths = main.App.Paths;
+                var snapshot = await Task.Run(() => TraySnapshot.Read(paths, ui,
+                    version => main.Audit.Evaluate(ComponentKind.Php, version).Verdict == Roost.Core.Audit.AuditVerdict.Eol));
+                if (snapshot.Signature == _traySignature) continue;
+                _traySignature = snapshot.Signature;
+                _tray.ToolTipText = $"Roost · {snapshot.Headline}";
+                _tray.Icon = AppIcon.Tray(ui.Busy ? Color.Parse("#E29A00") : snapshot.Running ? Color.Parse("#22A05B") : null);
+                _tray.Menu = BuildMenu(snapshot);
+            }
+            while (_trayDirty);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            AppLog.Error("No se pudo rehacer el menú de la bandeja", ex);
+        }
+        finally
+        {
+            _trayReading = false;
+        }
     }
 
     private NativeMenu BuildMenu(TraySnapshot snapshot)
@@ -252,8 +299,20 @@ public partial class App : Application
         var menu = new NativeMenu();
         menu.Add(new NativeMenuItem($"Roost · {snapshot.Headline}") { IsEnabled = false });
         menu.Add(new NativeMenuItemSeparator());
-        menu.Add(Item(main.ToggleLabel, () => main.ToggleStackCommand.ExecuteAsync(null), enabled: !main.Stack.Busy));
+        menu.Add(Item(snapshot.Ui.ToggleLabel, () => main.ToggleStackCommand.ExecuteAsync(null), enabled: !snapshot.Ui.Busy));
+        menu.Add(Item($"Reiniciar {snapshot.WebLabel}", () => RestartWebAsync(snapshot), enabled: snapshot.Running && !snapshot.Ui.Busy));
         menu.Add(Item("Abrir Roost", () => { ShowWindow(); return Task.CompletedTask; }));
+        menu.Add(Item($"Abrir {snapshot.WebUrl.TrimEnd('/')}", () => main.RunAsync("No se pudo abrir el navegador", () => { Shell.OpenUrl(snapshot.WebUrl); return Task.CompletedTask; })));
+        menu.Add(Item("Nuevo sitio…", async () =>
+        {
+            ShowWindow();
+            await main.NewSiteShortcutCommand.ExecuteAsync(null);
+        }));
+        menu.Add(Item("Registros", async () =>
+        {
+            ShowWindow();
+            await main.LogsShortcutCommand.ExecuteAsync(null);
+        }));
 
         if (snapshot.Sites.Count > 0)
         {
@@ -264,16 +323,28 @@ public partial class App : Application
         }
 
         menu.Add(new NativeMenuItemSeparator());
+        // PHP global: cada instalación, con su versión exacta (J4). Elegir la mejor de una rama guarda la rama.
         var php = new NativeMenu();
-        foreach (var (branch, label, eol) in snapshot.PhpBranches)
+        foreach (var install in snapshot.Php)
         {
-            var item = Item(eol ? $"{label}  (EOL)" : label, () => main.UsePhpAsync(branch));
+            var item = Item(install.Label, () => main.UsePhpAsync(install.Spec));
             item.ToggleType = MenuItemToggleType.Radio;
-            item.IsChecked = branch == snapshot.GlobalPhpBranch;
+            item.IsChecked = install.Name == snapshot.GlobalPhp;
             php.Add(item);
         }
-        if (snapshot.PhpBranches.Count == 0) php.Add(new NativeMenuItem("Ningún PHP instalado") { IsEnabled = false });
-        menu.Add(new NativeMenuItem($"PHP global{(snapshot.GlobalPhpBranch is { } g ? $" · {g}" : "")}") { Menu = php });
+        if (snapshot.Php.Count == 0) php.Add(new NativeMenuItem("Ningún PHP instalado") { IsEnabled = false });
+        menu.Add(new NativeMenuItem($"PHP global{(snapshot.GlobalPhpLabel is { } g ? $" · {g}" : "")}") { Menu = php });
+
+        // Servidor web: cambiarlo (J4) lleva a su pantalla, que instala el que falte con su diálogo.
+        var web = new NativeMenu();
+        foreach (var (server, label) in new[] { (RoostConfig.WebNginx, "nginx"), (RoostConfig.WebApache, snapshot.ApacheInstalled ? "Apache" : "Apache (se instala)") })
+        {
+            var item = Item(label, () => SwitchWebAsync(server));
+            item.ToggleType = MenuItemToggleType.Radio;
+            item.IsChecked = snapshot.WebServer == server;
+            web.Add(item);
+        }
+        menu.Add(new NativeMenuItem($"Servidor web · {snapshot.WebLabel}") { Menu = web });
 
         var db = new NativeMenu();
         foreach (var (engine, branch, label) in snapshot.Databases)
@@ -292,14 +363,14 @@ public partial class App : Application
         menu.Add(Item("Abrir terminal", () => main.RunAsync("No se pudo abrir la terminal", () => { Shell.OpenTerminal(main.App.Paths); return Task.CompletedTask; })));
         menu.Add(Item("Abrir carpeta www", () => main.RunAsync("No se pudo abrir la carpeta", () => { Shell.OpenFolder(main.App.Paths.Www); return Task.CompletedTask; })));
         menu.Add(new NativeMenuItemSeparator());
-        menu.Add(Item($"Auditoría: {main.Audit.Summary.ToLowerInvariant()}", async () =>
+        menu.Add(Item($"Auditoría: {snapshot.Ui.AuditSummary.ToLowerInvariant()}", async () =>
         {
             ShowWindow();
             await main.NavigateToAsync(main.AuditPage);
         }));
         // Abre el modal «Roost X disponible», el mismo que la barra lateral y Ajustes.
-        if (main.Updates.HasUpdate)
-            menu.Add(Item($"Hay una Roost nueva: {main.Updates.LatestVersion}", async () =>
+        if (snapshot.Ui.NewVersion is { } latest)
+            menu.Add(Item($"Hay una Roost nueva: {latest}", async () =>
             {
                 ShowWindow();
                 await main.OpenUpdatesCommand.ExecuteAsync(null);
@@ -308,75 +379,54 @@ public partial class App : Application
         return menu;
     }
 
+    /// <summary>«Reiniciar nginx» (o Apache): solo el servidor web, como el botón de Inicio.</summary>
+    private Task RestartWebAsync(TraySnapshot snapshot) => _main!.RunAsync($"No se pudo reiniciar {snapshot.WebLabel}", async () =>
+    {
+        var response = await _main.App.Daemon.RestartAsync(snapshot.WebService);
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        await _main.Stack.RefreshAsync();
+        _main.Flash($"{snapshot.WebLabel} reiniciado");
+    });
+
+    /// <summary>Cambiar de servidor web desde la bandeja: la pantalla Servidor web lo hace (instala, guarda y rearranca).</summary>
+    private async Task SwitchWebAsync(string server)
+    {
+        if (_main is null) return;
+        ShowWindow();
+        await _main.NavigateToAsync(_main.Web);
+        _main.Web.UseApache = server == RoostConfig.WebApache;
+    }
+
+    /// <summary>J4: un servicio que pasa a Failed avisa una vez (Ajustes › General lo apaga).</summary>
+    private void AlertServicesDown()
+    {
+        if (_main is null) return;
+        var alert = _alerts.ServicesDown(_main.Stack.Status);
+        if (alert is null || !_main.App.Prefs.NotifyServiceDown) return;
+        AppLog.Warn(alert.Title);
+        _notifier.Show(alert, () => Dispatcher.UIThread.Post(async () =>
+        {
+            ShowWindow();
+            await _main.NavigateToAsync(_main.Home);
+        }));
+    }
+
+    /// <summary>K5: la auditoría con algo en rojo que no lo estaba en la anterior avisa una vez.</summary>
+    private void AlertAuditRed()
+    {
+        if (_main is null || !_main.App.Prefs.NotifyAuditRed) return;
+        if (TrayAlerts.AuditRed(_main.Audit.Changes) is not { } alert) return;
+        _notifier.Show(alert, () => Dispatcher.UIThread.Post(async () =>
+        {
+            ShowWindow();
+            await _main.NavigateToAsync(_main.AuditPage);
+        }));
+    }
+
     private static NativeMenuItem Item(string header, Func<Task> action, bool enabled = true)
     {
         var item = new NativeMenuItem(header) { IsEnabled = enabled };
         item.Click += async (_, _) => await action();
         return item;
-    }
-
-    /// <summary>Lo que enseña la bandeja, leído de una vez; su firma dice si hay que rehacer el menú.</summary>
-    private sealed record TraySnapshot(
-        string Headline,
-        IReadOnlyList<string> Sites,
-        IReadOnlyList<(string Branch, string Label, bool Eol)> PhpBranches,
-        string? GlobalPhpBranch,
-        IReadOnlyList<(DbEngine Engine, string Branch, string Label)> Databases,
-        string? GlobalDb,
-        string Extra)
-    {
-        public string Signature =>
-            string.Join("|", Headline, string.Join(",", Sites), string.Join(",", PhpBranches), GlobalPhpBranch,
-                string.Join(",", Databases.Select(d => d.Label)), GlobalDb, Extra);
-
-        public static TraySnapshot Read(MainViewModel main)
-        {
-            var paths = main.App.Paths;
-            RoostConfig config;
-            try { config = RoostConfig.Load(paths.ConfigFile); }
-            catch (RoostException) { config = new RoostConfig(); }
-
-            var planner = new StackPlanner(paths, ProcessRunner.Default);
-            var installedPhp = new PhpInstaller(paths).ListInstalled();
-            string? globalPhp = null;
-            try { globalPhp = HomeViewModel.Branch(planner.ResolvePhp(config, installedPhp).Name); } catch (RoostException) { }
-
-            var branches = installedPhp
-                .Where(p => p.Version is not null)
-                .GroupBy(p => HomeViewModel.Branch(p.Name))
-                .Select(g =>
-                {
-                    var newest = g.Max(p => p.Version!.Value);
-                    var eol = main.Audit.Evaluate(ComponentKind.Php, newest).Verdict == Roost.Core.Audit.AuditVerdict.Eol;
-                    return (Branch: g.Key, Label: newest.ToString(), Eol: eol, Version: newest);
-                })
-                .OrderByDescending(b => b.Version)
-                .Select(b => (b.Branch, b.Label, b.Eol))
-                .ToList();
-
-            var installedDb = new DbInstaller(paths).ListInstalled();
-            string? globalDb = null;
-            try
-            {
-                if (planner.ResolveDb(config, installedDb) is { } db) globalDb = $"{db.Engine.DisplayName()} {db.Branch}";
-            }
-            catch (RoostException) { }
-            var databases = installedDb
-                .Where(d => d.Branch is not null)
-                .Select(d => (d.Engine, Branch: d.Branch!, Label: $"{d.Engine.DisplayName()} {d.Branch}"))
-                .Distinct()
-                .ToList();
-
-            IReadOnlyList<string> sites = [];
-            try { sites = new SiteRegistry(paths).Load().Select(s => StackPlanner.SiteUrl(s, config.HttpsPort).TrimEnd('/')).ToList(); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or RoostException) { }
-
-            var stack = main.Stack;
-            var headline = stack.Busy ? stack.BusyText ?? "..."
-                : stack.IsRunning ? $"En marcha · PHP {globalPhp ?? "?"} · {globalDb ?? "sin base de datos"}"
-                : "Parado";
-            return new TraySnapshot(headline, sites, branches, globalPhp, databases, globalDb,
-                $"{main.ToggleLabel}|{main.Audit.Summary}|{(main.Updates.HasUpdate ? main.Updates.LatestVersion : "")}");
-        }
     }
 }
