@@ -80,6 +80,8 @@
     <!-- BD-2 -->
     <DataTemplate DataType="vm:DbTransferDialogViewModel"><v:DbTransferDialogView /></DataTemplate>
     <DataTemplate DataType="vm:DbImportDialogViewModel"><v:DbImportDialogView /></DataTemplate>
+    <!-- Compartir -->
+    <DataTemplate DataType="vm:ShareDialogViewModel"><v:ShareDialogView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="40,*,28">

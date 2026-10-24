@@ -236,7 +236,8 @@ public partial class App : Application
             {
                 Title = "Roost sigue en marcha",
                 Subtitle = "Tus sitios se siguen sirviendo aunque cierres la app.",
-                Text = "Puedes pararlo todo antes de salir, o dejarlo en marcha y pararlo luego desde la CLI (roost down) o volviendo a abrir Roost.",
+                Text = "Puedes pararlo todo antes de salir, o dejarlo en marcha y pararlo luego desde la CLI (roost down) o volviendo a abrir Roost."
+                       + (_main.Sites.HasOwnShares ? " Lo que estás compartiendo desde la app deja de compartirse al salir, en los dos casos." : ""),
                 Buttons =
                 [
                     new DialogButton("Cancelar", null, Left: true),
@@ -245,6 +246,8 @@ public partial class App : Application
                 ],
             });
             if (choice is null) return;
+            // Compartir: lo que abrió la app deja de compartirse al salir (y quita su regla del cortafuegos).
+            await _main.Sites.StopOwnSharesAsync();
             if (choice is "stop") await _main.Stack.StopAsync();
         }
 
