@@ -428,7 +428,8 @@ public sealed partial class SitesViewModel : PageViewModel
     {
         var dialog = new NewSiteDialogViewModel(Main);
         if (await Main.ShowDialogAsync(dialog) is not NewSiteRequest request) return;
-        await CreateAsync(request);
+        // Pasos y plantillas: con una plantilla, el proyecto se crea en el diálogo de los pasos (SitesViewModel.Deploy.cs).
+        await (request.Template is null ? CreateAsync(request) : CreateFromTemplateAsync(request));
     }
 
     /// <summary>Crear y abrir: registra, pasa al hosts, (re)arranca, crea la base de datos, ofrece confiar en la CA y abre el navegador.</summary>

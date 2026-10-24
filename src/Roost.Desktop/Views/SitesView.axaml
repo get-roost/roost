@@ -187,6 +187,22 @@
                 </StackPanel>
               </Border>
 
+              <!-- Pasos y plantillas: los pasos de instalación del proyecto (Laravel, Symfony, WordPress o Composer) -->
+              <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10" IsVisible="{Binding HasDeploySteps}">
+                <StackPanel Spacing="8">
+                  <DockPanel>
+                    <ctl:Chip DockPanel.Dock="Right" Text="{Binding DeployProjectText}" Tone="Accent" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <ctl:Icon Data="{StaticResource IcCheck}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                      <TextBlock Classes="lbl" Text="Pasos de instalación" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </DockPanel>
+                  <TextBlock Classes="faint" Text="{Binding DeployStepsText}" TextWrapping="Wrap" />
+                  <Button Classes="sm" Content="Pasos de instalación…" Command="{Binding DeployStepsCommand}" IsEnabled="{Binding DeployIdle}" HorizontalAlignment="Left"
+                          ToolTip.Tip="Lo que hace falta para que funcione: Roost propone los pasos y tú eliges cuáles" />
+                </StackPanel>
+              </Border>
+
               <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="8">
                 <TextBlock Classes="muted" Text="Certificado" />
                 <StackPanel Grid.Column="1" Spacing="4">
