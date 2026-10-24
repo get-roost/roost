@@ -70,18 +70,20 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Tras la primera carga: si la app vuelve de una actualización (<c>--updated</c>, el
-    /// marcador de <c>state/</c> o <c>--update-failed</c>), contarlo y arrancar el stack si tocaba;
-    /// y renovar el php de la terminal si es de otra versión.
+    /// Tras la primera carga: renovar el php de la terminal si es de otra versión y, si la app
+    /// vuelve de una actualización (<c>--updated</c>, el marcador de <c>state/</c> o
+    /// <c>--update-failed</c>), contarlo y arrancar el stack si tocaba. El shim va primero: el
+    /// aviso espera a que se cierre, y con <c>--minimized</c> la ventana puede tardar en verse.
     /// </summary>
     private async Task StartupAsync(Task initialize, StartupArgs args)
     {
         try { await initialize; }
         catch (Exception) { /* la primera carga ya enseña sus propios errores */ }
         if (_main is null) return;
+        try { await RenewShimsAsync(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* se repite la próxima vez */ }
         try { await _main.Updates.HandleStartupAsync(_main, args); }
         catch (Exception ex) when (ex is RoostException or IOException or UnauthorizedAccessException) { /* no impide usar la app */ }
-        await RenewShimsAsync();
     }
 
     /// <summary>
