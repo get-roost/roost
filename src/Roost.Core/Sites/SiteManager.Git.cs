@@ -90,16 +90,18 @@ public sealed partial class SiteManager
 
             var parent = Path.GetDirectoryName(plan.Folder) ?? plan.Folder;
             Directory.CreateDirectory(parent);
-            // Solo en la www, que es de Roost: fuera no se borran temporales de nadie.
-            if (SamePath(parent, paths.Www)) InstallFiles.CleanLeftovers(parent);
+            // Solo en la www, y solo los .tmp-<guid> que deja un clonado cortado: las carpetas del
+            // usuario no se tocan aunque se llamen parecido.
+            if (SamePath(parent, paths.Www)) CleanCloneLeftovers(parent);
             var temp = Path.Combine(parent, InstallFiles.TempPrefix + Guid.NewGuid().ToString("N"));
             try
             {
                 await Client.CloneAsync(url, branch, temp, progress, tee, cancellation);
                 // Comprobada vacía en PlanClone; si entre medias alguien metió algo, Delete falla y no se pisa.
                 if (Directory.Exists(plan.Folder)) Directory.Delete(plan.Folder);
-                // Renombrar es atómico en el mismo volumen: o es el sitio entero o no es nada.
-                Directory.Move(temp, plan.Folder);
+                // Renombrar es atómico en el mismo volumen: o es el sitio entero o no es nada. Reintenta
+                // si el antivirus está leyendo lo que acaba de escribir git.
+                InstallFiles.MoveDirectory(temp, plan.Folder);
             }
             catch
             {
@@ -270,6 +272,17 @@ public sealed partial class SiteManager
     }
 
     private static string? Short(string sha) => sha.Length == 0 ? null : sha[..Math.Min(7, sha.Length)];
+
+    /// <summary>Borra los <c>.tmp-&lt;guid&gt;</c> (32 hexadecimales) que dejó un clonado cortado, y nada más.</summary>
+    internal static void CleanCloneLeftovers(string www)
+    {
+        foreach (var child in Directory.EnumerateDirectories(www, InstallFiles.TempPrefix + "*"))
+        {
+            var id = Path.GetFileName(child)[InstallFiles.TempPrefix.Length..];
+            if (id.Length == 32 && id.All(char.IsAsciiHexDigitLower))
+                InstallFiles.TryDeleteDirectory(child);
+        }
+    }
 
     /// <summary>Cada línea va al log del sitio y, si alguien escucha (la pantalla), también a él.</summary>
     private sealed class Tee(IProgress<string>? listener, GitLog.Session log) : IProgress<string>

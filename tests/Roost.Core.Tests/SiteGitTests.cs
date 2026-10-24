@@ -121,6 +121,20 @@ public class SiteGitTests : IDisposable
     }
 
     [Fact]
+    public async Task Clone_LimpiaSusTemporalesViejos_PeroNoLasCarpetasDelUsuario()
+    {
+        var leftover = Directory.CreateDirectory(Path.Combine(Paths.Www, ".tmp-" + Guid.NewGuid().ToString("N"))).FullName;
+        var mine = Directory.CreateDirectory(Path.Combine(Paths.Www, ".tmp-proyecto")).FullName;
+        File.WriteAllText(Path.Combine(mine, "index.php"), "<?php // del usuario");
+        ScriptClone(onClone: spec => FakeClone(spec));
+
+        await Sites.CloneAsync(new CloneRequest(Url), null, null, CancellationToken.None);
+
+        Assert.False(Directory.Exists(leftover));
+        Assert.True(File.Exists(Path.Combine(mine, "index.php")));
+    }
+
+    [Fact]
     public async Task Clone_Cancelado_NoDejaNada()
     {
         using var cts = new CancellationTokenSource();

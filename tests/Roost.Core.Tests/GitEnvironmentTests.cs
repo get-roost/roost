@@ -26,7 +26,7 @@ public class GitEnvironmentTests : IDisposable
         Assert.True(variables.ContainsKey("GIT_ASKPASS"));
         Assert.Null(variables["GIT_ASKPASS"]);
         Assert.Null(variables["GIT_DIR"]);
-        Assert.Null(variables["GIT_SSH_COMMAND"]);
+        Assert.Equal(GitEnvironment.DefaultSshCommand, variables["GIT_SSH_COMMAND"]);   // nunca una pregunta sin contestar
 
         var config = File.ReadAllText(env.ConfigFile);
         Assert.Contains("longpaths = true", config);

@@ -49,12 +49,17 @@ public sealed class GitEnvironment(RoostPaths paths)
 
         """;
 
+    /// <summary>El ssh sin acceso de Roost: el del sistema, sin preguntas (falla en vez de esperar).</summary>
+    public const string DefaultSshCommand = "ssh -o BatchMode=yes";
+
     /// <summary>
     /// Las variables para lanzar git (un valor null quita la heredada). Escribe el gitconfig si
     /// falta o cambió. <paramref name="extraConfig"/> son pares <c>clave=valor</c> solo para esta
     /// invocación (<c>GIT_CONFIG_COUNT</c>): por ahí irá el helper de credenciales.
     /// <paramref name="sshCommand"/> es el <c>GIT_SSH_COMMAND</c> del acceso por clave; sin él, el que
-    /// hubiera heredado se quita (lo elige Roost, no el entorno de quien lo lanza).
+    /// hubiera heredado se cambia por el <c>ssh</c> de siempre en modo no interactivo (lo elige Roost,
+    /// no el entorno de quien lo lanza): nunca se queda esperando una pregunta (la huella, una
+    /// contraseña) que nadie va a contestar.
     /// </summary>
     public IReadOnlyDictionary<string, string?> Build(IReadOnlyList<(string Key, string Value)>? extraConfig = null, string? sshCommand = null)
     {
@@ -68,7 +73,7 @@ public sealed class GitEnvironment(RoostPaths paths)
             ["LC_ALL"] = "C",
             ["LANG"] = "C",
             ["GCM_INTERACTIVE"] = "never",
-            ["GIT_SSH_COMMAND"] = sshCommand,
+            ["GIT_SSH_COMMAND"] = sshCommand ?? DefaultSshCommand,
             // Nada de lo que el entorno de quien lanza Roost pudiera inyectar en git.
             ["GIT_ASKPASS"] = null,
             ["SSH_ASKPASS"] = null,
