@@ -200,10 +200,10 @@ public sealed class ComposerStatusCommand : AsyncCommand<ComposerStatusCommand.S
         else
         {
             AnsiConsole.MarkupLineInterpolated($"[bold]PHP aqui:[/] {php.Php.Name} [grey](porque {php.Reason})[/]");
-            AnsiConsole.MarkupLineInterpolated($"[bold]composer --version:[/] {version ?? "[red]no contesta[/]"}");
+            AnsiConsole.MarkupLine($"[bold]composer --version:[/] {(version is null ? "[red]no contesta[/]" : Markup.Escape(version))}");
         }
 
-        AnsiConsole.MarkupLineInterpolated($"Shim de composer: {(shims.Has("composer") ? "[green]puesto[/]" : "[yellow]no puesto[/]")} [grey]({shims.ToolPath("composer")})[/]");
+        AnsiConsole.MarkupLine($"Shim de composer: {(shims.Has("composer") ? "[green]puesto[/]" : "[yellow]no puesto[/]")} [grey]({Markup.Escape(shims.ToolPath("composer"))})[/]");
         if (shims.Has("composer"))
             ShimSupport.WarnAboutShadowing(shims.Directory, "composer");
         else if (shims.IsInstalled)

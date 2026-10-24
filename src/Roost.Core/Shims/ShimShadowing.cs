@@ -4,7 +4,8 @@ namespace Roost.Core.Shims;
 
 /// <summary>Otro ejecutable con el nombre de un shim que Windows encuentra antes que él.</summary>
 /// <param name="InSystemPath">true si está en el PATH del sistema (quitarlo de ahí pide ser administrador).</param>
-public sealed record ShimShadow(string Tool, string Path, bool InSystemPath);
+/// <param name="ShimsInPath">false si la carpeta de los shims ni siquiera está en el PATH (entonces gana cualquiera).</param>
+public sealed record ShimShadow(string Tool, string Path, bool InSystemPath, bool ShimsInPath = true);
 
 /// <summary>
 /// Quién le gana a un shim en el PATH. Windows junta el PATH del sistema y después el del usuario,
@@ -24,13 +25,15 @@ public static class ShimShadowing
     /// </summary>
     public static ShimShadow? Find(string tool, string shimDirectory, string? machinePath, string? userPath, Func<string, bool> exists)
     {
-        foreach (var (dir, system) in Entries(machinePath, system: true).Concat(Entries(userPath, system: false)))
+        var entries = Entries(machinePath, system: true).Concat(Entries(userPath, system: false)).ToList();
+        var shimsInPath = entries.Any(e => Same(e.Dir, shimDirectory));
+        foreach (var (dir, system) in entries)
         {
             if (Same(dir, shimDirectory)) return null;   // de aquí en adelante, gana el shim
             foreach (var extension in Extensions)
             {
                 var candidate = System.IO.Path.Combine(dir, tool + extension);
-                if (exists(candidate)) return new ShimShadow(tool, candidate, system);
+                if (exists(candidate)) return new ShimShadow(tool, candidate, system, shimsInPath);
             }
         }
         return null;

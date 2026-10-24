@@ -71,6 +71,14 @@ public class ShimComposerTests : IDisposable
         Assert.NotNull(shadow);
         Assert.Equal(@"C:\ProgramData\ComposerSetup\bin\composer.bat", shadow.Path);
         Assert.True(shadow.InSystemPath);
+        Assert.True(shadow.ShimsInPath);
+
+        // Sin los shims en el PATH, gana cualquiera, y se sabe.
+        var outside = ShimShadowing.Find("composer", Shims, @"C:\Windows\system32", @"C:\laragon\bin\composer",
+            Existing(@"C:\laragon\bin\composer\composer.bat"));
+        Assert.NotNull(outside);
+        Assert.False(outside.ShimsInPath);
+        Assert.False(outside.InSystemPath);
 
         var php = ShimShadowing.Find("php", Shims, @"C:\Windows\system32;C:\php", Shims, Existing(@"C:\php\php.exe"));
         Assert.Equal(@"C:\php\php.exe", php?.Path);

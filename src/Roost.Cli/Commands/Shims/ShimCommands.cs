@@ -83,13 +83,14 @@ public sealed class ShimsStatusCommand : Command<EmptyCommandSettings>
         var paths = RoostPaths.Default();
         var shims = new ShimInstaller(paths);
         var tools = ShimInstaller.Tools.Where(shims.Has).ToList();
-        AnsiConsole.MarkupLineInterpolated($"Shims: {(shims.IsInstalled ? "[green]puestos[/]" : "[yellow]no puestos[/]")} [grey]({shims.Directory}{(tools.Count > 0 ? ": " + string.Join(", ", tools) : "")})[/]");
+        // Los colores van en el texto fijo: lo que se interpola, MarkupLineInterpolated lo escapa.
+        AnsiConsole.MarkupLine($"Shims: {(shims.IsInstalled ? "[green]puestos[/]" : "[yellow]no puestos[/]")} [grey]({Markup.Escape(shims.Directory)}{(tools.Count > 0 ? ": " + string.Join(", ", tools) : "")})[/]");
         if (shims.IsInstalled && !shims.Has("composer"))
             AnsiConsole.MarkupLine("[yellow]Falta el de composer[/] (son de una version anterior de Roost): [grey]roost composer install lo anade, o roost shims install los pone de nuevo.[/]");
         if (OperatingSystem.IsWindows())
         {
             var inPath = UserPath.Contains(UserPath.Read(), shims.Directory);
-            AnsiConsole.MarkupLineInterpolated($"PATH del usuario: {(inPath ? "[green]la incluye[/]" : "[yellow]no la incluye[/]")}");
+            AnsiConsole.MarkupLine($"PATH del usuario: {(inPath ? "[green]la incluye[/]" : "[yellow]no la incluye[/]")}");
             foreach (var tool in tools) ShimSupport.WarnAboutShadowing(shims.Directory, tool);
         }
         if (shims.Has("composer") && Roost.Core.Composer.ComposerTool.Locate(paths) is null)
@@ -138,7 +139,14 @@ internal static class ShimSupport
     public static void WarnAboutShadowing(string shimDirectory, string tool = "php")
     {
         if (ShimShadowing.Find(tool, shimDirectory) is not { } shadow) return;
-        if (!shadow.InSystemPath)
+        if (!shadow.ShimsInPath)
+        {
+            // Primero, que los shims no estan; y si lo que gana viene del PATH del sistema, seguira
+            // ganando cuando lo esten: eso se dice tambien.
+            AnsiConsole.MarkupLineInterpolated($"[grey]Los shims no estan en el PATH: ahora, en la terminal, {tool} es {shadow.Path}. roost shims install los pone los primeros en el de tu usuario.[/]");
+            if (!shadow.InSystemPath) return;
+        }
+        else if (!shadow.InSystemPath)
         {
             AnsiConsole.MarkupLineInterpolated($"[yellow]Ojo:[/] {shadow.Path} esta en el PATH de tu usuario antes que los shims: ese {tool} ganara al de Roost.");
             AnsiConsole.MarkupLine("[grey]roost shims install vuelve a poner los shims los primeros.[/]");
