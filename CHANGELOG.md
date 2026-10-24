@@ -2,6 +2,15 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
+## 0.1.7 — en preparación
+
+- **Node, gratis:** Roost instala Node de nodejs.org (las LTS 24 y 22, verificadas con su SHA-256 antes de instalar nada) con `roost node install`, o desde el panel de un sitio con «Instalar Node 24 (LTS)». `roost node list` dice cuáles tienes, cuáles ofrece Roost y si están en mantenimiento o sin parches; `roost node use 24` fija el global, y `roost node use 22 --here`, el del proyecto (escribe un `.nvmrc`).
+- **node, npm y npx en la terminal según la carpeta:** con los shims puestos, usan el Node que pide el `.nvmrc` o el `.node-version` del proyecto (como nvm y fnm), el que cumple su `engines.node` o el global. Si otro Node te gana en el PATH (el instalador de nodejs.org, nvm-windows, Volta, fnm), `roost node status` y `roost shims status` lo dicen y cómo arreglarlo. Tu caché de npm y tu `.npmrc` no se tocan.
+- **npm en el panel del sitio:** un proyecto con `package.json` tiene su bloque Node: qué Node usa y por qué, «npm install» (o pnpm y yarn con corepack, según su lockfile) y un botón por cada script, con la salida en directo.
+- **`npm run dev` sin bloquear la app:** se queda en marcha aunque cierres su ventana; el panel lo dice, con «Abrir» y «Parar», y se para solo al salir de Roost. Si Vite sirve en http, avisa de que la página https del sitio no podrá cargar sus assets, y «Copiar server de Vite» da lo que va en `vite.config.js` para servirlo en HTTPS con el certificado del sitio.
+- **El paso npm de los pasos de instalación, encendido:** tras clonar, en `roost site setup` y en las plantillas, `npm ci` (o `npm install`) y `npm run build`, con el Node de Roost. Un Laravel nuevo sale con sus assets de Vite ya compilados.
+- **Node se fía de los `.test`:** los Node que lanza Roost llevan la CA local (`NODE_EXTRA_CA_CERTS`), así que un `fetch` a `https://….test` desde Node funciona sin apagar la comprobación del certificado.
+
 ## 0.1.6 — 24-oct-2026
 
 - **Cambios sin cortar:** con Roost en marcha, dar de alta o de baja un sitio, cambiar su raíz web o renovar los certificados ya no lo rearranca todo: el servidor web lee la configuración nueva en caliente, sin cortar las conexiones, y la base de datos, PHP, Redis y Mailpit siguen como estaban. La terminal dice lo que ha hecho, por ejemplo «recargado nginx; arrancado php-7.4».

@@ -272,13 +272,13 @@ Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que s
 ### `roost shims`: el `php` de la terminal según la carpeta (solo Windows, por ahora)
 
 ```sh
-roost shims install        # pone C:\roost\bin\shims (con su php.exe, y composer.exe si tienes el Composer de Roost) delante en el PATH de tu usuario
+roost shims install        # pone C:\roost\bin\shims (php.exe; composer.exe si tienes el Composer de Roost; node.exe, npm.exe y npx.exe si tienes un Node de Roost) delante en el PATH de tu usuario
 roost php use 7.4 --here   # este proyecto, en 7.4: escribe un .php-version en la carpeta
 roost php which            # que php toca aqui y por que
 roost shims remove         # lo deja como estaba
 ```
 
-En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION`, el `.php-version` más cercano (en la carpeta o en una superior), el PHP del sitio cuya carpeta es esta, o el PHP global. Carga el mismo `php.ini` que el servidor, así que Composer y PHPUnit tienen las mismas extensiones; `composer` va igual (ver [Composer](#composer-solo-windows-por-ahora)). Si hay otro `php.exe` o `composer` en el PATH del sistema (Laragon, XAMPP, Composer-Setup), Windows lo mira antes y gana: `roost shims status` lo avisa. En la app, es una casilla de Ajustes.
+En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION`, el `.php-version` más cercano (en la carpeta o en una superior), el PHP del sitio cuya carpeta es esta, o el PHP global. Carga el mismo `php.ini` que el servidor, así que Composer y PHPUnit tienen las mismas extensiones; `composer` va igual (ver [Composer](#composer-solo-windows-por-ahora)), y `node`, `npm` y `npx` con el Node de cada carpeta (ver [Node](#node-solo-windows-por-ahora)). Si hay otro `php.exe` o `composer` en el PATH del sistema (Laragon, XAMPP, Composer-Setup), Windows lo mira antes y gana: `roost shims status` lo avisa. En la app, es una casilla de Ajustes.
 
 ### `roost site` y `roost cert` (solo Windows, por ahora)
 
@@ -382,15 +382,39 @@ roost site composer tienda require monolog/monolog:^3
 
 Composer ejecuta los scripts del `composer.json` del proyecto: úsalo con proyectos en los que confíes.
 
+### Node (solo Windows, por ahora)
+
+Roost trae Node de nodejs.org, gratis: las LTS que fija (hoy, la 24 y la 22), comprobadas con su SHA-256 antes de instalar nada, en `C:\roost\bin\node\<versión>`.
+
+```sh
+roost node install              # la LTS más nueva que fija Roost (24); también 22, lts/jod, 22.11.0 o ^20.11
+roost node list [--json]        # las instaladas y las que ofrece Roost, con su estado (LTS, mantenimiento, EOL)
+roost node use 24               # el Node global ([node] version en roost.toml)
+roost node use 22 --here        # este proyecto, en 22: escribe un .nvmrc
+roost node which                # qué Node toca aquí y por qué
+roost node status [--json]      # eso, los shims y si otro node les gana (nvm-windows, Volta, fnm, el instalador de Node)
+roost node remove 22.23.4
+```
+
+- **Verificado.** Las LTS que ofrece Roost van fijadas con el SHA-256 de su zip, comprobado al fijarlas con el `SHASUMS256.txt` firmado (GPG) por quien publica cada versión y con el zip bajado. Cualquier otra versión (la de un `.nvmrc` exacto, una rama vieja) se instala igual, verificada con el `SHASUMS256.txt` de esa versión en nodejs.org. Las que ya no tienen parches se instalan, pero Roost avisa.
+- **En la terminal**, con los shims puestos (`roost shims install`) y un Node de Roost instalado, `node`, `npm` y `npx` usan, por este orden: la variable `ROOST_NODE_VERSION`, el `.nvmrc` o el `.node-version` más cercano (acepta `22`, `v22.11.0`, `lts/*`, `lts/jod` o `node`, como nvm y fnm), `engines.node` del `package.json` (si el global no lo cumple, el Node de Roost más nuevo que lo cumpla) o el global. Lo que se pide y no está instalado es un error que dice qué instalar. Mientras no instales un Node de Roost, sus shims no se ponen y `node` sigue siendo el tuyo; al quitar el último, se quitan.
+- **npm es el de cada Node**, y tu caché de npm y tu `.npmrc` siguen valiendo: Roost no los toca. Los paquetes globales (`npm install -g`) van a la carpeta de esa versión de Node y no están en el PATH: usa `npx <paquete>`. pnpm y yarn van con corepack; bun no lo trae Roost.
+- **La CA de Roost:** los Node que lanza Roost (los shims, la app, los pasos) llevan `NODE_EXTRA_CA_CERTS` con la CA local, salvo que ya tengas uno, así que se fían de los `https://….test`.
+- **Si tienes otro Node** (el instalador de nodejs.org, nvm-windows, Volta, fnm, Scoop), el que esté en el PATH del sistema gana a los shims: `roost node status` y `roost shims status` dicen cuál es y qué hacer. La app y los pasos usan siempre el de Roost por su ruta.
+- **En la app**, el panel de un sitio con `package.json` tiene el bloque Node: qué Node usa y por qué, el gestor (npm, o pnpm y yarn según el lockfile), «npm install» y un botón por script, con la salida en directo. `npm run dev` va aparte: su ventana se cierra sin pararlo, y el panel tiene «Ver salida», «Abrir» y «Parar»; al salir de Roost, se para. Sin Node de Roost, ofrece «Instalar Node 24 (LTS)», o el que pida el `.nvmrc`.
+- **Pasos de instalación:** con un Node de Roost, el paso npm (tras clonar, en `roost site setup` y en las plantillas) hace `npm ci` (o `npm install` si no hay `package-lock.json`) y `npm run build` si hay script `build`.
+
+npm ejecuta los scripts del `package.json` del proyecto y los de instalación de sus dependencias: úsalo con proyectos en los que confíes.
+
 ### Vite (u otro servidor de desarrollo) en HTTPS
 
-La página se sirve en `https://tienda.test`, así que el servidor de Vite también tiene que ir por HTTPS y con ese nombre; si no, el navegador bloquea los assets y el HMR por contenido mixto. Usa el certificado del sitio:
+Con el Node de Roost (`roost node install`, o «Instalar Node» en el panel del sitio), `npm run dev` funciona tal cual; lo que hay que decirle a Vite es que sirva en HTTPS y con el nombre del sitio. La página se sirve en `https://tienda.test`, así que si Vite va por `http://localhost:5173` el navegador bloquea sus assets y el HMR por contenido mixto (la app lo avisa). Usa el certificado del sitio:
 
 ```sh
 roost cert path tienda           # o --json para un script
 ```
 
-Te da algo como `C:\roost\certs\sites\tienda.crt` y `tienda.key`, que valen para `tienda.test` y `*.tienda.test`. En `vite.config.js`:
+Te da algo como `C:\roost\certs\sites\tienda.crt` y `tienda.key`, que valen para `tienda.test` y `*.tienda.test`. En `vite.config.js` (en la app, «Copiar server de Vite» en el bloque Node del panel te da el `server` con las rutas de tu sitio):
 
 ```js
 import fs from 'node:fs';
@@ -402,7 +426,7 @@ const host = 'tienda.test';
 export default defineConfig({
     plugins: [laravel({ input: ['resources/css/app.css', 'resources/js/app.js'], refresh: true })],
     server: {
-        host,                                // escucha en tienda.test (127.0.0.1) y se anuncia con ese nombre
+        host,                                // escucha en tienda.test (127.0.0.1) y Vite acepta ese nombre
         https: {
             key: fs.readFileSync('C:/roost/certs/sites/tienda.key'),
             cert: fs.readFileSync('C:/roost/certs/sites/tienda.crt'),
@@ -413,11 +437,13 @@ export default defineConfig({
 });
 ```
 
-- `npm run dev` sirve entonces en `https://tienda.test:5173`, y `laravel-vite-plugin` escribe esa URL en `public/hot`.
-- Si Roost usa otro puerto HTTPS (`[web] https_port`, por ejemplo 8443), pon ese puerto en `cors.origin`: `https://tienda.test:8443`.
+- `npm run dev` sirve entonces en `https://tienda.test:5173`, y `laravel-vite-plugin` escribe esa URL en `public/hot`. Si lo paras desde la app, Roost borra ese `public/hot` (con Ctrl+C lo borra el plugin), y la página vuelve a los assets de `npm run build`.
+- `host: 'tienda.test'` necesita que el nombre resuelva, y con Roost resuelve (el hosts o el DNS local). Si prefieres `host: '127.0.0.1'`, añade `allowedHosts: ['tienda.test']`: desde la 6, Vite rechaza («Blocked request») las peticiones a un nombre que no conoce.
+- `cors` hace falta: desde la 6, Vite solo deja pasar de serie a `localhost`. Si Roost usa otro puerto HTTPS (`[web] https_port`, por ejemplo 8443), pon ese puerto en `cors.origin`: `https://tienda.test:8443`.
 - El certificado no vale para `localhost`: usa siempre el nombre `.test`.
 - La clave solo la puede leer tu usuario (Node corre como tú, así que la lee). No la copies ni la subas al repositorio.
 - Roost renueva el certificado antes de que caduque, en la misma ruta: reinicia `npm run dev` para que lo vuelva a leer.
+- El Node de Roost se fía de la CA local (`NODE_EXTRA_CA_CERTS`): un proxy de Vite o un SSR que pida a `https://api.tienda.test` funciona sin apagar la comprobación del certificado.
 - Para que el navegador no avise, confía una vez en la CA de Roost: `roost cert trust`, o lo que te ofrece la app al crear un sitio.
 
 Sin Laravel es lo mismo: las opciones de `server` valen para cualquier proyecto con Vite.
@@ -482,6 +508,7 @@ roost update --install   # con el instalador de Windows: descarga el setup nuevo
 | Sitios registrados | `C:\roost\state\sites.json` |
 | Claves SSH de los sitios y servidores SSH conocidos | `C:\roost\state\git\keys\`, `C:\roost\state\git\known_hosts` |
 | Tokens HTTPS de git | El Administrador de credenciales de Windows (`Roost:git:…`) |
+| Node instalado por Roost (y tus paquetes globales de npm) | `C:\roost\bin\node\<versión>\` |
 | Redis, Mailpit y Adminer | `C:\roost\bin\redis\<versión>\`, `C:\roost\bin\mailpit\<versión>\`, `C:\roost\bin\adminer\<versión>\` (se sirve en `http://localhost/adminer`) |
 | Datos de Redis y bandeja de Mailpit (Roost nunca los borra) | `C:\roost\data\redis\`, `C:\roost\data\mailpit\` |
 | Configuración de Redis (generada) y tus ajustes | `C:\roost\etc\redis\redis.conf`, `C:\roost\etc\redis\conf.d\99-usuario.conf` |
@@ -530,6 +557,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
 - SSH por un proxy no se soporta: usa un token HTTPS.
+- Los paquetes globales de npm (`npm install -g`) no están en el PATH, y no hay shims de pnpm, yarn ni corepack en la terminal: usa `npx`.
 
 ## Desarrollo
 
@@ -594,11 +622,11 @@ La configuración de artefacto que hay que dar de alta en SignPath está en [.gi
 Por fases:
 
 - **Fase 0:** hecha: `scan` y `audit` por CLI y el feed firmado `roost-catalog`.
-- **Fase 1, MVP:** hecha en Windows: instalar PHP, MariaDB y MySQL, servirlos con nginx desde un daemon de usuario con supervisor, sitios `https://*.test` con certificados de una CA local, y la app de escritorio. Falta Linux y la firma de los binarios; las releases ya salen de un workflow, pero aún no se ha publicado ninguna.
-- **Fase 2 (en curso):** hechos en Windows los shims de terminal (`php` según el proyecto en el que estés), los puntos de enganche para extensiones y el DNS local. Los paquetes de Scoop y winget están preparados y esperan a la primera release. Faltan Xdebug con un clic, las plantillas y el instalador.
-- **Fase 3:** macOS y ARM (Apache ya está, en Windows).
+- **Fase 1, MVP:** hecha en Windows: instalar PHP, MariaDB y MySQL, servirlos con nginx o Apache desde un daemon de usuario con supervisor, sitios `https://*.test` con certificados de una CA local, y la app de escritorio. Las releases salen de un workflow, con instalador, Scoop y actualizar desde la app. Falta Linux y la firma de los binarios.
+- **Fase 2 (en curso):** hechos en Windows los shims de terminal (`php`, `composer`, `node`, `npm` y `npx` según el proyecto), los puntos de enganche para extensiones, el DNS local, Xdebug con un clic, Composer, Node, Redis, Mailpit, Adminer, sitios desde git (también privados), las plantillas y los pasos de instalación. Quedan los sitios avanzados (alias, aparcar carpetas, logs por sitio), compartir un sitio (túnel y LAN) y más auditoría.
+- **Fase 3:** macOS y ARM.
 
-Roost es y seguirá siendo gratis y MIT. Más adelante habrá un **Roost Pro** de pago, aparte, para quien lo usa en su trabajo o en equipo: varias bases de datos y servicios a la vez (PostgreSQL, Redis, Mailpit), auditoría de servidores por SSH y un feed de avisos ampliado. Nada de lo que hoy es gratis pasará al Pro, y la seguridad básica (EOL y avisos críticos) llega a todos igual.
+Roost es y seguirá siendo gratis y MIT. Más adelante habrá un **Roost Pro** de pago, aparte, para quien lo usa en su trabajo o en equipo: varias bases de datos a la vez y base de datos por sitio, PostgreSQL y Meilisearch, copias programadas, auditoría de servidores por SSH, la automatización de git (webhook, pull automático, un sitio por rama) y un feed de avisos ampliado. Nada de lo que hoy es gratis pasará al Pro, y la seguridad básica (EOL y avisos críticos) llega a todos igual.
 
 ## Licencia
 
