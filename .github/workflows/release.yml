@@ -234,6 +234,19 @@ jobs:
           if ($p.ExitCode -ne 1 -or -not (Select-String -Path $err -Pattern 'roost php install' -Quiet)) {
             throw "El shim no arranca bien (codigo $($p.ExitCode)): $(Get-Content $err -Raw)"
           }
+          # La ayuda de todos los comandos, tres niveles: Spectre lee los [corchetes] de los textos como
+          # estilos, y uno sin escapar ([git] en vez de [[git]]) rompe roost --help entero.
+          function Test-Help([string[]]$path, [int]$depth) {
+            $out = & $roost @path --help 2>&1 | Out-String
+            if ($LASTEXITCODE -ne 0) { throw "roost $($path -join ' ') --help ha salido con $($LASTEXITCODE):`n$out" }
+            $count = 1
+            if ($depth -lt 3 -and $out -match 'COMMANDS:') {
+              $names = [regex]::Matches(($out -split 'COMMANDS:')[1], '(?m)^ {4}([a-z][a-z0-9-]*)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
+              foreach ($n in $names) { $count += Test-Help ($path + $n) ($depth + 1) }
+            }
+            return $count
+          }
+          Write-Host "La ayuda sale bien en $(Test-Help @() 0) comandos."
           exit 0
 
       - name: Empaquetar
@@ -478,6 +491,8 @@ jobs:
           "$roost" audit --json > /dev/null || code=$?
           # 0 = nada bloqueante, 1 = hay algo vulnerable en el runner; 2 = no carga el dataset.
           if [ "$code" -gt 1 ]; then echo "::error::roost audit ha salido con $code: no carga el dataset"; exit 1; fi
+          # La ayuda (los [corchetes] sin escapar la rompen; en Windows se recorren todos los comandos).
+          "$roost" --help > /dev/null || { echo "::error::roost --help ha fallado"; exit 1; }
 
       - name: Empaquetar
         run: |

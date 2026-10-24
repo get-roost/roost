@@ -22,6 +22,7 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 - **roostd y el DNS local en Ajustes:** «Reiniciar roostd» lo para y lo vuelve a lanzar (y arranca el stack si estaba en marcha); «¿Contesta el DNS local?» pregunta al DNS de Roost, como `roost dns status`.
 - **El log de la app:** la app apunta lo que hace y lo que falla en `logs\roost-desktop.log` (se rota solo y nunca lleva contraseñas ni tokens). Sale en Registros y en Ajustes.
 - **Arreglado:** con varios sitios de git, «hay novedades» podía salir como un fallo del sitio si la app ponía al día uno mientras miraba otro (los dos escribían a la vez la configuración de git de Roost, o su lista de servidores SSH conocidos). Ahora van por turnos, y la lista de sitios ya no se pierde un cambio si la escriben dos a la vez.
+- **Arreglado:** `roost --help` se cortaba a mitad de la lista con «Could not find color or style 'git'» (desde la 0.1.4): la ayuda leía como estilos los `[git]`, `[node]`, `[redis]` y `[mail]` de algunas descripciones. Cada release comprueba ahora la ayuda de todos los comandos.
 
 ## 0.1.6 — 24-oct-2026
 
