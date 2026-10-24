@@ -2,6 +2,19 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
+## 0.1.8 — en preparación
+
+- **Renombrar y mover un sitio:** «Editar…» en el panel del sitio (o `roost site rename tienda shop` y `roost site move tienda <carpeta>`) cambia su nombre o su carpeta. Al renombrar se llevan su certificado, su línea del hosts, sus subdominios, su git y sus registros; su base de datos se queda como estaba o, si lo eliges, se copia al nombre nuevo (con sus vistas, rutinas y triggers) y la de antes no se borra. Al mover, Roost mueve la carpeta del proyecto o solo apunta a otra que ya tengas.
+- **Carpetas aparcadas:** «Aparcar carpeta…» (o `roost park C:\proyectos`) hace de cada subcarpeta un sitio `<subcarpeta>.test`, como el `valet park` de Valet. Con la app abierta o el stack en marcha, una carpeta nueva da un sitio nuevo y una borrada lo quita; las que tienen un nombre que no vale se saltan y se dice. Con el hosts, lo que falta se añade de una vez, con un solo permiso.
+- **Registros por sitio:** cada sitio tiene sus accesos y sus errores en `logs\sites\<sitio>-access.log` y `-error.log`, con nginx y con Apache, y Registros los filtra por sitio («Registros» en el panel del sitio).
+- **Alias y subdominios:** «Alias…» (o `roost site alias tienda add tienda-alias.test`) da a un sitio otros nombres `.test` y subdominios con nombre (`api.tienda.test`), con su certificado y su línea en el hosts. Si es un WordPress, te avisa de que el multisite con subdominios necesita el DNS local o una línea por subdominio.
+- **`.roost.toml` en el proyecto:** un `.roost.toml` en la carpeta (`php`, `root`, `db`, `aliases`) dice cómo se sirve el proyecto, y se versiona con él. Roost lo lee al dar de alta el sitio, al iniciar y al abrir la app, y el `php` de la terminal también lo usa. «Guardar en .roost.toml» (o `roost site add tienda --save`) lo crea con lo que tiene el sitio.
+- **Auditoría de nginx y Apache:** `roost scan`, `roost audit` y la pantalla Auditoría encuentran también los nginx y Apache del equipo: los de Roost, Laragon, XAMPP, WAMP, chocolatey, scoop, «Archivos de programa», los instalados como servicio de Windows y los del PATH (en Linux, los de la distribución salen en ámbar, como el resto de paquetes de distro). Solo se les pregunta la versión: no se arranca nada.
+- **Auditoría:** el feed de avisos trae los de nginx (nginx.org) y Apache 2.4 (httpd.apache.org), y las fechas de fin de vida de sus ramas. `--only` admite `nginx` y `apache`, también en la Action de auditoría.
+- **Mitigaciones comprobadas:** las mitigaciones de cada PHP se comparan con lo que PHP aplica de verdad (`php -i`): «mitigada», «sin mitigar» o «sin saber», con su valor y los ficheros que lee PHP, en orden.
+- **Mitigaciones aplicables:** en los PHP de Roost, «Aplicar», «Aplicar todas» y «Deshacer» en el detalle del hallazgo (o `roost audit --apply-mitigations [<php>]` y `--undo-mitigations`). Van a `conf.d\<rama>\50-roost-mitigaciones.ini`, nunca a tus `99-usuario.ini` (que siguen mandando), y se reinicia solo el pool de esa rama. En un PHP de Laragon o XAMPP solo se mira, y se dice dónde cambiarlo.
+- **Mitigada no es lo mismo que parcheada:** un PHP vulnerable con todos sus avisos mitigados pasa a ámbar y no hace fallar `roost audit`, salvo que el aviso esté en KEV (explotación activa): sigue en rojo. Mitigar no sustituye a actualizar.
+
 ## 0.1.7 — 24-oct-2026
 
 - **Node, gratis:** Roost instala Node de nodejs.org (las LTS 24 y 22, verificadas con su SHA-256 antes de instalar nada) con `roost node install`, o desde el panel de un sitio con «Instalar Node 24 (LTS)». `roost node list` dice cuáles tienes, cuáles ofrece Roost y si están en mantenimiento o sin parches; `roost node use 24` fija el global, y `roost node use 22 --here`, el del proyecto (escribe un `.nvmrc`).

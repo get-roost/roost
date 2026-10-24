@@ -64,10 +64,10 @@ Dónde busca:
 
 | SO | Fuentes |
 |---|---|
-| Windows | Lo instalado por Roost (`C:\roost\bin\php`), Laragon, XAMPP, WAMP, chocolatey (`C:\tools\php*`), PHP suelto (`C:\php*`), scoop, Herd, `Program Files` (MySQL y MariaDB) y `PATH`. Barre las unidades C:, D: y E:, y la del perfil del usuario. |
-| Linux y macOS | Rutas de la distro (`/usr/bin`, `/usr/sbin`, remi), `/usr/local/bin`, `/usr/local/mysql` y `/opt` (compilados a mano, tarballs oficiales, imágenes Docker `php:*`), Homebrew (PHP) y `PATH` (solo servidores: `mysqld` y `mariadbd`, no los clientes `mysql` ni `mariadb`). Un binario visto por dos enlaces (con usrmerge, `/bin` es `/usr/bin`) sale una vez. |
+| Windows | Lo instalado por Roost (`C:\roost\bin\php`), Laragon, XAMPP, WAMP, chocolatey (`C:\tools\php*`), PHP suelto (`C:\php*`), scoop, Herd, `Program Files` (MySQL y MariaDB) y `PATH`. nginx y Apache: los de Roost, Laragon, XAMPP, WAMP, chocolatey (`C:\tools\…`, `%APPDATA%\Apache24`), uno suelto (`C:\nginx*`, `C:\Apache2*`), `Program Files`, scoop, los instalados como servicio de Windows y el `PATH`. Barre las unidades C:, D: y E:, y la del perfil del usuario. |
+| Linux y macOS | Rutas de la distro (`/usr/bin`, `/usr/sbin`, remi), `/usr/local/bin`, `/usr/local/mysql` y `/opt` (compilados a mano, tarballs oficiales, imágenes Docker `php:*` y `httpd`), Homebrew (PHP, nginx y Apache) y `PATH` (solo servidores: `mysqld` y `mariadbd`, no los clientes `mysql` ni `mariadb`). Un binario visto por dos enlaces (con usrmerge, `/bin` es `/usr/bin`) sale una vez. |
 
-La versión se obtiene ejecutando el binario (`php -v`, `mysqld --version`), con un límite de 15 s. Si un binario no responde, se salta y el escaneo sigue.
+La versión se obtiene ejecutando el binario (`php -v`, `mysqld --version`, `nginx -v`, `httpd -v`), con un límite de 15 s: nunca se arranca nada. Si un binario no responde, se salta y el escaneo sigue. nginx y Apache se evalúan por su versión de upstream: los forks (OpenResty, Tengine) no se cuentan.
 
 ### `roost audit`
 
@@ -83,6 +83,8 @@ Escanea lo mismo y evalúa cada instalación contra los avisos del feed firmado 
 
 Lo rojo y lo ámbar se detallan debajo de la tabla, con los avisos (CVSS, si están en el catálogo KEV de CISA), las mitigaciones oficiales y el arreglo real.
 
+**Mitigaciones.** Cada mitigación de un aviso de PHP se compara con lo que PHP aplica de verdad (`php -i`): «mitigada», «sin mitigar» o «sin saber», con su valor y los ficheros que lee PHP, en orden. En un PHP de Roost, `roost audit --apply-mitigations [<php>]` (o «Aplicar» en la app) las escribe en `C:\roost\etc\php\conf.d\<rama>\50-roost-mitigaciones.ini` y reinicia solo el pool de esa rama; `--undo-mitigations [<php>]` las quita. Tus `99-usuario.ini` no se tocan y siguen mandando. Un PHP VULNERABLE con todos sus avisos mitigados pasa a ámbar y no bloquea, salvo que algún aviso esté en KEV (explotación activa): sigue en rojo, porque mitigar no sustituye a actualizar. En un PHP de Laragon o XAMPP solo se mira y se dice dónde cambiarlo.
+
 **Paquetes de distro: ámbar, no rojo.** Un PHP de Ubuntu como `7.4.3-4ubuntu2.29+esm5` *parece* vulnerable por su número de versión, pero puede tener el parche aplicado mediante un backport. Comparar por número no sirve en ese caso. Por eso, lo instalado por el gestor de paquetes, o lo que lleva sufijos como `+deb`, `+esm` o `ubuntu`, sale en ámbar con el veredicto marcado con `?` (por ejemplo `VULNERABLE?`). Para confirmarlo, consulta `apt changelog <paquete>` o `pro fix`.
 
 **Códigos de salida**, para usarlo en CI o en un cron:
@@ -94,7 +96,7 @@ Lo rojo y lo ámbar se detallan debajo de la tabla, con los avisos (CVSS, si est
 | `2` | No se pudo cargar el dataset. |
 | `3` | Las opciones no valen (por ejemplo, `--only` con un tipo que no existe). |
 
-En la salida `--json`, el campo `blocking` dice lo mismo que el código de salida, y `dataset.origin` dice con qué se ha evaluado: `feed` (firmado), `embedded` o `file`. `--only php` (o `mysql`, `mariadb`, varios separados por comas) audita solo esos tipos: el resumen, `blocking` y el código de salida salen de lo filtrado, y el JSON lo dice en `only` y `skipped`. Sirve en CI, donde la imagen del runner trae su propio MySQL; `roost scan` también lo acepta. Con `--offline` no pregunta por un feed nuevo.
+En la salida `--json`, el campo `blocking` dice lo mismo que el código de salida, y `dataset.origin` dice con qué se ha evaluado: `feed` (firmado), `embedded` o `file`. `--only php` (o `mysql`, `mariadb`, `nginx`, `apache`, varios separados por comas) audita solo esos tipos: el resumen, `blocking` y el código de salida salen de lo filtrado, y el JSON lo dice en `only` y `skipped`. Sirve en CI, donde la imagen del runner trae su propio MySQL; `roost scan` también lo acepta. Con `--offline` no pregunta por un feed nuevo.
 
 ### `roost audit` en la CI (GitHub Actions)
 
@@ -257,12 +259,12 @@ Cuando un comando cambia una clave, Roost toca solo esa clave y respeta el resto
 `roost-desktop` es una ventana al estilo de Laragon sobre lo mismo que la CLI, con el stack en el daemon:
 
 - **Inicio:** accesos a la web, a una terminal con el PHP global en el PATH, a la carpeta www y a la base de datos, y los servicios con su estado, sus puertos, sus reinicios y un botón para reiniciar cada uno.
-- **Sitios:** alta con plantilla y el PHP que pide el `composer.json`, el PHP propio de cada sitio, su certificado y su línea en el hosts.
+- **Sitios:** alta con plantilla y el PHP que pide el `composer.json`, el PHP propio de cada sitio, su certificado y su línea en el hosts; renombrar y mover un sitio, sus alias y subdominios, su `.roost.toml` y las carpetas aparcadas.
 - **PHP:** las versiones instaladas, con su veredicto, quién las usa y sus extensiones (activar una reinicia solo su pool), el catálogo de windows.php.net (NTS/TS, x64/x86) y lo que hay fuera de Roost.
 - **Servidor web:** cuál arranca (nginx o Apache, que se instala al elegirlo), sus puertos HTTP y HTTPS, la validación (`nginx -t` / `httpd -t`) y su configuración.
 - **Bases de datos:** la conexión (con copiar y la línea para el `.env`), el puerto con quién ocupa cada uno, MariaDB y MySQL instaladas y disponibles, y las bases de datos del servidor (crear, consola SQL).
-- **Auditoría:** todo lo de la máquina frente a los avisos, con filtros por color, tipo y origen, el CVE o GHSA de cada aviso a un clic, sus mitigaciones, lo ignorado aparte, qué ha cambiado desde la anterior y una exportación a Markdown o JSON.
-- **Registros:** el final de cada log, coloreado, con filtro y en vivo.
+- **Auditoría:** todo lo de la máquina (PHP, bases de datos, nginx y Apache) frente a los avisos, con filtros por color, tipo y origen, el CVE o GHSA de cada aviso a un clic, sus mitigaciones comparadas con el `php.ini` efectivo («Aplicar» y «Deshacer» en los PHP de Roost), lo ignorado aparte, qué ha cambiado desde la anterior y una exportación a Markdown o JSON.
+- **Registros:** el final de cada log, coloreado, con filtro, en vivo y por sitio.
 - **Ajustes:** inicio con Windows (la app en la bandeja, o solo el stack con una tarea programada), la bandeja y sus avisos, tema claro u oscuro, el editor, la terminal y el navegador con los que se abre todo, la carpeta raíz de Roost (cambiarla mueve lo que hay o empieza de cero), puertos, la CA local, cómo se resuelven los `.test` (hosts o DNS local), roostd (reiniciarlo) y el log de la propia app.
 
 La primera vez, una bienvenida propone traer las ramas de PHP que ya usas, una MariaDB, las carpetas de la www de Laragon como sitios y, si quieres, sus bases de datos (volcadas sin tocar Laragon: de su servidor si está en marcha o de una copia de sus datos si no). Desde la bandeja se arranca y se para todo, se abre localhost, un sitio o Registros, se crea un sitio, se reinicia o se cambia el servidor web, se elige el PHP global (por versión exacta) o la base de datos, y avisa si un servicio se cae o algo pasa a rojo en la auditoría. Atajos: Ctrl+N nuevo sitio, F5 actualizar, Ctrl+L Registros, Ctrl+, Ajustes. La app lleva `roost.exe` (el daemon) y `roost-helper.exe` a su lado.
@@ -282,7 +284,7 @@ roost php which            # que php toca aqui y por que
 roost shims remove         # lo deja como estaba
 ```
 
-En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION`, el `.php-version` más cercano (en la carpeta o en una superior), el PHP del sitio cuya carpeta es esta, o el PHP global. Carga el mismo `php.ini` que el servidor, así que Composer y PHPUnit tienen las mismas extensiones; `composer` va igual (ver [Composer](#composer-solo-windows-por-ahora)), y `node`, `npm` y `npx` con el Node de cada carpeta (ver [Node](#node-solo-windows-por-ahora)). Si hay otro `php.exe` o `composer` en el PATH del sistema (Laragon, XAMPP, Composer-Setup), Windows lo mira antes y gana: `roost shims status` lo avisa. En la app, es una casilla de Ajustes.
+En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION`, el `.php-version` o el `php` del `.roost.toml` más cercanos (en la carpeta o en una superior; en una misma carpeta, el `.php-version` primero), el PHP del sitio cuya carpeta es esta, o el PHP global. Carga el mismo `php.ini` que el servidor, así que Composer y PHPUnit tienen las mismas extensiones; `composer` va igual (ver [Composer](#composer-solo-windows-por-ahora)), y `node`, `npm` y `npx` con el Node de cada carpeta (ver [Node](#node-solo-windows-por-ahora)). Si hay otro `php.exe` o `composer` en el PATH del sistema (Laragon, XAMPP, Composer-Setup), Windows lo mira antes y gana: `roost shims status` lo avisa. En la app, es una casilla de Ajustes.
 
 ### `roost site` y `roost cert` (solo Windows, por ahora)
 
@@ -296,6 +298,12 @@ roost site add api --root web                            # raíz web distinta (p
 roost site root tienda public                            # cambia la raíz web (con «.» vuelve a la carpeta del proyecto)
 roost site list                                          # carpeta, PHP, caducidad del certificado, si está en el hosts (o DNS)
 roost site remove legacy                                 # la carpeta del proyecto no se toca
+roost site rename tienda shop [--db copy]                # nombre nuevo (con --db copy, copia la base de datos al nuevo)
+roost site move tienda D:\web\tienda [--move-files]      # otra carpeta: solo apunta, o mueve la del proyecto
+roost site alias tienda add tienda-alias.test            # otro nombre (o un subdominio: api.tienda.test); remove lo quita
+roost site hosts                                         # el hosts con todos los nombres (un solo permiso)
+roost site add tienda --save                             # escribe el .roost.toml del proyecto con lo que tiene el sitio
+roost park C:\proyectos                                  # cada subcarpeta, un sitio <subcarpeta>.test; unpark / parked
 roost cert trust                                         # que Chrome y Edge confíen en la CA de Roost (una vez)
 roost cert untrust                                       # deja de confiar en ella (y quita lo de Firefox)
 roost cert path tienda                                   # el certificado y la clave del sitio (para Vite; --json)
@@ -306,10 +314,15 @@ roost cert renew                                         # vuelve a emitir los c
 - **Nombres y certificado.** Se sirven `tienda.test` y cualquier subdominio (`api.tienda.test`), en HTTP y HTTPS. Escucha solo en 127.0.0.1, por los puertos de `[web]` (80 y 443 por defecto). La raíz web es `public/` si existe (Laravel, Symfony); si no, la carpeta.
 - **PHP por sitio.** Cada rama de PHP en uso tiene su propio pool de php-cgi.
 - **La raíz web** es la subcarpeta del proyecto que se sirve (`public`, `web`, `dist`…). Se guarda relativa a la carpeta, tiene que existir dentro de ella y, si el stack está en marcha, se aplica al momento. En la app, el panel del sitio tiene «Cambiar…», «Usar la carpeta del proyecto» y accesos rápidos a las subcarpetas típicas que haya; Nuevo sitio trae el campo «Raíz web».
+- **Renombrar y mover.** `site rename` (o «Editar…» en la app) se lleva el certificado, el hosts, los subdominios, el git y los registros; el vhost de antes queda como `.conf.removed`. La base de datos se queda; con `--db copy` se copia al nombre nuevo (con sus vistas, rutinas y triggers) y la de antes no se borra. `site move` solo apunta a otra carpeta o, con `--move-files`, mueve allí la del proyecto (en la misma unidad).
+- **Alias y subdominios.** Un sitio responde siempre por cualquier `*.<nombre>.test` (en el servidor web y en el certificado). Con el hosts, cada subdominio necesita su línea: añádelo como alias (`api.tienda.test`). Un alias es otro nombre para el mismo sitio, con su `*.` y su sitio en el certificado. A un WordPress, Roost le avisa de que el multisite con subdominios necesita el DNS local o una línea por subdominio.
+- **Carpetas aparcadas.** `roost park <carpeta>` (o «Aparcar carpeta…») hace de cada subcarpeta un sitio, como el `valet park` de Valet. Con la app abierta o el stack en marcha, las nuevas entran solas y las borradas salen. Se saltan, diciéndolo, las que tienen un nombre que no vale como `.test`, y sin decirlo las de punto inicial. El daemon nunca toca el hosts: lo que falte se añade con `roost site hosts` o con «Añadir al hosts» en la app, un solo permiso para todo.
+- **`.roost.toml`.** En la carpeta del proyecto, y versionado con él: `php = "8.3"` (o `"global"`), `root = "public"`, `db = "tienda"`, `aliases = ["api.tienda.test"]` y, al aparcar, `name`. Lo leen `site add`, el aparcado, `roost up`, la app al abrirse y el `php` de la terminal (como un `.php-version`). Lo que no se puede aplicar (un PHP sin instalar, una raíz que no existe) se queda como estaba y se avisa. Lo que cambias con Roost se escribe también en él si ya tenía esa clave; `site add --save` (o «Guardar en .roost.toml») lo escribe entero.
+- **Registros por sitio.** `C:\roost\logs\sites\<sitio>-access.log` y `-error.log`, con nginx y con Apache; `nginx-access.log` y `apache-access.log` se quedan con lo de localhost. En la app, Registros los filtra por sitio («Registros» en el panel del sitio).
 - **Tu vhost.** Cada sitio tiene su `C:\roost\etc\nginx\sites\<nombre>.conf`. Puedes editarlo **fuera** de las marcas `# roost:begin` / `# roost:end`, por ejemplo el `location /` del controlador frontal o reglas tuyas: Roost solo regenera lo de dentro. Al quitar el sitio, el fichero se aparta como `.conf.removed` (el de nginx y el de Apache). Con Apache es `C:\roost\etc\apache\sites\<nombre>.conf`, con las mismas marcas, aunque lo propio del proyecto va mejor en su `.htaccess`.
-- **El `hosts`.** Roost escribe en el `hosts` de Windows un bloque `# roost:begin` / `# roost:end` con una línea `127.0.0.1 <nombre>.test` por sitio. Lo hace `roost-helper.exe`, lo único de Roost que se ejecuta como administrador:
+- **El `hosts`.** Roost escribe en el `hosts` de Windows un bloque `# roost:begin` / `# roost:end` con una línea `127.0.0.1 <nombre>.test` por nombre (cada sitio y sus alias). Lo hace `roost-helper.exe`, lo único de Roost que se ejecuta como administrador:
   - solo sabe hacer eso;
-  - rechaza cualquier nombre que no sea `<algo>.test`;
+  - rechaza cualquier nombre que no sea un `.test` de hasta cuatro etiquetas en ASCII (`tienda.test`, `api.tienda.test`);
   - deja intacto lo de fuera del bloque, byte a byte;
   - anota cada ejecución en `%ProgramData%\Roost\roost-helper.log`.
 
@@ -534,7 +547,7 @@ La variable de entorno `ROOST_HOME` lo mete todo bajo una carpeta, para probar s
 
 `roost audit` y la pantalla Auditoría evalúan contra un feed firmado que se regenera cada día:
 
-- **Las fuentes** son endoflife.date (ramas y fechas de fin de vida de PHP, MySQL, MariaDB y nginx), php.net (la última de cada rama), los avisos de seguridad de GitHub de `php/php-src` y el catálogo KEV de CISA (explotación activa).
+- **Las fuentes** son endoflife.date (ramas y fechas de fin de vida de PHP, MySQL, MariaDB, nginx y Apache), php.net (la última de cada rama), los avisos de seguridad de GitHub de `php/php-src`, los boletines de nginx.org y de httpd.apache.org (Apache 2.4), y el catálogo KEV de CISA (explotación activa).
 - **Lo que no se automatiza** está en [catalog/](catalog/): nombres públicos como «PHP2Shell», títulos en castellano y mitigaciones.
 - **El generador** es `src/Roost.Catalog` y lo lanza [.github/workflows/catalog.yml](.github/workflows/catalog.yml). El resultado va a la rama [`catalog`](../../tree/catalog) de este repo.
 - **La firma** es ECDSA P-256. Roost lleva dentro la clave pública y no usa un feed cuya firma no cuadre, ni uno más viejo que el que ya tiene. Para comprobarla a mano:
@@ -557,10 +570,10 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 ## Limitaciones actuales
 
 - No evalúa CVE de MySQL ni de MariaDB, solo si su rama está en EOL según la fecha.
-- Lista las mitigaciones, pero no comprueba si están aplicadas en el `php.ini` efectivo.
-- Todavía no detecta nginx ni Apache.
+- Las mitigaciones se comprueban con el `php -i` de la terminal: lo que la terminal fija siempre (`max_execution_time`, `output_buffering`…) sale como «sin saber». En un PHP que no es de Roost, el servidor web puede leer otro `php.ini`: aunque esté mitigado sigue en rojo, y Roost no lo cambia.
 - Los paquetes de distro no se contrastan con los trackers de seguridad de Debian ni de Ubuntu: salen siempre en ámbar.
-- El feed aún no trae CVE de MySQL, MariaDB ni nginx (NVD y los boletines de Oracle y MariaDB vendrán después).
+- El feed aún no trae CVE de MySQL ni de MariaDB (NVD y los boletines de Oracle y MariaDB vendrán después).
+- PHP no tiene un registro de errores por sitio: php-cgi no admite ajustes por vhost como php-fpm, así que sus avisos siguen en `php-<rama>-error.log`.
 - `roost php`, `roost db`, `roost site` y `roost up` solo funcionan en Windows: en Linux no hay binarios oficiales de PHP y los builds propios aún no existen.
 - `roost up` arranca una sola base de datos a la vez (la global): no hay base de datos por sitio.
 - Con nginx, recargar la configuración con muchas peticiones a la vez puede cortar alguna (nginx para Windows cierra la cola de su proceso viejo); con Apache, no. Con `[php] pool = 1`, reiniciar PHP deja un momento sin atender.

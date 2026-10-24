@@ -236,8 +236,9 @@ jobs:
           }
           # La ayuda de todos los comandos, tres niveles: Spectre lee los [corchetes] de los textos como
           # estilos, y uno sin escapar ([git] en vez de [[git]]) rompe roost --help entero.
+          # En el runner, Spectre pinta con códigos ANSI: se quitan antes de leer la lista de comandos.
           function Test-Help([string[]]$path, [int]$depth) {
-            $out = & $roost @path --help 2>&1 | Out-String
+            $out = (& $roost @path --help 2>&1 | Out-String) -replace "`e\[[0-9;?]*[ -/]*[@-~]", ''
             if ($LASTEXITCODE -ne 0) { throw "roost $($path -join ' ') --help ha salido con $($LASTEXITCODE):`n$out" }
             $count = 1
             if ($depth -lt 3 -and $out -match 'COMMANDS:') {
@@ -246,7 +247,13 @@ jobs:
             }
             return $count
           }
-          Write-Host "La ayuda sale bien en $(Test-Help @() 0) comandos."
+          $helped = Test-Help @() 0
+          # Hoy son más de cien: con menos de 50, el recorrido no ha bajado a las ramas y no ha comprobado nada.
+          if ($helped -lt 50) {
+            $top = (& $roost --help 2>&1 | Out-String) -replace "`e", '\e' -replace "`r", '\r'
+            throw "Solo $helped comandos con ayuda: el recorrido no ha bajado a las ramas. La ayuda de arriba, tal cual:`n$top"
+          }
+          Write-Host "La ayuda sale bien en $helped comandos."
           exit 0
 
       - name: Empaquetar
