@@ -41,13 +41,15 @@ public static class SiteAliases
     public const int MaxPerSite = 50;
 
     /// <summary>
-    /// El alias como se guarda: sin espacios ni punto final, en minúsculas y con <c>.test</c> (vale
-    /// <c>tienda-alias</c> o <c>tienda-alias.test</c>). No lo valida: eso es <see cref="WhyNot"/>.
+    /// El alias como se guarda: sin espacios ni punto final, en minúsculas y con <c>.test</c> si es
+    /// una sola etiqueta (vale <c>tienda-alias</c> o <c>tienda-alias.test</c>). Uno con puntos que no
+    /// acaba en <c>.test</c> (<c>midominio.com</c>) se deja tal cual, y no vale: no se convierte a
+    /// escondidas en <c>midominio.com.test</c>. No lo valida: eso es <see cref="WhyNot"/>.
     /// </summary>
     public static string Normalize(string alias)
     {
         var name = alias.Trim().TrimEnd('.').ToLowerInvariant();
-        return name.EndsWith(".test", StringComparison.Ordinal) || name == "test" ? name : name + ".test";
+        return name.EndsWith(".test", StringComparison.Ordinal) || name == "test" || name.Contains('.') ? name : name + ".test";
     }
 
     /// <summary>true si <paramref name="name"/> es un subdominio de <paramref name="parent"/> (<c>api.tienda.test</c> de <c>tienda.test</c>).</summary>

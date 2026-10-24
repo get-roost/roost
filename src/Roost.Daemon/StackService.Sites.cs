@@ -14,6 +14,9 @@ namespace Roost.Daemon;
 /// </summary>
 internal sealed partial class StackService
 {
+    // Lo que se salta de una carpeta aparcada se apunta una vez por sesión, no en cada sincronización.
+    private readonly HashSet<string> _skipsLogged = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>El <c>.roost.toml</c> de cada sitio y las carpetas aparcadas, al registro. Nunca lanza. Con el cerrojo cogido.</summary>
     private void SyncSiteSources()
     {
@@ -40,7 +43,12 @@ internal sealed partial class StackService
         foreach (var site in sync.Removed)
             log($"aparcado: {site.Host} quitado (su carpeta ya no esta)");
         foreach (var skip in sync.Skipped)
-            log($"aparcado: se salta {skip.Folder}: {skip.Reason}");
+        {
+            lock (_skipsLogged)
+            {
+                if (_skipsLogged.Add($"{skip.Folder}|{skip.Reason}")) log($"aparcado: se salta {skip.Folder}: {skip.Reason}");
+            }
+        }
 
         if (sync.Added.Count == 0 && !namesChanged) return;
         try

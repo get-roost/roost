@@ -144,6 +144,7 @@ public class SitiosAvanzadosTests : IDisposable
     [InlineData("tienda-alias", "tienda-alias.test")]
     [InlineData(" Tienda-Alias.TEST. ", "tienda-alias.test")]
     [InlineData("api.tienda.test", "api.tienda.test")]
+    [InlineData("midominio.com", "midominio.com")]     // no se convierte en midominio.com.test: no vale
     public void SiteAliases_Normaliza(string input, string expected) => Assert.Equal(expected, SiteAliases.Normalize(input));
 
     [Theory]
