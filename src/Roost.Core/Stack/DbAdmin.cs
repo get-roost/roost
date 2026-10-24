@@ -62,6 +62,21 @@ public static partial class DbAdmin
     /// <summary>Solo letras, números y _ (hasta 64): así el nombre no necesita escaparse en el SQL.</summary>
     public static bool IsValidName(string name) => NamePattern().IsMatch(name);
 
+    [GeneratedRegex("[^A-Za-z0-9_]")]
+    private static partial Regex NotNameChar();
+
+    /// <summary>
+    /// PURO: la base de datos que se propone para un sitio: su nombre con lo que no sea letra, número
+    /// o _ cambiado por _ (<c>mi-tienda</c> → <c>mi_tienda</c>) y hasta 64. Es la que crea Nuevo sitio,
+    /// la del panel del sitio y la que Bases de datos reconoce como «parece de».
+    /// </summary>
+    public static string NameFor(string siteName)
+    {
+        var name = NotNameChar().Replace(siteName.Trim().ToLowerInvariant(), "_");
+        if (name.Length > 64) name = name[..64];
+        return name.Length == 0 ? "db" : name;
+    }
+
     /// <summary>Un nombre de usuario: letras, números y _ (hasta 32, el máximo de MySQL).</summary>
     public static bool IsValidUserName(string user) => UserPattern().IsMatch(user);
 
