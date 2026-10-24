@@ -1,7 +1,7 @@
 {
-  "schemaVersion": "1.0.0",
-  "generated": "2026-10-23T22:37:11+00:00",
-  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src y CISA KEV 2026.10.23; 2 revisado(s) a mano",
+  "schemaVersion": "1.1.0",
+  "generated": "2026-10-24T06:32:54+00:00",
+  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.10.23; 2 revisado(s) a mano",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
     "realFix": "Actualiza a la ultima de tu rama: 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).",
@@ -511,6 +511,30 @@
           "status": "active"
         }
       }
+    },
+    "apache": {
+      "displayName": "Apache",
+      "branches": {
+        "1.3": {
+          "latest": "1.3.42",
+          "eol": "2010-02-03",
+          "status": "eol"
+        },
+        "2.0": {
+          "latest": "2.0.65",
+          "eol": "2013-07-10",
+          "status": "eol"
+        },
+        "2.2": {
+          "latest": "2.2.34",
+          "eol": "2017-07-11",
+          "status": "eol"
+        },
+        "2.4": {
+          "latest": "2.4.69",
+          "status": "active"
+        }
+      }
     }
   },
   "advisories": [
@@ -541,8 +565,10 @@
       "mitigations": [
         {
           "ini": "memory_limit",
-          "value": "128M (razonable)",
-          "note": "y upload_max_filesize / post_max_size bajos"
+          "value": "128M",
+          "note": "razonable; y upload_max_filesize / post_max_size bajos",
+          "compare": "<=",
+          "setting": "memory_limit <= 128M"
         }
       ],
       "refs": [
@@ -578,7 +604,8 @@
         {
           "ini": "session.upload_progress.enabled",
           "value": "0",
-          "note": "y reinicia TODOS los workers (php-fpm / apache)"
+          "note": "y reinicia TODOS los workers (php-fpm / apache)",
+          "setting": "session.upload_progress.enabled = 0"
         }
       ],
       "refs": [
@@ -2230,6 +2257,5044 @@
       "mitigations": [],
       "refs": [
         "https://github.com/php/php-src/security/advisories/GHSA-54hq-v5wp-fqgv"
+      ]
+    },
+    {
+      "id": "CVE-2026-15176",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow when using alias with rewrite",
+      "affected": [
+        ">=0.1.29 <1.30.6",
+        ">=1.31.0 <=1.31.6"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.7",
+        "1.30": "1.30.6"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162416",
+        "https://www.cve.org/CVERecord?id=CVE-2026-15176"
+      ]
+    },
+    {
+      "id": "CVE-2026-93479",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in script evaluation",
+      "affected": [
+        ">=1.31.2 <=1.31.6",
+        ">=1.30.0 <=1.30.5"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.7",
+        "1.30": "1.30.6"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162607",
+        "https://www.cve.org/CVERecord?id=CVE-2026-93479"
+      ]
+    },
+    {
+      "id": "CVE-2026-95101",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Request body injection in HTTP/3",
+      "affected": [
+        ">=1.25.0 <1.30.6",
+        ">=1.31.0 <=1.31.6"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.7",
+        "1.30": "1.30.6"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162613",
+        "https://www.cve.org/CVERecord?id=CVE-2026-95101"
+      ]
+    },
+    {
+      "id": "CVE-2026-97629",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Session forgery when using TLS session tickets",
+      "affected": [
+        ">=1.23.2 <1.30.6",
+        ">=1.31.0 <=1.31.6"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.7",
+        "1.30": "1.30.6"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162606",
+        "https://www.cve.org/CVERecord?id=CVE-2026-97629"
+      ]
+    },
+    {
+      "id": "CVE-2026-97205",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Use-after-free when using asynchronous file I/O (AIO)",
+      "affected": [
+        ">=0.8.11 <1.30.6",
+        ">=1.31.0 <=1.31.6"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.7",
+        "1.30": "1.30.6"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162608",
+        "https://www.cve.org/CVERecord?id=CVE-2026-97205"
+      ]
+    },
+    {
+      "id": "CVE-2026-90439",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow when using ngx_http_v3_module",
+      "affected": [
+        ">=1.29.2 <1.30.5",
+        ">=1.31.0 <=1.31.5"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.6",
+        "1.30": "1.30.5"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162604",
+        "https://www.cve.org/CVERecord?id=CVE-2026-90439"
+      ]
+    },
+    {
+      "id": "CVE-2026-42533",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow when using map and regex",
+      "affected": [
+        ">=0.9.6 <1.30.4",
+        ">=1.31.0 <=1.31.2"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.3",
+        "1.30": "1.30.4"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162097",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42533"
+      ]
+    },
+    {
+      "id": "CVE-2026-60005",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Memory disclosure when using ngx_http_slice_module",
+      "affected": [
+        ">=1.15.8 <1.30.4",
+        ">=1.31.0 <=1.31.2"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.3",
+        "1.30": "1.30.4"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162100",
+        "https://www.cve.org/CVERecord?id=CVE-2026-60005"
+      ]
+    },
+    {
+      "id": "CVE-2026-56434",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Use-after-free when using ngx_http_ssi_module",
+      "affected": [
+        ">=0.8.11 <1.30.4",
+        ">=1.31.0 <=1.31.2"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.3",
+        "1.30": "1.30.4"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000162098",
+        "https://www.cve.org/CVERecord?id=CVE-2026-56434"
+      ]
+    },
+    {
+      "id": "CVE-2026-42530",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Use-after-free in HTTP/3",
+      "affected": [
+        ">=1.31.0 <=1.31.1"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.2"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161616",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42530"
+      ]
+    },
+    {
+      "id": "CVE-2026-42055",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in the ngx_http_proxy_v2_module and ngx_http_grpc_module",
+      "affected": [
+        ">=1.13.10 <1.30.3",
+        ">=1.31.0 <=1.31.1"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.2",
+        "1.30": "1.30.3"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161584",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42055"
+      ]
+    },
+    {
+      "id": "CVE-2026-48142",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overread in the ngx_http_charset_module",
+      "affected": [
+        ">=0.3.50 <1.30.3",
+        ">=1.31.0 <=1.31.1"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.2",
+        "1.30": "1.30.3"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161585",
+        "https://www.cve.org/CVERecord?id=CVE-2026-48142"
+      ]
+    },
+    {
+      "id": "CVE-2026-9256",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in the ngx_http_rewrite_module",
+      "affected": [
+        ">=0.1.17 <1.30.2",
+        "=1.31.0"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.1",
+        "1.30": "1.30.2"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161377",
+        "https://www.cve.org/CVERecord?id=CVE-2026-9256"
+      ]
+    },
+    {
+      "id": "CVE-2026-42926",
+      "aliases": [],
+      "product": "nginx",
+      "title": "HTTP/2 request injection in the ngx_http_proxy_module",
+      "affected": [
+        ">=1.29.4 <=1.30.0"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.0",
+        "1.30": "1.30.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161131",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42926"
+      ]
+    },
+    {
+      "id": "CVE-2026-42945",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in the ngx_http_rewrite_module",
+      "affected": [
+        ">=0.6.27 <=1.30.0"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.0",
+        "1.30": "1.30.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161019",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42945"
+      ]
+    },
+    {
+      "id": "CVE-2026-42946",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overread in the ngx_http_scgi_module and ngx_http_uwsgi_module",
+      "affected": [
+        ">=0.8.42 <=1.30.0"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.0",
+        "1.30": "1.30.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161027",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42946"
+      ]
+    },
+    {
+      "id": "CVE-2026-42934",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overread in the ngx_http_charset_module",
+      "affected": [
+        ">=0.3.50 <=1.30.0"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.0",
+        "1.30": "1.30.1"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161028",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42934"
+      ]
+    },
+    {
+      "id": "CVE-2026-40460",
+      "aliases": [],
+      "product": "nginx",
+      "title": "HTTP/3 address spoofing",
+      "affected": [
+        ">=1.25.0 <=1.30.0"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.0",
+        "1.30": "1.30.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161068",
+        "https://www.cve.org/CVERecord?id=CVE-2026-40460"
+      ]
+    },
+    {
+      "id": "CVE-2026-40701",
+      "aliases": [],
+      "product": "nginx",
+      "title": "resolver use-after-free in OCSP",
+      "affected": [
+        ">=1.19.0 <=1.30.0"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.0",
+        "1.30": "1.30.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000161021",
+        "https://www.cve.org/CVERecord?id=CVE-2026-40701"
+      ]
+    },
+    {
+      "id": "CVE-2026-27654",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in ngx_http_dav_module",
+      "affected": [
+        ">=0.5.13 <1.28.3",
+        ">=1.29.0 <=1.29.6"
+      ],
+      "fixedIn": {
+        "1.29": "1.29.7",
+        "1.28": "1.28.3"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000160382",
+        "https://www.cve.org/CVERecord?id=CVE-2026-27654"
+      ]
+    },
+    {
+      "id": "CVE-2026-27784",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in the ngx_http_mp4_module",
+      "affected": [
+        ">=1.1.19 <1.28.3",
+        ">=1.29.0 <=1.29.6"
+      ],
+      "fixedIn": {
+        "1.29": "1.29.7",
+        "1.28": "1.28.3"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000160364",
+        "https://www.cve.org/CVERecord?id=CVE-2026-27784"
+      ]
+    },
+    {
+      "id": "CVE-2026-32647",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in the ngx_http_mp4_module",
+      "affected": [
+        ">=1.1.19 <1.28.3",
+        ">=1.29.0 <=1.29.6"
+      ],
+      "fixedIn": {
+        "1.29": "1.29.7",
+        "1.28": "1.28.3"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000160366",
+        "https://www.cve.org/CVERecord?id=CVE-2026-32647"
+      ]
+    },
+    {
+      "id": "CVE-2026-27651",
+      "aliases": [],
+      "product": "nginx",
+      "title": "NULL pointer dereference while using CRAM-MD5 or APOP",
+      "affected": [
+        ">=0.5.15 <1.28.3",
+        ">=1.29.0 <=1.29.6"
+      ],
+      "fixedIn": {
+        "1.29": "1.29.7",
+        "1.28": "1.28.3"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000160383",
+        "https://www.cve.org/CVERecord?id=CVE-2026-27651"
+      ]
+    },
+    {
+      "id": "CVE-2026-28753",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Injection in auth_http and XCLIENT",
+      "affected": [
+        ">=0.6.27 <1.28.3",
+        ">=1.29.0 <=1.29.6"
+      ],
+      "fixedIn": {
+        "1.29": "1.29.7",
+        "1.28": "1.28.3"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000160367",
+        "https://www.cve.org/CVERecord?id=CVE-2026-28753"
+      ]
+    },
+    {
+      "id": "CVE-2026-28755",
+      "aliases": [],
+      "product": "nginx",
+      "title": "OCSP result bypass in stream",
+      "affected": [
+        ">=1.27.2 <1.28.3",
+        ">=1.29.0 <=1.29.6"
+      ],
+      "fixedIn": {
+        "1.29": "1.29.7",
+        "1.28": "1.28.3"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000160368",
+        "https://www.cve.org/CVERecord?id=CVE-2026-28755"
+      ]
+    },
+    {
+      "id": "CVE-2026-1642",
+      "aliases": [],
+      "product": "nginx",
+      "title": "SSL upstream injection",
+      "affected": [
+        ">=1.3.0 <1.28.2",
+        ">=1.29.0 <=1.29.4"
+      ],
+      "fixedIn": {
+        "1.29": "1.29.5",
+        "1.28": "1.28.2"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000159824",
+        "https://www.cve.org/CVERecord?id=CVE-2026-1642"
+      ]
+    },
+    {
+      "id": "CVE-2025-53859",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overread in the ngx_mail_smtp_module",
+      "affected": [
+        ">=0.7.22 <=1.29.0"
+      ],
+      "fixedIn": {
+        "1.29": "1.29.1"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000152786",
+        "https://www.cve.org/CVERecord?id=CVE-2025-53859"
+      ]
+    },
+    {
+      "id": "CVE-2025-23419",
+      "aliases": [],
+      "product": "nginx",
+      "title": "SSL session reuse vulnerability",
+      "affected": [
+        ">=1.11.4 <1.26.3",
+        ">=1.27.0 <=1.27.3"
+      ],
+      "fixedIn": {
+        "1.27": "1.27.4",
+        "1.26": "1.26.3"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2025/NYEUJX7NCBCGJGXDFVXNMAAMJDFSE45G.html",
+        "https://www.cve.org/CVERecord?id=CVE-2025-23419"
+      ]
+    },
+    {
+      "id": "CVE-2024-7347",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overread in the ngx_http_mp4_module",
+      "affected": [
+        ">=1.5.13 <1.26.2",
+        "=1.27.0"
+      ],
+      "fixedIn": {
+        "1.27": "1.27.1",
+        "1.26": "1.26.2"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2024/UUOCLLONPR6244YQYU65PO5LB7JDYCWM.html",
+        "https://www.cve.org/CVERecord?id=CVE-2024-7347"
+      ]
+    },
+    {
+      "id": "CVE-2024-32760",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overwrite in HTTP/3",
+      "affected": [
+        ">=1.25.0 <=1.25.5",
+        "=1.26.0"
+      ],
+      "fixedIn": {
+        "1.27": "1.27.0",
+        "1.26": "1.26.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2024/GMY32CSHFH6VFTN76HJNX7WNEX4RLHF6.html",
+        "https://www.cve.org/CVERecord?id=CVE-2024-32760"
+      ]
+    },
+    {
+      "id": "CVE-2024-31079",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Stack overflow and use-after-free in HTTP/3",
+      "affected": [
+        ">=1.25.0 <=1.25.5",
+        "=1.26.0"
+      ],
+      "fixedIn": {
+        "1.27": "1.27.0",
+        "1.26": "1.26.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2024/GMY32CSHFH6VFTN76HJNX7WNEX4RLHF6.html",
+        "https://www.cve.org/CVERecord?id=CVE-2024-31079"
+      ]
+    },
+    {
+      "id": "CVE-2024-35200",
+      "aliases": [],
+      "product": "nginx",
+      "title": "NULL pointer dereference in HTTP/3",
+      "affected": [
+        ">=1.25.0 <=1.25.5",
+        "=1.26.0"
+      ],
+      "fixedIn": {
+        "1.27": "1.27.0",
+        "1.26": "1.26.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2024/GMY32CSHFH6VFTN76HJNX7WNEX4RLHF6.html",
+        "https://www.cve.org/CVERecord?id=CVE-2024-35200"
+      ]
+    },
+    {
+      "id": "CVE-2024-34161",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Memory disclosure in HTTP/3",
+      "affected": [
+        ">=1.25.0 <=1.25.5",
+        "=1.26.0"
+      ],
+      "fixedIn": {
+        "1.27": "1.27.0",
+        "1.26": "1.26.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2024/GMY32CSHFH6VFTN76HJNX7WNEX4RLHF6.html",
+        "https://www.cve.org/CVERecord?id=CVE-2024-34161"
+      ]
+    },
+    {
+      "id": "CVE-2024-24989",
+      "aliases": [],
+      "product": "nginx",
+      "title": "NULL pointer dereference in HTTP/3",
+      "affected": [
+        "=1.25.3"
+      ],
+      "fixedIn": {
+        "1.25": "1.25.4"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2024/NW6MNW34VZ6HDIHH5YFBIJYZJN7FGNAV.html",
+        "https://www.cve.org/CVERecord?id=CVE-2024-24989"
+      ]
+    },
+    {
+      "id": "CVE-2024-24990",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Use-after-free in HTTP/3",
+      "affected": [
+        ">=1.25.0 <=1.25.3"
+      ],
+      "fixedIn": {
+        "1.25": "1.25.4"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2024/NW6MNW34VZ6HDIHH5YFBIJYZJN7FGNAV.html",
+        "https://www.cve.org/CVERecord?id=CVE-2024-24990"
+      ]
+    },
+    {
+      "id": "CVE-2022-41741",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Memory corruption in the ngx_http_mp4_module",
+      "affected": [
+        ">=1.1.3 <1.22.1",
+        ">=1.23.0 <=1.23.1",
+        ">=1.0.7 <=1.0.15"
+      ],
+      "fixedIn": {
+        "1.23": "1.23.2",
+        "1.22": "1.22.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2022/RBRRON6PYBJJM2XIAPQBFBVLR4Q6IHRA.html",
+        "https://www.cve.org/CVERecord?id=CVE-2022-41741"
+      ]
+    },
+    {
+      "id": "CVE-2022-41742",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Memory disclosure in the ngx_http_mp4_module",
+      "affected": [
+        ">=1.1.3 <1.22.1",
+        ">=1.23.0 <=1.23.1",
+        ">=1.0.7 <=1.0.15"
+      ],
+      "fixedIn": {
+        "1.23": "1.23.2",
+        "1.22": "1.22.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2022/RBRRON6PYBJJM2XIAPQBFBVLR4Q6IHRA.html",
+        "https://www.cve.org/CVERecord?id=CVE-2022-41742"
+      ]
+    },
+    {
+      "id": "CVE-2021-23017",
+      "aliases": [],
+      "product": "nginx",
+      "title": "1-byte memory overwrite in resolver",
+      "affected": [
+        ">=0.6.18 <=1.20.0"
+      ],
+      "fixedIn": {
+        "1.21": "1.21.0",
+        "1.20": "1.20.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2021/000300.html",
+        "https://www.cve.org/CVERecord?id=CVE-2021-23017"
+      ]
+    },
+    {
+      "id": "CVE-2019-9511",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Excessive CPU usage in HTTP/2 with small window updates",
+      "affected": [
+        ">=1.9.5 <1.16.1",
+        ">=1.17.0 <=1.17.2"
+      ],
+      "fixedIn": {
+        "1.17": "1.17.3",
+        "1.16": "1.16.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2019/000249.html",
+        "https://www.cve.org/CVERecord?id=CVE-2019-9511"
+      ]
+    },
+    {
+      "id": "CVE-2019-9513",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Excessive CPU usage in HTTP/2 with priority changes",
+      "affected": [
+        ">=1.9.5 <1.16.1",
+        ">=1.17.0 <=1.17.2"
+      ],
+      "fixedIn": {
+        "1.17": "1.17.3",
+        "1.16": "1.16.1"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2019/000249.html",
+        "https://www.cve.org/CVERecord?id=CVE-2019-9513"
+      ]
+    },
+    {
+      "id": "CVE-2019-9516",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Excessive memory usage in HTTP/2 with zero length headers",
+      "affected": [
+        ">=1.9.5 <1.16.1",
+        ">=1.17.0 <=1.17.2"
+      ],
+      "fixedIn": {
+        "1.17": "1.17.3",
+        "1.16": "1.16.1"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2019/000249.html",
+        "https://www.cve.org/CVERecord?id=CVE-2019-9516"
+      ]
+    },
+    {
+      "id": "CVE-2018-16843",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Excessive memory usage in HTTP/2",
+      "affected": [
+        ">=1.9.5 <1.14.1",
+        ">=1.15.0 <=1.15.5"
+      ],
+      "fixedIn": {
+        "1.15": "1.15.6",
+        "1.14": "1.14.1"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2018/000220.html",
+        "https://www.cve.org/CVERecord?id=CVE-2018-16843"
+      ]
+    },
+    {
+      "id": "CVE-2018-16844",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Excessive CPU usage in HTTP/2",
+      "affected": [
+        ">=1.9.5 <1.14.1",
+        ">=1.15.0 <=1.15.5"
+      ],
+      "fixedIn": {
+        "1.15": "1.15.6",
+        "1.14": "1.14.1"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2018/000220.html",
+        "https://www.cve.org/CVERecord?id=CVE-2018-16844"
+      ]
+    },
+    {
+      "id": "CVE-2018-16845",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Memory disclosure in the ngx_http_mp4_module",
+      "affected": [
+        ">=1.1.3 <1.14.1",
+        ">=1.15.0 <=1.15.5",
+        ">=1.0.7 <=1.0.15"
+      ],
+      "fixedIn": {
+        "1.15": "1.15.6",
+        "1.14": "1.14.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2018/000221.html",
+        "https://www.cve.org/CVERecord?id=CVE-2018-16845"
+      ]
+    },
+    {
+      "id": "CVE-2017-7529",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Integer overflow in the range filter",
+      "affected": [
+        ">=0.5.6 <1.12.1",
+        ">=1.13.0 <=1.13.2"
+      ],
+      "fixedIn": {
+        "1.13": "1.13.3",
+        "1.12": "1.12.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2017/000200.html",
+        "https://www.cve.org/CVERecord?id=CVE-2017-7529"
+      ]
+    },
+    {
+      "id": "CVE-2016-4450",
+      "aliases": [],
+      "product": "nginx",
+      "title": "NULL pointer dereference while writing client request body",
+      "affected": [
+        ">=1.3.9 <1.10.1",
+        "=1.11.0"
+      ],
+      "fixedIn": {
+        "1.11": "1.11.1",
+        "1.10": "1.10.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2016/000179.html",
+        "https://www.cve.org/CVERecord?id=CVE-2016-4450"
+      ]
+    },
+    {
+      "id": "CVE-2016-0742",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Invalid pointer dereference in resolver",
+      "affected": [
+        ">=0.6.18 <1.8.1",
+        ">=1.9.0 <=1.9.9"
+      ],
+      "fixedIn": {
+        "1.9": "1.9.10",
+        "1.8": "1.8.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2016/000169.html",
+        "https://www.cve.org/CVERecord?id=CVE-2016-0742"
+      ]
+    },
+    {
+      "id": "CVE-2016-0746",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Use-after-free during CNAME response processing in resolver",
+      "affected": [
+        ">=0.6.18 <1.8.1",
+        ">=1.9.0 <=1.9.9"
+      ],
+      "fixedIn": {
+        "1.9": "1.9.10",
+        "1.8": "1.8.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2016/000169.html",
+        "https://www.cve.org/CVERecord?id=CVE-2016-0746"
+      ]
+    },
+    {
+      "id": "CVE-2016-0747",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Insufficient limits of CNAME resolution in resolver",
+      "affected": [
+        ">=0.6.18 <1.8.1",
+        ">=1.9.0 <=1.9.9"
+      ],
+      "fixedIn": {
+        "1.9": "1.9.10",
+        "1.8": "1.8.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2016/000169.html",
+        "https://www.cve.org/CVERecord?id=CVE-2016-0747"
+      ]
+    },
+    {
+      "id": "CVE-2014-3616",
+      "aliases": [],
+      "product": "nginx",
+      "title": "SSL session reuse vulnerability",
+      "affected": [
+        ">=0.5.6 <1.6.2",
+        ">=1.7.0 <=1.7.4"
+      ],
+      "fixedIn": {
+        "1.7": "1.7.5",
+        "1.6": "1.6.2"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2014/000147.html",
+        "https://www.cve.org/CVERecord?id=CVE-2014-3616"
+      ]
+    },
+    {
+      "id": "CVE-2014-3556",
+      "aliases": [],
+      "product": "nginx",
+      "title": "STARTTLS command injection",
+      "affected": [
+        ">=1.5.6 <1.6.1",
+        ">=1.7.0 <=1.7.3"
+      ],
+      "fixedIn": {
+        "1.7": "1.7.4",
+        "1.6": "1.6.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2014/000144.html",
+        "https://www.cve.org/CVERecord?id=CVE-2014-3556"
+      ]
+    },
+    {
+      "id": "CVE-2014-0133",
+      "aliases": [],
+      "product": "nginx",
+      "title": "SPDY heap buffer overflow",
+      "affected": [
+        ">=1.3.15 <1.4.7",
+        ">=1.5.0 <=1.5.11"
+      ],
+      "fixedIn": {
+        "1.5": "1.5.12",
+        "1.4": "1.4.7"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2014/000135.html",
+        "https://www.cve.org/CVERecord?id=CVE-2014-0133"
+      ]
+    },
+    {
+      "id": "CVE-2014-0088",
+      "aliases": [],
+      "product": "nginx",
+      "title": "SPDY memory corruption",
+      "affected": [
+        "=1.5.10"
+      ],
+      "fixedIn": {
+        "1.5": "1.5.11"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2014/000132.html",
+        "https://www.cve.org/CVERecord?id=CVE-2014-0088"
+      ]
+    },
+    {
+      "id": "CVE-2013-4547",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Request line parsing vulnerability",
+      "affected": [
+        ">=0.8.41 <1.4.4",
+        ">=1.5.0 <=1.5.6"
+      ],
+      "fixedIn": {
+        "1.5": "1.5.7",
+        "1.4": "1.4.4"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2013/000125.html",
+        "https://www.cve.org/CVERecord?id=CVE-2013-4547"
+      ]
+    },
+    {
+      "id": "CVE-2013-2070",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Memory disclosure with specially crafted HTTP backend responses",
+      "affected": [
+        ">=1.1.4 <=1.2.8",
+        ">=1.3.9 <=1.4.0"
+      ],
+      "fixedIn": {
+        "1.5": "1.5.0",
+        "1.4": "1.4.1",
+        "1.2": "1.2.9"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2013/000114.html",
+        "https://www.cve.org/CVERecord?id=CVE-2013-2070"
+      ]
+    },
+    {
+      "id": "CVE-2013-2028",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Stack-based buffer overflow with specially crafted request",
+      "affected": [
+        ">=1.3.9 <=1.4.0"
+      ],
+      "fixedIn": {
+        "1.5": "1.5.0",
+        "1.4": "1.4.1"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2013/000112.html",
+        "https://www.cve.org/CVERecord?id=CVE-2013-2028"
+      ]
+    },
+    {
+      "id": "CVE-2011-4963",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Vulnerabilities with Windows directory aliases (solo nginx para Windows)",
+      "affected": [
+        ">=0.7.52 <1.2.1",
+        "=1.3.0"
+      ],
+      "fixedIn": {
+        "1.3": "1.3.1",
+        "1.2": "1.2.1"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2012/000086.html",
+        "https://www.cve.org/CVERecord?id=CVE-2011-4963"
+      ]
+    },
+    {
+      "id": "CVE-2012-2089",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in the ngx_http_mp4_module",
+      "affected": [
+        ">=1.1.3 <=1.1.18",
+        ">=1.0.7 <=1.0.14"
+      ],
+      "fixedIn": {
+        "1.1": "1.1.19",
+        "1.0": "1.0.15"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2012/000080.html",
+        "https://www.cve.org/CVERecord?id=CVE-2012-2089"
+      ]
+    },
+    {
+      "id": "CVE-2012-1180",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Memory disclosure with specially crafted backend responses",
+      "affected": [
+        ">=0.1.0 <1.0.14",
+        ">=1.1.0 <=1.1.16"
+      ],
+      "fixedIn": {
+        "1.1": "1.1.17",
+        "1.0": "1.0.14"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://mailman.nginx.org/pipermail/nginx-announce/2012/000076.html",
+        "https://www.cve.org/CVERecord?id=CVE-2012-1180"
+      ]
+    },
+    {
+      "id": "CVE-2011-4315",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer overflow in resolver",
+      "affected": [
+        ">=0.6.18 <1.0.10",
+        ">=1.1.0 <=1.1.7"
+      ],
+      "fixedIn": {
+        "1.1": "1.1.8",
+        "1.0": "1.0.10"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://www.cve.org/CVERecord?id=CVE-2011-4315"
+      ]
+    },
+    {
+      "id": "CVE-2010-2266",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Vulnerabilities with invalid UTF-8 sequence on Windows (solo nginx para Windows)",
+      "affected": [
+        ">=0.7.52 <0.7.67",
+        ">=0.8.0 <=0.8.40"
+      ],
+      "fixedIn": {
+        "0.8": "0.8.41",
+        "0.7": "0.7.67"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://www.cve.org/CVERecord?id=CVE-2010-2266"
+      ]
+    },
+    {
+      "id": "CVE-2010-2263",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Vulnerabilities with Windows file default stream (solo nginx para Windows)",
+      "affected": [
+        ">=0.7.52 <0.7.66",
+        ">=0.8.0 <=0.8.39"
+      ],
+      "fixedIn": {
+        "0.8": "0.8.40",
+        "0.7": "0.7.66"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://www.cve.org/CVERecord?id=CVE-2010-2263"
+      ]
+    },
+    {
+      "id": "CVE-2009-3555",
+      "aliases": [],
+      "product": "nginx",
+      "title": "The renegotiation vulnerability in SSL protocol",
+      "affected": [
+        ">=0.1.0 <0.7.64",
+        ">=0.8.0 <=0.8.22"
+      ],
+      "fixedIn": {
+        "0.8": "0.8.23",
+        "0.7": "0.7.64"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://www.cve.org/CVERecord?id=CVE-2009-3555"
+      ]
+    },
+    {
+      "id": "CVE-2009-3898",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Directory traversal vulnerability",
+      "affected": [
+        ">=0.1.0 <0.7.63",
+        ">=0.8.0 <=0.8.16"
+      ],
+      "fixedIn": {
+        "0.8": "0.8.17",
+        "0.7": "0.7.63"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://www.cve.org/CVERecord?id=CVE-2009-3898"
+      ]
+    },
+    {
+      "id": "CVE-2009-2629",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Buffer underflow vulnerability",
+      "affected": [
+        ">=0.1.0 <0.5.38",
+        ">=0.6.0 <0.6.39",
+        ">=0.7.0 <0.7.62",
+        ">=0.8.0 <=0.8.14"
+      ],
+      "fixedIn": {
+        "0.8": "0.8.15",
+        "0.7": "0.7.62",
+        "0.6": "0.6.39",
+        "0.5": "0.5.38"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://www.cve.org/CVERecord?id=CVE-2009-2629"
+      ]
+    },
+    {
+      "id": "CVE-2009-3896",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Null pointer dereference vulnerability",
+      "affected": [
+        ">=0.1.0 <0.5.38",
+        ">=0.6.0 <0.6.39",
+        ">=0.7.0 <0.7.62",
+        ">=0.8.0 <=0.8.13"
+      ],
+      "fixedIn": {
+        "0.8": "0.8.14",
+        "0.7": "0.7.62",
+        "0.6": "0.6.39",
+        "0.5": "0.5.38"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://www.cve.org/CVERecord?id=CVE-2009-3896"
+      ]
+    },
+    {
+      "id": "CVE-2026-42528",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_dav shared lock overflow",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-42528",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42528"
+      ]
+    },
+    {
+      "id": "CVE-2026-57941",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2 use-after-free / wild write via shared session->bbtmp re-entrancy",
+      "affected": [
+        ">=2.4.17 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-57941",
+        "https://www.cve.org/CVERecord?id=CVE-2026-57941"
+      ]
+    },
+    {
+      "id": "CVE-2026-59685",
+      "aliases": [],
+      "product": "apache",
+      "title": "Out-of-Bounds Write in ap_directory_walk() Canonical-Name Rewrite on CASE_BLIND_FILESYSTEM",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-59685",
+        "https://www.cve.org/CVERecord?id=CVE-2026-59685"
+      ]
+    },
+    {
+      "id": "CVE-2026-63292",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_vhost_alias stack overflow",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-63292",
+        "https://www.cve.org/CVERecord?id=CVE-2026-63292"
+      ]
+    },
+    {
+      "id": "CVE-2026-93546",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_dav_fs namespace overflow",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-93546",
+        "https://www.cve.org/CVERecord?id=CVE-2026-93546"
+      ]
+    },
+    {
+      "id": "CVE-2026-42356",
+      "aliases": [],
+      "product": "apache",
+      "title": "limited RCE for some internal redirects to non-CGI files in CGI directories",
+      "affected": [
+        ">=2.4.60 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-42356",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42356"
+      ]
+    },
+    {
+      "id": "CVE-2026-46729",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_heartmonitor denial of service",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-46729",
+        "https://www.cve.org/CVERecord?id=CVE-2026-46729"
+      ]
+    },
+    {
+      "id": "CVE-2026-47360",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_session: Session cookie not removed during internal redirect",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-47360",
+        "https://www.cve.org/CVERecord?id=CVE-2026-47360"
+      ]
+    },
+    {
+      "id": "CVE-2026-48005",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_auth_digest reauthentication attack",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-48005",
+        "https://www.cve.org/CVERecord?id=CVE-2026-48005"
+      ]
+    },
+    {
+      "id": "CVE-2026-56153",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_charset_lite: Heap overflow in finish_partial_char",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-56153",
+        "https://www.cve.org/CVERecord?id=CVE-2026-56153"
+      ]
+    },
+    {
+      "id": "CVE-2026-56154",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_rewrite use-after-free via %{LA-U:HTTP:...}",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-56154",
+        "https://www.cve.org/CVERecord?id=CVE-2026-56154"
+      ]
+    },
+    {
+      "id": "CVE-2026-56449",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_html: crash in dump_content",
+      "affected": [
+        ">=2.4.68 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-56449",
+        "https://www.cve.org/CVERecord?id=CVE-2026-56449"
+      ]
+    },
+    {
+      "id": "CVE-2026-58415",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_dav_fs property database read access",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-58415",
+        "https://www.cve.org/CVERecord?id=CVE-2026-58415"
+      ]
+    },
+    {
+      "id": "CVE-2026-59797",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_ssl SSLRequire allows .htaccess ap_expr file-function",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-59797",
+        "https://www.cve.org/CVERecord?id=CVE-2026-59797"
+      ]
+    },
+    {
+      "id": "CVE-2026-63045",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_ftp PASV address handling",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-63045",
+        "https://www.cve.org/CVERecord?id=CVE-2026-63045"
+      ]
+    },
+    {
+      "id": "CVE-2026-63686",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_xml2enc crash on charset conversion failure",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-63686",
+        "https://www.cve.org/CVERecord?id=CVE-2026-63686"
+      ]
+    },
+    {
+      "id": "CVE-2026-63718",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_uwsgi Transfer-Encoding response smuggling",
+      "affected": [
+        ">=2.4.30 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-63718",
+        "https://www.cve.org/CVERecord?id=CVE-2026-63718"
+      ]
+    },
+    {
+      "id": "CVE-2026-73636",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_auth_digest one-time-nonce replay attack",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-73636",
+        "https://www.cve.org/CVERecord?id=CVE-2026-73636"
+      ]
+    },
+    {
+      "id": "CVE-2026-73637",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_auth_digest DoS attack",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-73637",
+        "https://www.cve.org/CVERecord?id=CVE-2026-73637"
+      ]
+    },
+    {
+      "id": "CVE-2026-79768",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_userdir information disclosure",
+      "affected": [
+        ">=2.4.0 <2.4.69"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.69"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-79768",
+        "https://www.cve.org/CVERecord?id=CVE-2026-79768"
+      ]
+    },
+    {
+      "id": "CVE-2026-34355",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_html buffer overflow",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-34355",
+        "https://www.cve.org/CVERecord?id=CVE-2026-34355"
+      ]
+    },
+    {
+      "id": "CVE-2026-42535",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_dav_fs protected directory access",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-42535",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42535"
+      ]
+    },
+    {
+      "id": "CVE-2026-43951",
+      "aliases": [],
+      "product": "apache",
+      "title": "OOB Read in `merge_response_headers` can cause crash",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-43951",
+        "https://www.cve.org/CVERecord?id=CVE-2026-43951"
+      ]
+    },
+    {
+      "id": "CVE-2026-44119",
+      "aliases": [],
+      "product": "apache",
+      "title": "escalation of privilege through expressions in .htaccess in multiple modules",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-44119",
+        "https://www.cve.org/CVERecord?id=CVE-2026-44119"
+      ]
+    },
+    {
+      "id": "CVE-2026-44186",
+      "aliases": [],
+      "product": "apache",
+      "title": "Loop in `proxy_ftp_handler` in mod_proxy_ftp",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-44186",
+        "https://www.cve.org/CVERecord?id=CVE-2026-44186"
+      ]
+    },
+    {
+      "id": "CVE-2026-49975",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2 denial of service",
+      "affected": [
+        ">=2.4.17 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-49975",
+        "https://www.cve.org/CVERecord?id=CVE-2026-49975"
+      ]
+    },
+    {
+      "id": "CVE-2026-29167",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_ldap per-dir use-after-free",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-29167",
+        "https://www.cve.org/CVERecord?id=CVE-2026-29167"
+      ]
+    },
+    {
+      "id": "CVE-2026-29170",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_ftp XSS",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-29170",
+        "https://www.cve.org/CVERecord?id=CVE-2026-29170"
+      ]
+    },
+    {
+      "id": "CVE-2026-34356",
+      "aliases": [],
+      "product": "apache",
+      "title": "ProxyPassReverseCookieMap buffer overflow",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-34356",
+        "https://www.cve.org/CVERecord?id=CVE-2026-34356"
+      ]
+    },
+    {
+      "id": "CVE-2026-42536",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_xml2enc heap overflow",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-42536",
+        "https://www.cve.org/CVERecord?id=CVE-2026-42536"
+      ]
+    },
+    {
+      "id": "CVE-2026-44185",
+      "aliases": [],
+      "product": "apache",
+      "title": "Stack Buffer Over-Read in mod_ssl OCSP `send_request`",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-44185",
+        "https://www.cve.org/CVERecord?id=CVE-2026-44185"
+      ]
+    },
+    {
+      "id": "CVE-2026-44631",
+      "aliases": [],
+      "product": "apache",
+      "title": "Heap Underflow in `ap_regname` via Signed Char Overflow",
+      "affected": [
+        ">=2.4.0 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-44631",
+        "https://www.cve.org/CVERecord?id=CVE-2026-44631"
+      ]
+    },
+    {
+      "id": "CVE-2026-48913",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2 memory corruption when file handles exhausted",
+      "affected": [
+        ">=2.4.55 <2.4.68"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.68"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-48913",
+        "https://www.cve.org/CVERecord?id=CVE-2026-48913"
+      ]
+    },
+    {
+      "id": "CVE-2026-23918",
+      "aliases": [],
+      "product": "apache",
+      "title": "http2: double free and possible RCE on early reset",
+      "affected": [
+        ">=2.4.66 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-23918",
+        "https://www.cve.org/CVERecord?id=CVE-2026-23918"
+      ]
+    },
+    {
+      "id": "CVE-2026-24072",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_rewrite elevation of privileges via ap_expr",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-24072",
+        "https://www.cve.org/CVERecord?id=CVE-2026-24072"
+      ]
+    },
+    {
+      "id": "CVE-2026-33006",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_auth_digest timing attack",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-33006",
+        "https://www.cve.org/CVERecord?id=CVE-2026-33006"
+      ]
+    },
+    {
+      "id": "CVE-2026-28780",
+      "aliases": [],
+      "product": "apache",
+      "title": "buffer overflow in mod_proxy_ajp via ajp_msg_check_header()",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-28780",
+        "https://www.cve.org/CVERecord?id=CVE-2026-28780"
+      ]
+    },
+    {
+      "id": "CVE-2026-29168",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_md unrestricted OCSP response",
+      "affected": [
+        ">=2.4.30 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-29168",
+        "https://www.cve.org/CVERecord?id=CVE-2026-29168"
+      ]
+    },
+    {
+      "id": "CVE-2026-29169",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_dav_lock indirect lock crash",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-29169",
+        "https://www.cve.org/CVERecord?id=CVE-2026-29169"
+      ]
+    },
+    {
+      "id": "CVE-2026-33007",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_authn_socache crash",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-33007",
+        "https://www.cve.org/CVERecord?id=CVE-2026-33007"
+      ]
+    },
+    {
+      "id": "CVE-2026-33523",
+      "aliases": [],
+      "product": "apache",
+      "title": "multiple modules: HTTP response splitting forwarding malicious status line",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-33523",
+        "https://www.cve.org/CVERecord?id=CVE-2026-33523"
+      ]
+    },
+    {
+      "id": "CVE-2026-33857",
+      "aliases": [],
+      "product": "apache",
+      "title": "Off-by-one OOB reads in AJP getter functions",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-33857",
+        "https://www.cve.org/CVERecord?id=CVE-2026-33857"
+      ]
+    },
+    {
+      "id": "CVE-2026-34032",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_ajp: Heap Buffer Over-Read Due to Missing Null-Termination Check (ajp_msg_get_string)",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-34032",
+        "https://www.cve.org/CVERecord?id=CVE-2026-34032"
+      ]
+    },
+    {
+      "id": "CVE-2026-34059",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_ajp: Heap Over-Read and memory disclosure in ajp_parse_data()",
+      "affected": [
+        ">=2.4.0 <2.4.67"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.67"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2026-34059",
+        "https://www.cve.org/CVERecord?id=CVE-2026-34059"
+      ]
+    },
+    {
+      "id": "CVE-2025-58098",
+      "aliases": [],
+      "product": "apache",
+      "title": "Server Side Includes adds query string to #exec cmd=...",
+      "affected": [
+        ">=2.4.0 <2.4.66"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.66"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-58098",
+        "https://www.cve.org/CVERecord?id=CVE-2025-58098"
+      ]
+    },
+    {
+      "id": "CVE-2025-59775",
+      "aliases": [],
+      "product": "apache",
+      "title": "NTLM Leakage on Windows through UNC SSRF",
+      "affected": [
+        ">=2.4.0 <2.4.66"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.66"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-59775",
+        "https://www.cve.org/CVERecord?id=CVE-2025-59775"
+      ]
+    },
+    {
+      "id": "CVE-2025-66200",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_userdir+suexec bypass via AllowOverride FileInfo",
+      "affected": [
+        ">=2.4.7 <2.4.66"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.66"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-66200",
+        "https://www.cve.org/CVERecord?id=CVE-2025-66200"
+      ]
+    },
+    {
+      "id": "CVE-2025-55753",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_md (ACME), unintended retry intervals",
+      "affected": [
+        ">=2.4.30 <2.4.66"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.66"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-55753",
+        "https://www.cve.org/CVERecord?id=CVE-2025-55753"
+      ]
+    },
+    {
+      "id": "CVE-2025-65082",
+      "aliases": [],
+      "product": "apache",
+      "title": "CGI environment variable override",
+      "affected": [
+        ">=2.4.0 <2.4.66"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.66"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-65082",
+        "https://www.cve.org/CVERecord?id=CVE-2025-65082"
+      ]
+    },
+    {
+      "id": "CVE-2025-54090",
+      "aliases": [],
+      "product": "apache",
+      "title": "'RewriteCond expr' always evaluates to true in 2.4.64",
+      "affected": [
+        ">=2.4.64 <2.4.65"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.65"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-54090",
+        "https://www.cve.org/CVERecord?id=CVE-2025-54090"
+      ]
+    },
+    {
+      "id": "CVE-2024-42516",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP response splitting",
+      "affected": [
+        ">=2.4.0 <2.4.64"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.64"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-42516",
+        "https://www.cve.org/CVERecord?id=CVE-2024-42516"
+      ]
+    },
+    {
+      "id": "CVE-2024-43394",
+      "aliases": [],
+      "product": "apache",
+      "title": "SSRF on Windows due to UNC paths",
+      "affected": [
+        ">=2.4.0 <2.4.64"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.64"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-43394",
+        "https://www.cve.org/CVERecord?id=CVE-2024-43394"
+      ]
+    },
+    {
+      "id": "CVE-2025-23048",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_ssl access control bypass with session resumption",
+      "affected": [
+        ">=2.4.35 <2.4.64"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.64"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-23048",
+        "https://www.cve.org/CVERecord?id=CVE-2025-23048"
+      ]
+    },
+    {
+      "id": "CVE-2025-49812",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_ssl TLS upgrade attack",
+      "affected": [
+        ">=2.4.0 <2.4.64"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.64"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-49812",
+        "https://www.cve.org/CVERecord?id=CVE-2025-49812"
+      ]
+    },
+    {
+      "id": "CVE-2025-53020",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP/2 DoS by Memory Increase",
+      "affected": [
+        ">=2.4.17 <2.4.64"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.64"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-53020",
+        "https://www.cve.org/CVERecord?id=CVE-2025-53020"
+      ]
+    },
+    {
+      "id": "CVE-2024-43204",
+      "aliases": [],
+      "product": "apache",
+      "title": "SSRF with mod_headers setting Content-Type header",
+      "affected": [
+        ">=2.4.0 <2.4.64"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.64"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-43204",
+        "https://www.cve.org/CVERecord?id=CVE-2024-43204"
+      ]
+    },
+    {
+      "id": "CVE-2024-47252",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_ssl error log variable escaping",
+      "affected": [
+        ">=2.4.0 <2.4.64"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.64"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-47252",
+        "https://www.cve.org/CVERecord?id=CVE-2024-47252"
+      ]
+    },
+    {
+      "id": "CVE-2025-49630",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_http2 denial of service",
+      "affected": [
+        ">=2.4.26 <2.4.64"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.64"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2025-49630",
+        "https://www.cve.org/CVERecord?id=CVE-2025-49630"
+      ]
+    },
+    {
+      "id": "CVE-2024-40725",
+      "aliases": [],
+      "product": "apache",
+      "title": "source code disclosure with handlers configured via AddType",
+      "affected": [
+        ">=2.4.60 <2.4.62"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.62"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-40725",
+        "https://www.cve.org/CVERecord?id=CVE-2024-40725"
+      ]
+    },
+    {
+      "id": "CVE-2024-40898",
+      "aliases": [],
+      "product": "apache",
+      "title": "SSRF with mod_rewrite in server/vhost context on Windows",
+      "affected": [
+        ">=2.4.0 <2.4.62"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.62"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-40898",
+        "https://www.cve.org/CVERecord?id=CVE-2024-40898"
+      ]
+    },
+    {
+      "id": "CVE-2024-39884",
+      "aliases": [],
+      "product": "apache",
+      "title": "source code disclosure with handlers configured via AddType",
+      "affected": [
+        ">=2.4.60 <2.4.61"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.61"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-39884",
+        "https://www.cve.org/CVERecord?id=CVE-2024-39884"
+      ]
+    },
+    {
+      "id": "CVE-2024-38472",
+      "aliases": [],
+      "product": "apache",
+      "title": "Apache HTTP Server on WIndows UNC SSRF",
+      "affected": [
+        ">=2.4.0 <2.4.60"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.60"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-38472",
+        "https://www.cve.org/CVERecord?id=CVE-2024-38472"
+      ]
+    },
+    {
+      "id": "CVE-2024-38474",
+      "aliases": [],
+      "product": "apache",
+      "title": "Apache HTTP Server weakness with encoded question marks in backreferences",
+      "affected": [
+        ">=2.4.0 <2.4.60"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.60"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-38474",
+        "https://www.cve.org/CVERecord?id=CVE-2024-38474"
+      ]
+    },
+    {
+      "id": "CVE-2024-38475",
+      "aliases": [],
+      "product": "apache",
+      "title": "Apache HTTP Server weakness in mod_rewrite when first segment of substitution matches filesystem path.",
+      "affected": [
+        ">=2.4.0 <2.4.60"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.60"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": true,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-38475",
+        "https://www.cve.org/CVERecord?id=CVE-2024-38475"
+      ]
+    },
+    {
+      "id": "CVE-2024-38476",
+      "aliases": [],
+      "product": "apache",
+      "title": "Apache HTTP Server may use exploitable/malicious backend application output to run local handlers via internal redirect",
+      "affected": [
+        ">=2.4.0 <2.4.60"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.60"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-38476",
+        "https://www.cve.org/CVERecord?id=CVE-2024-38476"
+      ]
+    },
+    {
+      "id": "CVE-2024-38477",
+      "aliases": [],
+      "product": "apache",
+      "title": "Crash resulting in Denial of Service in mod_proxy via a malicious request",
+      "affected": [
+        ">=2.4.0 <2.4.60"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.60"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-38477",
+        "https://www.cve.org/CVERecord?id=CVE-2024-38477"
+      ]
+    },
+    {
+      "id": "CVE-2024-38473",
+      "aliases": [],
+      "product": "apache",
+      "title": "Apache HTTP Server proxy encoding problem",
+      "affected": [
+        ">=2.4.0 <2.4.60"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.60"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-38473",
+        "https://www.cve.org/CVERecord?id=CVE-2024-38473"
+      ]
+    },
+    {
+      "id": "CVE-2024-39573",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_rewrite proxy handler substitution",
+      "affected": [
+        ">=2.4.0 <2.4.60"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.60"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-39573",
+        "https://www.cve.org/CVERecord?id=CVE-2024-39573"
+      ]
+    },
+    {
+      "id": "CVE-2024-36387",
+      "aliases": [],
+      "product": "apache",
+      "title": "DoS by Null pointer in websocket over HTTP/2",
+      "affected": [
+        ">=2.4.55 <2.4.60"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.60"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-36387",
+        "https://www.cve.org/CVERecord?id=CVE-2024-36387"
+      ]
+    },
+    {
+      "id": "CVE-2023-38709",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP response splitting",
+      "affected": [
+        ">=2.4.0 <2.4.59"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.59"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2023-38709",
+        "https://www.cve.org/CVERecord?id=CVE-2023-38709"
+      ]
+    },
+    {
+      "id": "CVE-2024-27316",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP/2 DoS by memory exhaustion on endless continuation frames",
+      "affected": [
+        ">=2.4.17 <2.4.59"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.59"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-27316",
+        "https://www.cve.org/CVERecord?id=CVE-2024-27316"
+      ]
+    },
+    {
+      "id": "CVE-2024-24795",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP Response Splitting in multiple modules",
+      "affected": [
+        ">=2.4.0 <2.4.59"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.59"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2024-24795",
+        "https://www.cve.org/CVERecord?id=CVE-2024-24795"
+      ]
+    },
+    {
+      "id": "CVE-2023-45802",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP/2 stream memory not reclaimed right away on RST",
+      "affected": [
+        ">=2.4.17 <2.4.58"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.58"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2023-45802",
+        "https://www.cve.org/CVERecord?id=CVE-2023-45802"
+      ]
+    },
+    {
+      "id": "CVE-2023-31122",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_macro buffer over-read",
+      "affected": [
+        ">=2.4.0 <2.4.58"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.58"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2023-31122",
+        "https://www.cve.org/CVERecord?id=CVE-2023-31122"
+      ]
+    },
+    {
+      "id": "CVE-2023-43622",
+      "aliases": [],
+      "product": "apache",
+      "title": "DoS in HTTP/2 with initial windows size 0",
+      "affected": [
+        ">=2.4.55 <2.4.58"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.58"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2023-43622",
+        "https://www.cve.org/CVERecord?id=CVE-2023-43622"
+      ]
+    },
+    {
+      "id": "CVE-2023-25690",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP request splitting with mod_rewrite and mod_proxy",
+      "affected": [
+        ">=2.4.0 <2.4.56"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.56"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2023-25690",
+        "https://www.cve.org/CVERecord?id=CVE-2023-25690"
+      ]
+    },
+    {
+      "id": "CVE-2023-27522",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_uwsgi HTTP response splitting",
+      "affected": [
+        ">=2.4.30 <2.4.56"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.56"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2023-27522",
+        "https://www.cve.org/CVERecord?id=CVE-2023-27522"
+      ]
+    },
+    {
+      "id": "CVE-2006-20001",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_dav out of bounds read, or write of zero byte",
+      "affected": [
+        ">=2.4.0 <2.4.55"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.55"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2006-20001",
+        "https://www.cve.org/CVERecord?id=CVE-2006-20001"
+      ]
+    },
+    {
+      "id": "CVE-2022-36760",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_ajp Possible request smuggling",
+      "affected": [
+        ">=2.4.0 <2.4.55"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.55"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-36760",
+        "https://www.cve.org/CVERecord?id=CVE-2022-36760"
+      ]
+    },
+    {
+      "id": "CVE-2022-37436",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy prior to 2.4.55 allows a backend to trigger HTTP response splitting",
+      "affected": [
+        ">=2.4.0 <2.4.55"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.55"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-37436",
+        "https://www.cve.org/CVERecord?id=CVE-2022-37436"
+      ]
+    },
+    {
+      "id": "CVE-2022-26377",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_ajp: Possible request smuggling",
+      "affected": [
+        ">=2.4.0 <2.4.54"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.54"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-26377",
+        "https://www.cve.org/CVERecord?id=CVE-2022-26377"
+      ]
+    },
+    {
+      "id": "CVE-2022-28330",
+      "aliases": [],
+      "product": "apache",
+      "title": "read beyond bounds in mod_isapi",
+      "affected": [
+        ">=2.4.0 <2.4.54"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.54"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-28330",
+        "https://www.cve.org/CVERecord?id=CVE-2022-28330"
+      ]
+    },
+    {
+      "id": "CVE-2022-28614",
+      "aliases": [],
+      "product": "apache",
+      "title": "read beyond bounds via ap_rwrite()",
+      "affected": [
+        ">=2.4.0 <2.4.54"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.54"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-28614",
+        "https://www.cve.org/CVERecord?id=CVE-2022-28614"
+      ]
+    },
+    {
+      "id": "CVE-2022-28615",
+      "aliases": [],
+      "product": "apache",
+      "title": "Read beyond bounds in ap_strcmp_match()",
+      "affected": [
+        ">=2.4.0 <2.4.54"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.54"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-28615",
+        "https://www.cve.org/CVERecord?id=CVE-2022-28615"
+      ]
+    },
+    {
+      "id": "CVE-2022-29404",
+      "aliases": [],
+      "product": "apache",
+      "title": "Denial of service in mod_lua r:parsebody",
+      "affected": [
+        ">=2.4.0 <2.4.54"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.54"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-29404",
+        "https://www.cve.org/CVERecord?id=CVE-2022-29404"
+      ]
+    },
+    {
+      "id": "CVE-2022-30522",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_sed denial of service",
+      "affected": [
+        ">=2.4.53 <2.4.54"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.54"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-30522",
+        "https://www.cve.org/CVERecord?id=CVE-2022-30522"
+      ]
+    },
+    {
+      "id": "CVE-2022-30556",
+      "aliases": [],
+      "product": "apache",
+      "title": "Information Disclosure in mod_lua with websockets",
+      "affected": [
+        ">=2.4.0 <2.4.54"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.54"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-30556",
+        "https://www.cve.org/CVERecord?id=CVE-2022-30556"
+      ]
+    },
+    {
+      "id": "CVE-2022-31813",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy X-Forwarded-For dropped by hop-by-hop mechanism",
+      "affected": [
+        ">=2.4.0 <2.4.54"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.54"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-31813",
+        "https://www.cve.org/CVERecord?id=CVE-2022-31813"
+      ]
+    },
+    {
+      "id": "CVE-2022-22720",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP request smuggling vulnerability in Apache HTTP Server 2.4.52 and earlier",
+      "affected": [
+        ">=2.4.0 <2.4.53"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.53"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-22720",
+        "https://www.cve.org/CVERecord?id=CVE-2022-22720"
+      ]
+    },
+    {
+      "id": "CVE-2022-23943",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_sed: Read/write beyond bounds",
+      "affected": [
+        ">=2.4.0 <2.4.53"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.53"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-23943",
+        "https://www.cve.org/CVERecord?id=CVE-2022-23943"
+      ]
+    },
+    {
+      "id": "CVE-2022-22719",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_lua Use of uninitialized value of in r:parsebody",
+      "affected": [
+        ">=2.4.0 <2.4.53"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.53"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-22719",
+        "https://www.cve.org/CVERecord?id=CVE-2022-22719"
+      ]
+    },
+    {
+      "id": "CVE-2022-22721",
+      "aliases": [],
+      "product": "apache",
+      "title": "core: Possible buffer overflow with very large or unlimited LimitXMLRequestBody",
+      "affected": [
+        ">=2.4.0 <2.4.53"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.53"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2022-22721",
+        "https://www.cve.org/CVERecord?id=CVE-2022-22721"
+      ]
+    },
+    {
+      "id": "CVE-2021-44790",
+      "aliases": [],
+      "product": "apache",
+      "title": "Possible buffer overflow when parsing multipart content in mod_lua of Apache HTTP Server 2.4.51 and earlier",
+      "affected": [
+        ">=2.4.0 <2.4.52"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.52"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-44790",
+        "https://www.cve.org/CVERecord?id=CVE-2021-44790"
+      ]
+    },
+    {
+      "id": "CVE-2021-44224",
+      "aliases": [],
+      "product": "apache",
+      "title": "Possible NULL dereference or SSRF in forward proxy configurations in Apache HTTP Server 2.4.51 and earlier",
+      "affected": [
+        ">=2.4.7 <2.4.52"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.52"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-44224",
+        "https://www.cve.org/CVERecord?id=CVE-2021-44224"
+      ]
+    },
+    {
+      "id": "CVE-2021-42013",
+      "aliases": [],
+      "product": "apache",
+      "title": "Path Traversal and Remote Code Execution in Apache HTTP Server 2.4.49 and 2.4.50 (incomplete fix of CVE-2021-41773)",
+      "affected": [
+        ">=2.4.49 <2.4.51"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.51"
+      },
+      "cvss": 0,
+      "severity": "critical",
+      "kev": true,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-42013",
+        "https://www.cve.org/CVERecord?id=CVE-2021-42013"
+      ]
+    },
+    {
+      "id": "CVE-2021-41773",
+      "aliases": [],
+      "product": "apache",
+      "title": "Path traversal and file disclosure vulnerability in Apache HTTP Server 2.4.49",
+      "affected": [
+        ">=2.4.49 <2.4.50"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.50"
+      },
+      "cvss": 0,
+      "severity": "critical",
+      "kev": true,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-41773",
+        "https://www.cve.org/CVERecord?id=CVE-2021-41773"
+      ]
+    },
+    {
+      "id": "CVE-2021-41524",
+      "aliases": [],
+      "product": "apache",
+      "title": "null pointer dereference in h2 fuzzing",
+      "affected": [
+        ">=2.4.49 <2.4.50"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.50"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-41524",
+        "https://www.cve.org/CVERecord?id=CVE-2021-41524"
+      ]
+    },
+    {
+      "id": "CVE-2021-40438",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy SSRF",
+      "affected": [
+        ">=2.4.0 <2.4.49"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.49"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": true,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-40438",
+        "https://www.cve.org/CVERecord?id=CVE-2021-40438"
+      ]
+    },
+    {
+      "id": "CVE-2021-33193",
+      "aliases": [],
+      "product": "apache",
+      "title": "Request splitting via HTTP/2 method injection and mod_proxy",
+      "affected": [
+        ">=2.4.17 <2.4.49"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.49"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-33193",
+        "https://www.cve.org/CVERecord?id=CVE-2021-33193"
+      ]
+    },
+    {
+      "id": "CVE-2021-34798",
+      "aliases": [],
+      "product": "apache",
+      "title": "NULL pointer dereference in httpd core",
+      "affected": [
+        ">=2.4.0 <2.4.49"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.49"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-34798",
+        "https://www.cve.org/CVERecord?id=CVE-2021-34798"
+      ]
+    },
+    {
+      "id": "CVE-2021-36160",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_uwsgi out of bound read",
+      "affected": [
+        ">=2.4.30 <2.4.49"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.49"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-36160",
+        "https://www.cve.org/CVERecord?id=CVE-2021-36160"
+      ]
+    },
+    {
+      "id": "CVE-2021-39275",
+      "aliases": [],
+      "product": "apache",
+      "title": "ap_escape_quotes buffer overflow",
+      "affected": [
+        ">=2.4.0 <2.4.49"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.49"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-39275",
+        "https://www.cve.org/CVERecord?id=CVE-2021-39275"
+      ]
+    },
+    {
+      "id": "CVE-2021-31618",
+      "aliases": [],
+      "product": "apache",
+      "title": "NULL pointer dereference on specially crafted HTTP/2 request",
+      "affected": [
+        ">=2.4.47 <2.4.48"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.48"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-31618",
+        "https://www.cve.org/CVERecord?id=CVE-2021-31618"
+      ]
+    },
+    {
+      "id": "CVE-2019-17567",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_wstunnel tunneling of non Upgraded connections",
+      "affected": [
+        ">=2.4.6 <2.4.48"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.48"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-17567",
+        "https://www.cve.org/CVERecord?id=CVE-2019-17567"
+      ]
+    },
+    {
+      "id": "CVE-2020-13938",
+      "aliases": [],
+      "product": "apache",
+      "title": "Improper Handling of Insufficient Privileges",
+      "affected": [
+        ">=2.4.0 <2.4.48"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.48"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-13938",
+        "https://www.cve.org/CVERecord?id=CVE-2020-13938"
+      ]
+    },
+    {
+      "id": "CVE-2021-30641",
+      "aliases": [],
+      "product": "apache",
+      "title": "Unexpected URL matching with 'MergeSlashes OFF'",
+      "affected": [
+        ">=2.4.39 <2.4.48"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.48"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-30641",
+        "https://www.cve.org/CVERecord?id=CVE-2021-30641"
+      ]
+    },
+    {
+      "id": "CVE-2020-13950",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_http NULL pointer dereference",
+      "affected": [
+        ">=2.4.41 <2.4.48"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.48"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-13950",
+        "https://www.cve.org/CVERecord?id=CVE-2020-13950"
+      ]
+    },
+    {
+      "id": "CVE-2020-35452",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_auth_digest possible stack overflow by one nul byte",
+      "affected": [
+        ">=2.4.0 <2.4.48"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.48"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-35452",
+        "https://www.cve.org/CVERecord?id=CVE-2020-35452"
+      ]
+    },
+    {
+      "id": "CVE-2021-26690",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_session NULL pointer dereference",
+      "affected": [
+        ">=2.4.0 <2.4.48"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.48"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-26690",
+        "https://www.cve.org/CVERecord?id=CVE-2021-26690"
+      ]
+    },
+    {
+      "id": "CVE-2021-26691",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_session response handling heap overflow",
+      "affected": [
+        ">=2.4.0 <2.4.48"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.48"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2021-26691",
+        "https://www.cve.org/CVERecord?id=CVE-2021-26691"
+      ]
+    },
+    {
+      "id": "CVE-2020-9490",
+      "aliases": [],
+      "product": "apache",
+      "title": "Push Diary Crash on Specifically Crafted HTTP/2 Header",
+      "affected": [
+        ">=2.4.20 <2.4.44"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.44"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-9490",
+        "https://www.cve.org/CVERecord?id=CVE-2020-9490"
+      ]
+    },
+    {
+      "id": "CVE-2020-11984",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_uwsgi buffer overflow",
+      "affected": [
+        ">=2.4.33 <2.4.44"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.44"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-11984",
+        "https://www.cve.org/CVERecord?id=CVE-2020-11984"
+      ]
+    },
+    {
+      "id": "CVE-2020-11993",
+      "aliases": [],
+      "product": "apache",
+      "title": "Push Diary Crash on Specifically Crafted HTTP/2 Header",
+      "affected": [
+        ">=2.4.20 <2.4.44"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.44"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-11993",
+        "https://www.cve.org/CVERecord?id=CVE-2020-11993"
+      ]
+    },
+    {
+      "id": "CVE-2020-1927",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_rewrite CWE-601 open redirect",
+      "affected": [
+        ">=2.4.0 <2.4.42"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.42"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-1927",
+        "https://www.cve.org/CVERecord?id=CVE-2020-1927"
+      ]
+    },
+    {
+      "id": "CVE-2020-1934",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_ftp use of uninitialized value",
+      "affected": [
+        ">=2.4.0 <2.4.42"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.42"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-1934",
+        "https://www.cve.org/CVERecord?id=CVE-2020-1934"
+      ]
+    },
+    {
+      "id": "CVE-2019-9517",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2, DoS attack by exhausting h2 workers.",
+      "affected": [
+        ">=2.4.20 <2.4.41"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.41"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-9517",
+        "https://www.cve.org/CVERecord?id=CVE-2019-9517"
+      ]
+    },
+    {
+      "id": "CVE-2019-10081",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2, memory corruption on early pushes",
+      "affected": [
+        ">=2.4.20 <2.4.41"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.41"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-10081",
+        "https://www.cve.org/CVERecord?id=CVE-2019-10081"
+      ]
+    },
+    {
+      "id": "CVE-2019-10082",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2, read-after-free in h2 connection shutdown",
+      "affected": [
+        ">=2.4.18 <2.4.41"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.41"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-10082",
+        "https://www.cve.org/CVERecord?id=CVE-2019-10082"
+      ]
+    },
+    {
+      "id": "CVE-2019-10097",
+      "aliases": [],
+      "product": "apache",
+      "title": "CVE-2019-10097 mod_remoteip: Stack buffer overflow and NULL pointer dereference",
+      "affected": [
+        ">=2.4.33 <2.4.41"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.41"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-10097",
+        "https://www.cve.org/CVERecord?id=CVE-2019-10097"
+      ]
+    },
+    {
+      "id": "CVE-2019-10092",
+      "aliases": [],
+      "product": "apache",
+      "title": "Limited cross-site scripting in mod_proxy error page",
+      "affected": [
+        ">=2.4.0 <2.4.41"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.41"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-10092",
+        "https://www.cve.org/CVERecord?id=CVE-2019-10092"
+      ]
+    },
+    {
+      "id": "CVE-2019-10098",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_rewrite potential open redirect",
+      "affected": [
+        ">=2.4.0 <2.4.41"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.41"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-10098",
+        "https://www.cve.org/CVERecord?id=CVE-2019-10098"
+      ]
+    },
+    {
+      "id": "CVE-2019-0211",
+      "aliases": [],
+      "product": "apache",
+      "title": "Apache HTTP Server privilege escalation from modules' scripts",
+      "affected": [
+        ">=2.4.17 <2.4.39"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.39"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": true,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-0211",
+        "https://www.cve.org/CVERecord?id=CVE-2019-0211"
+      ]
+    },
+    {
+      "id": "CVE-2019-0215",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_ssl access control bypass",
+      "affected": [
+        ">=2.4.37 <2.4.39"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.39"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-0215",
+        "https://www.cve.org/CVERecord?id=CVE-2019-0215"
+      ]
+    },
+    {
+      "id": "CVE-2019-0217",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_auth_digest access control bypass",
+      "affected": [
+        ">=2.4.0 <2.4.39"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.39"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-0217",
+        "https://www.cve.org/CVERecord?id=CVE-2019-0217"
+      ]
+    },
+    {
+      "id": "CVE-2019-0196",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2, read-after-free on a string compare",
+      "affected": [
+        ">=2.4.17 <2.4.39"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.39"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-0196",
+        "https://www.cve.org/CVERecord?id=CVE-2019-0196"
+      ]
+    },
+    {
+      "id": "CVE-2019-0197",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2, possible crash on late upgrade",
+      "affected": [
+        ">=2.4.34 <2.4.39"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.39"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-0197",
+        "https://www.cve.org/CVERecord?id=CVE-2019-0197"
+      ]
+    },
+    {
+      "id": "CVE-2019-0220",
+      "aliases": [],
+      "product": "apache",
+      "title": "Apache httpd URL normalization inconsistincy",
+      "affected": [
+        ">=2.4.0 <2.4.39"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.39"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-0220",
+        "https://www.cve.org/CVERecord?id=CVE-2019-0220"
+      ]
+    },
+    {
+      "id": "CVE-2019-0190",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_ssl 2.4.37 remote DoS when used with OpenSSL 1.1.1",
+      "affected": [
+        ">=2.4.37 <2.4.38"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.38"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2019-0190",
+        "https://www.cve.org/CVERecord?id=CVE-2019-0190"
+      ]
+    },
+    {
+      "id": "CVE-2018-17189",
+      "aliases": [],
+      "product": "apache",
+      "title": "DoS for HTTP/2 connections via slow request bodies",
+      "affected": [
+        ">=2.4.17 <2.4.38"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.38"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-17189",
+        "https://www.cve.org/CVERecord?id=CVE-2018-17189"
+      ]
+    },
+    {
+      "id": "CVE-2018-17199",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_session_cookie does not respect expiry time",
+      "affected": [
+        ">=2.4.0 <2.4.38"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.38"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-17199",
+        "https://www.cve.org/CVERecord?id=CVE-2018-17199"
+      ]
+    },
+    {
+      "id": "CVE-2018-11763",
+      "aliases": [],
+      "product": "apache",
+      "title": "DoS for HTTP/2 connections by continuous SETTINGS",
+      "affected": [
+        ">=2.4.18 <2.4.35"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.35"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-11763",
+        "https://www.cve.org/CVERecord?id=CVE-2018-11763"
+      ]
+    },
+    {
+      "id": "CVE-2018-8011",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_md, DoS via Coredumps on specially crafted requests",
+      "affected": [
+        ">=2.4.33 <2.4.34"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.34"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-8011",
+        "https://www.cve.org/CVERecord?id=CVE-2018-8011"
+      ]
+    },
+    {
+      "id": "CVE-2018-1333",
+      "aliases": [],
+      "product": "apache",
+      "title": "DoS for HTTP/2 connections by crafted requests",
+      "affected": [
+        ">=2.4.18 <2.4.34"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.34"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-1333",
+        "https://www.cve.org/CVERecord?id=CVE-2018-1333"
+      ]
+    },
+    {
+      "id": "CVE-2018-1283",
+      "aliases": [],
+      "product": "apache",
+      "title": "Tampering of mod_session data for CGI applications",
+      "affected": [
+        ">=2.4.1 <2.4.33"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.33"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-1283",
+        "https://www.cve.org/CVERecord?id=CVE-2018-1283"
+      ]
+    },
+    {
+      "id": "CVE-2017-15710",
+      "aliases": [],
+      "product": "apache",
+      "title": "Out of bound write in mod_authnz_ldap when using too small Accept-Language values",
+      "affected": [
+        ">=2.4.1 <2.4.33"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.33"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-15710",
+        "https://www.cve.org/CVERecord?id=CVE-2017-15710"
+      ]
+    },
+    {
+      "id": "CVE-2017-15715",
+      "aliases": [],
+      "product": "apache",
+      "title": "<FilesMatch> bypass with a trailing newline in the file name",
+      "affected": [
+        ">=2.4.1 <2.4.33"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.33"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-15715",
+        "https://www.cve.org/CVERecord?id=CVE-2017-15715"
+      ]
+    },
+    {
+      "id": "CVE-2018-1301",
+      "aliases": [],
+      "product": "apache",
+      "title": "Possible out of bound access after failure in reading the HTTP request",
+      "affected": [
+        ">=2.4.1 <2.4.33"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.33"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-1301",
+        "https://www.cve.org/CVERecord?id=CVE-2018-1301"
+      ]
+    },
+    {
+      "id": "CVE-2018-1302",
+      "aliases": [],
+      "product": "apache",
+      "title": "Possible write of after free on HTTP/2 stream shutdown",
+      "affected": [
+        ">=2.4.17 <2.4.33"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.33"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-1302",
+        "https://www.cve.org/CVERecord?id=CVE-2018-1302"
+      ]
+    },
+    {
+      "id": "CVE-2018-1303",
+      "aliases": [],
+      "product": "apache",
+      "title": "Possible out of bound read in mod_cache_socache",
+      "affected": [
+        ">=2.4.6 <2.4.33"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.33"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-1303",
+        "https://www.cve.org/CVERecord?id=CVE-2018-1303"
+      ]
+    },
+    {
+      "id": "CVE-2018-1312",
+      "aliases": [],
+      "product": "apache",
+      "title": "Weak Digest auth nonce generation in mod_auth_digest",
+      "affected": [
+        ">=2.4.1 <2.4.33"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.33"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2018-1312",
+        "https://www.cve.org/CVERecord?id=CVE-2018-1312"
+      ]
+    },
+    {
+      "id": "CVE-2017-9798",
+      "aliases": [],
+      "product": "apache",
+      "title": "Use-after-free when using <Limit > with an unrecognized method in .htaccess (\"OptionsBleed\")",
+      "affected": [
+        ">=2.4.1 <2.4.28"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.28"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-9798",
+        "https://www.cve.org/CVERecord?id=CVE-2017-9798"
+      ]
+    },
+    {
+      "id": "CVE-2017-9788",
+      "aliases": [],
+      "product": "apache",
+      "title": "Uninitialized memory reflection in mod_auth_digest",
+      "affected": [
+        ">=2.4.1 <2.4.27"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.27"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-9788",
+        "https://www.cve.org/CVERecord?id=CVE-2017-9788"
+      ]
+    },
+    {
+      "id": "CVE-2017-9789",
+      "aliases": [],
+      "product": "apache",
+      "title": "Read after free in mod_http2",
+      "affected": [
+        ">=2.4.26 <2.4.27"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.27"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-9789",
+        "https://www.cve.org/CVERecord?id=CVE-2017-9789"
+      ]
+    },
+    {
+      "id": "CVE-2017-3167",
+      "aliases": [],
+      "product": "apache",
+      "title": "ap_get_basic_auth_pw() Authentication Bypass",
+      "affected": [
+        ">=2.4.1 <2.4.26"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.26"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-3167",
+        "https://www.cve.org/CVERecord?id=CVE-2017-3167"
+      ]
+    },
+    {
+      "id": "CVE-2017-3169",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_ssl Null Pointer Dereference",
+      "affected": [
+        ">=2.4.1 <2.4.26"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.26"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-3169",
+        "https://www.cve.org/CVERecord?id=CVE-2017-3169"
+      ]
+    },
+    {
+      "id": "CVE-2017-7659",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2 Null Pointer Dereference",
+      "affected": [
+        ">=2.4.25 <2.4.26"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.26"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-7659",
+        "https://www.cve.org/CVERecord?id=CVE-2017-7659"
+      ]
+    },
+    {
+      "id": "CVE-2017-7668",
+      "aliases": [],
+      "product": "apache",
+      "title": "ap_find_token() Buffer Overread",
+      "affected": [
+        ">=2.4.25 <2.4.26"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.26"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-7668",
+        "https://www.cve.org/CVERecord?id=CVE-2017-7668"
+      ]
+    },
+    {
+      "id": "CVE-2017-7679",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_mime Buffer Overread",
+      "affected": [
+        ">=2.4.1 <2.4.26"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.26"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2017-7679",
+        "https://www.cve.org/CVERecord?id=CVE-2017-7679"
+      ]
+    },
+    {
+      "id": "CVE-2016-8743",
+      "aliases": [],
+      "product": "apache",
+      "title": "Apache HTTP Request Parsing Whitespace Defects",
+      "affected": [
+        ">=2.4.1 <2.4.25"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.25"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2016-8743",
+        "https://www.cve.org/CVERecord?id=CVE-2016-8743"
+      ]
+    },
+    {
+      "id": "CVE-2016-4975",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_userdir CRLF injection",
+      "affected": [
+        ">=2.4.1 <2.4.25"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.25"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2016-4975",
+        "https://www.cve.org/CVERecord?id=CVE-2016-4975"
+      ]
+    },
+    {
+      "id": "CVE-2016-0736",
+      "aliases": [],
+      "product": "apache",
+      "title": "Padding Oracle in Apache mod_session_crypto",
+      "affected": [
+        ">=2.4.1 <2.4.25"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.25"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2016-0736",
+        "https://www.cve.org/CVERecord?id=CVE-2016-0736"
+      ]
+    },
+    {
+      "id": "CVE-2016-2161",
+      "aliases": [],
+      "product": "apache",
+      "title": "DoS vulnerability in mod_auth_digest",
+      "affected": [
+        ">=2.4.1 <2.4.25"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.25"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2016-2161",
+        "https://www.cve.org/CVERecord?id=CVE-2016-2161"
+      ]
+    },
+    {
+      "id": "CVE-2016-8740",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP/2 CONTINUATION denial of service",
+      "affected": [
+        ">=2.4.17 <2.4.25"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.25"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2016-8740",
+        "https://www.cve.org/CVERecord?id=CVE-2016-8740"
+      ]
+    },
+    {
+      "id": "CVE-2020-11985",
+      "aliases": [],
+      "product": "apache",
+      "title": "IP address spoofing when proxying using mod_remoteip and mod_rewrite",
+      "affected": [
+        ">=2.4.1 <2.4.25"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.25"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2020-11985",
+        "https://www.cve.org/CVERecord?id=CVE-2020-11985"
+      ]
+    },
+    {
+      "id": "CVE-2016-5387",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP_PROXY environment variable \"httpoxy\" mitigation",
+      "affected": [
+        ">=2.4.1 <2.4.25"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.25"
+      },
+      "cvss": 0,
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2016-5387",
+        "https://www.cve.org/CVERecord?id=CVE-2016-5387"
+      ]
+    },
+    {
+      "id": "CVE-2016-4979",
+      "aliases": [],
+      "product": "apache",
+      "title": "TLS/SSL X.509 client certificate auth bypass with HTTP/2",
+      "affected": [
+        ">=2.4.18 <2.4.23"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.23"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2016-4979",
+        "https://www.cve.org/CVERecord?id=CVE-2016-4979"
+      ]
+    },
+    {
+      "id": "CVE-2016-1546",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_http2: denial of service by thread starvation",
+      "affected": [
+        ">=2.4.17 <2.4.20"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.20"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2016-1546",
+        "https://www.cve.org/CVERecord?id=CVE-2016-1546"
+      ]
+    },
+    {
+      "id": "CVE-2015-0228",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_lua: Crash in websockets PING handling",
+      "affected": [
+        ">=2.4.7 <2.4.16"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.16"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2015-0228",
+        "https://www.cve.org/CVERecord?id=CVE-2015-0228"
+      ]
+    },
+    {
+      "id": "CVE-2015-0253",
+      "aliases": [],
+      "product": "apache",
+      "title": "Crash in ErrorDocument 400 handling",
+      "affected": [
+        ">=2.4.12 <2.4.16"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.16"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2015-0253",
+        "https://www.cve.org/CVERecord?id=CVE-2015-0253"
+      ]
+    },
+    {
+      "id": "CVE-2015-3183",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP request smuggling attack against chunked request parser",
+      "affected": [
+        ">=2.4.1 <2.4.16"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.16"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2015-3183",
+        "https://www.cve.org/CVERecord?id=CVE-2015-3183"
+      ]
+    },
+    {
+      "id": "CVE-2015-3185",
+      "aliases": [],
+      "product": "apache",
+      "title": "ap_some_auth_required API unusable",
+      "affected": [
+        ">=2.4.0 <2.4.16"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.16"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2015-3185",
+        "https://www.cve.org/CVERecord?id=CVE-2015-3185"
+      ]
+    },
+    {
+      "id": "CVE-2013-5704",
+      "aliases": [],
+      "product": "apache",
+      "title": "HTTP Trailers processing bypass",
+      "affected": [
+        ">=2.4.1 <2.4.12"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.12"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2013-5704",
+        "https://www.cve.org/CVERecord?id=CVE-2013-5704"
+      ]
+    },
+    {
+      "id": "CVE-2014-3581",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_cache crash with empty Content-Type header",
+      "affected": [
+        ">=2.4.1 <2.4.12"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.12"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-3581",
+        "https://www.cve.org/CVERecord?id=CVE-2014-3581"
+      ]
+    },
+    {
+      "id": "CVE-2014-3583",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy_fcgi out-of-bounds memory read",
+      "affected": [
+        ">=2.4.10 <2.4.12"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.12"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-3583",
+        "https://www.cve.org/CVERecord?id=CVE-2014-3583"
+      ]
+    },
+    {
+      "id": "CVE-2014-8109",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_lua multiple \"Require\" directive handling is broken",
+      "affected": [
+        ">=2.4.1 <2.4.12"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.12"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-8109",
+        "https://www.cve.org/CVERecord?id=CVE-2014-8109"
+      ]
+    },
+    {
+      "id": "CVE-2014-0231",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_cgid denial of service",
+      "affected": [
+        ">=2.4.1 <2.4.10"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.10"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-0231",
+        "https://www.cve.org/CVERecord?id=CVE-2014-0231"
+      ]
+    },
+    {
+      "id": "CVE-2014-3523",
+      "aliases": [],
+      "product": "apache",
+      "title": "WinNT MPM denial of service",
+      "affected": [
+        ">=2.4.1 <2.4.10"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.10"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-3523",
+        "https://www.cve.org/CVERecord?id=CVE-2014-3523"
+      ]
+    },
+    {
+      "id": "CVE-2014-0117",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_proxy denial of service",
+      "affected": [
+        ">=2.4.6 <2.4.10"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.10"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-0117",
+        "https://www.cve.org/CVERecord?id=CVE-2014-0117"
+      ]
+    },
+    {
+      "id": "CVE-2014-0118",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_deflate denial of service",
+      "affected": [
+        ">=2.4.1 <2.4.10"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.10"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-0118",
+        "https://www.cve.org/CVERecord?id=CVE-2014-0118"
+      ]
+    },
+    {
+      "id": "CVE-2014-0226",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_status buffer overflow",
+      "affected": [
+        ">=2.4.1 <2.4.10"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.10"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-0226",
+        "https://www.cve.org/CVERecord?id=CVE-2014-0226"
+      ]
+    },
+    {
+      "id": "CVE-2013-6438",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_dav crash",
+      "affected": [
+        ">=2.4.1 <2.4.9"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.9"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2013-6438",
+        "https://www.cve.org/CVERecord?id=CVE-2013-6438"
+      ]
+    },
+    {
+      "id": "CVE-2014-0098",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_log_config crash",
+      "affected": [
+        ">=2.4.1 <2.4.9"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.9"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2014-0098",
+        "https://www.cve.org/CVERecord?id=CVE-2014-0098"
+      ]
+    },
+    {
+      "id": "CVE-2013-4352",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_cache crash",
+      "affected": [
+        ">=2.4.6 <2.4.7"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.7"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2013-4352",
+        "https://www.cve.org/CVERecord?id=CVE-2013-4352"
+      ]
+    },
+    {
+      "id": "CVE-2013-1896",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_dav crash",
+      "affected": [
+        ">=2.4.1 <2.4.6"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.6"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2013-1896",
+        "https://www.cve.org/CVERecord?id=CVE-2013-1896"
+      ]
+    },
+    {
+      "id": "CVE-2013-2249",
+      "aliases": [],
+      "product": "apache",
+      "title": "mod_session_dbd session fixation flaw",
+      "affected": [
+        ">=2.4.1 <2.4.6"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.6"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2013-2249",
+        "https://www.cve.org/CVERecord?id=CVE-2013-2249"
+      ]
+    },
+    {
+      "id": "CVE-2012-4558",
+      "aliases": [],
+      "product": "apache",
+      "title": "XSS in mod_proxy_balancer",
+      "affected": [
+        ">=2.4.1 <2.4.4"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.4"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2012-4558",
+        "https://www.cve.org/CVERecord?id=CVE-2012-4558"
+      ]
+    },
+    {
+      "id": "CVE-2012-3499",
+      "aliases": [],
+      "product": "apache",
+      "title": "XSS due to unescaped hostnames",
+      "affected": [
+        ">=2.4.1 <2.4.4"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.4"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2012-3499",
+        "https://www.cve.org/CVERecord?id=CVE-2012-3499"
+      ]
+    },
+    {
+      "id": "CVE-2012-3502",
+      "aliases": [],
+      "product": "apache",
+      "title": "Response mixup when using mod_proxy_ajp or mod_proxy_http",
+      "affected": [
+        ">=2.4.1 <2.4.3"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.3"
+      },
+      "cvss": 0,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2012-3502",
+        "https://www.cve.org/CVERecord?id=CVE-2012-3502"
+      ]
+    },
+    {
+      "id": "CVE-2012-2687",
+      "aliases": [],
+      "product": "apache",
+      "title": "XSS in mod_negotiation when untrusted uploads are supported",
+      "affected": [
+        ">=2.4.1 <2.4.3"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.3"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2012-2687",
+        "https://www.cve.org/CVERecord?id=CVE-2012-2687"
+      ]
+    },
+    {
+      "id": "CVE-2012-0883",
+      "aliases": [],
+      "product": "apache",
+      "title": "insecure LD_LIBRARY_PATH handling",
+      "affected": [
+        ">=2.4.1 <2.4.2"
+      ],
+      "fixedIn": {
+        "2.4": "2.4.2"
+      },
+      "cvss": 0,
+      "severity": "low",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://httpd.apache.org/security/vulnerabilities_24.html#CVE-2012-0883",
+        "https://www.cve.org/CVERecord?id=CVE-2012-0883"
       ]
     }
   ]
