@@ -31,10 +31,10 @@ public static class DaemonLauncher
 
     private static ProcessStartInfo StartInfo(string exe, string args)
     {
-        // El daemon NO puede heredar el stdout/stderr de quien lo lanza: quien capture la salida
+        // El daemon NO puede quedarse con el stdout/stderr de quien lo lanza: quien capture la salida
         // de `roost up` (un script, una CI) esperaría al cierre de esa tubería, es decir, a que
         // muera el daemon. En Windows, ShellExecute con la ventana oculta lo lanza sin heredar
-        // handles (el entorno, con ROOST_HOME, sí se hereda). En el resto, tuberías propias.
+        // handles (el entorno, con ROOST_HOME, sí se hereda).
         if (OperatingSystem.IsWindows())
         {
             return new ProcessStartInfo(exe, args)
@@ -45,12 +45,12 @@ public static class DaemonLauncher
             };
         }
 
+        // En Linux y macOS es el propio hijo quien se desliga nada más arrancar (DaemonHost): su propia
+        // sesión (setsid), SIGHUP ignorado y stdout/stderr a logs/roostd.log, con lo que suelta lo que
+        // heredó. Aquí no se le dejan tuberías que nadie leería (y que, muerto el padre, darían EPIPE).
         return new ProcessStartInfo(exe, args)
         {
             UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
             WorkingDirectory = Path.GetTempPath(),
         };
     }

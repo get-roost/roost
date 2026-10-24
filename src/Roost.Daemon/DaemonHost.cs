@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Runtime.InteropServices;
+using Roost.Core;
 using Roost.Core.Platform;
 using Roost.Extensibility;
 
@@ -28,15 +30,82 @@ public static class DaemonHost
     /// </summary>
     public static string PipeName(RoostPaths paths) => "roost-" + Environment.UserName + RoostPaths.InstanceTag(paths);
 
-    public static string SocketPath(RoostPaths paths) => Path.Combine(paths.Run, "roost.sock");
+    /// <summary>
+    /// El unix socket de roostd (Linux y macOS), el mismo para el host y para <see cref="DaemonClient"/>:
+    /// <c>$XDG_RUNTIME_DIR/roost&lt;tag&gt;.sock</c> (una carpeta 0700 del usuario que el sistema limpia al
+    /// cerrar sesión) o, sin esa variable (WSL sin systemd, un contenedor), <c>run/roost.sock</c> de la
+    /// raíz, con <c>run/</c> a 0700. Si la ruta no cabe en los 108 bytes de <c>sun_path</c>, una corta en
+    /// <c>/tmp/roost-&lt;uid&gt;&lt;tag&gt;/</c>. El socket queda a 0600 al escuchar.
+    /// </summary>
+    public static string SocketPath(RoostPaths paths) => ChooseSocket(paths, Environment.GetEnvironmentVariable, Posix.Uid).Path;
+
+    /// <summary>sun_path son 108 bytes con el terminador: la ruta, en UTF-8, como mucho 107.</summary>
+    internal const int MaxSocketPath = 107;
+
+    /// <summary><see cref="SocketPath"/>, con el entorno y el uid que se le den (los tests). <c>OwnDirectory</c>: la carpeta es de Roost y se deja a 0700.</summary>
+    internal static (string Path, bool OwnDirectory) ChooseSocket(RoostPaths paths, Func<string, string?> env, int uid)
+    {
+        var tag = RoostPaths.InstanceTag(paths);
+        var runtime = env("XDG_RUNTIME_DIR");
+        var (path, own) = !string.IsNullOrWhiteSpace(runtime) && Directory.Exists(runtime)
+            ? (Path.Combine(runtime, $"roost{tag}.sock"), false)
+            : (Path.Combine(paths.Run, "roost.sock"), true);
+        if (System.Text.Encoding.UTF8.GetByteCount(path) <= MaxSocketPath) return (path, own);
+        return (Path.Combine(Path.GetTempPath(), $"roost-{uid}{tag}", "roost.sock"), true);
+    }
+
+    /// <summary>true si alguien acepta conexiones en ese unix socket (un roostd vivo); false si está huérfano o no existe.</summary>
+    internal static bool IsSocketAlive(string socket)
+    {
+        if (!File.Exists(socket)) return false;
+        try
+        {
+            using var probe = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.Unix, System.Net.Sockets.SocketType.Stream, System.Net.Sockets.ProtocolType.Unspecified);
+            probe.Connect(new System.Net.Sockets.UnixDomainSocketEndPoint(socket));
+            return true;
+        }
+        catch (System.Net.Sockets.SocketException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Deja el sitio del socket listo para escuchar: su carpeta (0700 si es de Roost) y, si quedó un socket
+    /// de un roostd anterior que murió, lo quita, pero solo tras comprobar que nadie contesta en él.
+    /// </summary>
+    internal static void PrepareSocket(string socket, bool ownDirectory)
+    {
+        var dir = Path.GetDirectoryName(socket)!;
+        if (ownDirectory) PrivateFile.EnsureDirectory(dir);
+        else Directory.CreateDirectory(dir);
+        if (!File.Exists(socket)) return;
+        if (IsSocketAlive(socket))
+            throw new RoostException($"Ya hay un roostd escuchando en {socket}.");
+        File.Delete(socket);
+    }
 
     public static string LogFile(RoostPaths paths) => Path.Combine(paths.Logs, "roostd.log");
+
+    // Mientras viva el proceso: la de SIGHUP (si se suelta, vuelve el comportamiento de serie).
+    private static PosixSignalRegistration? _hangup;
 
     /// <param name="extensions">Las ya cargadas por quien lanza el daemon (la CLI); si no, se cargan aquí.</param>
     public static async Task<int> RunAsync(CancellationToken cancellation, ExtensionSet? extensions = null)
     {
-        // Uno por usuario (y raíz, con ROOST_HOME): si ya hay otro, este sobra.
         var paths = RoostPaths.Default();
+        if (!OperatingSystem.IsWindows())
+        {
+            // El daemon se desliga él mismo de la terminal que lo lanzó (quien lo lanza no puede hacerlo por
+            // él): su propia sesión (setsid: sin terminal de control, cerrarla no le manda SIGHUP ni a él ni a
+            // nginx), SIGHUP ignorado por si llega igual, y stdout/stderr a roostd.log (así suelta la salida
+            // que heredó de `roost up`, que un script podría estar capturando).
+            Posix.SetSid();
+            _hangup ??= PosixSignalRegistration.Create(PosixSignal.SIGHUP, context => context.Cancel = true);
+            Posix.RedirectStdioTo(LogFile(paths));
+        }
+
+        // Uno por usuario (y raíz, con ROOST_HOME): si ya hay otro, este sobra.
         using var single = new Mutex(true, $"roost-daemon-{Environment.UserName}{RoostPaths.InstanceTag(paths)}", out var first);
         if (!first) return 0;
 
@@ -46,9 +115,18 @@ public static class DaemonHost
         Directory.CreateDirectory(paths.Logs);
         var log = new FileLog(LogFile(paths));
 
+        // Fuera de Windows no hay Job Object: lo que dejó vivo un roostd anterior que murió sin limpiar
+        // (kill -9) se para ahora, antes de arrancar nada que quiera sus puertos.
+        if (!OperatingSystem.IsWindows())
+        {
+            try { PosixPidLedger.For(paths).Reconcile(log.Write); }
+            catch (Exception ex) { log.Write("libro de hijos: no se pudo reconciliar (" + ex.Message + ")"); }
+        }
+
         var builder = WebApplication.CreateSlimBuilder();
         builder.Logging.ClearProviders();
         builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(5));
+        string? unixSocket = null;
         builder.WebHost.ConfigureKestrel(kestrel =>
         {
             if (OperatingSystem.IsWindows())
@@ -58,9 +136,9 @@ public static class DaemonHost
             }
             else
             {
-                Directory.CreateDirectory(paths.Run);
-                var socket = SocketPath(paths);
-                if (File.Exists(socket)) File.Delete(socket);
+                var (socket, own) = ChooseSocket(paths, Environment.GetEnvironmentVariable, Posix.Uid);
+                PrepareSocket(socket, own);
+                unixSocket = socket;
                 kestrel.ListenUnixSocket(socket);
             }
         });
@@ -118,7 +196,10 @@ public static class DaemonHost
         try
         {
             await app.StartAsync(cancellation);
-            log.Write($"roostd en marcha (pid {Environment.ProcessId}, raiz {paths.Root})");
+            // Solo este usuario habla con su daemon (ROOST.md §5.1): el socket a 0600 (su carpeta ya es 0700).
+            if (unixSocket is not null && File.Exists(unixSocket))
+                File.SetUnixFileMode(unixSocket, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            log.Write($"roostd en marcha (pid {Environment.ProcessId}, raiz {paths.Root}{(unixSocket is null ? "" : $", socket {unixSocket}")})");
             foreach (var extension in extensions.Loaded)
                 log.Write($"extension {extension.Name} {extension.Version} ({extension.Id})");
             foreach (var error in extensions.Errors)

@@ -4,22 +4,52 @@ using System.Runtime.InteropServices;
 namespace Roost.Core.Platform;
 
 /// <summary>Un proceso escuchando en un puerto TCP local.</summary>
-public sealed record PortOwner(int Port, int Pid, string? ProcessName);
+/// <param name="Pid">0 si se sabe que alguien escucha pero no quién (<see cref="IsForeign"/>).</param>
+public sealed record PortOwner(int Port, int Pid, string? ProcessName)
+{
+    /// <summary>
+    /// true si alguien escucha pero no se ve quién: en Linux, sin root, solo se ven los descriptores de los
+    /// procesos propios, y un servicio del sistema (el apache2 de la distro) es de otro usuario.
+    /// </summary>
+    public bool IsForeign => Pid <= 0;
+}
 
 /// <summary>
 /// Quién escucha en un puerto TCP: para decir «el 80 lo tiene System (PID 4)» en vez de solo
-/// «está ocupado». Solo en Windows (GetExtendedTcpTable, IPv4 e IPv6); en el resto, o si la
+/// «está ocupado». En Windows, GetExtendedTcpTable (IPv4 e IPv6); en Linux, <c>/proc/net/tcp</c> y
+/// <c>tcp6</c> (el inodo del socket que escucha) y <c>/proc/*/fd</c> (quién lo tiene abierto: solo los
+/// procesos propios sin root, y entonces <see cref="PortOwner.IsForeign"/>). En el resto, o si la
 /// llamada falla, devuelve null. Como la detección, nunca lanza.
 /// </summary>
 public static class PortOwners
 {
     public static PortOwner? Find(int port)
     {
+        if (OperatingSystem.IsLinux()) return FindLinux(port);
         if (!OperatingSystem.IsWindows()) return null;
         try
         {
             var pid = FindPid(port, AfInet) ?? FindPid(port, AfInet6);
             return pid is null ? null : new PortOwner(port, pid.Value, ProcessName(pid.Value));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>PURO: «nginx (PID 1234)», o lo que se sabe de un dueño que no se ve (sin tildes).</summary>
+    public static string Describe(PortOwner owner) => owner.IsForeign
+        ? "otro proceso que no es de este usuario (en Linux solo se ven los propios; miralo con: sudo ss -ltnp)"
+        : $"{owner.ProcessName ?? "otro proceso"} (PID {owner.Pid})";
+
+    private static PortOwner? FindLinux(int port)
+    {
+        try
+        {
+            if (ProcFs.ListeningInode(port) is not { } inode) return null;
+            var pid = ProcFs.PidOfSocket(inode);
+            return pid is null ? new PortOwner(port, 0, null) : new PortOwner(port, pid.Value, ProcFs.CommOf(pid.Value));
         }
         catch
         {

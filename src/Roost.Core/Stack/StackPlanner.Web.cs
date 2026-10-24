@@ -67,7 +67,15 @@ public sealed partial class StackPlanner
 
         var test = TestNginx(nginx);
         if (test is null || !test.Contains("test is successful", StringComparison.OrdinalIgnoreCase))
+        {
+            // En Linux, nginx -t abre los puertos: con el 80 como usuario normal falla por permisos, no porque esté ocupado.
+            if (DeniedBind(test) is { } denied)
+            {
+                var (key, suggested) = SuggestionFor(denied, config);
+                throw new RoostException(DeniedPortMessage(denied, key, suggested, paths.ConfigFile));
+            }
             throw new RoostException($"nginx no acepta la configuracion generada ({conf}):\n{test?.Trim() ?? "nginx -t no respondio"}");
+        }
 
         return new ServiceDefinition
         {
@@ -77,6 +85,8 @@ public sealed partial class StackPlanner
             WorkingDirectory = nginx.Directory,
             LogFile = Path.Combine(paths.Logs, "nginx-stdout.log"),
             Port = config.HttpPort,
+            // En Linux se le pide que pare con SIGQUIT (acaba lo que está sirviendo y sale); en Windows se mata, como siempre.
+            StopSignal = StopSignal.Quit,
         };
     }
 

@@ -39,6 +39,17 @@ public sealed class Supervisor
     }
 
     /// <summary>
+    /// Si se usa <see cref="ServiceDefinition.StopSignal"/> para pedir la parada (Linux y macOS: <c>kill(2)</c>
+    /// y esperar <see cref="ServiceDefinition.StopTimeout"/> antes de matar). En Windows no hay señales y se
+    /// mata, como siempre. Los tests lo activan para probar el flujo en cualquier sistema.
+    /// </summary>
+    public bool UseSignals { get; init; } = !OperatingSystem.IsWindows();
+
+    private bool UsesSignal(ServiceDefinition definition) => UseSignals && definition.StopSignal != StopSignal.Kill;
+
+    private static string SignalName(StopSignal signal) => "SIG" + signal.ToString().ToUpperInvariant();
+
+    /// <summary>
     /// Arranca los servicios en el orden recibido (ROOST.md §5.5: DB → PHP → nginx). El primer
     /// arranque de cada uno es síncrono, para que el orden sea de verdad ese; la vigilancia y
     /// los relanzamientos van en segundo plano. Solo se puede llamar una vez: después, los servicios
@@ -207,6 +218,8 @@ public sealed class Supervisor
             var slot = slots[i];
             if (slot.Definition.StopCommand is { } command && slot.BeginGracefulStop())
                 await StopGracefullyAsync(slot, command);
+            else if (UsesSignal(slot.Definition) && slot.BeginGracefulStop())
+                await StopBySignalAsync(slot);
 
             slot.Stop();
             _log($"{slot.Definition.Name}: parado");
@@ -251,9 +264,48 @@ public sealed class Supervisor
             if (!slot.BeginRestart()) continue;
             if (slot.Definition.StopCommand is { } command && await RestartGracefullyAsync(slot, command, generation))
                 continue;
+            if (UsesSignal(slot.Definition) && await RestartBySignalAsync(slot, generation))
+                continue;
             slot.KillForRestart(generation);
         }
         return slots.Count;
+    }
+
+    /// <summary>
+    /// Le manda su señal de parada y espera a que salga solo (su bucle termina sin relanzarlo: ya está
+    /// parando); si no sale en <see cref="ServiceDefinition.StopTimeout"/>, quien llama lo mata después.
+    /// </summary>
+    private async Task StopBySignalAsync(Slot slot)
+    {
+        if (!slot.Signal()) return;
+        using var timeout = new CancellationTokenSource(slot.Definition.StopTimeout);
+        try
+        {
+            await (slot.Loop ?? Task.CompletedTask).WaitAsync(timeout.Token);
+            _log($"{slot.Definition.Name}: se ha parado limpio ({SignalName(slot.Definition.StopSignal)})");
+        }
+        catch (OperationCanceledException)
+        {
+            _log($"{slot.Definition.Name}: no se paro en {slot.Definition.StopTimeout.TotalSeconds:0} s tras {SignalName(slot.Definition.StopSignal)}; se mata");
+        }
+    }
+
+    /// <summary>Le manda su señal de parada y espera a que el bucle lo relance; false si no llega a tiempo (se matará).</summary>
+    private async Task<bool> RestartBySignalAsync(Slot slot, int generation)
+    {
+        if (!slot.Signal(generation)) return false;
+        using var timeout = new CancellationTokenSource(slot.Definition.StopTimeout);
+        try
+        {
+            while (slot.Generation == generation && !slot.IsStopping)
+                await Task.Delay(50, timeout.Token);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            _log($"{slot.Definition.Name}: no se paro en {slot.Definition.StopTimeout.TotalSeconds:0} s tras {SignalName(slot.Definition.StopSignal)} para reiniciarlo; se mata");
+            return false;
+        }
     }
 
     /// <summary>Pide la parada limpia y espera a que el bucle lo relance; false si no llega a tiempo.</summary>
@@ -493,6 +545,20 @@ public sealed class Supervisor
             lock (_lock)
             {
                 if (_generation == generation) _process?.Kill();
+            }
+        }
+
+        /// <summary>
+        /// Le manda la señal de parada de su definición (POSIX). false si no hay proceso vivo o, con
+        /// <paramref name="generation"/>, si ya es otro proceso.
+        /// </summary>
+        public bool Signal(int? generation = null)
+        {
+            lock (_lock)
+            {
+                if (_process is null || (generation is { } g && _generation != g)) return false;
+                _process.Terminate(Definition.StopSignal);
+                return true;
             }
         }
 

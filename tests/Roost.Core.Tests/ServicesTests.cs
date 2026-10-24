@@ -399,7 +399,7 @@ public class ServicesTests : IDisposable
         Assert.Equal(6380, config.RedisPort);
         Assert.True(config.MailEnabled);
         Assert.Equal("http://localhost:8026/", config.MailWebUrl);
-        Assert.Equal([80, 3306, 6380, 1026, 8026], config.PlannedPorts(withSites: false, withDb: true));
+        Assert.Equal([RoostConfig.DefaultHttpPort, 3306, 6380, 1026, 8026], config.PlannedPorts(withSites: false, withDb: true));
 
         File.WriteAllText(file, "[redis]\nenabled = \"si\"\n");
         Assert.Contains("true o false", Assert.Throws<RoostException>(() => RoostConfig.Load(file)).Message);
@@ -428,7 +428,7 @@ public class ServicesTests : IDisposable
 
         Assert.False(RoostConfig.Load(file).RedisEnabled);   // se lee bien
         Assert.Throws<RoostException>(() => RoostConfig.SetRedis(file, enabled: true));
-        Assert.Throws<RoostException>(() => RoostConfig.SetRedis(file, port: 80));   // un puerto nuevo se valida ya
+        Assert.Throws<RoostException>(() => RoostConfig.SetRedis(file, port: RoostConfig.DefaultHttpPort));   // un puerto nuevo se valida ya (el web por defecto: 80, o 8080 en Linux)
         Assert.Equal("[redis]\nport = 3306\n", File.ReadAllText(file));   // y no se ha escrito nada
     }
 

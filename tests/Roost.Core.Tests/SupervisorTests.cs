@@ -30,6 +30,14 @@ public class SupervisorTests
             Exit(-1);
         }
 
+        /// <summary>Lo que hace al recibir una señal: true = sale limpio (como nginx con SIGQUIT).</summary>
+        public Func<StopSignal, bool>? OnSignal { get; set; }
+
+        public void Terminate(StopSignal signal)
+        {
+            if (OnSignal?.Invoke(signal) ?? true) Exit(0);
+        }
+
         public void Dispose() { }
     }
 
@@ -39,6 +47,7 @@ public class SupervisorTests
         private int _nextId = 100;
         private readonly List<(string Name, FakeProcess Process)> _started = [];
         private readonly List<string> _killed = [];
+        private readonly List<(string Name, StopSignal Signal)> _signaled = [];
         private readonly List<ServiceDefinition> _definitions = [];
 
         /// <summary>Si se fija, los procesos de ese servicio salen en cuanto arrancan.</summary>
@@ -49,6 +58,9 @@ public class SupervisorTests
         /// <summary>Si un comando "X-shutdown" hace que el servicio X salga solo (como mysqladmin shutdown).</summary>
         public bool ShutdownWorks { get; init; } = true;
 
+        /// <summary>Si un proceso sale solo al recibir su señal de parada (nginx con SIGQUIT); si no, se queda hasta que lo maten.</summary>
+        public bool ExitsOnSignal { get; init; } = true;
+
         public IServiceProcess Start(ServiceDefinition definition)
         {
             if (definition.Name == Throws) throw new FileNotFoundException("no existe");
@@ -56,6 +68,11 @@ public class SupervisorTests
             {
                 FakeProcess? process = null;
                 process = new FakeProcess(_nextId++, p => { lock (_lock) _killed.Add(definition.Name); });
+                process.OnSignal = signal =>
+                {
+                    lock (_lock) _signaled.Add((definition.Name, signal));
+                    return ExitsOnSignal;
+                };
                 _started.Add((definition.Name, process));
                 _definitions.Add(definition);
                 if (definition.Name == ExitsImmediately) process.Exit(255);
@@ -74,12 +91,99 @@ public class SupervisorTests
         public FakeProcess Last(string name) { lock (_lock) return _started.Last(s => s.Name == name).Process; }
         public List<string> StartOrder() { lock (_lock) return _started.Select(s => s.Name).ToList(); }
         public List<string> KillOrder() { lock (_lock) return [.. _killed]; }
+        public List<(string Name, StopSignal Signal)> Signaled() { lock (_lock) return [.. _signaled]; }
 
         /// <summary>La definición con la que se lanzó por última vez algo con ese nombre.</summary>
         public ServiceDefinition LastDefinition(string name) { lock (_lock) return _definitions.Last(d => d.Name == name); }
     }
 
     private static ServiceDefinition Service(string name) => new() { Name = name, Executable = name + ".exe" };
+
+    // nginx en Linux: se le pide que pare con SIGQUIT y se le da un plazo corto para el test.
+    private static ServiceDefinition Nginx() => new()
+    {
+        Name = "nginx",
+        Executable = OsNames.Exe("nginx"),
+        StopSignal = StopSignal.Quit,
+        StopTimeout = TimeSpan.FromMilliseconds(300),
+    };
+
+    [Fact]
+    public async Task Stop_ConStopSignal_MandaLaSenal_YNoLoMata_NiLoRelanza()
+    {
+        var launcher = new FakeLauncher();
+        var supervisor = new Supervisor(launcher, restartDelay: TimeSpan.Zero, healthyUptime: TimeSpan.Zero) { UseSignals = true };
+        supervisor.Start([Service("php-8.4-0"), Nginx()]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+
+        await supervisor.StopAsync();
+        await Task.Delay(100);
+
+        Assert.Equal([("nginx", StopSignal.Quit)], launcher.Signaled());
+        Assert.Equal(["php-8.4-0"], launcher.KillOrder());   // nginx salio solo; el php-cgi (Kill) se mata como siempre
+        Assert.Equal(1, launcher.StartsOf("nginx"));          // su salida no se tomo por caida ni por reciclaje
+        Assert.All(supervisor.Status(), s => Assert.Equal(ServiceState.Stopped, s.State));
+    }
+
+    [Fact]
+    public async Task Stop_SiNoSaleTrasLaSenal_SeMataAlAcabarElPlazo()
+    {
+        var launcher = new FakeLauncher { ExitsOnSignal = false };
+        var supervisor = new Supervisor(launcher) { UseSignals = true };
+        supervisor.Start([Nginx()]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+
+        await supervisor.StopAsync();
+
+        Assert.Single(launcher.Signaled());
+        Assert.Equal(["nginx"], launcher.KillOrder());
+        Assert.Equal(ServiceState.Stopped, supervisor.Status().Single().State);
+    }
+
+    [Fact]
+    public async Task Stop_SinSenales_ComoEnWindows_SeMataSinAvisar()
+    {
+        var launcher = new FakeLauncher();
+        var supervisor = new Supervisor(launcher) { UseSignals = false };
+        supervisor.Start([Nginx()]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+
+        await supervisor.StopAsync();
+
+        Assert.Empty(launcher.Signaled());
+        Assert.Equal(["nginx"], launcher.KillOrder());
+    }
+
+    [Fact]
+    public async Task Restart_ConStopSignal_MandaLaSenal_YElBucleLoRelanzaSinMatarlo()
+    {
+        var launcher = new FakeLauncher();
+        var supervisor = new Supervisor(launcher, restartDelay: TimeSpan.Zero, healthyUptime: TimeSpan.Zero) { UseSignals = true };
+        supervisor.Start([Nginx()]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+
+        await supervisor.RestartAsync(name => name == "nginx");
+        await Until(() => launcher.StartsOf("nginx") == 2 && supervisor.Status().Single().State == ServiceState.Running);
+
+        Assert.Equal([("nginx", StopSignal.Quit)], launcher.Signaled());
+        Assert.Empty(launcher.KillOrder());
+        Assert.Equal(1, supervisor.Status().Single().Restarts);
+    }
+
+    [Fact]
+    public async Task Restart_SiNoSaleTrasLaSenal_SeMataParaReiniciarlo()
+    {
+        var launcher = new FakeLauncher { ExitsOnSignal = false };
+        var supervisor = new Supervisor(launcher, restartDelay: TimeSpan.Zero, healthyUptime: TimeSpan.Zero) { UseSignals = true };
+        supervisor.Start([Nginx()]);
+        await Until(() => supervisor.Status().All(s => s.State == ServiceState.Running));
+
+        await supervisor.RestartAsync(name => name == "nginx");
+        await Until(() => launcher.StartsOf("nginx") == 2 && supervisor.Status().Single().State == ServiceState.Running);
+
+        Assert.Single(launcher.Signaled());
+        Assert.Equal(["nginx"], launcher.KillOrder());
+    }
 
     // Una base de datos: se para pidiendole shutdown, con un plazo corto para el test.
     private static ServiceDefinition Database(string name) => new()

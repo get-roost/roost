@@ -68,10 +68,14 @@ public class CommandRunnerTests
         Assert.Equal(["manzana", "pera"], result.Stdout.Split('\n', StringSplitOptions.RemoveEmptyEntries).Select(l => l.Trim()));
     }
 
-    [WindowsFact("Pendiente en Linux: Cimientos y nginx (L1).")]
+    [Fact]
     public async Task Run_AplicaElEntorno_YUnNullQuitaLaVariable()
     {
-        var script = OperatingSystem.IsWindows() ? "echo [%ROOST_PRUEBA%][%PATH%]" : "echo \"[$ROOST_PRUEBA][$PATH]\"";
+        // En Linux, sh (dash y bash) se inventa un PATH por defecto si no viene en el entorno: hay que mirar
+        // el entorno de verdad (env), no la variable del shell.
+        var script = OperatingSystem.IsWindows()
+            ? "echo [%ROOST_PRUEBA%][%PATH%]"
+            : "echo \"[$ROOST_PRUEBA][$(/usr/bin/env | grep '^PATH=' | cut -d= -f2-)]\"";
         var env = new Dictionary<string, string?> { ["ROOST_PRUEBA"] = "valor", ["PATH"] = null };
 
         var result = await CommandRunner.Default.RunAsync(Shell(script, env: env), null, CancellationToken.None);

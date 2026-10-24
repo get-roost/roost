@@ -11,8 +11,11 @@ public enum ServiceStartMode
     Other,
 }
 
-/// <summary>Un servicio de Windows de bases de datos o web que puede quitarle un puerto a Roost.</summary>
-/// <param name="Kind">«MySQL», «MariaDB», «Apache», «nginx», «IIS» o «Redis».</param>
+/// <summary>
+/// Un servicio del sistema de bases de datos o web que puede quitarle un puerto a Roost: un servicio de
+/// Windows o, en Linux, una unidad de systemd (<see cref="SystemdServices"/>; el nombre se quedó del primero).
+/// </summary>
+/// <param name="Kind">«MySQL», «MariaDB», «Apache», «nginx», «IIS», «Redis» o «PHP-FPM» (solo en Linux).</param>
 public sealed record WindowsService(string Name, string DisplayName, string Kind, string? Executable, ServiceStartMode Start, bool Running)
 {
     /// <summary>Los puertos que suele usar: los de la base de datos o los del servidor web.</summary>
@@ -20,10 +23,11 @@ public sealed record WindowsService(string Name, string DisplayName, string Kind
     {
         "MySQL" or "MariaDB" => [3306],
         "Redis" => [6379],
+        "PHP-FPM" => [9000],
         _ => [80, 443],
     };
 
-    /// <summary>Arranca solo al encender el equipo: aunque hoy esté parado, mañana tendrá el puerto.</summary>
+    /// <summary>Arranca solo al encender el equipo (o <c>enabled</c> en systemd): aunque hoy esté parado, mañana tendrá el puerto.</summary>
     public bool StartsWithWindows => Start == ServiceStartMode.Automatic;
 }
 

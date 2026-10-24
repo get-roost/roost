@@ -51,6 +51,13 @@ public sealed record NginxConfInput(
     /// (<c>etc/nginx/share</c>, <c>Share/ShareConf</c>), que se incluye después de los sitios; null = sin ella.
     /// </summary>
     public string? SharesDirectory { get; init; }
+
+    /// <summary>
+    /// <c>daemon off;</c>: en Linux y macOS nginx se desliga por defecto (hace fork y el padre sale con 0),
+    /// y el supervisor, que es su padre, lo tomaría por una caída y lo relanzaría con el puerto ya cogido.
+    /// En Windows no hay fork y la directiva sobra (la conf de siempre no cambia).
+    /// </summary>
+    public bool DaemonOff { get; init; } = !OperatingSystem.IsWindows();
 }
 
 /// <summary>
@@ -88,7 +95,7 @@ public static class NginxConf
 
         return $$"""
             # Generado por Roost: NO lo edites, se regenera en cada `roost up`.
-            worker_processes 1;
+            {{Daemon(input)}}worker_processes 1;
             pid "{{run}}/nginx.pid";
             error_log "{{logs}}/nginx-error.log" warn;
 
@@ -166,6 +173,9 @@ public static class NginxConf
                     }
 
             """;
+
+    /// <summary>En primer plano fuera de Windows (<see cref="NginxConfInput.DaemonOff"/>): el supervisor es su padre.</summary>
+    private static string Daemon(NginxConfInput input) => input.DaemonOff ? "daemon off;\n" : "";
 
     /// <summary>nginx en Windows acepta '/' y así no hay que escapar las '\' dentro de comillas.</summary>
     public static string Nginx(string path) => path.Replace('\\', '/');

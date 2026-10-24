@@ -78,6 +78,22 @@ public sealed class OsProcessLauncher : IProcessLauncher
             catch { /* ya había muerto */ }
         }
 
+        public void Terminate(StopSignal signal)
+        {
+            if (OperatingSystem.IsWindows() || signal == StopSignal.Kill)
+            {
+                Kill();
+                return;
+            }
+            try
+            {
+                if (process.HasExited) return;
+                // Solo al proceso: nginx y php-fpm pasan la señal a sus workers. Si no se le puede mandar, se mata.
+                if (!Platform.Posix.Kill(process.Id, Platform.Posix.SignalNumber(signal))) Kill();
+            }
+            catch { /* ya había muerto */ }
+        }
+
         public void Dispose()
         {
             process.Dispose();

@@ -25,6 +25,43 @@ public class RoostConfigTests : IDisposable
     }
 
     [Fact]
+    public void PuertosWebPorDefecto_80y443EnWindows_8080y8443EnLinux()
+    {
+        // Un usuario normal de Linux no puede abrir puertos por debajo del 1024 (hasta que el helper le dé a nginx el setcap).
+        Assert.Equal(OperatingSystem.IsWindows() ? 80 : 8080, RoostConfig.DefaultHttpPort);
+        Assert.Equal(OperatingSystem.IsWindows() ? 443 : 8443, RoostConfig.DefaultHttpsPort);
+        Assert.Equal(RoostConfig.DefaultHttpPort, RoostConfig.Load(ConfigFile).HttpPort);
+        Assert.Equal(RoostConfig.DefaultHttpsPort, RoostConfig.Load(ConfigFile).HttpsPort);
+
+        RoostConfig.SetPhpVersion(ConfigFile, "8.4");
+        var written = File.ReadAllText(ConfigFile);
+        Assert.Contains($"port = {RoostConfig.DefaultHttpPort}\n", written);
+        Assert.Contains($"https_port = {RoostConfig.DefaultHttpsPort}\n", written);
+        Assert.Contains("# www = '/var/www/roost'", written);
+    }
+
+    [Fact]
+    public void ReadWww_YSetWww_LaCarpetaDeProyectos()
+    {
+        Assert.Null(RoostConfig.ReadWww(ConfigFile));   // sin fichero
+
+        var www = Path.Combine(_dir, "proyectos");
+        RoostConfig.SetWww(ConfigFile, www);
+        Assert.Equal(www, RoostConfig.ReadWww(ConfigFile));
+        Assert.Contains("[paths]", File.ReadAllText(ConfigFile));
+
+        Write("[paths]\nwww = 'relativa/www'\n");
+        Assert.Null(RoostConfig.ReadWww(ConfigFile));   // solo rutas completas
+
+        Write("[paths]\nwww = 42\n");
+        Assert.Null(RoostConfig.ReadWww(ConfigFile));   // y nunca lanza
+
+        RoostConfig.SetWww(ConfigFile, www);
+        RoostConfig.SetWww(ConfigFile, null);
+        Assert.Null(RoostConfig.ReadWww(ConfigFile));
+    }
+
+    [Fact]
     public void Load_LeeVersionPoolYPuerto()
     {
         Write("[php]\nversion = \"8.3\"\npool = 2\n\n[web]\nport = 8080\n");

@@ -24,8 +24,6 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("up")) return 1;
-
         var paths = RoostPaths.Default();
         try
         {
@@ -40,7 +38,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             // Redis y Mailpit, si van en el stack y aun no hay ninguno (roost.toml editado a mano).
             if (config.RedisEnabled) await Services.ServiceSetup.EnsureRedisAsync(paths, cancellation);
             if (config.MailEnabled) await Services.ServiceSetup.EnsureMailpitAsync(paths, cancellation);
-            WarnAboutWindowsServices(config, paths, globalDb is not null);
+            WarnAboutSystemServices(config, paths, globalDb is not null);
             // Sitios avanzados: lo que cambie en un .roost.toml o en una carpeta aparcada, antes de aplicar.
             Sites.SiteSources.PrintSync(paths);
 
@@ -66,7 +64,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             if (wasRunning) StackApply.PrintApplied(response, partial: false);
             AnsiConsole.MarkupLineInterpolated($"  PHP {status.Php} ({pool} php-cgi) · {status.WebLabel}");
             if (status.Db is null)
-                AnsiConsole.MarkupLine("  [grey]Sin base de datos (instala una con: roost db install mariadb@11.4)[/]");
+                AnsiConsole.MarkupLine("  [grey]Sin base de datos" + PlatformGate.WindowsHint(" (instala una con: roost db install mariadb@11.4)") + "[/]");
             else
             {
                 // Si root tiene contraseña, la guarda Roost (roost db password): no se enseña aquí.
@@ -87,6 +85,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             foreach (var site in status.Sites)
                 AnsiConsole.MarkupLineInterpolated($"  [bold]{site.Url}[/] [grey](PHP {site.Php})[/]");
             AnsiConsole.MarkupLineInterpolated($"  [grey]www: {paths.Www}   logs: {paths.Logs}[/]");
+            SuggestSharedWww(paths);
             UpdateNotice.FromCache(paths);
             return 0;
         }
@@ -98,24 +97,39 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
     }
 
     /// <summary>
-    /// E7: los servicios de Windows (un MySQL80 o una MariaDB de su MSI, Apache, IIS, otro Redis) que
-    /// arrancan con Windows o estan en marcha y suelen usar un puerto de este stack. Solo avisa:
-    /// Roost nunca cambia, para ni arranca servicios. Si al final se queda el puerto, el daemon lo
-    /// dice en el error con el nombre del servicio.
+    /// E7: los servicios del sistema (en Windows, un MySQL80 o una MariaDB de su MSI, Apache, IIS, otro
+    /// Redis; en Linux, el apache2 o el mysql de la distro, por systemd) que arrancan con el sistema o estan
+    /// en marcha y suelen usar un puerto de este stack. Solo avisa: Roost nunca cambia, para ni arranca
+    /// servicios. Si al final se queda el puerto, el daemon lo dice en el error con el nombre del servicio.
     /// </summary>
-    private static void WarnAboutWindowsServices(RoostConfig config, RoostPaths paths, bool withDb)
+    private static void WarnAboutSystemServices(RoostConfig config, RoostPaths paths, bool withDb)
     {
         var sites = 0;
         try { sites = new Roost.Core.Sites.SiteRegistry(paths).Load().Count; } catch (Exception ex) when (ex is IOException or RoostException) { }
-        var conflicts = WindowsServices.Conflicts(WindowsServices.Find(ProcessRunner.Default), config.PlannedPorts(sites > 0, withDb));
+        var system = SystemServices.Current;
+        var conflicts = WindowsServices.Conflicts(system.Find(ProcessRunner.Default), config.PlannedPorts(sites > 0, withDb));
         foreach (var conflict in conflicts)
         {
             var service = conflict.Service;
             AnsiConsole.MarkupLineInterpolated(
-                $"[yellow]Aviso:[/] el servicio de Windows {WindowsServices.Label(service)} {WindowsServices.StateText(service)} y suele usar el puerto {string.Join(" y el ", conflict.Ports)}, que tambien es de este stack.");
+                $"[yellow]Aviso:[/] {system.Describe(service)} y suele usar el puerto {string.Join(" y el ", conflict.Ports)}, que tambien es de este stack.");
             AnsiConsole.MarkupLineInterpolated(
-                $"  [grey]Si se lo queda, Roost no podra arrancar. Ponlo en Manual en services.msc (o, en una consola de administrador: {WindowsServices.ManualCommand(service)}) y paralo ({WindowsServices.StopCommand(service)}), o cambia el puerto en {paths.ConfigFile}. Roost no toca servicios de Windows.[/]");
+                $"  [grey]Si se lo queda, Roost no podra arrancar. {system.HowToFree(service)}, o cambia el puerto en {paths.ConfigFile}. {system.Disclaimer}[/]");
         }
+    }
+
+    /// <summary>
+    /// Linux: si los proyectos van en la www de respaldo bajo la raiz porque no existe /var/www/roost (o no
+    /// es del usuario), se dice como tenerla ahi, como en un servidor. Con ROOST_HOME no se sugiere nada.
+    /// </summary>
+    private static void SuggestSharedWww(RoostPaths paths)
+    {
+        if (!OperatingSystem.IsLinux() || !paths.WwwIsFallback) return;
+        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(RoostPaths.HomeVariable))) return;
+        if (Directory.Exists(RoostPaths.LinuxSharedWww))
+            AnsiConsole.MarkupLineInterpolated($"  [grey]{RoostPaths.LinuxSharedWww} existe pero no es tuya: los proyectos van en {paths.Www}. Para usarla, pon [[paths]] www en {paths.ConfigFile} o pide a su dueno que te deje escribir.[/]");
+        else
+            AnsiConsole.MarkupLineInterpolated($"  [grey]Para tener los proyectos en {RoostPaths.LinuxSharedWww}, como en un servidor (en vez de en {paths.Www}): roost www init[/]");
     }
 }
 
@@ -124,7 +138,6 @@ public sealed class DownCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is null)
         {
@@ -164,7 +177,6 @@ public sealed class RestartCommand : AsyncCommand<RestartCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is not { Running: true })
         {
@@ -199,7 +211,6 @@ public sealed class StopServiceCommand : AsyncCommand<ServiceSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, ServiceSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is not { Running: true })
         {
@@ -223,7 +234,6 @@ public sealed class StartServiceCommand : AsyncCommand<ServiceSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, ServiceSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         if (await client.TryStatusAsync(cancellation) is not { Running: true })
         {
@@ -254,7 +264,6 @@ public sealed class StatusCommand : AsyncCommand<StatusCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require(context.Name)) return 1;
         using var client = new DaemonClient(RoostPaths.Default());
         var status = await client.TryStatusAsync(cancellation);
 
