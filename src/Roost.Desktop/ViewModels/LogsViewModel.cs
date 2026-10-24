@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Roost.Core;
 using Roost.Core.Sites;
 using Roost.Desktop.Controls;
 using Roost.Desktop.Services;
@@ -31,6 +32,12 @@ public enum LogLevel
     Muted,
     Warn,
     Error,
+}
+
+/// <summary>Sitios avanzados (C5): una opción del filtro por sitio de Registros; <see cref="Site"/> null = todos.</summary>
+public sealed record SiteLogFilter(string? Site, string Label)
+{
+    public override string ToString() => Label;
 }
 
 /// <summary>Una línea del registro, con su color según lo que cuenta.</summary>
@@ -75,6 +82,20 @@ public sealed partial class LogsViewModel : PageViewModel
 
     public bool HasEmpty => Empty is not null;
 
+    /// <summary>Sitios avanzados (C5): «Todos» y cada sitio (los registrados y los que tienen registros en <c>logs/sites</c>).</summary>
+    [ObservableProperty] public partial IReadOnlyList<SiteLogFilter> SiteFilters { get; private set; } = [];
+
+    [ObservableProperty] public partial SiteLogFilter? SiteFilter { get; set; }
+
+    private bool _settingFilter;
+
+    partial void OnSiteFilterChanged(SiteLogFilter? value)
+    {
+        if (_settingFilter) return;
+        BuildFiles();
+        Pick(Files.FirstOrDefault());
+    }
+
     partial void OnEmptyChanged(string? value) => OnPropertyChanged(nameof(HasEmpty));
     partial void OnFilterChanged(string value) => ApplyFilter();
 
@@ -96,9 +117,27 @@ public sealed partial class LogsViewModel : PageViewModel
     /// <summary>Elige un fichero por su nombre (desde otra pantalla: «Abrir» el log de nginx…).</summary>
     public Task SelectAsync(string fileName)
     {
+        SetFilter(null);
         BuildFiles();
         Pick(Files.FirstOrDefault(f => f.Display.Equals(fileName, StringComparison.OrdinalIgnoreCase)) ?? Files.FirstOrDefault());
         return Task.CompletedTask;
+    }
+
+    /// <summary>Sitios avanzados (C5): solo los registros de un sitio (desde «Registros» de su panel).</summary>
+    public Task SelectSiteAsync(string site)
+    {
+        BuildFiles();
+        SetFilter(site);
+        BuildFiles();
+        Pick(Files.FirstOrDefault());
+        return Task.CompletedTask;
+    }
+
+    private void SetFilter(string? site)
+    {
+        _settingFilter = true;
+        SiteFilter = SiteFilters.FirstOrDefault(f => f.Site == site) ?? (site is null ? SiteFilters.FirstOrDefault() : new SiteLogFilter(site, site + ".test"));
+        _settingFilter = false;
     }
 
     /// <summary>Al salir de la pantalla deja de leer el fichero.</summary>
@@ -113,8 +152,10 @@ public sealed partial class LogsViewModel : PageViewModel
         try
         {
             var logs = Main.App.Paths.Logs;
+            var sites = SiteLogs.Directory(Main.App.Paths);
             return !Directory.Exists(logs) ? ""
-                : string.Join("|", new DirectoryInfo(logs).EnumerateFiles("*.log").OrderBy(f => f.Name, StringComparer.Ordinal).Select(f => $"{f.Name}:{f.Length}"));
+                : string.Join("|", new DirectoryInfo(logs).EnumerateFiles("*.log").OrderBy(f => f.Name, StringComparer.Ordinal).Select(f => $"{f.Name}:{f.Length}"))
+                  + (Directory.Exists(sites) ? "|" + string.Join("|", new DirectoryInfo(sites).EnumerateFiles("*.log").OrderBy(f => f.Name, StringComparer.Ordinal).Select(f => $"sites/{f.Name}:{f.Length}")) : "");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -138,6 +179,25 @@ public sealed partial class LogsViewModel : PageViewModel
         var helper = HostsUpdater.HelperLog;
         if (File.Exists(helper)) files.Add(new LogFile("roost-helper (hosts)", @"%ProgramData%\Roost\roost-helper.log", helper));
 
+        // Sitios avanzados (C5): los de cada vhost, en logs/sites, y el filtro por sitio.
+        var siteFiles = new List<(string Site, LogFile File)>();
+        var sitesDir = SiteLogs.Directory(Main.App.Paths);
+        if (Directory.Exists(sitesDir))
+        {
+            foreach (var path in Directory.EnumerateFiles(sitesDir, "*.log"))
+            {
+                var name = System.IO.Path.GetFileName(path);
+                if (SiteLogs.SiteOf(name) is not { } site) continue;
+                var what = name.EndsWith("-access.log", StringComparison.OrdinalIgnoreCase) ? "accesos" : "errores";
+                siteFiles.Add((site, new LogFile($"{site}.test: {what}", @"sites\" + name, path)));
+            }
+        }
+        BuildSiteFilters(siteFiles.Select(f => f.Site));
+        if (SiteFilter?.Site is { } only)
+            files = siteFiles.Where(f => f.Site == only).Select(f => f.File).ToList();
+        else
+            files.AddRange(siteFiles.Select(f => f.File));
+
         files = files.OrderBy(f => Order(f.Display)).ThenBy(f => f.Display, StringComparer.Ordinal).ToList();
         foreach (var file in files)
         {
@@ -157,7 +217,26 @@ public sealed partial class LogsViewModel : PageViewModel
             selected.IsSelected = true;
             Selected = selected;
         }
-        Empty = files.Count == 0 ? "Aún no hay registros: se crean al pulsar Iniciar todo." : null;
+        Empty = files.Count > 0 ? null
+            : SiteFilter?.Site is { } filtered ? $"Aún no hay registros de {filtered}.test: el servidor web los empieza con la primera petición tras Iniciar todo."
+            : "Aún no hay registros: se crean al pulsar Iniciar todo.";
+    }
+
+    /// <summary>Las opciones del filtro: todos, y cada sitio registrado o con registros (conserva la elegida).</summary>
+    private void BuildSiteFilters(IEnumerable<string> withLogs)
+    {
+        IEnumerable<string> registered;
+        try { registered = new SiteRegistry(Main.App.Paths).Load().Select(s => s.Name); }
+        catch (Exception ex) when (ex is RoostException or IOException) { registered = []; }
+        var names = registered.Concat(withLogs).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
+        var current = SiteFilter?.Site;
+        var filters = new List<SiteLogFilter> { new(null, "Todos los registros") };
+        filters.AddRange(names.Select(n => new SiteLogFilter(n, n + ".test")));
+        if (filters.Select(f => f.Label).SequenceEqual(SiteFilters.Select(f => f.Label))) return;
+        _settingFilter = true;
+        SiteFilters = filters;
+        SiteFilter = filters.FirstOrDefault(f => f.Site == current) ?? filters[0];
+        _settingFilter = false;
     }
 
     private static string TitleOf(string name)
@@ -187,6 +266,8 @@ public sealed partial class LogsViewModel : PageViewModel
         _ when name.StartsWith("mariadb-", StringComparison.Ordinal) || name.StartsWith("mysql-", StringComparison.Ordinal) => 4,
         _ when name.StartsWith('%') => 5,
         _ when name.StartsWith("php-", StringComparison.Ordinal) => 7,
+        // C5: los de cada sitio, al final y, de cada uno, primero los errores.
+        _ when name.StartsWith(@"sites\", StringComparison.Ordinal) => name.EndsWith("-error.log", StringComparison.OrdinalIgnoreCase) ? 8 : 9,
         _ => 6,
     };
 

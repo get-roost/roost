@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.EditSiteDialogView"
+             x:DataType="vm:EditSiteDialogViewModel">
+  <!-- Sitios avanzados (C2): renombrar un sitio y servirlo desde otra carpeta -->
+  <Border Classes="modal" Width="600">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+            <Button Content="Cancelar" Command="{Binding DismissCommand}" />
+            <Button Classes="primary" Content="Guardar" Command="{Binding ConfirmCommand}" IsEnabled="{Binding CanConfirm}" IsDefault="True" />
+          </StackPanel>
+          <TextBlock Classes="faint" Text="{Binding Summary}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+        </DockPanel>
+      </Border>
+      <StackPanel Spacing="14" Margin="20,18,20,18">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+          <Border Classes="badge-ic">
+            <ctl:Icon Data="{StaticResource IcGlobe}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Classes="h3" Text="{Binding Title}" />
+            <TextBlock Classes="faint" Text="{Binding Subtitle}" TextWrapping="Wrap" />
+          </StackPanel>
+          <Button Grid.Column="2" Classes="icon ghost" VerticalAlignment="Top" Command="{Binding DismissCommand}" AutomationProperties.Name="Cerrar">
+            <ctl:Icon Data="{StaticResource IcClose}" Size="15" />
+          </Button>
+        </Grid>
+
+        <StackPanel Spacing="6">
+          <TextBlock Classes="lbl" Text="Nombre" />
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBox Classes="mono" Text="{Binding Name}" AutomationProperties.Name="Nombre del sitio" />
+            <TextBlock Grid.Column="1" Classes="mono faint" Text=".test" VerticalAlignment="Center" />
+          </Grid>
+          <TextBlock Classes="small" TextWrapping="Wrap" Text="{Binding NameHint}" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding !NameIsError}" />
+          <TextBlock Classes="small" TextWrapping="Wrap" Text="{Binding NameHint}" Foreground="{DynamicResource BadBrush}" IsVisible="{Binding NameIsError}" />
+        </StackPanel>
+
+        <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10" IsVisible="{Binding ShowDatabase}">
+          <StackPanel Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <ctl:Icon Data="{StaticResource IcDatabase}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+              <TextBlock Classes="lbl" Text="Su base de datos" VerticalAlignment="Center" />
+            </StackPanel>
+            <RadioButton GroupName="db" IsChecked="{Binding KeepDatabase}" Content="{Binding KeepLabel}" />
+            <RadioButton GroupName="db" IsChecked="{Binding CopyDatabase}" Content="{Binding CopyLabel}" IsEnabled="{Binding DbRunning}" />
+            <TextBlock Classes="faint" TextWrapping="Wrap" IsVisible="{Binding !DbRunning}"
+                       Text="Para copiarla, la base de datos tiene que estar en marcha (Iniciar todo)." />
+            <TextBlock Classes="faint" TextWrapping="Wrap" IsVisible="{Binding DbRunning}"
+                       Text="MySQL y MariaDB no saben renombrar: se vuelca y se importa en la nueva, con sus rutinas, triggers y eventos. Si el .env tiene DB_DATABASE con el nombre de antes, se cambia." />
+          </StackPanel>
+        </Border>
+
+        <StackPanel Spacing="6">
+          <TextBlock Classes="lbl" Text="Carpeta del proyecto" />
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <TextBox Classes="mono" Text="{Binding Folder}" AutomationProperties.Name="Carpeta del proyecto" />
+            <Button Grid.Column="1" Classes="icon" Command="{Binding PickFolderCommand}" ToolTip.Tip="Elegir carpeta" AutomationProperties.Name="Elegir carpeta">
+              <ctl:Icon Data="{StaticResource IcFolder}" Size="15" />
+            </Button>
+          </Grid>
+          <StackPanel Spacing="6" IsVisible="{Binding FolderChanged}">
+            <RadioButton GroupName="folder" IsChecked="{Binding MoveFiles}">
+              <StackPanel>
+                <TextBlock Text="Mover la carpeta allí" />
+                <TextBlock Classes="faint" Text="Roost la mueve (en la misma unidad) y el sitio la sigue sirviendo; su git va con ella." TextWrapping="Wrap" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton GroupName="folder" IsChecked="{Binding PointOnly}">
+              <StackPanel>
+                <TextBlock Text="Solo apuntar a esa carpeta" />
+                <TextBlock Classes="faint" Text="El proyecto ya está ahí (lo has movido tú, o es otra copia). La carpeta de antes no se toca." TextWrapping="Wrap" />
+              </StackPanel>
+            </RadioButton>
+          </StackPanel>
+          <TextBlock Classes="small" TextWrapping="Wrap" Text="{Binding FolderHint}" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding !FolderIsError}" />
+          <TextBlock Classes="small" TextWrapping="Wrap" Text="{Binding FolderHint}" Foreground="{DynamicResource BadBrush}" IsVisible="{Binding FolderIsError}" />
+        </StackPanel>
+
+        <ctl:Note Tone="Accent" Content="El vhost de antes se aparta como .conf.removed (por si tenía cambios tuyos fuera de las marcas) y Roost escribe el nuevo al aplicar. La carpeta del proyecto nunca se borra." />
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>
