@@ -519,7 +519,7 @@ public class UpdateInstallerTests : IDisposable
         Assert.True(VcRedist.Evaluate(1, 14, 50, 0).SatisfiesApache);
         Assert.Null(VcRedist.Warning(old, forApache: false));
         Assert.Contains("14.50", VcRedist.Warning(old, forApache: true));
-        Assert.Contains("aka.ms/vs/17/release/vc_redist.x64.exe", VcRedist.Warning(new VcRedistStatus(false, null), forApache: false));
+        Assert.Contains("aka.ms/vc14/vc_redist.x64.exe", VcRedist.Warning(new VcRedistStatus(false, null), forApache: false));
         Assert.Null(VcRedist.Warning(new VcRedistStatus(false, null, Checked: false), forApache: true));   // no se sabe: no se avisa
         Assert.Equal("no instalado", new VcRedistStatus(false, null).Describe());
 

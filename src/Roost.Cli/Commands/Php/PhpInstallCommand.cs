@@ -100,7 +100,7 @@ public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
             return;
         }
 
-        var redist = $"https://aka.ms/vs/17/release/vc_redist.{build.Architecture}.exe";
+        var redist = $"https://aka.ms/vc14/vc_redist.{build.Architecture}.exe";
         AnsiConsole.MarkupLineInterpolated(
             $"[yellow]Aviso:[/] {installed.Executable} no responde a -v. Suele faltar el Visual C++ Redistributable ({build.Compiler}, {build.Architecture}): {redist}");
     }

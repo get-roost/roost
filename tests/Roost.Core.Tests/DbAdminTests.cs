@@ -345,8 +345,8 @@ public class DbAdminTests
         var old = DbAdmin.SmokeTest(new InstalledDb(DbEngine.MySql, "5.7.44", @"C:\roost\bin\mysql\5.7.44"), new FakeClient(""));
 
         Assert.False(modern.Ok);
-        Assert.Equal("Visual C++ 2015-2022 (x64)", modern.MissingRedistributable);
-        Assert.Equal("https://aka.ms/vs/17/release/vc_redist.x64.exe", modern.RedistributableUrl);
+        Assert.Equal("Visual C++ v14 (x64)", modern.MissingRedistributable);
+        Assert.Equal("https://aka.ms/vc14/vc_redist.x64.exe", modern.RedistributableUrl);
         Assert.Equal("Visual C++ 2013 (x64)", old.MissingRedistributable);
     }
 }

@@ -254,11 +254,15 @@ jobs:
           $dir = Join-Path $PWD 'artifacts/vcredist'
           New-Item -ItemType Directory -Force $dir | Out-Null
           $exe = Join-Path $dir 'vc_redist.x64.exe'
-          Invoke-WebRequest 'https://aka.ms/vs/17/release/vc_redist.x64.exe' -OutFile $exe -MaximumRetryCount 3 -RetryIntervalSec 5
+          # aka.ms/vc14 es el «latest supported» de la v14; el de aka.ms/vs/17 se quedo en el 14.44.
+          Invoke-WebRequest 'https://aka.ms/vc14/vc_redist.x64.exe' -OutFile $exe -MaximumRetryCount 3 -RetryIntervalSec 5
           $sig = Get-AuthenticodeSignature $exe
           if ($sig.Status -ne 'Valid') { throw "vc_redist.x64.exe no lleva una firma valida ($($sig.Status))" }
           if ($sig.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation') { throw "vc_redist.x64.exe no lo firma Microsoft: $($sig.SignerCertificate.Subject)" }
-          Write-Host "vc_redist.x64.exe $((Get-Item $exe).VersionInfo.ProductVersion), firmado por $($sig.SignerCertificate.Subject)"
+          $version = [version](Get-Item $exe).VersionInfo.ProductVersion
+          # Apache (Apache Lounge, VS18) necesita el 14.50 o posterior: con uno anterior, el instalador no lo arreglaria.
+          if ($version -lt [version]'14.50') { throw "vc_redist.x64.exe es el $version; Apache necesita el 14.50 o posterior" }
+          Write-Host "vc_redist.x64.exe $version, firmado por $($sig.SignerCertificate.Subject)"
           "path=$exe" >> $env:GITHUB_OUTPUT
 
       # Lo que necesita build/sign.ps1 para firmar el setup y el desinstalador desde ISCC.

@@ -12,8 +12,11 @@ public sealed record VcRedistStatus(bool Installed, Version? Version, bool Check
     /// <summary>Apache de Apache Lounge (VS18) necesita el 14.50 o posterior; PHP y las bases de datos valen con cualquier 14.x.</summary>
     public static readonly Version ApacheMinimum = new(14, 50);
 
-    /// <summary>Microsoft lo publica siempre en la misma URL (el «latest supported»).</summary>
-    public const string DownloadUrl = "https://aka.ms/vs/17/release/vc_redist.x64.exe";
+    /// <summary>
+    /// El «latest supported» de la v14 (2017-2026), en la URL fija de Microsoft. La de
+    /// <c>aka.ms/vs/17</c> se quedó en el 14.44, que no basta para Apache.
+    /// </summary>
+    public const string DownloadUrl = "https://aka.ms/vc14/vc_redist.x64.exe";
 
     public bool SatisfiesApache => Installed && Version is not null && Version >= ApacheMinimum;
 

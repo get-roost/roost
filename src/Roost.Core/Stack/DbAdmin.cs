@@ -277,7 +277,7 @@ public static partial class DbAdmin
 
         return db.Engine == DbEngine.MySql && db.Version is { Major: 5 }
             ? new DbSmokeResult(null, "Visual C++ 2013 (x64)", "https://aka.ms/highdpimfc2013x64enu")
-            : new DbSmokeResult(null, "Visual C++ 2015-2022 (x64)", "https://aka.ms/vs/17/release/vc_redist.x64.exe");
+            : new DbSmokeResult(null, "Visual C++ v14 (x64)", VcRedistStatus.DownloadUrl);
     }
 
     /// <summary>Los argumentos de la consola SQL interactiva (opcionalmente ya dentro de <paramref name="database"/>).</summary>
