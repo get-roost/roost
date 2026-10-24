@@ -1,6 +1,7 @@
 # El feed firmado de avisos (roost-catalog, ROOST.md §7.3): cada día genera advisories.json desde
-# endoflife.date, php.net, los avisos de GitHub de php/php-src y el catálogo KEV de CISA, más lo
-# escrito a mano en catalog/, lo firma y lo publica en la rama `catalog`, de donde lo baja Roost.
+# endoflife.date, php.net, los avisos de GitHub de php/php-src, los boletines de nginx.org y de
+# httpd.apache.org y el catálogo KEV de CISA, más lo escrito a mano en catalog/, lo firma y lo
+# publica en la rama `catalog`, de donde lo baja Roost.
 #
 # Necesita el secreto ROOST_CATALOG_KEY: la clave privada ECDSA P-256 (PEM) cuya pública está en
 # src/Roost.Core/Audit/FeedSignature.cs. Sin él, el job falla y no publica nada.
