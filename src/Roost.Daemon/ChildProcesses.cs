@@ -3,15 +3,16 @@ using System.Runtime.InteropServices;
 namespace Roost.Daemon;
 
 /// <summary>
-/// Los procesos hijos de un proceso (los workers de nginx, el hijo de Apache), con una foto de
-/// Toolhelp: es lo que dice cuándo ha acabado una recarga en caliente (<see cref="WebReload"/>),
-/// porque los dos cambian de proceso hijo al leer la configuración nueva. Solo en Windows; en el
-/// resto, o si falla, vacío. Nunca lanza.
+/// Los procesos hijos de un proceso (los workers de nginx, el hijo de Apache): es lo que dice cuándo ha
+/// acabado una recarga en caliente (<see cref="WebReload"/>), porque los dos cambian de proceso hijo al
+/// leer la configuración nueva. En Windows, una foto de Toolhelp; en Linux, el ppid de
+/// <c>/proc/*/stat</c> (<see cref="Roost.Core.Platform.ProcFs"/>). En el resto, o si falla, vacío. Nunca lanza.
 /// </summary>
 internal static class ChildProcesses
 {
     public static IReadOnlyList<int> Of(int pid)
     {
+        if (OperatingSystem.IsLinux()) return Roost.Core.Platform.ProcFs.ChildrenOf(pid);
         if (!OperatingSystem.IsWindows()) return [];
         var snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         if (snapshot == InvalidHandle) return [];
