@@ -17,11 +17,14 @@ namespace Roost.Cli.Commands.Sites;
 /// <summary>Lo comun de los comandos de sitios con git: el SiteManager con el git de Roost y como contar el estado.</summary>
 internal static class SiteGitSupport
 {
-    /// <summary>Un SiteManager que sabe de git (instala MinGit la primera vez).</summary>
+    /// <summary>Un SiteManager que sabe de git (instala MinGit la primera vez) y del acceso de cada sitio (claves, huellas y tokens).</summary>
     public static async Task<SiteManager> ManagerAsync(RoostPaths paths, CancellationToken cancellation)
     {
         var git = await GitSetup.EnsureAsync(paths, cancellation);
-        return new SiteManager(paths, new GitClient(git.Executable, CommandRunner.Default, new GitEnvironment(paths)));
+        return new SiteManager(paths, new GitClient(git.Executable, CommandRunner.Default, new GitEnvironment(paths)))
+        {
+            Access = GitAccessSupport.Factory(paths),
+        };
     }
 
     /// <summary>El chip del panel: al dia, N por detras, cambios locales...</summary>
@@ -45,7 +48,11 @@ internal static class SiteGitSupport
     public static bool Interactive => AnsiConsole.Profile.Capabilities.Interactive && !Console.IsInputRedirected;
 }
 
-/// <summary><c>roost site clone</c>: un sitio nuevo desde un repositorio git (de momento, publico o local).</summary>
+/// <summary>
+/// <c>roost site clone</c>: un sitio nuevo desde un repositorio git, publico o privado. El acceso se
+/// elige con --token, --ssh, --ssh-key o --own-ssh; sin ninguno, si el remoto lo pide y hay terminal,
+/// se ofrece; con --json o sin terminal nunca se pregunta: falla con el texto que toca.
+/// </summary>
 public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
 {
     public sealed class Settings : CommandSettings
@@ -70,13 +77,60 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
         [Description("PHP del sitio (rama, version o instalacion). Por defecto, el global.")]
         public string? Php { get; init; }
 
+        [CommandOption("--token")]
+        [Description("Entra con un token HTTPS: usa el guardado para el repositorio o lo pide (sin eco, o una linea por stdin). Se guarda en el Administrador de credenciales de Windows.")]
+        public bool Token { get; init; }
+
+        [CommandOption("--user <USUARIO>")]
+        [Description("Con --token: el usuario que va con el token, si el servidor lo pide (GitHub, GitLab y Bitbucket no lo usan).")]
+        public string? User { get; init; }
+
+        [CommandOption("--ssh")]
+        [Description("Entra con la clave SSH de Roost para este sitio: la crea si no la tiene y la ensena para ponerla como deploy key.")]
+        public bool Ssh { get; init; }
+
+        [CommandOption("--ssh-key <FICHERO>")]
+        [Description("Entra con una clave privada tuya, sin contrasena: Roost guarda una copia solo para tu usuario (la tuya no se toca).")]
+        public string? SshKey { get; init; }
+
+        [CommandOption("--own-ssh")]
+        [Description("Entra con tus claves (~/.ssh y el ssh-agent de Windows), como en tu terminal. Roost no guarda nada.")]
+        public bool OwnSsh { get; init; }
+
         [CommandOption("-y|--yes")]
-        [Description("No pide confirmacion.")]
+        [Description("No pide confirmacion (solo acepta las huellas SSH de serie: GitHub, GitLab y Bitbucket).")]
         public bool Yes { get; init; }
 
         [CommandOption("--json")]
-        [Description("Salida JSON para maquinas / CI (sin confirmacion ni progreso).")]
+        [Description("Salida JSON para maquinas / CI (nunca pregunta: sin confirmacion ni progreso).")]
         public bool Json { get; init; }
+
+        public override ValidationResult Validate()
+        {
+            var chosen = new[] { Token, Ssh, SshKey is not null, OwnSsh }.Count(b => b);
+            if (chosen > 1) return ValidationResult.Error("Elige una sola forma de entrar: --token, --ssh, --ssh-key o --own-ssh.");
+            if (User is not null && !Token) return ValidationResult.Error("--user va con --token.");
+            return ValidationResult.Success();
+        }
+    }
+
+    /// <summary>Lo que hay que deshacer si el clonado no acaba: un token que se acaba de guardar, una clave que se acaba de copiar.</summary>
+    private sealed class Undo
+    {
+        private readonly List<(string What, Action Action)> _steps = [];
+
+        public void Add(string what, Action action) => _steps.Add((what, action));
+
+        public void Clear() => _steps.Clear();
+
+        public void Run()
+        {
+            foreach (var (_, action) in _steps)
+            {
+                try { action(); } catch (RoostException) { /* lo que no se pueda deshacer se queda; ya se dijo el fallo */ }
+            }
+            _steps.Clear();
+        }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
@@ -84,47 +138,76 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
         if (!WindowsOnly.Check("site clone")) return 1;
 
         var paths = RoostPaths.Default();
+        var undo = new Undo();
+        SiteManager? sites = null;
+        GitUrl? url = null;
+        string? siteName = null;
         try
         {
-            var url = GitUrl.Parse(settings.Url);
-            var sites = await SiteGitSupport.ManagerAsync(paths, cancellation);
+            url = AdaptUrl(GitUrl.Parse(settings.Url), settings);
+            sites = await SiteGitSupport.ManagerAsync(paths, cancellation);
+            var factory = sites.Access!;
             var request = new CloneRequest(url, settings.Name, settings.Branch, settings.Path, settings.Php);
             // Lo que no cuadra (nombre cogido, carpeta ocupada, PHP sin instalar) se dice antes de ir a la red.
             var plan = sites.PlanClone(request);
+            siteName = plan.Name;
+            var ask = !settings.Json && GitAccessSupport.Interactive;
 
-            if (!settings.Json) AnsiConsole.MarkupLineInterpolated($"Comprobando {url.Normalized}...");
-            var probe = await sites.ProbeAsync(url, cancellation);
-            if (!probe.Reachable)
+            var access = await PrepareAccessAsync(settings, factory, url, plan.Name, undo, ask, cancellation);
+            RemoteProbe probe;
+            while (true)
             {
-                if (settings.Json)
+                // Con la clave de Roost, ssh solo mira el known_hosts de Roost: antes de conectar se
+                // comprueba (y se ofrece aceptar) la huella. Con «Mi clave SSH» mira tambien el del
+                // usuario, asi que decide ssh (sin escribir nunca en el); si no la conoce, el fallo lo dice.
+                if (url.Scheme == GitScheme.Ssh && access is { Kind: not SiteGit.AccessOwn } && url.Host is { } host)
                 {
-                    Console.WriteLine(JsonSerializer.Serialize(new { ok = false, error = probe.Failure!.Message, kind = probe.Failure.Kind.ToString(), detail = probe.Failure.Detail }, JsonOutput.Options));
-                    return 1;
+                    var why = await GitAccessSupport.EnsureTrustedAsync(factory.KnownHosts, host, url.Port, settings.Yes || settings.Json, null, quiet: settings.Json, cancellation);
+                    if (why is not null) throw new GitException(new GitFailure(GitFailureKind.HostKeyUnverified, why, ""));
                 }
-                AnsiConsole.MarkupLineInterpolated($"[red]{probe.Failure!.Message}[/]");
-                if (probe.NeedsAuth)
-                    AnsiConsole.MarkupLine("[grey]El acceso a repositorios privados (token HTTPS o clave SSH) llega en una version proxima de Roost. De momento, repositorios publicos y carpetas locales.[/]");
-                if (probe.Failure.Detail.Length > 0) AnsiConsole.MarkupLineInterpolated($"[grey]git: {probe.Failure.Detail}[/]");
-                return 1;
+
+                if (!settings.Json)
+                    AnsiConsole.MarkupLine($"Comprobando {Markup.Escape(url.Normalized)}" + (access is null ? "" : $" [grey]({Markup.Escape(AccessLabel(access, plan.Name))})[/]") + "...");
+                probe = await ProbeAsync(sites, url, access, cancellation);
+                if (probe.Reachable) break;
+
+                var failure = probe.Failure!;
+                // Sin acceso elegido y con terminal: el remoto pide acceso, se ofrece como entrar.
+                if (access is null && ask && failure.Kind is GitFailureKind.AuthRequired or GitFailureKind.KeyRequired)
+                {
+                    AnsiConsole.MarkupLineInterpolated($"[yellow]{failure.Message}[/]");
+                    var choice = ChooseAccess(url);
+                    if (choice is null) return Cancelled(sites);
+                    url = choice.Value.Url;
+                    access = await PrepareAccessAsync(choice.Value.Settings, factory, url, plan.Name, undo, ask, cancellation);
+                    continue;
+                }
+                // Con la clave de Roost recien puesta: el usuario puede estar pegandola todavia.
+                if (access?.Kind == SiteGit.AccessKey && settings.SshKey is null && ask && failure.Kind == GitFailureKind.KeyRejected)
+                {
+                    AnsiConsole.MarkupLineInterpolated($"[yellow]{failure.Message}[/]");
+                    if (!AnsiConsole.Confirm("Volver a probar?", defaultValue: true)) return Fail(failure, settings, factory, url, plan.Name, undo);
+                    continue;
+                }
+                return Fail(failure, settings, factory, url, plan.Name, undo);
             }
 
+            request = request with { Url = url, Probe = probe, Access = access };
             var branch = plan.Branch ?? probe.DefaultBranch;
             if (!settings.Json)
             {
-                var what = url.IsLocal ? $"Repositorio local {url.Label}" : $"{url.ProviderName} - {url.Label} - publico";
+                var visibility = url.IsLocal ? "" : access is null ? " - publico" : $" - {AccessLabel(access, plan.Name)}";
+                var what = url.IsLocal ? $"Repositorio local {url.Label}" : $"{url.ProviderName} - {url.Label}{visibility}";
                 AnsiConsole.MarkupLineInterpolated($"[green]{what}[/] [grey](rama por defecto: {probe.DefaultBranch ?? "ninguna"}; {probe.Branches.Count} rama(s))[/]");
                 AnsiConsole.MarkupLineInterpolated($"Se clonara [bold]{branch ?? "?"}[/] de {url.Label} en {plan.Folder} y se servira en [bold]https://{plan.Name}.test/[/] [grey](PHP {settings.Php ?? "global"})[/]");
-                if (!settings.Yes && SiteGitSupport.Interactive && !AnsiConsole.Confirm("Seguir?"))
-                {
-                    AnsiConsole.MarkupLine("[grey]Cancelado. No se ha tocado nada.[/]");
-                    return 1;
-                }
+                if (!settings.Yes && ask && !AnsiConsole.Confirm("Seguir?"))
+                    return Cancelled(sites, undo);
             }
 
             CloneResult? result = null;
             if (settings.Json)
             {
-                result = await sites.CloneAsync(request with { Probe = probe }, null, null, cancellation);
+                result = await sites.CloneAsync(request, null, null, cancellation);
             }
             else
             {
@@ -139,11 +222,12 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
                             task.Value = Math.Max(task.Value, p.Overall);
                             task.Description = $"{p.Stage} {p.Percent}%" + (p.Detail is null ? "" : $" [grey]{Markup.Escape(p.Detail)}[/]");
                         });
-                        result = await sites.CloneAsync(request with { Probe = probe }, progress, null, cancellation);
+                        result = await sites.CloneAsync(request, progress, null, cancellation);
                         task.Value = 100;
                         task.Description = $"Clonado {Markup.Escape(url.Label)}";
                     });
             }
+            undo.Clear();   // ya es del sitio
 
             var site = result!.Change.Site;
             var config = RoostConfig.Load(paths.ConfigFile);
@@ -162,6 +246,9 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
                     php = site.Php ?? "global",
                     remote = site.Git!.Remote,
                     provider = site.Git.Provider.ToString().ToLowerInvariant(),
+                    access = site.Git.Access,
+                    keyName = site.Git.KeyName,
+                    credential = site.Git.CredentialTarget is { } t ? factory.Credentials.Describe(t) : null,
                     branch = result.Branch,
                     head = SiteGitSupport.Json(result.Head),
                     seconds = Math.Round(result.Elapsed.TotalSeconds, 1),
@@ -185,21 +272,189 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
         }
         catch (RoostException ex)
         {
+            undo.Run();
             if (settings.Json)
             {
-                Console.WriteLine(JsonSerializer.Serialize(new { ok = false, error = ex.Message, kind = (ex as GitException)?.Failure.Kind.ToString() }, JsonOutput.Options));
+                Console.WriteLine(JsonSerializer.Serialize(new { ok = false, error = ex.Message, kind = (ex as GitException)?.Failure.Kind.ToString(), detail = (ex as GitException)?.Failure.Detail }, JsonOutput.Options));
                 return 1;
             }
             AnsiConsole.MarkupLineInterpolated($"[red]{ex.Message}[/]");
             if (ex is GitException { Failure.Detail.Length: > 0 } g) AnsiConsole.MarkupLineInterpolated($"[grey]git: {g.Failure.Detail}[/]");
+            if (settings.Ssh) KeptKeyHint(sites, siteName);
             return 1;
         }
         catch (OperationCanceledException)
         {
+            undo.Run();
             AnsiConsole.MarkupLine("[yellow]Cancelado.[/] No queda nada a medias: el clonado se hace en una carpeta temporal.");
             return 130;
         }
     }
+
+    /// <summary>Un token solo va por https y una clave solo por SSH: si la direccion es la otra y el proveedor es conocido, se cambia.</summary>
+    private static GitUrl AdaptUrl(GitUrl url, Settings settings)
+    {
+        if (url.IsLocal) return url;
+        if (settings.Token && url.Scheme == GitScheme.Ssh)
+            return url.ToHttps() ?? throw new GitException(GitFailure.TokenNeedsHttps(url));
+        if ((settings.Ssh || settings.SshKey is not null || settings.OwnSsh) && url.Scheme == GitScheme.Https)
+            return url.ToSsh() ?? throw new GitException(GitFailure.KeyNeedsSsh(url));
+        return url;
+    }
+
+    private static Task<RemoteProbe> ProbeAsync(SiteManager sites, GitUrl url, SiteAccess? access, CancellationToken cancellation)
+    {
+        try
+        {
+            return sites.ProbeAsync(url, access, cancellation);
+        }
+        catch (GitException ex)
+        {
+            // SSH sin acceso elegido: no se lanza nada, se cuenta como lo que es.
+            return Task.FromResult(new RemoteProbe(false, true, null, [], ex.Failure));
+        }
+    }
+
+    /// <summary>
+    /// El acceso que piden las opciones, ya preparado: el token guardado o pedido (y guardado), la
+    /// clave de Roost creada y ensenada, la clave del usuario copiada. null si no se pidio ninguno.
+    /// </summary>
+    private static async Task<SiteAccess?> PrepareAccessAsync(Settings settings, GitAccessFactory factory, GitUrl url, string name, Undo undo, bool ask, CancellationToken cancellation)
+    {
+        if (url.IsLocal) return null;
+
+        if (settings.Token)
+        {
+            var location = CredentialLocation.For(url)!;
+            if (factory.Credentials.Find(location) is { } saved)
+            {
+                if (!settings.Json) AnsiConsole.MarkupLineInterpolated($"[grey]Uso el token guardado para {factory.Credentials.Describe(saved.Target)}.[/]");
+                return SiteAccess.Token;
+            }
+            if (!Console.IsInputRedirected && !ask)
+                throw new GitException(new GitFailure(GitFailureKind.AuthRequired,
+                    $"{url.Label} necesita un token y no hay ninguno guardado. Guardalo antes con roost git token set {location.Key[(location.Protocol.Length + 3)..]} (o pasalo por stdin).", ""));
+            if (!settings.Json && !Console.IsInputRedirected)
+            {
+                if (url.NewTokenUrl is { } create)
+                    AnsiConsole.MarkupLineInterpolated($"Crea un token en [link]{create}[/] con el permiso justo: {url.TokenPermission}.");
+                if (url.Provider is GitProvider.GitHub or GitProvider.GitLab or GitProvider.Bitbucket)
+                    AnsiConsole.MarkupLineInterpolated($"[grey]Tu contrasena de {url.ProviderName} no sirve: solo acepta tokens.[/]");
+            }
+            var token = GitAccessSupport.ReadToken($"Token de {url.Label}") ?? throw new RoostException("Sin token: pegalo cuando lo pida o pasalo por stdin (una linea).");
+            if (GitCredentials.LooksLikePassword(location.Host.Split(':')[0], token) is { } warning && !settings.Json)
+                AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {warning}");
+            var target = factory.Credentials.Save(location, token, settings.User);
+            undo.Add("token", () => factory.Credentials.Remove(target));
+            if (!settings.Json)
+                AnsiConsole.MarkupLineInterpolated($"[grey]Guardado en el Administrador de credenciales de Windows, cifrado para tu usuario; solo vale para {location.Key}.[/]");
+            return SiteAccess.Token;
+        }
+
+        if (settings.Ssh)
+        {
+            var key = factory.Keys.Find(name);
+            if (key is null)
+            {
+                key = await factory.Keys.GenerateAsync(name, cancellation);
+                if (!settings.Json) AnsiConsole.MarkupLineInterpolated($"[green]Clave SSH creada para {name}[/] [grey](ed25519, sin contrasena: una deploy key de solo lectura, una por repositorio)[/]");
+            }
+            else if (!settings.Json)
+            {
+                AnsiConsole.MarkupLineInterpolated($"[grey]Uso la clave SSH de Roost que ya tiene {name}.[/]");
+            }
+            if (!settings.Json)
+            {
+                GitAccessSupport.ShowPublicKey(key, url);
+                if (ask)
+                    AnsiConsole.Prompt(new TextPrompt<string>($"Pulsa Intro cuando la hayas puesto como deploy key de {url.Label}").AllowEmpty());
+            }
+            return SiteAccess.Key(name);
+        }
+
+        if (settings.SshKey is { } file)
+        {
+            var imported = await factory.Keys.ImportAsync(name, file, cancellation);
+            undo.Add("clave", () => factory.Keys.Remove(name));
+            if (!settings.Json)
+                AnsiConsole.MarkupLineInterpolated($"[grey]Uso la clave {Path.GetFullPath(file)} ({imported.Algorithm} {imported.Fingerprint}): copia solo para tu usuario en {imported.PrivateFile}.[/]");
+            return SiteAccess.Key(name);
+        }
+
+        if (settings.OwnSsh) return SiteAccess.Own;
+        return null;
+    }
+
+    /// <summary>El menu cuando el remoto pide acceso y no se dijo como entrar (solo con terminal).</summary>
+    private static (GitUrl Url, Settings Settings)? ChooseAccess(GitUrl url)
+    {
+        var https = url.ToHttps();
+        var ssh = url.ToSsh();
+        var options = new List<(string Label, Func<(GitUrl, Settings)>? Pick)>();
+        if (https is not null) options.Add(("Token HTTPS", () => (https, new Settings { Token = true })));
+        if (ssh is not null)
+        {
+            options.Add(("Clave SSH de Roost para este sitio (la creo y la pegas como deploy key)", () => (ssh, new Settings { Ssh = true })));
+            options.Add(("Un fichero de clave privada (sin contrasena)", () =>
+            {
+                var file = AnsiConsole.Prompt(new TextPrompt<string>("Ruta de la clave privada:"));
+                return (ssh, new Settings { SshKey = file.Trim().Trim('"') });
+            }));
+            options.Add(("Mis claves SSH (~/.ssh y el ssh-agent de Windows)", () => (ssh, new Settings { OwnSsh = true })));
+        }
+        options.Add(("Cancelar", null));
+
+        var picked = AnsiConsole.Prompt(new SelectionPrompt<string>().Title("Como entro?").AddChoices(options.Select(o => o.Label)));
+        return options.First(o => o.Label == picked).Pick?.Invoke();
+    }
+
+    private static int Fail(GitFailure failure, Settings settings, GitAccessFactory factory, GitUrl url, string name, Undo undo)
+    {
+        undo.Run();
+        var key = failure.Kind == GitFailureKind.KeyRejected && settings.SshKey is null ? factory.Keys.Find(name) : null;
+        if (settings.Json)
+        {
+            Console.WriteLine(JsonSerializer.Serialize(new
+            {
+                ok = false,
+                error = failure.Message,
+                kind = failure.Kind.ToString(),
+                detail = failure.Detail,
+                publicKey = key?.PublicKey,
+                deployKeysUrl = key is null ? null : url.DeployKeysUrl,
+                newTokenUrl = failure.Kind is GitFailureKind.AuthRequired or GitFailureKind.TokenRejected or GitFailureKind.PasswordNotAccepted ? url.NewTokenUrl : null,
+            }, JsonOutput.Options));
+            return 1;
+        }
+        AnsiConsole.MarkupLineInterpolated($"[red]{failure.Message}[/]");
+        if (failure.Detail.Length > 0) AnsiConsole.MarkupLineInterpolated($"[grey]git: {failure.Detail}[/]");
+        if (failure.Kind == GitFailureKind.AuthRequired && settings is { Token: false, Ssh: false, SshKey: null, OwnSsh: false })
+            AnsiConsole.MarkupLine("[grey]Elige como entrar: --token (HTTPS), --ssh (una clave de Roost para este sitio), --ssh-key <fichero> o --own-ssh (las tuyas).[/]");
+        if (key is not null)
+            AnsiConsole.MarkupLineInterpolated($"[grey]La clave de {name} se queda en {key.PrivateFile} para la proxima vez (roost git key show {name}; para quitarla, roost git key remove {name}).[/]");
+        return 1;
+    }
+
+    private static int Cancelled(SiteManager sites, Undo? undo = null)
+    {
+        undo?.Run();
+        AnsiConsole.MarkupLine("[grey]Cancelado. No se ha clonado nada.[/]");
+        return 1;
+    }
+
+    private static void KeptKeyHint(SiteManager? sites, string? name)
+    {
+        if (sites?.Access is not { } factory || name is null || factory.Keys.Find(name) is not { } key) return;
+        AnsiConsole.MarkupLineInterpolated($"[grey]La clave SSH de {name} se queda en {key.PrivateFile} (roost git key remove {name} para quitarla).[/]");
+    }
+
+    private static string AccessLabel(SiteAccess access, string name) => access.Kind switch
+    {
+        SiteGit.AccessToken => "token HTTPS",
+        SiteGit.AccessKey => $"clave SSH de Roost de {access.KeyName ?? name}",
+        SiteGit.AccessOwn => "tus claves SSH",
+        _ => "sin credenciales",
+    };
 }
 
 /// <summary><c>roost site pull</c>: trae lo nuevo del remoto, solo fast-forward y solo con el arbol limpio.</summary>
@@ -387,6 +642,8 @@ public sealed class SiteGitCommand : AsyncCommand<SiteGitCommand.Settings>
                     remote = status.Git.Remote,
                     provider = status.Git.Provider.ToString().ToLowerInvariant(),
                     access = status.Git.Access,
+                    keyName = status.Git.KeyName,
+                    credential = status.Git.CredentialTarget is { } target ? sites.Access?.Credentials.Describe(target) : null,
                     branch = status.Status.Branch,
                     upstream = status.Status.Upstream,
                     ahead = status.Status.Ahead,
@@ -405,7 +662,7 @@ public sealed class SiteGitCommand : AsyncCommand<SiteGitCommand.Settings>
 
             AnsiConsole.MarkupLineInterpolated($"[bold]{status.Site.Host}[/] [grey]{status.Site.Folder}[/]");
             var provider = GitUrl.TryParse(status.Git.Remote, out var u, out _) ? u.ProviderName : status.Git.Provider.ToString();
-            AnsiConsole.MarkupLineInterpolated($"Remoto     {status.Git.Remote} [grey]({provider}; acceso: {AccessLabel(status.Git.Access)})[/]");
+            AnsiConsole.MarkupLineInterpolated($"Remoto     {status.Git.Remote} [grey]({provider}; acceso: {AccessLabel(status.Git)})[/]");
             AnsiConsole.MarkupLineInterpolated($"Rama       {status.Status.Branch ?? "(HEAD suelto)"}  [{color}]{state}[/]");
             AnsiConsole.MarkupLineInterpolated($"Commit     {SiteGitSupport.Describe(status.Head)}");
             AnsiConsole.MarkupLineInterpolated($"Actualizado {(status.Git.LastPullUtc is { } t ? t.ToLocalTime().ToString("yyyy-MM-dd HH:mm") : "nunca por Roost")}");
@@ -434,12 +691,12 @@ public sealed class SiteGitCommand : AsyncCommand<SiteGitCommand.Settings>
         }
     }
 
-    private static string AccessLabel(string access) => access switch
+    private static string AccessLabel(SiteGit git) => git.Access switch
     {
         SiteGit.AccessNone => "publico, sin credenciales",
         SiteGit.AccessToken => "token HTTPS",
-        SiteGit.AccessKey => "clave SSH de Roost",
-        SiteGit.AccessOwn => "el tuyo",
-        _ => access,
+        SiteGit.AccessKey => $"clave SSH de Roost ({git.KeyName})",
+        SiteGit.AccessOwn => "el tuyo (tus claves SSH)",
+        _ => git.Access,
     };
 }

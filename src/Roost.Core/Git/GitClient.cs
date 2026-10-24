@@ -13,7 +13,7 @@ public sealed record RemoteProbe(bool Reachable, bool NeedsAuth, string? Default
 /// árbol limpio; nada de <c>stash</c> ni <c>reset</c> por su cuenta. Lo que falla sale como
 /// <see cref="GitException"/>, ya clasificado.
 /// </summary>
-public sealed class GitClient(string executable, ICommandRunner runner, GitEnvironment environment)
+public sealed class GitClient(string executable, ICommandRunner runner, GitEnvironment environment, GitAccess? access = null)
 {
     /// <summary>Lo que se espera a un servidor para contestar a <c>ls-remote</c>.</summary>
     public static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(60);
@@ -22,6 +22,12 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
     public static readonly TimeSpan LocalTimeout = TimeSpan.FromSeconds(60);
 
     public string Executable => executable;
+
+    /// <summary>Cómo entra en el remoto (el helper de credenciales, el ssh con su clave).</summary>
+    public GitAccess Access => access ?? GitAccess.None;
+
+    /// <summary>El mismo git, con otro acceso: el de cada sitio, o el que se prueba al clonar.</summary>
+    public GitClient With(GitAccess other) => new(executable, runner, environment, other);
 
     /// <summary>true si la carpeta tiene un <c>.git</c> (carpeta, o fichero en un worktree).</summary>
     public static bool IsRepository(string folder) =>
@@ -45,8 +51,8 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
             return new RemoteProbe(false, false, null, [], GitFailure.TimedOut(ProbeTimeout, url));
         if (!result.Succeeded)
         {
-            var failure = GitFailure.Classify(result.ExitCode, result.Stderr, url);
-            return new RemoteProbe(false, failure.Kind == GitFailureKind.AuthRequired, null, [], failure);
+            var failure = GitFailure.Classify(result.ExitCode, result.Stderr, url, access: Access);
+            return new RemoteProbe(false, failure.Kind is GitFailureKind.AuthRequired or GitFailureKind.TokenRejected or GitFailureKind.TokenForbidden or GitFailureKind.PasswordNotAccepted or GitFailureKind.KeyRejected, null, [], failure);
         }
 
         var refs = GitOutput.ParseLsRemote(result.Stdout);
@@ -77,7 +83,7 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
         });
         var result = await runner.RunAsync(Spec(null, null, args.ToArray()), tee, cancellation);
         if (!result.Succeeded)
-            throw new GitException(GitFailure.Classify(result.ExitCode, result.Stderr, url, targetDir));
+            throw new GitException(GitFailure.Classify(result.ExitCode, result.Stderr, url, targetDir, Access));
     }
 
     public async Task<RepoStatus> StatusAsync(string folder, CancellationToken cancellation)
@@ -135,7 +141,7 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
         var result = await runner.RunAsync(Spec(folder, null, "checkout", branch), lines, cancellation);
         if (result.Succeeded) return;
 
-        var failure = GitFailure.Classify(result.ExitCode, result.Stderr, null, folder);
+        var failure = GitFailure.Classify(result.ExitCode, result.Stderr, null, folder, Access);
         if (failure.Kind == GitFailureKind.BranchNotFound)
             failure = GitFailure.BranchNotFound(Path.GetFileName(folder.TrimEnd(Path.DirectorySeparatorChar)), branch, await RemoteBranchesAsync(folder, cancellation));
         throw new GitException(failure);
@@ -166,7 +172,7 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
     }
 
     private CommandSpec Spec(string? folder, TimeSpan? timeout, params string[] args) =>
-        new(executable, args, folder, environment.Build(), timeout);
+        new(executable, args, folder, environment.Build(Access.Config, Access.SshCommand), timeout);
 
     private async Task<CommandResult> RunAsync(string? folder, TimeSpan? timeout, IProgress<string>? lines, CancellationToken cancellation, params string[] args)
     {
@@ -175,10 +181,10 @@ public sealed class GitClient(string executable, ICommandRunner runner, GitEnvir
         return result;
     }
 
-    private static void Ensure(CommandResult result, string? folder = null, TimeSpan? timeout = null)
+    private void Ensure(CommandResult result, string? folder = null, TimeSpan? timeout = null)
     {
         if (result.TimedOut) throw new GitException(GitFailure.TimedOut(timeout ?? LocalTimeout));
-        if (!result.Succeeded) throw new GitException(GitFailure.Classify(result.ExitCode, result.Stderr, null, folder));
+        if (!result.Succeeded) throw new GitException(GitFailure.Classify(result.ExitCode, result.Stderr, null, folder, Access));
     }
 
     private static void ValidateBranchName(string branch)

@@ -166,6 +166,58 @@ public class GitIntegrationTests : IDisposable
         Assert.True(File.Exists(Sites.Log.FilePath(site.Name)));
     }
 
+    /// <summary>Una carpeta con lo peor que puede llevar una ruta de Windows para el sh de git y para ssh.</summary>
+    private string Awkward => Path.Combine(_root, "con espacio O'k 50%");
+
+    [GitFact]
+    public async Task HelperDeCredenciales_GitLoLanzaPorGitConfigCount_YAnulaElDelRepositorio()
+    {
+        // Un helper de pega (un script de sh: git lo lanza con su sh) en una ruta con espacio, ' y %.
+        Directory.CreateDirectory(Awkward);
+        var helper = Path.Combine(Awkward, "helper.sh");
+        File.WriteAllText(helper, "#!/bin/sh\ncat > /dev/null\nif [ \"$1\" = git-credential ] && [ \"$2\" = get ]; then printf 'username=x-access-token\\npassword=TOKEN-DE-PEGA\\n'; fi\n");
+        // Un repositorio cuyo .git/config tiene otro helper: el de Roost tiene que ganarle.
+        var repo = Path.Combine(_root, "repo");
+        await GitAsync(_root, "init", "--quiet", repo);
+        await GitAsync(repo, "config", "credential.helper", "!f() { echo password=DEL-REPOSITORIO; }; f");
+        var factory = new GitAccessFactory(Paths, new InMemoryCredentialStore(), CommandRunner.Default, helper, credentialPrefix: GitCredentials.TestPrefix);
+        var access = factory.For(GitUrl.Parse("https://github.com/acme/tienda.git"), SiteGit.AccessToken);
+
+        var result = await CommandRunner.Default.RunAsync(new CommandSpec(_git!, ["credential", "fill"], repo, new GitEnvironment(Paths).Build(access.Config, access.SshCommand), TimeSpan.FromSeconds(60),
+            "protocol=https\nhost=github.com\npath=acme/tienda.git\n\n"), null, CancellationToken.None);
+
+        Assert.True(result.Succeeded, result.Stderr);
+        Assert.Contains("password=TOKEN-DE-PEGA", result.Stdout);
+        Assert.DoesNotContain("DEL-REPOSITORIO", result.Stdout);
+    }
+
+    [GitFact]
+    public async Task GitSshCommand_LlegaASshConLasRutasIntactas()
+    {
+        // Un ssh de pega que apunta sus argumentos (uno por linea) y falla, como haria uno sin red.
+        Directory.CreateDirectory(Awkward);
+        var fakeSsh = Path.Combine(Awkward, "ssh.sh");
+        var argsFile = Path.Combine(_root, "ssh-args.txt");
+        File.WriteAllText(fakeSsh, "#!/bin/sh\nfor a in \"$@\"; do printf '%s\\n' \"$a\"; done > \"$ROOST_TEST_SSH_ARGS\"\nexit 1\n");
+        var key = Path.Combine(Awkward, "keys", "tienda");
+        var knownHosts = Path.Combine(Awkward, "known_hosts");
+        var tools = new OpenSshTools(@"C:\Windows\System32\OpenSSH");
+        var command = OpenSsh.KeyCommand(tools, key, knownHosts);
+        // El mismo comando de Roost, con el ssh de pega en lugar del de Windows.
+        command = OpenSsh.ShellQuote(OpenSsh.ForwardSlashes(fakeSsh)) + command[OpenSsh.ShellQuote(OpenSsh.ForwardSlashes(tools.Ssh)).Length..];
+        var env = new Dictionary<string, string?>(new GitEnvironment(Paths).Build(null, command)) { ["ROOST_TEST_SSH_ARGS"] = argsFile };
+
+        var result = await CommandRunner.Default.RunAsync(new CommandSpec(_git!, ["ls-remote", "--", "ssh://git@ejemplo.invalid/acme/tienda.git"], _root, env, TimeSpan.FromSeconds(60)), null, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        var args = File.ReadAllLines(argsFile);
+        Assert.Equal("-F", args[0]);
+        Assert.Contains("IdentityFile=" + OpenSsh.ConfigPath(key), args);
+        Assert.Contains("UserKnownHostsFile=" + OpenSsh.ConfigPath(knownHosts), args);
+        Assert.Contains("StrictHostKeyChecking=yes", args);
+        Assert.Equal("git@ejemplo.invalid", args[^2]);
+    }
+
     public void Dispose()
     {
         Install.InstallFiles.TryDeleteDirectory(_root);

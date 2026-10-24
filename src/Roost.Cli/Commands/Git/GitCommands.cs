@@ -112,6 +112,11 @@ public sealed class GitStatusCommand : AsyncCommand<GitStatusCommand.Settings>
             var version = git is null ? null : await GitSetup.VersionAsync(git, cancellation);
             var roostGit = new GitInstaller(paths).Find(GitCatalog.Windows);
             var env = new GitEnvironment(paths);
+            var access = GitAccessSupport.Factory(paths);
+            var ssh = OpenSsh.TryLocate();
+            var keys = access.Keys.List();
+            var tokens = access.Credentials.List();
+            var trusted = access.KnownHosts.Load().SelectMany(e => e.Hosts).Distinct().Count(h => KnownHosts.PublishedFor(h) is null);
 
             if (settings.Json)
             {
@@ -124,6 +129,9 @@ public sealed class GitStatusCommand : AsyncCommand<GitStatusCommand.Settings>
                     configuredExe = config.GitExe,
                     roost = new { build = GitCatalog.Windows.Version, installed = roostGit is not null, directory = roostGit?.Directory, sha256 = GitCatalog.Windows.Sha256 },
                     gitconfig = env.ConfigFile,
+                    ssh = new { found = ssh is not null, directory = OpenSsh.DefaultDirectory(), knownHosts = env.KnownHostsFile, trustedHosts = trusted },
+                    keys = keys.Select(k => k.Name),
+                    tokens = tokens.Count,
                 }, JsonOutput.Options));
                 return 0;
             }
@@ -140,6 +148,12 @@ public sealed class GitStatusCommand : AsyncCommand<GitStatusCommand.Settings>
             if (git.Source == GitSource.Configured && roostGit is not null)
                 AnsiConsole.MarkupLineInterpolated($"[grey]El MinGit de Roost sigue en {roostGit.Directory}; quita [[git]] exe de roost.toml para volver a el.[/]");
             AnsiConsole.MarkupLineInterpolated($"[bold]Configuracion aislada:[/] {env.ConfigFile} [grey](GIT_CONFIG_NOSYSTEM, sin prompts, Schannel; tu ~/.gitconfig no se toca ni se lee)[/]");
+            if (ssh is null)
+                AnsiConsole.MarkupLineInterpolated($"[yellow]SSH:[/] falta el cliente OpenSSH de Windows en {OpenSsh.DefaultDirectory()} [grey](caracteristica opcional de Windows: sin el, entra con un token HTTPS)[/]");
+            else
+                AnsiConsole.MarkupLineInterpolated($"[bold]SSH:[/] OpenSSH de Windows ({ssh.Directory}) [grey]- servidores conocidos: GitHub, GitLab y Bitbucket de serie{(trusted > 0 ? $" y {trusted} aceptado(s)" : "")} (roost git hosts list)[/]");
+            AnsiConsole.MarkupLineInterpolated($"[bold]Claves SSH de Roost:[/] {(keys.Count == 0 ? "ninguna" : string.Join(", ", keys.Select(k => k.Name)))} [grey](roost git key show <sitio>)[/]");
+            AnsiConsole.MarkupLineInterpolated($"[bold]Tokens HTTPS:[/] {tokens.Count} [grey](en el Administrador de credenciales de Windows: roost git token list)[/]");
             return version is null ? 1 : 0;
         }
         catch (RoostException ex)

@@ -60,7 +60,10 @@ public sealed partial record GitUrl
     public bool IsLocal => Scheme == GitScheme.Local;
 
     /// <summary>El nombre del proveedor para enseñarlo.</summary>
-    public string ProviderName => Provider switch
+    public string ProviderName => Provider == GitProvider.Other ? Host ?? "otro" : NameOf(Provider);
+
+    /// <summary>El nombre de un proveedor para enseñarlo («otro» si no es ninguno conocido).</summary>
+    public static string NameOf(GitProvider provider) => provider switch
     {
         GitProvider.GitHub => "GitHub",
         GitProvider.GitLab => "GitLab",
@@ -68,8 +71,66 @@ public sealed partial record GitUrl
         GitProvider.Codeberg => "Codeberg",
         GitProvider.AzureDevOps => "Azure DevOps",
         GitProvider.Local => "carpeta local",
-        _ => Host ?? "otro",
+        _ => "otro",
     };
+
+    /// <summary>El primer tramo de la etiqueta: la organización o el usuario (<c>acme</c> de <c>acme/tienda</c>).</summary>
+    public string Owner => Label.Split('/')[0];
+
+    /// <summary>
+    /// La página de las deploy keys de este repositorio, donde se pega la clave pública de Roost
+    /// (solo lectura), o null si el proveedor no las tiene por repositorio (Azure DevOps) o no se
+    /// conoce (un servidor propio).
+    /// </summary>
+    public string? DeployKeysUrl => IsLocal ? null : Provider switch
+    {
+        GitProvider.GitHub => $"https://github.com/{Label}/settings/keys",
+        GitProvider.GitLab => $"https://gitlab.com/{Label}/-/settings/repository#js-deploy-keys-settings",
+        GitProvider.Bitbucket => $"https://bitbucket.org/{Label}/admin/access-keys/",
+        GitProvider.Codeberg => $"https://codeberg.org/{Label}/settings/keys",
+        _ => null,
+    };
+
+    /// <summary>Dónde se crea un token con el permiso justo (solo leer el repositorio), o null si no se conoce.</summary>
+    public string? NewTokenUrl => IsLocal ? null : Provider switch
+    {
+        GitProvider.GitHub => "https://github.com/settings/personal-access-tokens/new",
+        GitProvider.GitLab => "https://gitlab.com/-/user_settings/personal_access_tokens?name=Roost&scopes=read_repository",
+        GitProvider.Bitbucket => $"https://bitbucket.org/{Label}/admin/access-tokens",
+        GitProvider.Codeberg => "https://codeberg.org/user/settings/applications",
+        GitProvider.AzureDevOps => $"https://dev.azure.com/{Owner}/_usersSettings/tokens",
+        _ => null,
+    };
+
+    /// <summary>El permiso que necesita el token para clonar y actualizar, como lo llama cada proveedor.</summary>
+    public string TokenPermission => Provider switch
+    {
+        GitProvider.GitHub => "Contents: Read",
+        GitProvider.GitLab => "read_repository",
+        GitProvider.Bitbucket => "Repositories: Read",
+        GitProvider.Codeberg => "read:repository",
+        GitProvider.AzureDevOps => "Code: Read",
+        _ => "leer el repositorio",
+    };
+
+    /// <summary>
+    /// La dirección SSH del mismo repositorio (<c>git@github.com:acme/tienda.git</c>) para los
+    /// proveedores conocidos; ella misma si ya es SSH; null si no se sabe (un servidor propio).
+    /// </summary>
+    public GitUrl? ToSsh()
+    {
+        if (Scheme == GitScheme.Ssh) return this;
+        if (IsLocal || Host is null || Provider is not (GitProvider.GitHub or GitProvider.GitLab or GitProvider.Bitbucket or GitProvider.Codeberg)) return null;
+        return Parse($"git@{Host}:{Label}.git");
+    }
+
+    /// <summary>La dirección https del mismo repositorio para los proveedores conocidos; ella misma si ya es https; null si no se sabe.</summary>
+    public GitUrl? ToHttps()
+    {
+        if (Scheme == GitScheme.Https) return this;
+        if (IsLocal || Host is null || Port is not null || Provider is not (GitProvider.GitHub or GitProvider.GitLab or GitProvider.Bitbucket or GitProvider.Codeberg)) return null;
+        return Parse($"https://{Host}/{Label}.git");
+    }
 
     public const string InvalidMessage =
         "No se entiende esa direccion. Vale https://servidor/grupo/repo, git@servidor:grupo/repo.git, "
@@ -287,9 +348,9 @@ public sealed partial record GitUrl
 
     private static GitProvider ProviderOf(string host) => host switch
     {
-        "github.com" or "www.github.com" or "gist.github.com" => GitProvider.GitHub,
-        "gitlab.com" or "www.gitlab.com" => GitProvider.GitLab,
-        "bitbucket.org" or "www.bitbucket.org" => GitProvider.Bitbucket,
+        "github.com" or "www.github.com" or "gist.github.com" or "ssh.github.com" => GitProvider.GitHub,
+        "gitlab.com" or "www.gitlab.com" or "altssh.gitlab.com" => GitProvider.GitLab,
+        "bitbucket.org" or "www.bitbucket.org" or "altssh.bitbucket.org" => GitProvider.Bitbucket,
         "codeberg.org" => GitProvider.Codeberg,
         "dev.azure.com" or "ssh.dev.azure.com" or "vs-ssh.visualstudio.com" => GitProvider.AzureDevOps,
         _ when host.EndsWith(".visualstudio.com", StringComparison.Ordinal) => GitProvider.AzureDevOps,

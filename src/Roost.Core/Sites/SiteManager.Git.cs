@@ -4,15 +4,43 @@ using Roost.Core.Install;
 
 namespace Roost.Core.Sites;
 
+/// <summary>Cómo entrar en el repositorio de un sitio: el tipo (<see cref="SiteGit.Access"/>) y, con la clave de Roost, su nombre (el del sitio).</summary>
+public sealed record SiteAccess(string Kind, string? KeyName = null)
+{
+    public static SiteAccess None { get; } = new(SiteGit.AccessNone);
+
+    public static SiteAccess Token { get; } = new(SiteGit.AccessToken);
+
+    public static SiteAccess Own { get; } = new(SiteGit.AccessOwn);
+
+    public static SiteAccess Key(string name) => new(SiteGit.AccessKey, name);
+}
+
 /// <summary>Lo que se pide para clonar un sitio. Lo que va a null lo decide Roost (el nombre del repositorio, su rama por defecto, <c>www/&lt;nombre&gt;</c>, el PHP global).</summary>
 /// <param name="Probe">Si ya se preguntó al remoto (la app lo hace en el paso 1), se reutiliza en vez de volver a preguntar.</param>
-public sealed record CloneRequest(GitUrl Url, string? Name = null, string? Branch = null, string? Folder = null, string? Php = null, RemoteProbe? Probe = null);
+/// <param name="Access">Cómo entrar (null: sin credenciales; solo vale para repositorios públicos por https y carpetas locales).</param>
+public sealed record CloneRequest(GitUrl Url, string? Name = null, string? Branch = null, string? Folder = null, string? Php = null, RemoteProbe? Probe = null, SiteAccess? Access = null);
 
 /// <summary>Lo que se va a hacer, resuelto y validado antes de tocar nada.</summary>
 public sealed record ClonePlan(GitUrl Url, string Name, string Folder, string? Branch);
 
 /// <summary>Lo que dejó un clonado.</summary>
 public sealed record CloneResult(SiteChange Change, string Branch, GitCommit? Head, RemoteProbe Probe, TimeSpan Elapsed);
+
+/// <summary>
+/// Lo que se quitó (o se quitaría) del acceso de un sitio al quitarlo: su clave de Roost y su token,
+/// salvo que los use otro sitio. El historial y el registro de git se quedan.
+/// </summary>
+/// <param name="Token">El target del token del sitio, si tiene.</param>
+/// <param name="DeployKeysUrl">Dónde quitar también la clave pública en el proveedor.</param>
+public sealed record SiteAccessRemoval(
+    string Site, string? KeyName, bool KeyRemoved, bool KeyShared,
+    string? Token, bool TokenRemoved, bool TokenShared,
+    string? DeployKeysUrl, string HistoryFile, string LogFile)
+{
+    /// <summary>true si el sitio tenía algo propio que quitar (aunque lo compartiera).</summary>
+    public bool HasAccess => KeyName is not null || Token is not null;
+}
 
 /// <summary>El estado del repositorio de un sitio, para el panel y para <c>roost site git</c>.</summary>
 public sealed record SiteGitStatus(Site Site, SiteGit Git, RepoStatus Status, GitCommit? Head, IReadOnlyList<GitHistoryEntry> History)
@@ -31,12 +59,48 @@ public sealed partial class SiteManager
 {
     private GitClient Client => git ?? throw new InvalidOperationException("Este SiteManager no tiene GitClient: construyelo con el git de GitTool.");
 
+    /// <summary>
+    /// Las claves, los servidores conocidos y los tokens (el acceso de cada operación). Sin él, git va
+    /// sin nada de Roost: solo repositorios públicos por https y carpetas locales.
+    /// </summary>
+    public GitAccessFactory? Access { get; init; }
+
+    /// <summary>El acceso con el que se entra en el repositorio de un sitio.</summary>
+    public GitAccess AccessFor(SiteGit info) => Access?.For(info) ?? GitAccess.None;
+
+    /// <summary>El acceso para una dirección, con el tipo pedido (por defecto, ninguno).</summary>
+    public GitAccess AccessFor(GitUrl url, SiteAccess? access) =>
+        Access?.For(url, (access ?? SiteAccess.None).Kind, access?.KeyName) ?? GitAccess.None;
+
+    private GitClient ClientFor(SiteGit info) => Client.With(AccessFor(info));
+
     public GitHistory History { get; } = new(paths);
 
     public GitLog Log { get; } = new(paths);
 
-    /// <summary>Pregunta al remoto por sus ramas sin descargar nada (lo que hace «Comprobar»).</summary>
-    public Task<RemoteProbe> ProbeAsync(GitUrl url, CancellationToken cancellation) => Client.ProbeAsync(url, null, cancellation);
+    /// <summary>Pregunta al remoto por sus ramas sin descargar nada (lo que hace «Comprobar»), sin acceso elegido.</summary>
+    public Task<RemoteProbe> ProbeAsync(GitUrl url, CancellationToken cancellation) => ProbeAsync(url, null, cancellation);
+
+    /// <summary>
+    /// Como <see cref="ProbeAsync(GitUrl, CancellationToken)"/>, con un acceso (lo que hace «Probar
+    /// acceso»). Lanza <see cref="GitException"/> si el acceso no casa con la dirección (SSH sin
+    /// clave) y <see cref="RoostException"/> si falta la clave o el OpenSSH de Windows.
+    /// </summary>
+    public Task<RemoteProbe> ProbeAsync(GitUrl url, SiteAccess? access, CancellationToken cancellation) =>
+        Client.With(AccessFor(url, access)).ProbeAsync(url, null, cancellation);
+
+    /// <summary>
+    /// Pregunta al remoto de un sitio con su acceso (<c>ls-remote</c>, sin descargar ni tocar la
+    /// carpeta): lo que hacen «Probar acceso» y la comprobación de novedades. No lanza por lo que
+    /// conteste el servidor (va en <see cref="RemoteProbe.Failure"/>); sí si el sitio no tiene git
+    /// o le falta la clave o el OpenSSH.
+    /// </summary>
+    public Task<RemoteProbe> ProbeSiteAsync(string name, CancellationToken cancellation)
+    {
+        var (_, info) = RequireGit(name);
+        var url = GitUrl.TryParse(info.Remote, out var parsed, out var why) ? parsed : throw new RoostException($"El remoto del sitio ({GitLog.Redact(info.Remote)}) no vale: {why}");
+        return Client.With(AccessFor(info)).ProbeAsync(url, null, cancellation);
+    }
 
     /// <summary>
     /// Resuelve y valida lo que se va a clonar sin tocar nada: el nombre (válido y libre), la carpeta
@@ -75,6 +139,9 @@ public sealed partial class SiteManager
     {
         var plan = PlanClone(request);
         var url = plan.Url;
+        // El acceso se resuelve antes de tocar nada: si no casa (SSH sin clave), no queda ni historial.
+        var access = AccessFor(url, request.Access);
+        var client = Client.With(access);
         var watch = Stopwatch.StartNew();
         History.Clear(plan.Name);
         using var log = Log.Begin(plan.Name, GitHistory.Clone, $"{url.Normalized} -> {plan.Folder}");
@@ -82,7 +149,7 @@ public sealed partial class SiteManager
         string? branch = plan.Branch;
         try
         {
-            var probe = request.Probe ?? await Client.ProbeAsync(url, tee, cancellation);
+            var probe = request.Probe ?? await client.ProbeAsync(url, tee, cancellation);
             if (!probe.Reachable) throw new GitException(probe.Failure ?? GitFailure.Classify(1, "", url));
             branch ??= probe.DefaultBranch ?? throw new RoostException($"{url.Label} esta vacio: todavia no tiene ninguna rama. Haz el primer commit y vuelve a intentarlo.");
             if (!probe.Branches.Contains(branch))
@@ -96,7 +163,7 @@ public sealed partial class SiteManager
             var temp = Path.Combine(parent, InstallFiles.TempPrefix + Guid.NewGuid().ToString("N"));
             try
             {
-                await Client.CloneAsync(url, branch, temp, progress, tee, cancellation);
+                await client.CloneAsync(url, branch, temp, progress, tee, cancellation);
                 // Comprobada vacía en PlanClone; si entre medias alguien metió algo, Delete falla y no se pisa.
                 if (Directory.Exists(plan.Folder)) Directory.Delete(plan.Folder);
                 // Renombrar es atómico en el mismo volumen: o es el sitio entero o no es nada. Reintenta
@@ -110,7 +177,7 @@ public sealed partial class SiteManager
             }
 
             var change = Add(plan.Name, plan.Folder, root: null, php: request.Php);
-            var head = await Client.HeadAsync(plan.Folder, cancellation);
+            var head = await client.HeadAsync(plan.Folder, cancellation);
             var site = change.Site with
             {
                 Git = new SiteGit
@@ -118,7 +185,9 @@ public sealed partial class SiteManager
                     Remote = url.Normalized,
                     Branch = branch,
                     Provider = url.Provider,
-                    Access = SiteGit.AccessNone,
+                    Access = access.Kind,
+                    KeyName = access.Kind == SiteGit.AccessKey ? access.KeyName : null,
+                    CredentialTarget = access.Kind == SiteGit.AccessToken ? access.CredentialTarget : null,
                     LastPullUtc = DateTimeOffset.UtcNow,
                     LastCommit = head,
                 },
@@ -150,9 +219,10 @@ public sealed partial class SiteManager
         using var log = Log.Begin(site.Name, GitHistory.Pull, $"{info.Remote} ({info.Branch})");
         try
         {
-            var result = await Client.PullFastForwardAsync(site.Folder, new Tee(lines, log), cancellation);
-            var head = await Client.HeadAsync(site.Folder, cancellation);
-            var branch = await Client.CurrentBranchAsync(site.Folder, cancellation) ?? info.Branch;
+            var client = ClientFor(info);
+            var result = await client.PullFastForwardAsync(site.Folder, new Tee(lines, log), cancellation);
+            var head = await client.HeadAsync(site.Folder, cancellation);
+            var branch = await client.CurrentBranchAsync(site.Folder, cancellation) ?? info.Branch;
             Registry.Upsert(site with { Git = info with { Branch = branch, LastPullUtc = DateTimeOffset.UtcNow, LastCommit = head } });
             watch.Stop();
             History.Append(site.Name, new GitHistoryEntry(DateTimeOffset.Now, GitHistory.Pull, branch, Short(result.From), Short(result.To), true, watch.Elapsed.TotalSeconds, null));
@@ -174,10 +244,11 @@ public sealed partial class SiteManager
         using var log = Log.Begin(site.Name, GitHistory.Checkout, $"{info.Branch} -> {branch}");
         try
         {
-            var before = (await Client.HeadAsync(site.Folder, cancellation))?.ShortSha;
-            await Client.CheckoutAsync(site.Folder, branch, new Tee(lines, log), cancellation);
-            var head = await Client.HeadAsync(site.Folder, cancellation);
-            var current = await Client.CurrentBranchAsync(site.Folder, cancellation) ?? branch;
+            var client = ClientFor(info);
+            var before = (await client.HeadAsync(site.Folder, cancellation))?.ShortSha;
+            await client.CheckoutAsync(site.Folder, branch, new Tee(lines, log), cancellation);
+            var head = await client.HeadAsync(site.Folder, cancellation);
+            var current = await client.CurrentBranchAsync(site.Folder, cancellation) ?? branch;
             var changed = site with { Git = info with { Branch = current, LastCommit = head } };
             Registry.Upsert(changed);
             watch.Stop();
@@ -199,9 +270,11 @@ public sealed partial class SiteManager
     public async Task<SiteGitStatus> GitStatusAsync(string name, bool fetch, CancellationToken cancellation)
     {
         var (site, info) = RequireGit(name);
-        if (fetch) await Client.FetchAsync(site.Folder, null, cancellation);
-        var status = await Client.StatusAsync(site.Folder, cancellation);
-        var head = await Client.HeadAsync(site.Folder, cancellation);
+        // Sin fetch todo es local: no hace falta el acceso (ni el OpenSSH, ni que la clave siga ahí).
+        var client = fetch ? ClientFor(info) : Client;
+        if (fetch) await client.FetchAsync(site.Folder, null, cancellation);
+        var status = await client.StatusAsync(site.Folder, cancellation);
+        var head = await client.HeadAsync(site.Folder, cancellation);
         if (head is not null && (info.LastCommit?.Sha != head.Sha || (status.Branch is not null && status.Branch != info.Branch)))
         {
             // El usuario trabaja con su git: lo que Roost recuerda se pone al día sin que cuente como operación.
@@ -214,9 +287,10 @@ public sealed partial class SiteManager
     /// <summary>Las ramas de <c>origin</c> del sitio, tras un fetch (red).</summary>
     public async Task<IReadOnlyList<string>> RemoteBranchesAsync(string name, CancellationToken cancellation)
     {
-        var (site, _) = RequireGit(name);
-        await Client.FetchAsync(site.Folder, null, cancellation);
-        return await Client.RemoteBranchesAsync(site.Folder, cancellation);
+        var (site, info) = RequireGit(name);
+        var client = ClientFor(info);
+        await client.FetchAsync(site.Folder, null, cancellation);
+        return await client.RemoteBranchesAsync(site.Folder, cancellation);
     }
 
     /// <summary>
@@ -245,6 +319,48 @@ public sealed partial class SiteManager
         Registry.Upsert(adopted);
         History.Append(site.Name, new GitHistoryEntry(DateTimeOffset.Now, GitHistory.Adopt, branch, null, head?.ShortSha, true, 0, null));
         return adopted;
+    }
+
+    /// <summary>
+    /// Quita el acceso de un sitio (al quitarlo): su clave de Roost y su token, salvo que los use otro
+    /// de los sitios registrados (una clave con el mismo nombre en otro sitio; un token que sea el de
+    /// otro, o que valga para el remoto de otro). El token del sitio es el que guardó al clonar o, si
+    /// no, el de su repositorio exacto: nunca uno de grupo o de todo el servidor que no sea suyo. El
+    /// historial y el registro de git se quedan. Con <paramref name="dryRun"/> solo dice lo que haría.
+    /// </summary>
+    public SiteAccessRemoval RemoveAccess(Site site, bool dryRun = false)
+    {
+        var history = History.FilePath(site.Name);
+        var logFile = Log.FilePath(site.Name);
+        if (Access is not { } access) return new SiteAccessRemoval(site.Name, null, false, false, null, false, false, null, history, logFile);
+
+        var others = Registry.Load().Where(s => s.Name != site.Name).ToList();
+        var url = site.Git is { } g && GitUrl.TryParse(g.Remote, out var parsed, out _) ? parsed : null;
+
+        var keyName = site.Git is { Access: SiteGit.AccessKey, KeyName: { } k } ? k : site.Name;
+        if (!access.Keys.Exists(keyName)) keyName = null;
+        var keyShared = keyName is not null && others.Any(o => o.Git?.KeyName == keyName);
+        var keyRemoved = keyName is not null && !keyShared && !dryRun && access.Keys.Remove(keyName);
+
+        var token = site.Git?.CredentialTarget;
+        if (token is null && url is not null && CredentialLocation.For(url) is { } location)
+            token = access.Credentials.TargetOf(location);
+        // Solo si sigue guardado (git lo borra si el servidor lo rechaza; el usuario, con roost git token remove).
+        if (token is not null && access.Credentials.Store.Read(token) is null) token = null;
+        var tokenShared = token is not null && others.Any(o => UsesToken(access.Credentials, o, token));
+        var tokenRemoved = token is not null && !tokenShared && !dryRun && access.Credentials.Remove(token);
+
+        return new SiteAccessRemoval(site.Name, keyName, keyRemoved, keyShared, token, tokenRemoved, tokenShared, url?.DeployKeysUrl, history, logFile);
+    }
+
+    /// <summary>true si el sitio usa ese token: es el suyo, o git lo daría para su remoto (uno de grupo o de servidor).</summary>
+    private static bool UsesToken(GitCredentials credentials, Site site, string target)
+    {
+        if (site.Git is not { } info) return false;
+        if (info.CredentialTarget == target) return true;
+        return GitUrl.TryParse(info.Remote, out var url, out _)
+            && CredentialLocation.For(url) is { } location
+            && credentials.Candidates(location).Contains(target, StringComparer.OrdinalIgnoreCase);
     }
 
     private Site Require(string name)
