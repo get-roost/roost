@@ -228,7 +228,12 @@ public class NodeViewTests
         await UntilAsync(() => main.Dialog is NodeDevServerDialogViewModel && runner.Calls.Count == 1);
         var dialog = (NodeDevServerDialogViewModel)main.Dialog!;
         var session = dialog.Session;
-        session.FlushLines();
+        // Las líneas de npm run dev llegan desde otro hilo: se espera a la de la URL.
+        await UntilAsync(() =>
+        {
+            session.FlushLines();
+            return session.Url is not null;
+        });
 
         Assert.Equal([node.NpmCli, "run", "dev"], runner.Calls[0].Arguments);
         Assert.True(session.Running);
@@ -364,7 +369,12 @@ public class NodeViewTests
         var showing = sites.NodeRunScriptCommand.ExecuteAsync(sites.NodeScripts.Single(s => s.Script.Name == "dev"));
         await UntilAsync(() => main.Dialog is NodeDevServerDialogViewModel);
         var dialog = (NodeDevServerDialogViewModel)main.Dialog!;
-        dialog.Session.FlushLines();
+        // npm run dev va fuera del hilo de la UI: sus líneas pueden llegar después de abrirse la ventana.
+        await UntilAsync(() =>
+        {
+            dialog.Session.FlushLines();
+            return dialog.Session.Url is not null;
+        });
 
         Assert.Equal("http://localhost:5173/", dialog.Session.Url);
         Assert.StartsWith("Sirve en http: desde https://tienda.test el navegador bloquea", dialog.Session.UrlWarning);
