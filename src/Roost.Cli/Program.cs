@@ -302,7 +302,7 @@ app.Configure(config =>
 
     config.AddBranch("git", git =>
     {
-        git.SetDescription("El git con el que Roost clona y actualiza los sitios: un MinGit verificado en bin/git, o el que diga [git] exe en roost.toml.");
+        git.SetDescription("El git con el que Roost clona y actualiza los sitios: un MinGit verificado en bin/git, o el que diga [[git]] exe en roost.toml.");
 
         git.AddCommand<GitInstallCommand>("install")
             .WithDescription("Descarga MinGit, verifica su SHA-256 y lo instala en bin/git (roost site clone lo hace solo la primera vez).")
@@ -406,7 +406,7 @@ app.Configure(config =>
             .WithExample("node", "remove", "22.23.4");
 
         node.AddCommand<NodeUseCommand>("use")
-            .WithDescription("Fija el Node global ([node] version en roost.toml), o con --here el de la carpeta actual (.nvmrc).")
+            .WithDescription("Fija el Node global ([[node]] version en roost.toml), o con --here el de la carpeta actual (.nvmrc).")
             .WithExample("node", "use", "24")
             .WithExample("node", "use", "22", "--here");
 
@@ -443,7 +443,7 @@ app.Configure(config =>
             .WithExample("redis", "disable");
 
         redis.AddCommand<Roost.Cli.Commands.Services.RedisPortCommand>("port")
-            .WithDescription("Cambia el puerto de Redis ([redis] port, 6379 por defecto) y lo aplica si el stack esta en marcha.")
+            .WithDescription("Cambia el puerto de Redis ([[redis]] port, 6379 por defecto) y lo aplica si el stack esta en marcha.")
             .WithExample("redis", "port", "6380");
 
         redis.AddCommand<Roost.Cli.Commands.Services.RedisStatusCommand>("status")
@@ -473,7 +473,7 @@ app.Configure(config =>
             .WithExample("mail", "disable");
 
         mail.AddCommand<Roost.Cli.Commands.Services.MailPortCommand>("port")
-            .WithDescription("Cambia los puertos de Mailpit ([mail] smtp_port y web_port) y los aplica si el stack esta en marcha.")
+            .WithDescription("Cambia los puertos de Mailpit ([[mail]] smtp_port y web_port) y los aplica si el stack esta en marcha.")
             .WithExample("mail", "port", "--smtp", "1026", "--web", "8026");
 
         mail.AddCommand<Roost.Cli.Commands.Services.MailOpenCommand>("open")
