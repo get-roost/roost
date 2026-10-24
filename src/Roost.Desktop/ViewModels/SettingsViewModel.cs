@@ -70,6 +70,13 @@ public sealed partial class SettingsViewModel : PageViewModel
     [ObservableProperty] public partial bool ThemeLight { get; set; }
     [ObservableProperty] public partial bool ThemeDark { get; set; }
 
+    // Ajustes y sistema (J4, K5): los avisos de la bandeja.
+    [ObservableProperty] public partial bool NotifyServiceDown { get; set; } = true;
+    [ObservableProperty] public partial bool NotifyAuditRed { get; set; } = true;
+
+    /// <summary>Los atajos de la ventana (J5), para la tarjeta General.</summary>
+    public string ShortcutsText => MainViewModel.ShortcutsText;
+
     [ObservableProperty] public partial string HttpText { get; set; } = "";
     [ObservableProperty] public partial string HttpsText { get; set; } = "";
     [ObservableProperty] public partial string PoolText { get; set; } = "";
@@ -175,6 +182,8 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     partial void OnStartStackOnLaunchChanged(bool value) => SavePrefs();
     partial void OnCloseToTrayChanged(bool value) => SavePrefs();
+    partial void OnNotifyServiceDownChanged(bool value) => SavePrefs();
+    partial void OnNotifyAuditRedChanged(bool value) => SavePrefs();
     partial void OnThemeSystemChanged(bool value) => Theme(value, "system");
     partial void OnThemeLightChanged(bool value) => Theme(value, "light");
     partial void OnThemeDarkChanged(bool value) => Theme(value, "dark");
@@ -190,11 +199,15 @@ public sealed partial class SettingsViewModel : PageViewModel
     {
         if (_loading) return;
         var theme = ThemeLight ? "light" : ThemeDark ? "dark" : "system";
-        Main.App.SavePrefs(Main.App.Prefs with { Theme = theme, CloseToTray = CloseToTray, StartStackOnLaunch = StartStackOnLaunch });
+        Main.App.SavePrefs(Main.App.Prefs with
+        {
+            Theme = theme, CloseToTray = CloseToTray, StartStackOnLaunch = StartStackOnLaunch,
+            NotifyServiceDown = NotifyServiceDown, NotifyAuditRed = NotifyAuditRed,
+        });
         Main.NotifyPrefsChanged();
     }
 
-    public override Task ShownAsync()
+    public override async Task ShownAsync()
     {
         _loading = true;
         try
@@ -209,6 +222,8 @@ public sealed partial class SettingsViewModel : PageViewModel
             ThemeSystem = prefs.Theme is not ("light" or "dark");
             ThemeLight = prefs.Theme == "light";
             ThemeDark = prefs.Theme == "dark";
+            NotifyServiceDown = prefs.NotifyServiceDown;
+            NotifyAuditRed = prefs.NotifyAuditRed;
             LoadUpdatePrefs();
 
             RoostConfig config;
@@ -238,7 +253,12 @@ public sealed partial class SettingsViewModel : PageViewModel
             HostsFileText = hosts.IsSystemFile ? hosts.HostsFile : $"{hosts.HostsFile} (de pruebas, ROOST_HOSTS_FILE)";
         }
         catch (Exception ex) when (ex is IOException or RoostException) { HostsFileText = ""; }
-        return Task.CompletedTask;
+
+        // Ajustes y sistema: los programas del equipo, roostd, el DNS local y la tarea al iniciar sesión.
+        StackChanged();
+        await LoadProgramsAsync();
+        await LoadStackAtLogonAsync();
+        await ProbeDnsAsync(force: false);
     }
 
     private void BuildCa()

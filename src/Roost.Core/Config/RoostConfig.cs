@@ -123,6 +123,12 @@ public sealed record RoostConfig
         # Configuracion de Roost. Puedes editarla a mano: cuando un comando cambia una
         # clave (por ejemplo `roost php use`), Roost toca solo esa clave y respeta el resto.
 
+        [paths]
+        # Carpeta raiz de Roost: los PHP y las bases de datos instalados, sus datos, la CA, los
+        # registros y los proyectos (www). Sin esta clave, C:\roost. Cambiala desde la app (Ajustes,
+        # Rutas, Cambiar...): mueve lo que hay y lo comprueba. A mano, Roost empezaria de cero ahi.
+        # root = 'D:\roost'
+
         [php]
         # PHP global: rama (8.4), version (8.4.27) o instalacion (8.4.27-nts-x64).
         # Sin esta clave, Roost usa el PHP mas nuevo que haya instalado.
@@ -294,6 +300,34 @@ public sealed record RoostConfig
             throw new RoostException("El puerto de la base de datos tiene que estar entre 1 y 65535.");
         Set(path, "db", [("port", Number(port))]);
     }
+
+    // Ajustes y sistema (J2): la raíz de Roost, fuera de ella (en %APPDATA%\Roost\roost.toml).
+
+    /// <summary>
+    /// <c>[paths] root</c>, la raíz de Roost, si la hay y es una ruta completa; null si no. Lo lee
+    /// <see cref="Platform.RoostPaths.Default()"/> en cada arranque, así que <b>nunca lanza</b>: un
+    /// fichero que no se puede leer o que no es TOML válido no tiene raíz (y el comando que lo cargue
+    /// después ya dirá qué le pasa).
+    /// </summary>
+    public static string? ReadRoot(string path)
+    {
+        try
+        {
+            if (!File.Exists(path)) return null;
+            var doc = SyntaxParser.Parse(File.ReadAllText(path), path, false);
+            if (doc.HasErrors || ReadValue(doc, "paths", "root") is not StringValueSyntax { Value: { } root }) return null;
+            root = root.Trim();
+            return root.Length > 0 && Path.IsPathFullyQualified(root) ? Path.GetFullPath(root) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Fija <c>[paths] root</c>; null la quita (vuelve a la de siempre).</summary>
+    public static void SetRoot(string path, string? root) =>
+        Set(path, "paths", [("root", Text(string.IsNullOrWhiteSpace(root) ? null : root.Trim()))]);
 
     /// <summary>Fija <c>[git] exe</c>; null vuelve al git de Roost.</summary>
     public static void SetGitExe(string path, string? exe) =>

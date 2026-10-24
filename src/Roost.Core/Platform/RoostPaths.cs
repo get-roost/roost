@@ -3,8 +3,9 @@ namespace Roost.Core.Platform;
 /// <summary>
 /// Dónde vive lo que gestiona Roost (ROOST.md §8): la raíz (binarios, configuración generada,
 /// logs, pidfiles), la caché de descargas, el <c>roost.toml</c> del usuario y la carpeta de
-/// proyectos, que es siempre <c>www</c> dentro de la raíz (<c>C:\roost\www</c>). La variable de
-/// entorno <c>ROOST_HOME</c> lo mete todo bajo una sola carpeta (caché en <c>ROOST_HOME/cache</c>),
+/// proyectos, que es siempre <c>www</c> dentro de la raíz (<c>C:\roost\www</c>). La raíz se puede
+/// cambiar con <c>[paths] root</c> en <c>roost.toml</c> (J2, ver <see cref="Default()"/>). La variable
+/// de entorno <c>ROOST_HOME</c> lo mete todo bajo una sola carpeta (caché en <c>ROOST_HOME/cache</c>),
 /// para probar sin tocar <c>C:\roost</c>.
 /// </summary>
 public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = null, string? WwwDir = null)
@@ -23,7 +24,7 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     }
 
     /// <summary>
-    /// La misma etiqueta, para unas rutas concretas: vacía con las de siempre (<see cref="Default"/> sin
+    /// La misma etiqueta, para unas rutas concretas: vacía con las de siempre (<see cref="Default()"/> sin
     /// <c>ROOST_HOME</c>) y el hash de su raíz con cualquier otra. Así un cliente sobre una raíz de
     /// pruebas (la de un test, aunque no ponga <c>ROOST_HOME</c>) nunca habla con el daemon de verdad.
     /// </summary>
@@ -146,33 +147,69 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     /// <summary>El Adminer de Roost, una subcarpeta por versión: <c>bin/adminer/6.2.0</c>.</summary>
     public string AdminerBin => Path.Combine(Root, "bin", "adminer");
 
-    public static RoostPaths Default()
+    /// <summary>La raíz de siempre en Windows, sin <c>[paths] root</c> (ROOST.md §6: corta y sin espacios, nada de Program Files).</summary>
+    public const string WindowsDefaultRoot = @"C:\roost";
+
+    /// <summary>
+    /// Las rutas de esta Roost. La raíz es la de siempre (<c>C:\roost</c>; en Linux y macOS, la de
+    /// XDG) salvo que <c>roost.toml</c> diga otra en <c>[paths] root</c> (J2, se cambia desde
+    /// Ajustes): ese fichero vive fuera de la raíz, en <c>%APPDATA%\Roost</c>, así que la raíz se
+    /// puede mover sin perderlo.
+    /// <para>
+    /// Con <c>ROOST_HOME</c> manda la variable: esa carpeta hace de <c>%APPDATA%\Roost</c> y de
+    /// <c>%LOCALAPPDATA%\Roost</c> (el <c>roost.toml</c> y la caché van ahí) y, sin <c>[paths] root</c>
+    /// en su <c>roost.toml</c>, también de raíz, como siempre. El <c>%APPDATA%</c> de verdad no se lee
+    /// nunca con la variable puesta.
+    /// </para>
+    /// </summary>
+    public static RoostPaths Default() => Default(Environment.GetEnvironmentVariable);
+
+    /// <summary><see cref="Default()"/> con otro entorno (los tests, para no cambiar las variables del proceso).</summary>
+    public static RoostPaths Default(Func<string, string?> env)
     {
-        var home = Environment.GetEnvironmentVariable(HomeVariable);
+        var home = env(HomeVariable);
         if (!string.IsNullOrWhiteSpace(home))
         {
             var root = Path.GetFullPath(home);
-            return new RoostPaths(root, Path.Combine(root, "cache"));
+            return Config.RoostConfig.ReadRoot(Path.Combine(root, "roost.toml")) is { } moved && !SameFolder(moved, root)
+                ? new RoostPaths(moved, Path.Combine(root, "cache"), root)
+                : new RoostPaths(root, Path.Combine(root, "cache"));
         }
 
         if (OperatingSystem.IsWindows())
         {
-            // Raíces cortas y sin espacios (ROOST.md §6): nada de Program Files.
             var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            var roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            var roaming = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Roost");
             return new RoostPaths(
-                @"C:\roost",
+                Config.RoostConfig.ReadRoot(Path.Combine(roaming, "roost.toml")) ?? WindowsDefaultRoot,
                 Path.Combine(local, "Roost", "cache"),
-                Path.Combine(roaming, "Roost"));
+                roaming);
         }
 
         // Linux/macOS: XDG, con sus valores por defecto si no están definidas.
         var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var config = Path.Combine(Xdg("XDG_CONFIG_HOME", Path.Combine(userHome, ".config")), "roost");
         return new RoostPaths(
-            Path.Combine(Xdg("XDG_DATA_HOME", Path.Combine(userHome, ".local", "share")), "roost"),
+            Config.RoostConfig.ReadRoot(Path.Combine(config, "roost.toml")) ?? Path.Combine(Xdg("XDG_DATA_HOME", Path.Combine(userHome, ".local", "share")), "roost"),
             Path.Combine(Xdg("XDG_CACHE_HOME", Path.Combine(userHome, ".cache")), "roost"),
-            Path.Combine(Xdg("XDG_CONFIG_HOME", Path.Combine(userHome, ".config")), "roost"));
+            config);
     }
+
+    /// <summary>
+    /// La raíz que tendría esta Roost sin <c>[paths] root</c>: <c>ROOST_HOME</c> si está, y si no
+    /// <c>C:\roost</c> (o la de XDG). Volver a ella quita la clave en vez de escribirla.
+    /// </summary>
+    public static string HomeRoot()
+    {
+        var home = Environment.GetEnvironmentVariable(HomeVariable);
+        if (!string.IsNullOrWhiteSpace(home)) return Path.GetFullPath(home);
+        if (OperatingSystem.IsWindows()) return WindowsDefaultRoot;
+        var userHome = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        return Path.Combine(Xdg("XDG_DATA_HOME", Path.Combine(userHome, ".local", "share")), "roost");
+    }
+
+    /// <summary>Dos rutas a la misma carpeta (sin la barra final; en Windows, sin mirar mayúsculas).</summary>
+    public static bool SameFolder(string a, string b) => Normalize(a) == Normalize(b);
 
     private static string Xdg(string variable, string fallback)
     {

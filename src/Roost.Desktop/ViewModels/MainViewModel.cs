@@ -606,6 +606,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is RoostException or IOException or UnauthorizedAccessException or HttpRequestException or TaskCanceledException)
         {
+            AppLog.Warn($"{what}: {ex.Message}");   // J6: lo que se enseña en un diálogo, también en el log de la app
             await InfoAsync(what, ex.Message, Tone.Bad);
         }
     }

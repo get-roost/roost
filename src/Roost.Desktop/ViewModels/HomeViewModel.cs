@@ -295,7 +295,9 @@ public sealed partial class HomeViewModel : PageViewModel
         var audit = Main.Audit;
         AuditHint = audit.Summary;
         AuditTone = audit.LastScan is null ? Tone.Accent : audit.RedCount > 0 ? Tone.Bad : audit.AmberCount > 0 ? Tone.Warn : Tone.Ok;
+        // Lo ignorado en Auditoría tampoco sale aquí: no cuenta en rojo y se ve aparte, en su tarjeta.
         Findings = audit.Findings
+            .Where(f => !audit.IsIgnored(f))
             .OrderByDescending(f => f.Color)
             .Take(3)
             .Select(f => new FindingLine(

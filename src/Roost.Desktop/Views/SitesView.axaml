@@ -339,6 +339,7 @@
               </Grid>
               <WrapPanel ItemSpacing="8" LineSpacing="8">
                 <Button Classes="sm" Content="Carpeta" Command="{Binding OpenFolderCommand}" />
+                <Button Classes="sm" Content="Abrir en el editor" Command="{Binding OpenInEditorCommand}" ToolTip.Tip="El editor se elige en Ajustes › Programas" />
                 <Button Classes="sm" Content="Terminal aquí" Command="{Binding OpenTerminalCommand}" />
                 <Button Classes="sm" Content="Editar vhost" Command="{Binding EditConfCommand}" />
                 <Button Classes="sm" Content="Renovar certificado" Command="{Binding RenewCertCommand}" />

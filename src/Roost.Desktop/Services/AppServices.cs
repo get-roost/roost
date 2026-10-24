@@ -21,6 +21,23 @@ public sealed class AppServices : IDisposable
         Daemon = new DaemonClient(Paths);
         Prefs = DesktopPrefs.Load(Paths);
         Version = version ?? Roost.Core.Updates.RoostVersion.Current;
+        // Ajustes y sistema (J3 + C4): Shell abre con el editor, la terminal y el navegador elegidos.
+        Shell.Preferences = () => Prefs;
+        // E4: la tarea al iniciar sesión. Con unas rutas dadas (los tests) nunca se pregunta al
+        // Programador de tareas de verdad: «no está», salvo que el test ponga la suya.
+        LogonTask = new LogonTask(paths is null ? Roost.Core.Scanning.CommandRunner.Default : NoTasks.Instance);
+    }
+
+    /// <summary>E4: la tarea que arranca el stack al iniciar sesión, sin la app (Ajustes › General).</summary>
+    public LogonTask LogonTask { get; internal set; }
+
+    /// <summary>Un schtasks que no está: todo sale con 1 («no existe») sin ejecutar nada.</summary>
+    private sealed class NoTasks : Roost.Core.Scanning.ICommandRunner
+    {
+        public static readonly NoTasks Instance = new();
+
+        public Task<Roost.Core.Scanning.CommandResult> RunAsync(Roost.Core.Scanning.CommandSpec spec, IProgress<string>? lines, CancellationToken cancellation) =>
+            Task.FromResult(new Roost.Core.Scanning.CommandResult(1, "", "", false));
     }
 
     public RoostPaths Paths { get; }
