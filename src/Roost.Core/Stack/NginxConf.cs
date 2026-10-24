@@ -45,6 +45,12 @@ public sealed record NginxConfInput(
     /// PHP global; null = sin Adminer (el usuario tiene su propia <c>www/adminer</c>).
     /// </summary>
     public string? AdminerDirectory { get; init; }
+
+    /// <summary>
+    /// Compartir (oleada 6): la carpeta de las escuchas de lo que se está compartiendo
+    /// (<c>etc/nginx/share</c>, <c>Share/ShareConf</c>), que se incluye después de los sitios; null = sin ella.
+    /// </summary>
+    public string? SharesDirectory { get; init; }
 }
 
 /// <summary>
@@ -124,11 +130,22 @@ public static class NginxConf
                 }
 
                 # Un fichero por sitio *.test, editable fuera de las marcas de Roost.
-                include "{{Nginx(input.SitesDirectory)}}/*.conf";
+                include "{{Nginx(input.SitesDirectory)}}/*.conf";{{Shares(input.SharesDirectory)}}
             }
 
             """;
     }
+
+    /// <summary>
+    /// Compartir (oleada 6): el <c>include</c> de las escuchas de <c>roost share</c>, detrás del de los
+    /// sitios: cada una tiene su propia dirección y su propio puerto, así que no se pisan.
+    /// </summary>
+    private static string Shares(string? directory) => directory is null ? "" : $$"""
+
+
+            # Lo que estas compartiendo (roost share), solo mientras dura: lo escribe y lo borra Roost.
+            include "{{Nginx(directory)}}/*.conf";
+        """;
 
     /// <summary>
     /// PURO: <c>/adminer</c> en el bloque de localhost. Todo lo de <c>/adminer/</c> va a la entrada de

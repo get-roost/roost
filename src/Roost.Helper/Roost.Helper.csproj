@@ -20,6 +20,7 @@
   <ItemGroup>
     <Compile Include="..\Roost.Core\Sites\HostsBlock.cs" Link="HostsBlock.cs" />
     <Compile Include="..\Roost.Core\Dns\NrptScripts.cs" Link="NrptScripts.cs" />
+    <Compile Include="..\Roost.Core\Share\FirewallRule.cs" Link="FirewallRule.cs" />
   </ItemGroup>
 
 </Project>

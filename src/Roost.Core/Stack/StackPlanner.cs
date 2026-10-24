@@ -5,6 +5,7 @@ using Roost.Core.Install;
 using Roost.Core.Platform;
 using Roost.Core.Scanning;
 using Roost.Core.Services;
+using Roost.Core.Share;
 using Roost.Core.Sites;
 
 namespace Roost.Core.Stack;
@@ -37,8 +38,12 @@ public sealed record StackPlan(
         Services.Where(s => s.Port is not null).Select(s => s.Port!.Value)
             .Concat(Sites.Count > 0 ? [HttpsPort] : [])
             .Concat(MailWebPort is { } web ? [web] : [])
+            .Concat(Shares.Select(s => s.Port))
             .Distinct()
             .ToList();
+
+    /// <summary>Compartir (oleada 6): las escuchas de lo que se está compartiendo que lleva este plan (las de sitios que siguen en él).</summary>
+    public IReadOnlyList<ShareListener> Shares { get; init; } = [];
 
     // Servicios (oleada 3)
 
@@ -61,6 +66,12 @@ public sealed record StackPlan(
 /// </summary>
 public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
 {
+    /// <summary>
+    /// Compartir (oleada 6): las escuchas extra del servidor web mientras se comparte un sitio
+    /// (<c>roost share</c>). Las lleva el daemon en memoria; sin él, ninguna.
+    /// </summary>
+    public IReadOnlyList<ShareListener> Shares { get; init; } = [];
+
     /// <summary>
     /// El PHP global: el que case con <c>[php] version</c> (preferido el NTS, que es el que
     /// usa nginx) o, sin esa clave, el más nuevo instalado.
@@ -222,6 +233,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             Redis = redis,
             Mailpit = mailpit,
             MailWebPort = mailpit is null ? null : config.MailWebPort,
+            Shares = SharesOf(sitePlans),
         };
     }
 
@@ -341,6 +353,9 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             File.WriteAllText(file, File.Exists(file) ? SiteConf.Merge(File.ReadAllText(file), input, file) : SiteConf.RenderNew(input));
         }
 
+        // Compartir (oleada 6): las escuchas de lo que se está compartiendo, en su carpeta.
+        WriteShareConfs(paths.NginxShares, sitePlans, ca, nginx.FastCgiParams, ShareConf.RenderNginx);
+
         var conf = NginxConfPath;
         File.WriteAllText(conf, NginxConf.Render(new NginxConfInput(
             nginx.MimeTypes,
@@ -352,7 +367,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             upstreams,
             upstreams[0].Name,
             paths.NginxSites,
-            Loopback.HasIpv6) { AdminerDirectory = AdminerAlias() }));
+            Loopback.HasIpv6) { AdminerDirectory = AdminerAlias(), SharesDirectory = paths.NginxShares }));
 
         var test = TestNginx(nginx);
         if (test is null || !test.Contains("test is successful", StringComparison.OrdinalIgnoreCase))
@@ -388,6 +403,9 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             File.WriteAllText(file, File.Exists(file) ? ApacheSiteConf.Merge(File.ReadAllText(file), input, file) : ApacheSiteConf.RenderNew(input));
         }
 
+        // Compartir (oleada 6): las escuchas de lo que se está compartiendo, con su propio Listen.
+        WriteShareConfs(paths.ApacheShares, sitePlans, ca, null, ShareConf.RenderApache);
+
         var conf = ApacheConfPath;
         File.WriteAllText(conf, ApacheConf.Render(new ApacheConfInput(
             apache.Directory,
@@ -399,7 +417,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             pools,
             pools[0].Name,
             paths.ApacheSites,
-            Loopback.HasIpv6) { AdminerDirectory = AdminerAlias() }));
+            Loopback.HasIpv6) { AdminerDirectory = AdminerAlias(), SharesDirectory = paths.ApacheShares }));
 
         var test = TestApache(apache);
         if (test is null || !test.Contains("Syntax OK", StringComparison.OrdinalIgnoreCase))
@@ -419,6 +437,43 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             LogFile = Path.Combine(paths.Logs, "apache-stdout.log"),
             Port = config.HttpPort,
         };
+    }
+
+    // Compartir (oleada 6)
+
+    /// <summary>Las escuchas de <see cref="Shares"/> cuyo sitio sigue en el plan (las de un sitio quitado no se escriben).</summary>
+    private IReadOnlyList<ShareListener> SharesOf(List<SitePlan> sitePlans) =>
+        Shares.Where(s => sitePlans.Any(p => string.Equals(p.Site.Name, s.Site, StringComparison.OrdinalIgnoreCase))).ToList();
+
+    /// <summary>
+    /// Escribe en <paramref name="directory"/> un vhost por escucha de <see cref="Shares"/> (la de la red
+    /// local, con el certificado del sitio que lleva su IP) y borra lo demás de esa carpeta: lo que se
+    /// dejó de compartir no vuelve a escucharse. La carpeta existe siempre (el <c>include</c> la pide).
+    /// </summary>
+    private void WriteShareConfs(string directory, List<SitePlan> sitePlans, LocalCa? ca, string? fastCgiParams, Func<ShareConf.Input, string> render)
+    {
+        Directory.CreateDirectory(directory);
+        var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var listener in SharesOf(sitePlans))
+        {
+            var plan = sitePlans.First(p => string.Equals(p.Site.Name, listener.Site, StringComparison.OrdinalIgnoreCase));
+            string? cert = null, key = null, caFile = null;
+            if (listener.Kind == ShareKind.Lan)
+            {
+                if (!IPAddress.TryParse(listener.Address, out var address))
+                    throw new RoostException($"La direccion de la red local de {plan.Site.Host} no vale: {listener.Address}");
+                (cert, key) = ca!.EnsureLanCert(plan.Site, address);
+                caFile = ca.CaCertFile;
+            }
+            var file = Path.Combine(directory, listener.FileName);
+            File.WriteAllText(file, render(new ShareConf.Input(
+                listener, plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), fastCgiParams, cert, key, caFile)));
+            wanted.Add(file);
+        }
+        foreach (var file in Directory.EnumerateFiles(directory))
+        {
+            if (!wanted.Contains(file)) File.Delete(file);
+        }
     }
 
     /// <summary>El httpd.conf que genera cada <c>up</c> con Apache.</summary>

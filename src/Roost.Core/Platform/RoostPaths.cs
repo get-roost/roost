@@ -147,6 +147,20 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     /// <summary>El Adminer de Roost, una subcarpeta por versión: <c>bin/adminer/6.2.0</c>.</summary>
     public string AdminerBin => Path.Combine(Root, "bin", "adminer");
 
+    // Compartir (oleada 6): el cliente del túnel y las escuchas de compartir.
+
+    /// <summary>El cloudflared de Roost (los túneles rápidos), una subcarpeta por versión: <c>bin/cloudflared/2026.10.3</c>.</summary>
+    public string CloudflaredBin => Path.Combine(Root, "bin", "cloudflared");
+
+    /// <summary>
+    /// Las escuchas de nginx de lo que se está compartiendo (<c>&lt;sitio&gt;-tunel.conf</c>,
+    /// <c>&lt;sitio&gt;-lan.conf</c>): las escribe cada <c>up</c> mientras dura y se borran al dejar de compartir.
+    /// </summary>
+    public string NginxShares => Path.Combine(Etc, "nginx", "share");
+
+    /// <summary>Lo mismo que <see cref="NginxShares"/>, para Apache.</summary>
+    public string ApacheShares => Path.Combine(Etc, "apache", "share");
+
     /// <summary>La raíz de siempre en Windows, sin <c>[paths] root</c> (ROOST.md §6: corta y sin espacios, nada de Program Files).</summary>
     public const string WindowsDefaultRoot = @"C:\roost";
 

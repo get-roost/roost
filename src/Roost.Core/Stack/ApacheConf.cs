@@ -22,6 +22,12 @@ public sealed record ApacheConfInput(
     /// PHP global; null = sin Adminer (el usuario tiene su propia <c>www/adminer</c>).
     /// </summary>
     public string? AdminerDirectory { get; init; }
+
+    /// <summary>
+    /// Compartir (oleada 6): la carpeta de las escuchas de lo que se está compartiendo
+    /// (<c>etc/apache/share</c>, <c>Share/ShareConf</c>), que se incluye después de los sitios; null = sin ella.
+    /// </summary>
+    public string? SharesDirectory { get; init; }
 }
 
 /// <summary>
@@ -133,9 +139,17 @@ public static class ApacheConf
 
             # Un fichero por sitio *.test, editable fuera de las marcas de Roost.
             IncludeOptional "{{Path(input.SitesDirectory)}}/*.conf"
-
+            {{Shares(input.SharesDirectory)}}
             """;
     }
+
+    /// <summary>Compartir (oleada 6): el <c>IncludeOptional</c> de las escuchas de <c>roost share</c>, con su propio <c>Listen</c> cada una.</summary>
+    private static string Shares(string? directory) => directory is null ? "" : $$"""
+
+        # Lo que estas compartiendo (roost share), solo mientras dura: lo escribe y lo borra Roost.
+        IncludeOptional "{{Path(directory)}}/*.conf"
+
+        """;
 
     /// <summary>
     /// Los .php, al pool de php-cgi. La barra final del balancer hace falta: Apache pega detrás
