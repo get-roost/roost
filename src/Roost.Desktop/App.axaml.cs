@@ -45,6 +45,7 @@ public partial class App : Application
 
             var services = new AppServices();
             StartLog(services, desktop.Args);
+            Relaunch = RelaunchApp;
             ApplyTheme(services.Prefs.Theme);
             _main = new MainViewModel(services);
             _window = new MainWindow { DataContext = _main, Icon = AppIcon.Window() };
@@ -95,6 +96,33 @@ public partial class App : Application
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* se repite la próxima vez */ }
         try { await _main.Updates.HandleStartupAsync(_main, args); }
         catch (Exception ex) when (ex is RoostException or IOException or UnauthorizedAccessException) { /* no impide usar la app */ }
+        await AfterRootChangeAsync();
+    }
+
+    /// <summary>
+    /// J2: después de cambiar la raíz, la app se vuelve a abrir (todo lo que tenía abierto apuntaba a
+    /// la de antes). Suelta su instancia única antes de lanzar la nueva, para que esa no la encuentre.
+    /// </summary>
+    public static Action? Relaunch { get; private set; }
+
+    private void RelaunchApp()
+    {
+        if (_main is null || _desktop is null || Environment.ProcessPath is not { } exe) return;
+        Instance?.Dispose();
+        Instance = null;
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(exe) { UseShellExecute = false })?.Dispose();
+        _main.ExitRequested = true;
+        _window?.Close();
+        _desktop.Shutdown();
+    }
+
+    /// <summary>J2: al abrirse tras cambiar la raíz, lo cuenta y arranca el stack si estaba en marcha.</summary>
+    private async Task AfterRootChangeAsync()
+    {
+        if (_main is null || RootChangeMarker.Take(_main.App.Paths) is not { } marker) return;
+        AppLog.Info($"Abierta con la raíz nueva ({marker.To}; antes, {marker.From})");
+        _main.Flash($"Roost usa ahora {marker.To}");
+        if (marker.StackWasRunning && !_main.Stack.IsRunning) await _main.StartStackAsync();
     }
 
     /// <summary>

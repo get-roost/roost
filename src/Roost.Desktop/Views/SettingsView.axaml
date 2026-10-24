@@ -145,13 +145,14 @@
                         Command="{Binding OpenFolderCommand}" CommandParameter="{Binding Paths.Root}">
                   <TextBlock Classes="mono" Text="{Binding Paths.Root}" TextTrimming="LeadingCharacterEllipsis" />
                 </Button>
-                <Button Grid.Column="2" Classes="sm" Content="Cambiar…" IsEnabled="False" ToolTip.Tip="Próximamente (hoy: la variable ROOST_HOME)" ToolTip.ShowOnDisabled="True" />
+                <!-- Ajustes y sistema (J2): la raíz se cambia (moviendo lo que hay o empezando de cero); la www va con ella -->
+                <Button Grid.Column="2" Classes="sm" Content="Cambiar…" Command="{Binding ChangeRootCommand}" ToolTip.Tip="{Binding RootSourceText}" />
                 <TextBlock Grid.Row="1" Classes="muted" Text="Proyectos" VerticalAlignment="Center" />
                 <Button Grid.Row="1" Grid.Column="1" Classes="link" HorizontalAlignment="Left" ToolTip.Tip="{Binding Paths.Www}"
                         Command="{Binding OpenFolderCommand}" CommandParameter="{Binding Paths.Www}">
                   <TextBlock Classes="mono" Text="{Binding Paths.Www}" TextTrimming="LeadingCharacterEllipsis" />
                 </Button>
-                <Button Grid.Row="1" Grid.Column="2" Classes="sm" Content="Cambiar…" IsEnabled="False" ToolTip.Tip="Próximamente" ToolTip.ShowOnDisabled="True" />
+                <TextBlock Grid.Row="1" Grid.Column="2" Classes="faint" Text="va con la raíz" VerticalAlignment="Center" />
                 <TextBlock Grid.Row="2" Classes="muted" Text="Descargas" VerticalAlignment="Center" />
                 <TextBlock Grid.Row="2" Grid.Column="1" VerticalAlignment="Center" TextTrimming="LeadingCharacterEllipsis">
                   <Run Text="{Binding Paths.Cache, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />

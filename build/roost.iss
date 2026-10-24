@@ -14,7 +14,8 @@
 ;
 ; Instala para toda la máquina, en Program Files: roost-helper.exe se ejecuta elevado (UAC) y no
 ; puede vivir en una carpeta que pueda escribir cualquier programa del usuario (ROOST.md §10,
-; riesgo 4). Los datos (C:\roost, con los proyectos en C:\roost\www, y %APPDATA%\Roost) no
+; riesgo 4). Los datos (la raíz de Roost, C:\roost o la de [paths] root en %APPDATA%\Roost\roost.toml,
+; con los proyectos en su www, y %APPDATA%\Roost) no
 ; los toca: ni al actualizar ni al desinstalar. Antes de sustituir o borrar ficheros, para el stack (roost down): roostd tiene
 ; abiertas las dll.
 ;
@@ -85,8 +86,8 @@ es.CommandLine=Línea de comandos:
 en.CommandLine=Command line:
 es.InstallingVcRedist=Instalando Visual C++ Redistributable (lo necesitan PHP, MariaDB, MySQL y Apache)...
 en.InstallingVcRedist=Installing Visual C++ Redistributable (PHP, MariaDB, MySQL and Apache need it)...
-es.RemoveCa=¿Quitar también la CA de Roost de tus certificados de confianza?%n%nWindows te pedirá confirmarlo. Si la quitas, el navegador volverá a avisar en tus sitios .test si reinstalas Roost.%n%nTus proyectos, bases de datos y la configuración de C:\roost se quedan donde están.
-en.RemoveCa=Also remove the Roost CA from your trusted certificates?%n%nWindows will ask you to confirm. If you remove it, the browser will warn again on your .test sites if you reinstall Roost.%n%nYour projects, databases and settings in C:\roost stay where they are.
+es.RemoveCa=¿Quitar también la CA de Roost de tus certificados de confianza?%n%nWindows te pedirá confirmarlo. Si la quitas, el navegador volverá a avisar en tus sitios .test si reinstalas Roost.%n%nTus proyectos, bases de datos y la configuración se quedan donde están (en C:\roost, o en la carpeta que elegiste en Ajustes).
+en.RemoveCa=Also remove the Roost CA from your trusted certificates?%n%nWindows will ask you to confirm. If you remove it, the browser will warn again on your .test sites if you reinstall Roost.%n%nYour projects, databases and settings stay where they are (in C:\roost, or the folder you chose in Settings).
 
 [Tasks]
 Name: "addtopath"; Description: "{cm:AddToPath}"; GroupDescription: "{cm:CommandLine}"
@@ -227,9 +228,9 @@ end;
 
 // Antes de borrar nada (usUninstall va antes que [UninstallRun]): roost uninstall-cleanup quita lo
 // que Roost puso fuera de su carpeta (la regla NRPT, el bloque del hosts, los shims del PATH del
-// usuario, el arranque con Windows y, si se quiere, la CA). Nunca los datos. En silencioso la CA se
-// deja: quitarla enseña un aviso de Windows que nadie contestaría. Lo que hizo queda en
-// C:\roost\logs\uninstall.log.
+// usuario, el arranque con Windows, la tarea al iniciar sesión y, si se quiere, la CA). Nunca los
+// datos. En silencioso la CA se deja: quitarla enseña un aviso de Windows que nadie contestaría. Lo
+// que hizo queda en <raíz de Roost>\logs\uninstall.log (C:\roost, o la de [paths] root).
 procedure CleanUpSystem;
 var
   Params: string;

@@ -1,0 +1,88 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.ChangeRootDialogView"
+             x:DataType="vm:ChangeRootDialogViewModel">
+  <!-- Ajustes y sistema (J2): cambiar la raíz de Roost, moviendo lo que hay o empezando de cero -->
+  <Border Classes="modal" Width="720">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Content="Cancelar" Command="{Binding DismissCommand}" IsVisible="{Binding Editing}" />
+            <Button Classes="primary" Content="{Binding StartLabel}" Command="{Binding StartCommand}" IsEnabled="{Binding CanStart}"
+                    IsVisible="{Binding Editing}" IsDefault="True" />
+            <Button Classes="primary" Content="Volver a abrir Roost" Command="{Binding FinishCommand}" IsVisible="{Binding Done}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+      <StackPanel Spacing="14" Margin="20,18,20,18">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+          <Border Classes="badge-ic">
+            <ctl:Icon Data="{StaticResource IcFolder}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Classes="h3" Text="Cambiar la raíz de Roost" />
+            <TextBlock Classes="faint" TextWrapping="Wrap">
+              <Run Text="Ahora: " />
+              <Run Text="{Binding From, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+            </TextBlock>
+          </StackPanel>
+          <Button Grid.Column="2" Classes="icon ghost" VerticalAlignment="Top" Command="{Binding DismissCommand}" IsVisible="{Binding Editing}"
+                  AutomationProperties.Name="Cerrar">
+            <ctl:Icon Data="{StaticResource IcClose}" Size="15" />
+          </Button>
+        </Grid>
+
+        <StackPanel Spacing="14" IsVisible="{Binding Editing}">
+          <StackPanel Spacing="6">
+            <TextBlock Classes="lbl" Text="La nueva" />
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+              <TextBox Classes="mono" Text="{Binding Target}" PlaceholderText="D:\roost" AutomationProperties.Name="La raíz nueva" />
+              <Button Grid.Column="1" Content="Elegir carpeta…" Command="{Binding PickCommand}" />
+            </Grid>
+            <TextBlock Classes="small" TextWrapping="Wrap" Foreground="{DynamicResource BadBrush}" Text="{Binding Problem}" IsVisible="{Binding HasProblem}" />
+          </StackPanel>
+
+          <StackPanel Spacing="8">
+            <RadioButton GroupName="raiz" IsChecked="{Binding Move}">
+              <StackPanel>
+                <TextBlock Classes="strong" Text="Mover lo que hay" />
+                <TextBlock Classes="faint" TextWrapping="Wrap"
+                           Text="Se copia todo a la nueva y se comprueba fichero a fichero antes de usarla. La de ahora no se borra: se queda renombrada como «…antigua» hasta que la borres tú." />
+                <TextBlock Classes="faint" TextWrapping="Wrap" Text="{Binding SizeText}" />
+              </StackPanel>
+            </RadioButton>
+            <RadioButton GroupName="raiz" IsChecked="{Binding Fresh}">
+              <StackPanel>
+                <TextBlock Classes="strong" Text="Empezar de cero en la nueva" />
+                <TextBlock Classes="faint" TextWrapping="Wrap"
+                           Text="No se copia nada: la de ahora se queda como está y puedes volver a ella. Si la nueva ya es una Roost, se usa la que hay." />
+              </StackPanel>
+            </RadioButton>
+          </StackPanel>
+
+          <ctl:Note Tone="Warn">
+            <StackPanel Spacing="6">
+              <TextBlock TextWrapping="Wrap" Text="{Binding WhatMovesText}" />
+              <TextBlock TextWrapping="Wrap"
+                         Text="Hay que parar todo: los sitios no contestan mientras dura. La CA sigue siendo la misma (el navegador sigue confiando en ella) si se mueve; empezando de cero, habrá una nueva." />
+            </StackPanel>
+          </ctl:Note>
+          <ctl:Note Tone="Accent" IsVisible="{Binding HasInfo}" Content="{Binding Info}" />
+        </StackPanel>
+
+        <!-- Haciéndolo -->
+        <StackPanel Spacing="8" IsVisible="{Binding Working}">
+          <TextBlock Text="{Binding StepText}" />
+          <ProgressBar Minimum="0" Maximum="100" Value="{Binding ProgressValue}" AutomationProperties.Name="Progreso" />
+          <TextBlock Classes="faint" TextWrapping="Wrap" Text="No cierres Roost: si se corta, la raíz de ahora sigue intacta." />
+        </StackPanel>
+
+        <ctl:Note Tone="Ok" IsVisible="{Binding Done}" Content="{Binding ResultText}" />
+        <ctl:Note Tone="Bad" IsVisible="{Binding HasError}" Content="{Binding Error}" />
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>

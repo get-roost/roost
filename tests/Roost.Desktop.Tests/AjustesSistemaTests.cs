@@ -424,6 +424,92 @@ public class AjustesSistemaTests
         Snapshot(window, "ajustes-sistema-tarea");
     }
 
+    // J2: cambiar la raíz
+
+    [Fact]
+    public void CambiarRaiz_QueCarpetasValen()
+    {
+        (string? Problem, string? Info) C(string target, bool move = true, bool exists = false, bool roost = false) =>
+            ChangeRootDialogViewModel.Check(@"C:\roost", target, move, _ => exists, _ => exists, _ => roost);
+
+        Assert.Null(C(@"D:\roost").Problem);
+        Assert.Null(C(@"D:\dev\roost-2").Problem);
+        Assert.Equal("Elige una carpeta.", C("  ").Problem);
+        Assert.StartsWith("Tiene que ser una ruta completa", C(@"roost").Problem);
+        Assert.StartsWith("Tiene que estar en un disco de este equipo", C(@"\\nas\roost").Problem);
+        Assert.StartsWith("Sin espacios, tildes", C(@"D:\mis proyectos\roost").Problem);
+        Assert.StartsWith("Sin espacios, tildes", C(@"D:\Ángel\roost").Problem);
+        Assert.StartsWith("Un disco entero no", C(@"D:\").Problem);
+        Assert.Equal("Es la que ya usa Roost.", C(@"C:\ROOST\").Problem);
+        Assert.StartsWith("No puede estar dentro", C(@"C:\roost\otra").Problem);
+        // (Archivos de programa ya lo para el espacio.)
+        Assert.StartsWith("Ni en Windows", C(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "roost")).Problem);
+        Assert.StartsWith("Para mover, la carpeta tiene que estar vacía", C(@"D:\roost", exists: true).Problem);
+        Assert.StartsWith("Tiene cosas que no son de Roost", C(@"D:\roost", move: false, exists: true).Problem);
+        Assert.Equal((null, "Ahí ya hay una Roost: se usará la que hay (sus PHP, sus datos y su CA)."), C(@"D:\roost", move: false, exists: true, roost: true));
+        Assert.StartsWith("Roost empezará de cero ahí", C(@"D:\roost", move: false).Info);
+    }
+
+    [AvaloniaFact]
+    public async Task CambiarRaiz_MoverLoQueHay_LoCopiaApuntaYDejaElMarcador()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        var target = Path.Combine(Path.GetDirectoryName(fake.Paths.Root)!, "raiz-nueva");
+
+        await main.NavigateToAsync(main.Settings);
+        var changing = main.Settings.ChangeRootCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<ChangeRootDialogViewModel>(main.Dialog);
+        Assert.Equal(fake.Paths.Root, dialog.From);
+        Assert.False(dialog.CanStart);
+        await WaitAsync(() => dialog.Size is not null);
+        Assert.StartsWith("Ahora ocupa", dialog.SizeText);
+        dialog.Target = target;
+        Assert.True(dialog.CanStart);
+        Assert.Equal("Mover", dialog.StartLabel);
+        Snapshot(window, "ajustes-sistema-raiz");
+
+        await dialog.StartCommand.ExecuteAsync(null);
+        Assert.Null(dialog.Error);
+        Assert.True(dialog.Done);
+        Assert.True(File.Exists(Path.Combine(target, "bin", "php", "8.4.27-nts-x64", "php.exe")));
+        Assert.True(File.Exists(Path.Combine(target, "state", "sites.json")));
+        Assert.Equal(target, Roost.Core.Config.RoostConfig.ReadRoot(fake.Paths.ConfigFile));
+        // El roost.toml vivía dentro de la raíz (como con ROOST_HOME): no se copia y la de antes no se renombra.
+        Assert.False(File.Exists(Path.Combine(target, "roost.toml")));
+        Assert.True(Directory.Exists(fake.Paths.Root));
+        Assert.Contains("donde también están el roost.toml", dialog.ResultText);
+        var marker = RootChangeMarker.Take(new Roost.Core.Platform.RoostPaths(target, fake.Paths.Cache));
+        Assert.NotNull(marker);
+        Assert.True(marker.Moved);
+        Assert.False(marker.StackWasRunning);
+        Snapshot(window, "ajustes-sistema-raiz-hecho");
+
+        dialog.FinishCommand.Execute(null);
+        await changing;   // sin App.Relaunch (los tests): lo dice en la barra de estado
+        Assert.Equal("Cierra Roost y vuelve a abrirlo para usar la raíz nueva", main.FlashText);
+        Roost.Core.Platform.RootMover.DeleteTree(target);
+    }
+
+    [AvaloniaFact]
+    public async Task CambiarRaiz_EmpezarDeCero_SoloApunta()
+    {
+        var (main, _, fake) = await OpenAsync(running: false);
+        using var __ = fake;
+        var target = Path.Combine(Path.GetDirectoryName(fake.Paths.Root)!, "de-cero");
+        var dialog = new ChangeRootDialogViewModel(main) { Target = target, Fresh = true };
+        Assert.False(dialog.Move);
+        Assert.Equal("Cambiar", dialog.StartLabel);
+        Assert.StartsWith("Roost empezará de cero ahí", dialog.Info);
+        await dialog.StartCommand.ExecuteAsync(null);
+        Assert.True(dialog.Done);
+        Assert.True(Directory.Exists(target));
+        Assert.Equal(["state"], Directory.EnumerateFileSystemEntries(target).Select(Path.GetFileName));   // solo el marcador
+        Assert.Equal(target, Roost.Core.Config.RoostConfig.ReadRoot(fake.Paths.ConfigFile));
+        Assert.True(File.Exists(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe")));   // la de antes, intacta
+        Assert.StartsWith($"Roost usará {target}", dialog.ResultText);
+    }
+
     private static async Task WaitAsync(Func<bool> condition)
     {
         for (var i = 0; i < 100 && !condition(); i++)

@@ -38,6 +38,9 @@ public partial class MainWindow : Window
             ToolTip.SetTip(MaximizeButton, maximized ? "Restaurar" : "Maximizar");
         };
 
+        // Ajustes y sistema (J2): el diálogo de cambiar la raíz, aquí para no tocar las DataTemplates del XAML.
+        DataTemplates.Add(new Avalonia.Controls.Templates.FuncDataTemplate<ChangeRootDialogViewModel>((_, _) => new ChangeRootDialogView(), supportsRecycling: true));
+
         // Ajustes y sistema (J5): los atajos de la ventana. Van aquí y no en el XAML para no tocar
         // sus KeyBindings (Escape, de los diálogos). Los comandos no hacen nada con un diálogo abierto.
         DataContextChanged += (_, _) =>
