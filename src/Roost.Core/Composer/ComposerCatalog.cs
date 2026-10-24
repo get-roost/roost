@@ -3,7 +3,8 @@ using Roost.Core.Models;
 namespace Roost.Core.Composer;
 
 /// <summary>Un <c>composer.phar</c> con el SHA-256 que tiene que dar y el PHP más viejo con el que funciona.</summary>
-public sealed record ComposerBuild(string Version, Uri Url, string Sha256, ComponentVersion MinPhp)
+/// <param name="Size">Lo que ocupa, en bytes (para el progreso de la descarga); null si no se sabe.</param>
+public sealed record ComposerBuild(string Version, Uri Url, string Sha256, ComponentVersion MinPhp, long? Size = null)
 {
     /// <summary>El nombre en la caché de descargas: con la versión, para que dos no se pisen.</summary>
     public string FileName => $"composer-{Version}.phar";
@@ -38,5 +39,6 @@ public static class ComposerCatalog
         "2.10.3",
         new Uri("https://getcomposer.org/download/2.10.3/composer.phar"),
         "7a2d379d5b8ffdaa028580ef26494c36d2feef4b178d3dd1473a4dbc5e17c8d6",
-        new ComponentVersion(7, 2, 5, "7.2.5"));
+        new ComponentVersion(7, 2, 5, "7.2.5"),
+        Size: 3_642_137);
 }

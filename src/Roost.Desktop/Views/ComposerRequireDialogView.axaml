@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.ComposerRequireDialogView"
+             x:DataType="vm:ComposerRequireDialogViewModel">
+  <Border Classes="modal" Width="560">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+          <Button Content="Cancelar" Command="{Binding DismissCommand}" />
+          <Button Classes="primary" Content="Añadir" Command="{Binding ConfirmCommand}" IsEnabled="{Binding CanConfirm}" IsDefault="True" />
+        </StackPanel>
+      </Border>
+      <StackPanel Spacing="14" Margin="20,18,20,18">
+        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+          <Border Classes="badge-ic">
+            <ctl:Icon Data="{StaticResource IcPackage}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Classes="h3" Text="Añadir un paquete" />
+            <TextBlock Classes="faint" Text="{Binding Subtitle}" TextWrapping="Wrap" />
+          </StackPanel>
+          <Button Grid.Column="2" Classes="icon ghost" VerticalAlignment="Top" Command="{Binding DismissCommand}" AutomationProperties.Name="Cerrar">
+            <ctl:Icon Data="{StaticResource IcClose}" Size="15" />
+          </Button>
+        </Grid>
+
+        <StackPanel Spacing="6">
+          <TextBlock Classes="lbl" Text="Paquete" />
+          <TextBox Classes="mono" Text="{Binding Package}" PlaceholderText="monolog/monolog:^3" AutomationProperties.Name="Paquete de Composer" />
+          <TextBlock Classes="small" TextWrapping="Wrap" Text="{Binding Hint}" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding !HintIsError}" />
+          <TextBlock Classes="small" TextWrapping="Wrap" Text="{Binding Hint}" Foreground="{DynamicResource BadBrush}" IsVisible="{Binding HintIsError}" />
+        </StackPanel>
+
+        <CheckBox IsChecked="{Binding Dev}">
+          <StackPanel>
+            <TextBlock Text="Solo para desarrollo (--dev)" />
+            <TextBlock Classes="faint" Text="Va a require-dev: PHPUnit, herramientas de depuración, lo que no hace falta en producción." TextWrapping="Wrap" />
+          </StackPanel>
+        </CheckBox>
+
+        <ctl:Note Tone="Accent" Content="Composer lo añade al composer.json, actualiza el composer.lock y lo instala en vendor/. Los paquetes están en packagist.org." />
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>

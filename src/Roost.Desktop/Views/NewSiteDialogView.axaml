@@ -35,7 +35,10 @@
                          Foreground="{DynamicResource MutedBrush}" />
             </StackPanel>
             <StackPanel Grid.Column="1" Spacing="6">
-              <TextBlock Classes="lbl" Text="Carpeta" />
+              <DockPanel>
+                <ctl:Chip DockPanel.Dock="Right" Text="{Binding ProjectLabel}" Tone="Accent" IsVisible="{Binding HasProject}" Margin="0,-4,0,-4" />
+                <TextBlock Classes="lbl" Text="Carpeta" VerticalAlignment="Center" />
+              </DockPanel>
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
                 <TextBox Classes="mono" Text="{Binding Folder}" AutomationProperties.Name="Carpeta del sitio" />
                 <Button Grid.Column="1" Classes="icon" Command="{Binding BrowseCommand}" ToolTip.Tip="Elegir carpeta" AutomationProperties.Name="Elegir carpeta">
@@ -58,17 +61,39 @@
             <StackPanel Grid.Row="2" Spacing="6">
               <TextBlock Classes="lbl" Text="PHP" />
               <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding Php}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
-              <Button Classes="link" Content="Instalar otra versión…" HorizontalAlignment="Left" FontSize="12" Command="{Binding InstallOtherCommand}" />
+              <Button Classes="link" Content="Instalar otra versión…" HorizontalAlignment="Left" FontSize="12" Command="{Binding InstallOtherCommand}"
+                      ToolTip.Tip="Sin cerrar este diálogo: lo tecleado se queda" />
+              <StackPanel Spacing="6" IsVisible="{Binding ShowInstallChoices}">
+                <TextBlock Classes="faint" Text="{Binding InstallChoicesHint}" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding InstallChoices}" IsVisible="{Binding HasInstallChoices}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PhpInstallChoice">
+                      <Button Classes="chip" Content="{Binding Label}" ToolTip.Tip="Instalar esta versión y usarla en el sitio"
+                              Command="{Binding $parent[ItemsControl].((vm:NewSiteDialogViewModel)DataContext).InstallPhpCommand}" CommandParameter="{Binding}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
             </StackPanel>
             <StackPanel Grid.Row="2" Grid.Column="1" Spacing="6">
-              <TextBlock Classes="lbl" Text="Base de datos" />
-              <CheckBox IsChecked="{Binding CreateDatabase}" IsEnabled="{Binding HasDb}" MinHeight="34">
-                <TextBlock>
-                  <Run Text="Crear " />
-                  <Run Text="{Binding DbName, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
-                  <Run Text="{Binding DbLabel, StringFormat=' en {0}', Mode=OneWay}" />
-                </TextBlock>
-              </CheckBox>
+              <TextBlock Classes="lbl" Text="{Binding DbLabel, StringFormat='Base de datos · {0}'}" />
+              <Border Classes="seg" IsEnabled="{Binding HasDb}">
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                  <RadioButton Theme="{StaticResource SegButton}" GroupName="basedatos" Content="Crear una" IsChecked="{Binding DbIsCreate}" />
+                  <RadioButton Theme="{StaticResource SegButton}" GroupName="basedatos" Content="Usar una que existe" IsChecked="{Binding DbIsExisting}" />
+                  <RadioButton Theme="{StaticResource SegButton}" GroupName="basedatos" Content="Ninguna" IsChecked="{Binding DbIsNone}" />
+                </StackPanel>
+              </Border>
+              <TextBox Classes="mono" Text="{Binding DbName}" IsVisible="{Binding DbIsCreate}" PlaceholderText="tienda" AutomationProperties.Name="Nombre de la base de datos nueva" />
+              <ComboBox ItemsSource="{Binding ExistingDbs}" SelectedItem="{Binding ExistingDb}" IsVisible="{Binding ShowExistingList}"
+                        HorizontalAlignment="Stretch" PlaceholderText="Elige una" AutomationProperties.Name="Base de datos que ya existe" />
+              <TextBox Classes="mono" Text="{Binding ExistingDb}" IsVisible="{Binding ShowExistingText}" PlaceholderText="nombre de la que ya existe"
+                       AutomationProperties.Name="Base de datos que ya existe" />
+              <TextBlock Classes="small" Text="{Binding DbHint}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding DbValid}" />
+              <TextBlock Classes="small" Text="{Binding DbHint}" TextWrapping="Wrap" Foreground="{DynamicResource BadBrush}" IsVisible="{Binding !DbValid}" />
             </StackPanel>
           </Grid>
 
@@ -122,7 +147,7 @@
                   <Run Text=" al hosts: Windows pedirá permiso de administrador" />
                 </TextBlock>
               </Grid>
-              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding CreateDatabase}">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding DbIsCreate}">
                 <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
                 <TextBlock Grid.Column="1" TextWrapping="Wrap" Classes="small">
                   <Run Text="Crea la base de datos " />
@@ -130,11 +155,27 @@
                   <Run Text=" (utf8mb4)" />
                 </TextBlock>
               </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding DbIsExisting}">
+                <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" TextWrapping="Wrap" Classes="small">
+                  <Run Text="Usa la base de datos " />
+                  <Run Text="{Binding ExistingDb, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text=" (ya existe: no se toca)" />
+                </TextBlock>
+              </Grid>
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
                 <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
                 <TextBlock Grid.Column="1" TextWrapping="Wrap" Classes="small">
                   <Run Text="Recarga el stack y abre " />
                   <Run Text="{Binding Host, StringFormat='https://{0}/', Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
+                </TextBlock>
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding NeedsComposerInstall}">
+                <ctl:Dot Tone="Warn" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" TextWrapping="Wrap" Classes="small">
+                  <Run Text="Le falta " />
+                  <Run Text="vendor/" FontFamily="{StaticResource MonoFont}" />
+                  <Run Text=": después, «Instalar dependencias» en el panel del sitio (composer install)" />
                 </TextBlock>
               </Grid>
             </StackPanel>

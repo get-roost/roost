@@ -780,4 +780,278 @@ public class ViewSnapshotTests
         Assert.Contains(news.Releases.SelectMany(r => r.Items), i => i.Title == "Apache, además de nginx: ");
         Snapshot(window, "novedades");
     }
+
+    // Composer y Sitios-2: el bloque Composer y la base de datos del panel del sitio, el diálogo de
+    // salida en vivo y Nuevo sitio (proyecto detectado, base de datos, otra versión de PHP). Composer
+    // se ejecuta sobre un runner guionizado: nada llega a PHP ni a la red.
+
+    /// <summary>Baja el scroll de la pantalla para que se vea lo de abajo del panel.</summary>
+    private static void ScrollPage(MainWindow window, object page, double y)
+    {
+        Dispatcher.UIThread.RunJobs();
+        var scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First(s => s.DataContext == page);
+        scroll.Offset = new Avalonia.Vector(0, y);
+    }
+
+    [AvaloniaFact]
+    public async Task SitiosComposer_PanelConComposerYSuBaseDeDatos()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "tienda.test"));
+        Assert.True(sites.HasComposer);
+        Assert.True(sites.ComposerNeedsInstall);   // composer.json sin vendor/
+        Assert.Equal("falta vendor/", sites.ComposerChip);
+        Assert.Contains("PHP 8.4.27", sites.ComposerText);
+        Assert.Contains("se instala la primera vez", sites.ComposerText);
+
+        // Su base de datos: la del nombre, en la global en marcha. Sin cliente de verdad no se sabe si
+        // existe, así que se ofrecen las dos cosas.
+        Assert.Equal("tienda", sites.SiteDbName);
+        Assert.True(sites.SiteDbRunning);
+        Assert.Equal("en MariaDB 11.4.13 · 127.0.0.1:3308", sites.SiteDbWhere);
+        Assert.True(sites.SiteDbCanCreate);
+        Assert.True(sites.SiteDbCanOpen);
+        Assert.Equal("Crear tienda", sites.CreateSiteDbLabel);
+        Assert.Equal("DB_CONNECTION=mysql\nDB_HOST=127.0.0.1\nDB_PORT=3308\nDB_DATABASE=tienda\nDB_USERNAME=root\nDB_PASSWORD=", sites.SiteEnv());
+        ScrollPage(window, sites, 260);
+        Snapshot(window, "sitios-composer-y-bd");
+
+        // Con vendor/, el aviso se va.
+        Directory.CreateDirectory(Path.Combine(sites.Selected!.Site.Folder, "vendor"));
+        main.NotifyConfigChanged();
+        Assert.False(sites.ComposerNeedsInstall);
+        Assert.Equal("vendor/ instalado", sites.ComposerChip);
+
+        // Un sitio sin composer.json no tiene bloque Composer; uno con su base de datos fijada, la enseña.
+        new Roost.Core.Sites.SiteManager(fake.Paths).SetDatabase("blog", "wp_blog");
+        main.NotifyConfigChanged();
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "blog.test"));
+        Assert.False(sites.HasComposer);
+        Assert.Equal("wp_blog", sites.SiteDbName);
+
+        // Parado: el panel lo dice y ofrece arrancar, en vez de fallar al pulsar.
+        main.Stack.Show(null);
+        main.NotifyConfigChanged();
+        Assert.True(sites.SiteDbStopped);
+        Assert.False(sites.SiteDbCanCreate);
+        Assert.False(sites.SiteDbCanOpen);
+        Assert.Contains("está parada", sites.SiteDbHint);
+        ScrollPage(window, sites, 260);
+        Snapshot(window, "sitios-bd-parada");
+
+        // Sin ninguna base de datos instalada: a Bases de datos.
+        Directory.Delete(fake.Paths.DbBin("mariadb"), recursive: true);
+        main.NotifyConfigChanged();
+        Assert.True(sites.SiteDbMissing);
+        Assert.False(sites.HasSiteDbEnv);
+        Assert.StartsWith("No hay ninguna base de datos instalada", sites.SiteDbHint);
+    }
+
+    [AvaloniaFact]
+    public async Task SitiosComposer_InstalarDependencias_SalidaEnVivo_YTerminaConFallo()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        var phar = fake.InstallFakeComposer();
+        var runner = new ScriptedCommandRunner(
+            "Installing dependencies from lock file (including require-dev)",
+            "Verifying lock file contents can be installed on current platform.",
+            "Package operations: 112 installs, 0 updates, 0 removals",
+            "  - Installing doctrine/inflector (2.0.10): Extracting archive",
+            "  - Installing symfony/polyfill-mbstring (v1.31.0): Extracting archive",
+            "  - Installing laravel/framework (v11.31.0): Extracting archive");
+
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        sites.Runner = runner;
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "tienda.test"));
+        var running = sites.ComposerInstallCommand.ExecuteAsync(null);
+        await UntilAsync(() => main.Dialog is CommandOutputDialogViewModel);
+        var dialog = (CommandOutputDialogViewModel)main.Dialog!;
+        dialog.FlushLines();
+
+        // La orden: el PHP del sitio con el composer.phar de Roost, en su carpeta y sin preguntas.
+        var spec = runner.Calls.Single();
+        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), spec.Exe);
+        Assert.Equal([phar, "install"], spec.Arguments);
+        Assert.Equal(sites.Selected!.Site.Folder, spec.WorkingDirectory);
+        Assert.Equal("1", spec.Environment!["COMPOSER_NO_INTERACTION"]);
+        Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64"), spec.Environment["PHPRC"]);
+        Assert.True(dialog.Running);
+        Assert.False(dialog.CanDismiss);   // ni Escape ni el fondo lo cierran a medias
+        Assert.Equal("composer install", dialog.CommandText);
+        Assert.Equal(6, dialog.Lines.Count);
+        Assert.True(sites.ComposerBusy);
+        Snapshot(window, "salida-en-vivo-en-marcha");
+
+        runner.Report("Generating optimized autoload files");
+        runner.Report("> @php artisan package:discover --ansi");
+        runner.Report("");
+        runner.Report("In ProviderRepository.php line 205:");
+        runner.Report("  The bootstrap/cache directory must be present and writable.");
+        runner.Report("Script @php artisan package:discover --ansi handling the post-autoload-dump event returned with error code 1");
+        runner.Finish(1);
+        await UntilAsync(() => dialog.Done);
+
+        Assert.True(dialog.Failed);
+        Assert.Equal(1, dialog.ExitCode);
+        Assert.StartsWith("Ha fallado con el código 1", dialog.ResultText);
+        Assert.True(dialog.Lines[^1].IsError);
+        Assert.Contains("laravel/framework", dialog.Output);
+        Assert.True(dialog.CanDismiss);
+        Snapshot(window, "salida-en-vivo-fallo");
+
+        dialog.FinishCommand.Execute(null);
+        await running;
+        Assert.False(sites.ComposerBusy);
+        Assert.Null(main.Dialog);
+    }
+
+    [AvaloniaFact]
+    public async Task SalidaEnVivo_CancelarParaElProceso_YElProgresoNoLlenaLaSalida()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        var runner = new ScriptedCommandRunner("Cloning into 'tienda'...");
+        var spec = new Roost.Core.Scanning.CommandSpec("git.exe", ["clone", "--progress", "https://example.test/acme/tienda.git"], fake.Paths.Www);
+        var dialog = new CommandOutputDialogViewModel("Clonar acme/tienda", "git", spec, runner) { CommandText = "git clone acme/tienda" };
+
+        var run = dialog.RunAsync();
+        var shown = main.ShowDialogAsync(dialog);
+        runner.Report("Receiving objects:  10% (10/100)");
+        runner.Report("Receiving objects:  55% (55/100), 1.20 MiB | 2.40 MiB/s");
+        runner.Report("Receiving objects: 100% (100/100), 2.10 MiB | 2.40 MiB/s, done.");
+        runner.Report("Resolving deltas:  50% (5/10)");
+        dialog.FlushLines();
+        Assert.Equal(["Cloning into 'tienda'...", "Receiving objects: 100% (100/100), 2.10 MiB | 2.40 MiB/s, done.", "Resolving deltas:  50% (5/10)"],
+            dialog.Lines.Select(l => l.Text));
+        Assert.False(dialog.CanCopy);   // sin portapapeles, sin botón
+
+        dialog.CancelCommand.Execute(null);
+        await run;
+        Assert.True(runner.WasCanceled);
+        Assert.True(dialog.Canceled);
+        Assert.True(dialog.Failed);
+        Assert.Null(dialog.ExitCode);
+        Assert.StartsWith("Cancelado", dialog.ResultText);
+        Assert.Null(await dialog.Finished);
+        dialog.CancelCommand.Execute(null);   // ya terminado: «Cancelar» cierra
+        await shown;
+    }
+
+    [AvaloniaFact]
+    public async Task SitiosComposer_AnadirPaquete_ValidaElNombre()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Sites);
+        var sites = main.Sites;
+        sites.ChooseCommand.Execute(sites.Rows.Single(r => r.Host == "tienda.test"));
+        var adding = sites.ComposerRequireCommand.ExecuteAsync(null);
+        await UntilAsync(() => main.Dialog is ComposerRequireDialogViewModel);
+        var dialog = (ComposerRequireDialogViewModel)main.Dialog!;
+        Assert.Equal("En tienda.test · con PHP 8.4.27", dialog.Subtitle);
+        Assert.False(dialog.CanConfirm);
+
+        dialog.Package = "monolog";
+        Assert.False(dialog.CanConfirm);
+        Assert.True(dialog.HintIsError);
+        dialog.Package = "Monolog/Monolog:^3";
+        Assert.True(dialog.CanConfirm);
+        Assert.Equal("composer require monolog/monolog:^3", dialog.Hint);
+        dialog.Dev = true;
+        Assert.Equal("composer require --dev monolog/monolog:^3", dialog.Hint);
+        Snapshot(window, "sitios-composer-anadir-paquete");
+
+        dialog.Close(null);   // sin añadir: nada se ejecuta
+        await adding;
+        Assert.Null(main.Dialog);
+    }
+
+    [AvaloniaFact]
+    public async Task NuevoSitio_DetectaLaravel_YSacaElNombreDeLaCarpeta()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        var laravel = fake.Project("Tienda Laravel", "artisan", "composer.json", "public/", "bootstrap/");
+
+        await main.NavigateToAsync(main.Sites);
+        var opening = main.Sites.NewSiteCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<NewSiteDialogViewModel>(main.Dialog);
+        dialog.Folder = laravel;   // como «Elegir carpeta» con el nombre aún vacío
+
+        Assert.Equal("tienda-laravel", dialog.Name);
+        Assert.True(dialog.NameValid);
+        Assert.Equal("Proyecto Laravel", dialog.ProjectLabel);
+        Assert.Equal("Proyecto Laravel: raíz web public/.", dialog.FolderHint);
+        Assert.Equal("public", dialog.Root);
+        Assert.True(dialog.NeedsComposerInstall);
+        Assert.StartsWith("8.4.27 · recomendada por composer.json (^8.2)", dialog.Php?.Label);
+        Assert.Equal("tienda_laravel", dialog.DbName);
+        Assert.True(dialog.DbIsCreate);
+        Assert.True(dialog.CanCreate);
+        Snapshot(window, "nuevo-sitio-laravel");
+
+        // La base de datos: una que ya existe (sin lista, porque no hay cliente: se teclea) o ninguna.
+        dialog.DbIsExisting = true;
+        Assert.True(dialog.ShowExistingText);
+        Assert.False(dialog.CanCreate);
+        dialog.ExistingDb = "mysql";
+        Assert.False(dialog.DbValid);
+        dialog.ExistingDb = "tienda_vieja";
+        Assert.True(dialog.CanCreate);
+        Assert.Equal("tienda_vieja", dialog.ChosenDb);
+        Assert.False(dialog.CreateDatabase);
+        Snapshot(window, "nuevo-sitio-bd-existente");
+        dialog.DbIsNone = true;
+        Assert.Null(dialog.ChosenDb);
+        dialog.DbIsCreate = true;
+        dialog.DbName = "mi base";
+        Assert.False(dialog.CanCreate);
+        dialog.DbName = "shop";
+        Assert.True(dialog.CanCreate);
+        Assert.Equal("shop", dialog.ChosenDb);
+
+        // Tecleado el nombre, elegir otra carpeta ya no lo cambia. WordPress se sirve desde su carpeta.
+        dialog.Name = "mi-wp";
+        dialog.Folder = fake.Project("blog-viejo", "wp-load.php", "wp-includes/");
+        Assert.Equal("mi-wp", dialog.Name);
+        Assert.Equal("Proyecto WordPress", dialog.ProjectLabel);
+        Assert.Equal("Proyecto WordPress: se sirve la carpeta.", dialog.FolderHint);
+        Assert.Equal("", dialog.Root);
+        Assert.False(dialog.NeedsComposerInstall);
+
+        dialog.Close();   // sin crear: crear aplicaría al stack
+        await opening;
+    }
+
+    [AvaloniaFact]
+    public async Task NuevoSitio_InstalarOtraVersion_SinCerrarNiPerderLoTecleado()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Sites);
+        var opening = main.Sites.NewSiteCommand.ExecuteAsync(null);
+        var dialog = Assert.IsType<NewSiteDialogViewModel>(main.Dialog);
+        dialog.Name = "crm";
+
+        await dialog.InstallOtherCommand.ExecuteAsync(null);
+
+        Assert.Same(dialog, main.Dialog);   // sigue abierto (antes se cerraba y llevaba a PHP)
+        Assert.Equal("crm", dialog.Name);
+        Assert.True(dialog.ShowInstallChoices);
+        // Las ramas del catálogo que no están instaladas (8.4, 8.3 y 7.4 ya están), con la EOL marcada.
+        Assert.Equal(["8.5.12", "8.2.35", "8.1.34 · EOL"], dialog.InstallChoices.Select(c => c.Label));
+        Assert.StartsWith("Elige una", dialog.InstallChoicesHint);
+        Snapshot(window, "nuevo-sitio-instalar-php");
+
+        dialog.Close();
+        await opening;
+    }
 }

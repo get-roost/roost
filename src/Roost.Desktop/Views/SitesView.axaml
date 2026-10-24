@@ -132,16 +132,69 @@
                 <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding SelectedPhp}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
                 <TextBlock Classes="faint" TextWrapping="Wrap" Text="Cambiarlo rearranca el stack (se pide confirmación). Cada rama en uso tiene su propio pool de php-cgi." />
               </StackPanel>
-              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+
+              <!-- Composer: solo si la carpeta tiene composer.json -->
+              <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10" IsVisible="{Binding HasComposer}">
+                <StackPanel Spacing="8">
+                  <DockPanel>
+                    <ctl:Chip DockPanel.Dock="Right" Text="{Binding ComposerChip}" Tone="{Binding ComposerChipTone}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <ctl:Icon Data="{StaticResource IcPackage}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                      <TextBlock Classes="lbl" Text="Composer" VerticalAlignment="Center" />
+                      <ctl:Chip Text="{Binding FrameworkText}" Tone="Accent" IsVisible="{Binding HasFramework}" />
+                    </StackPanel>
+                  </DockPanel>
+                  <TextBlock Classes="faint" Text="{Binding ComposerText}" TextWrapping="Wrap" />
+                  <TextBlock Classes="small" TextWrapping="Wrap" Foreground="{DynamicResource WarnBrush}" IsVisible="{Binding ComposerNeedsInstall}"
+                             Text="Tiene composer.json pero aún no vendor/: Instalar dependencias lo crea." />
+                  <WrapPanel ItemSpacing="6" LineSpacing="6" IsEnabled="{Binding ComposerIdle}">
+                    <Button Classes="sm" Classes.primary="{Binding ComposerNeedsInstall}" Content="Instalar dependencias" Command="{Binding ComposerInstallCommand}"
+                            ToolTip.Tip="composer install: lo que fija el composer.lock" />
+                    <Button Classes="sm" Content="Actualizar" Command="{Binding ComposerUpdateCommand}"
+                            ToolTip.Tip="composer update: lo más nuevo que permite el composer.json (reescribe el composer.lock)" />
+                    <Button Classes="sm" Content="Añadir paquete…" Command="{Binding ComposerRequireCommand}" ToolTip.Tip="composer require vendor/paquete" />
+                  </WrapPanel>
+                  <TextBlock Classes="faint" TextWrapping="Wrap"
+                             Text="Composer ejecuta los scripts del composer.json del proyecto: úsalo con proyectos en los que confíes." />
+                </StackPanel>
+              </Border>
+
+              <!-- La base de datos del sitio -->
+              <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="12,10">
+                <StackPanel Spacing="8">
+                  <DockPanel>
+                    <ctl:Chip DockPanel.Dock="Right" Text="{Binding SiteDbChip}" Tone="{Binding SiteDbTone}" IsVisible="{Binding HasSiteDbChip}" />
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <ctl:Icon Data="{StaticResource IcDatabase}" Size="15" VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                      <TextBlock Classes="lbl" Text="Base de datos" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </DockPanel>
+                  <TextBlock TextWrapping="Wrap">
+                    <Run Text="{Binding SiteDbName, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontWeight="SemiBold" />
+                    <Run Text="{Binding SiteDbWhere, Mode=OneWay}" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
+                  </TextBlock>
+                  <TextBlock Classes="small" Text="{Binding SiteDbHint}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding HasSiteDbHint}" />
+                  <WrapPanel ItemSpacing="6" LineSpacing="6">
+                    <Button Classes="sm" Content="{Binding CreateSiteDbLabel}" Command="{Binding CreateSiteDbCommand}" IsVisible="{Binding SiteDbCanCreate}"
+                            ToolTip.Tip="CREATE DATABASE (utf8mb4) en la base de datos global" />
+                    <Button Classes="sm" Content="Abrir consola" Command="{Binding OpenSiteDbConsoleCommand}" IsVisible="{Binding SiteDbCanOpen}"
+                            ToolTip.Tip="La consola SQL, ya dentro de esta base de datos" />
+                    <Button Classes="sm" Content="Copiar .env" Command="{Binding CopySiteEnvCommand}" IsVisible="{Binding HasSiteDbEnv}"
+                            ToolTip.Tip="DB_CONNECTION, DB_HOST, DB_PORT, DB_DATABASE, DB_USERNAME y DB_PASSWORD" />
+                    <Button Classes="sm primary" Content="Iniciar todo" Command="{Binding StartForDbCommand}" IsVisible="{Binding SiteDbStopped}" />
+                    <Button Classes="sm" Content="Ir a Bases de datos" Command="{Binding GoDatabasesCommand}" IsVisible="{Binding SiteDbMissing}" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
+
+              <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto" ColumnSpacing="14" RowSpacing="8">
                 <TextBlock Classes="muted" Text="Certificado" />
                 <StackPanel Grid.Column="1" Spacing="4">
                   <ctl:Chip Text="{Binding Selected.Cert, FallbackValue=''}" Tone="{Binding Selected.CertTone, FallbackValue=Neutral}" />
                   <TextBlock Classes="faint" Text="{Binding CertDetail}" TextWrapping="Wrap" />
                 </StackPanel>
-                <TextBlock Grid.Row="1" Classes="muted" Text="Base de datos" />
-                <TextBlock Grid.Row="1" Grid.Column="1" Classes="small" Text="{Binding DbText}" TextWrapping="Wrap" />
-                <TextBlock Grid.Row="2" Classes="muted" Text="vhost" />
-                <TextBlock Grid.Row="2" Grid.Column="1" Classes="mono" Text="{Binding ConfPath}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding ConfPath}" />
+                <TextBlock Grid.Row="1" Classes="muted" Text="vhost" />
+                <TextBlock Grid.Row="1" Grid.Column="1" Classes="mono" Text="{Binding ConfPath}" TextTrimming="LeadingCharacterEllipsis" ToolTip.Tip="{Binding ConfPath}" />
               </Grid>
               <WrapPanel ItemSpacing="8" LineSpacing="8">
                 <Button Classes="sm" Content="Carpeta" Command="{Binding OpenFolderCommand}" />
