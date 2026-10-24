@@ -150,7 +150,9 @@ public sealed class LocalCa(RoostPaths paths)
         return (subject, thumb, ca.NotAfter);
     }
 
-    private static bool IsUsable(string certFile, string keyFile, Site site, X509Certificate2 ca)
+    // names: los nombres DNS que tiene que llevar; null = los del sitio (SiteAliases.CertNames). El de la
+    // red local solo lleva el nombre del sitio (y la IP, que aquí no cuenta).
+    private static bool IsUsable(string certFile, string keyFile, Site site, X509Certificate2 ca, IReadOnlyList<string>? names = null)
     {
         if (!File.Exists(certFile) || !File.Exists(keyFile)) return false;
         try
@@ -162,7 +164,7 @@ public sealed class LocalCa(RoostPaths paths)
             chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
             chain.ChainPolicy.CustomTrustStore.Add(ca);
             chain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
-            return chain.Build(cert) && cert.MatchesHostname(site.Host) && HasNames(cert, SiteAliases.CertNames(site));
+            return chain.Build(cert) && cert.MatchesHostname(site.Host) && HasNames(cert, names ?? SiteAliases.CertNames(site));
         }
         catch
         {
@@ -257,7 +259,7 @@ public sealed class LocalCa(RoostPaths paths)
 
     private static bool IsUsableLan(string certFile, string keyFile, Site site, System.Net.IPAddress address, X509Certificate2 ca)
     {
-        if (!IsUsable(certFile, keyFile, site, ca)) return false;
+        if (!IsUsable(certFile, keyFile, site, ca, [site.Host])) return false;
         try
         {
             using var cert = X509Certificate2.CreateFromPem(File.ReadAllText(certFile));

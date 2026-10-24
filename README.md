@@ -259,7 +259,7 @@ Cuando un comando cambia una clave, Roost toca solo esa clave y respeta el resto
 `roost-desktop` es una ventana al estilo de Laragon sobre lo mismo que la CLI, con el stack en el daemon:
 
 - **Inicio:** accesos a la web, a una terminal con el PHP global en el PATH, a la carpeta www y a la base de datos, y los servicios con su estado, sus puertos, sus reinicios y un botón para reiniciar cada uno.
-- **Sitios:** alta con plantilla y el PHP que pide el `composer.json`, el PHP propio de cada sitio, su certificado y su línea en el hosts; renombrar y mover un sitio, sus alias y subdominios, su `.roost.toml` y las carpetas aparcadas.
+- **Sitios:** alta con plantilla y el PHP que pide el `composer.json`, el PHP propio de cada sitio, su certificado y su línea en el hosts; renombrar y mover un sitio, sus alias y subdominios, su `.roost.toml`, las carpetas aparcadas y compartirlo por internet o en la red local.
 - **PHP:** las versiones instaladas, con su veredicto, quién las usa y sus extensiones (activar una reinicia solo su pool), el catálogo de windows.php.net (NTS/TS, x64/x86) y lo que hay fuera de Roost.
 - **Servidor web:** cuál arranca (nginx o Apache, que se instala al elegirlo), sus puertos HTTP y HTTPS, la validación (`nginx -t` / `httpd -t`) y su configuración.
 - **Bases de datos:** la conexión (con copiar y la línea para el `.env`), el puerto con quién ocupa cada uno, MariaDB y MySQL instaladas y disponibles, y las bases de datos del servidor (crear, consola SQL).
@@ -465,6 +465,22 @@ export default defineConfig({
 
 Sin Laravel es lo mismo: las opciones de `server` valen para cualquier proyecto con Vite.
 
+### Compartir un sitio (solo Windows, por ahora)
+
+```sh
+roost share tienda                         # un enlace https://….trycloudflare.com mientras el comando espera; Ctrl+C lo cierra
+roost share tienda --detach                # lo deja abierto hasta roost share stop tienda o roost down
+roost share tienda --lan [--ip 192.168.1.20]   # en tu red local: https://<ip>:<puerto HTTPS>/
+roost share status [--json]                # qué se comparte ahora
+roost share stop [<sitio>] [--lan|--tunnel]
+roost share install                        # cloudflared, verificado (lo hace solo la primera vez)
+```
+
+- **Por internet** va con un túnel rápido de Cloudflare (`cloudflared`, Apache-2.0), sin cuenta. Roost lo baja la primera vez, verificado con su SHA-256, y lo lanza aislado: no lee tu `~/.cloudflared` ni tus variables `TUNNEL_*`. PHP ve el nombre público (`xxx.trycloudflare.com`), HTTPS y la IP del visitante; la página lleva `X-Robots-Tag: noindex`.
+- **En la red local** el sitio se sirve en la IP de tu wifi o tu cable (nunca en todas las interfaces, ni en las de VPN, WSL o Hyper-V), con un certificado que lleva esa IP. Windows pide permiso una vez para la regla «Roost LAN <puerto>» del cortafuegos: solo redes privadas y solo tu subred, y se quita al dejar de compartir, con `roost down` y al desinstalar. En una red marcada como pública no comparte y dice cómo cambiarla. El móvil avisará del certificado: para que no avise, instala la CA desde `https://<ip>:<puerto>/__roost/roost-ca.crt`, y quítala al acabar.
+- **Nada queda compartido por olvido.** Lo lleva el daemon y no se guarda en disco: se para con Ctrl+C (o al cerrar la terminal), con «Dejar de compartir» en la app, al salir de Roost o con `roost down`. En la app, es el bloque Compartir del panel del sitio, con los avisos antes de nada.
+- **Lo que no funciona fuera de tu equipo:** las URLs guardadas (`APP_URL`, las de WordPress en su base de datos) siguen en `.test`. No compartas con `APP_DEBUG=true`: Roost lo avisa si lo ve.
+
 ### Redis, correo de pruebas y Adminer (solo Windows, por ahora)
 
 ```sh
@@ -525,8 +541,11 @@ roost update --install   # con el instalador de Windows: descarga el setup nuevo
 | Datos de las bases de datos (uno por motor y rama) | `C:\roost\data\<motor>\<rama>\` |
 | Configuración generada (`nginx.conf` o `apache\httpd.conf`, un `php.ini` por instalación, un `my.ini` por motor y rama) y `conf.d\` | `C:\roost\etc\` |
 | El vhost de cada sitio (editable fuera de las marcas) | `C:\roost\etc\nginx\sites\<nombre>.conf`, o `C:\roost\etc\apache\sites\<nombre>.conf` con Apache |
-| CA local y certificados de los sitios | `C:\roost\certs\ca\`, `C:\roost\certs\sites\` |
-| Sitios registrados | `C:\roost\state\sites.json` |
+| CA local y certificados de los sitios (y el de compartir en la red local, mientras dura) | `C:\roost\certs\ca\`, `C:\roost\certs\sites\`, `C:\roost\certs\lan\` |
+| Sitios registrados y carpetas aparcadas | `C:\roost\state\sites.json`, `C:\roost\state\parked.json` |
+| Lo que dice cada proyecto de sí mismo (se versiona con él) | `<carpeta del proyecto>\.roost.toml` |
+| Las mitigaciones que aplica la auditoría | `C:\roost\etc\php\conf.d\<rama>\50-roost-mitigaciones.ini` |
+| Compartir: cloudflared y las escuchas de lo compartido | `C:\roost\bin\cloudflared\<versión>\`, `C:\roost\etc\nginx\share\` (o `etc\apache\share\`) |
 | Claves SSH de los sitios y servidores SSH conocidos | `C:\roost\state\git\keys\`, `C:\roost\state\git\known_hosts` |
 | Tokens HTTPS de git | El Administrador de credenciales de Windows (`Roost:git:…`) |
 | Node instalado por Roost (y tus paquetes globales de npm) | `C:\roost\bin\node\<versión>\` |
@@ -534,7 +553,7 @@ roost update --install   # con el instalador de Windows: descarga el setup nuevo
 | Datos de Redis y bandeja de Mailpit (Roost nunca los borra) | `C:\roost\data\redis\`, `C:\roost\data\mailpit\` |
 | Configuración de Redis (generada) y tus ajustes | `C:\roost\etc\redis\redis.conf`, `C:\roost\etc\redis\conf.d\99-usuario.conf` |
 | El git de Roost, su configuración aislada y el historial de cada sitio | `C:\roost\bin\git\<versión>\`, `C:\roost\state\git\` |
-| Logs (daemon, nginx, cada php-cgi, Redis, Mailpit, git de cada sitio) | `C:\roost\logs\` |
+| Logs (daemon, nginx, cada php-cgi, Redis, Mailpit, git de cada sitio, el túnel de lo compartido) y los de cada sitio | `C:\roost\logs\`, `C:\roost\logs\sites\` |
 | Proyectos | `C:\roost\www\` |
 | Tu configuración | `%APPDATA%\Roost\roost.toml` |
 | Zips descargados (se reutilizan) | `%LOCALAPPDATA%\Roost\cache\downloads\` |
@@ -580,6 +599,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
 - SSH por un proxy no se soporta: usa un token HTTPS.
+- El túnel de compartir va por QUIC: en una red que corta el UDP saliente puede no conectar. Los dominios propios para el túnel serán de Roost Pro.
 - Los paquetes globales de npm (`npm install -g`) no están en el PATH, y no hay shims de pnpm, yarn ni corepack en la terminal: usa `npx`.
 
 ## Desarrollo
@@ -646,7 +666,7 @@ Por fases:
 
 - **Fase 0:** hecha: `scan` y `audit` por CLI y el feed firmado `roost-catalog`.
 - **Fase 1, MVP:** hecha en Windows: instalar PHP, MariaDB y MySQL, servirlos con nginx o Apache desde un daemon de usuario con supervisor, sitios `https://*.test` con certificados de una CA local, y la app de escritorio. Las releases salen de un workflow, con instalador, Scoop y actualizar desde la app. Falta Linux y la firma de los binarios.
-- **Fase 2 (en curso):** hechos en Windows los shims de terminal (`php`, `composer`, `node`, `npm` y `npx` según el proyecto), los puntos de enganche para extensiones, el DNS local, Xdebug con un clic, Composer, Node, Redis, Mailpit, Adminer, sitios desde git (también privados), las plantillas y los pasos de instalación. Quedan los sitios avanzados (alias, aparcar carpetas, logs por sitio), compartir un sitio (túnel y LAN) y más auditoría.
+- **Fase 2 (en curso):** hechos en Windows los shims de terminal (`php`, `composer`, `node`, `npm` y `npx` según el proyecto), los puntos de enganche para extensiones, el DNS local, Xdebug con un clic, Composer, Node, Redis, Mailpit, Adminer, sitios desde git (también privados), las plantillas y los pasos de instalación, los sitios avanzados (renombrar y mover, alias, aparcar carpetas, registros por sitio, `.roost.toml`), compartir un sitio (túnel y red local) y la auditoría de nginx y Apache con mitigaciones comprobadas. Quedan los CVE de MySQL y MariaDB en el feed, varios usuarios en la misma máquina, otro TLD que `.test` y PHP anterior a la 7.4.
 - **Fase 3:** macOS y ARM.
 
 Roost es y seguirá siendo gratis y MIT. Más adelante habrá un **Roost Pro** de pago, aparte, para quien lo usa en su trabajo o en equipo: varias bases de datos a la vez y base de datos por sitio, PostgreSQL y Meilisearch, copias programadas, auditoría de servidores por SSH, la automatización de git (webhook, pull automático, un sitio por rama) y un feed de avisos ampliado. Nada de lo que hoy es gratis pasará al Pro, y la seguridad básica (EOL y avisos críticos) llega a todos igual.
