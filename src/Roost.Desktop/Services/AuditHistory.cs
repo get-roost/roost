@@ -112,6 +112,31 @@ public static class AuditHistory
     public static void SaveIgnored(RoostPaths paths, List<IgnoredFinding> ignored) =>
         Write(IgnoredFile(paths), JsonSerializer.Serialize(ignored, AuditHistoryJson.Default.ListIgnoredFinding));
 
+    /// <summary>
+    /// J2: tras mover la raíz, lo de Roost (sus PHP y sus bases de datos) tiene otra ruta. Se pasan el
+    /// historial y lo ignorado a la nueva; si no, la auditoría siguiente lo contaría como nuevo.
+    /// </summary>
+    public static void Rebase(RoostPaths moved, string from, string to)
+    {
+        string Moved(string path) => RootMover.Retarget(path, from, to);
+        string Key(string key)
+        {
+            var bar = key.IndexOf('|');
+            return bar < 0 ? key : key[..(bar + 1)] + Moved(key[(bar + 1)..]).ToUpperInvariant();
+        }
+
+        if (LoadLast(moved) is { } last)
+            SaveLast(moved, last with { Findings = last.Findings.Select(m => m with { Key = Key(m.Key), Path = Moved(m.Path) }).ToList() });
+        var ignored = LoadIgnored(moved);
+        if (ignored.Count > 0)
+            SaveIgnored(moved, ignored.Select(i =>
+            {
+                var version = i.Id[(i.Id.LastIndexOf('|') + 1)..];
+                var key = Key(i.Id[..i.Id.LastIndexOf('|')]);
+                return i with { Id = $"{key}|{version}", Path = Moved(i.Path) };
+            }).ToList());
+    }
+
     /// <summary>Escritura atómica (a un temporal y renombrar), como los demás JSON de <c>state/</c>.</summary>
     private static void Write(string file, string json)
     {

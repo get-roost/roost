@@ -127,6 +127,34 @@ public class AuditoriaBandejaTests
         Assert.NotEqual(AuditHistory.IgnoreIdOf(F(Laragon)), AuditHistory.IgnoreIdOf(F(LaragonFixed)));
     }
 
+    [Fact]
+    public void Historial_AlMoverLaRaiz_LoDeRoostSigueSiendoLoMismo()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "roost-historial-" + Guid.NewGuid().ToString("N"));
+        var from = Path.Combine(root, "a");
+        var to = Path.Combine(root, "b");
+        try
+        {
+            var eval = new AuditState();
+            var before = C(ComponentKind.Php, "7.4.33", "Roost", Path.Combine(from, @"bin\php\7.4.33-nts-x64\php.exe"));
+            var after = before with { ExecutablePath = Path.Combine(to, @"bin\php\7.4.33-nts-x64\php.exe") };
+            var moved = new Roost.Core.Platform.RoostPaths(to, Path.Combine(root, "cache"));
+            var finding = eval.Evaluate(before.Kind, before.Version, before.ExecutablePath, before.Source);
+            AuditHistory.SaveLast(moved, new AuditRecord(DateTime.Now, [AuditHistory.MarkOf(finding)]));
+            AuditHistory.SaveIgnored(moved, [new IgnoredFinding(AuditHistory.IgnoreIdOf(finding), "Php", "7.4.33", "Roost", before.ExecutablePath, DateTime.Now)]);
+
+            AuditHistory.Rebase(moved, from, to);
+
+            var now = eval.Evaluate(after.Kind, after.Version, after.ExecutablePath, after.Source);
+            Assert.False(AuditHistory.Compare(AuditHistory.LoadLast(moved), [now], _ => false)!.Any);   // ni nuevo ni resuelto
+            Assert.Equal(AuditHistory.IgnoreIdOf(now), AuditHistory.LoadIgnored(moved).Single().Id);    // y sigue ignorado
+        }
+        finally
+        {
+            try { Directory.Delete(root, recursive: true); } catch { /* best effort */ }
+        }
+    }
+
     // J4 y K5: los avisos de la bandeja
 
     private static StatusResponse With(params (string Name, string State, string? Error)[] services) => FakeRoost.Running with

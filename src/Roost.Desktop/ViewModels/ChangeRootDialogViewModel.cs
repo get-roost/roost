@@ -283,6 +283,7 @@ public sealed partial class ChangeRootDialogViewModel : DialogViewModel
             // El roost.toml y la caché se quedan donde estaban (con ROOST_HOME, en su carpeta).
             var moved = new RoostPaths(target, paths.Cache, Path.GetDirectoryName(Path.GetFullPath(paths.ConfigFile)));
             var sites = move ? RootMover.Rebase(moved, From, target) : 0;
+            if (move) AuditHistory.Rebase(moved, From, target);   // los PHP de Roost cambian de ruta: no son «nuevos»
             FixShims(paths, moved, move);
 
             string? retired = null;

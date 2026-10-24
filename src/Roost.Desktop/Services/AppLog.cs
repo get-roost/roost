@@ -134,6 +134,9 @@ public static partial class AppLog
     /// </summary>
     public sealed class AvaloniaSink(ILogSink? inner) : ILogSink
     {
+        // Cada aviso, una vez por sesión: uno de un binding se repite en cada redibujado.
+        private readonly HashSet<string> _seen = [];
+
         public bool IsEnabled(LogEventLevel level, string area) => level >= LogEventLevel.Warning || inner?.IsEnabled(level, area) == true;
 
         public void Log(LogEventLevel level, string area, object? source, string messageTemplate) =>
@@ -144,6 +147,8 @@ public static partial class AppLog
             if (inner?.IsEnabled(level, area) == true) inner.Log(level, area, source, messageTemplate, propertyValues);
             if (level < LogEventLevel.Warning) return;
             var text = $"Avalonia ({area}): {Fill(messageTemplate, propertyValues)}";
+            lock (_seen)
+                if (!_seen.Add(text)) return;
             if (level >= LogEventLevel.Error) Error(text);
             else Warn(text);
         }
