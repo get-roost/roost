@@ -59,9 +59,11 @@ public sealed class PhpUseCommand : AsyncCommand<PhpUseCommand.Settings>
             if (!response.Ok)
             {
                 AnsiConsole.MarkupLineInterpolated($"[red]No se pudo aplicar:[/] {response.Error}");
+                StackApply.PrintApplied(response, partial: true);
                 return 1;
             }
             AnsiConsole.MarkupLineInterpolated($"[green]Aplicado:[/] {response.Status.Url} sirve ahora PHP {response.Status.Php}.");
+            StackApply.PrintApplied(response, partial: false);
             return 0;
         }
         catch (RoostException ex)

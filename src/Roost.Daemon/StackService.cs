@@ -719,8 +719,11 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
             }
             if (renewed.Count == 0) return 0;
 
-            log($"certificados renovados: {string.Join(", ", renewed)}; se recarga {plan.WebServer} para que los cargue");
-            if (supervisor.Definitions().FirstOrDefault(d => d.Name == plan.WebServer) is { } web)
+            // Parado a mano, no se arranca: ya los leerá al arrancar.
+            var running = supervisor.Status().Any(s => s.Name == plan.WebServer && s.State == ServiceState.Running);
+            log($"certificados renovados: {string.Join(", ", renewed)}"
+                + (running ? $"; se recarga {plan.WebServer} para que los cargue" : $"; {plan.WebServer} esta parado: los cargara al arrancar"));
+            if (running && supervisor.Definitions().FirstOrDefault(d => d.Name == plan.WebServer) is { } web)
             {
                 await ReloadWebAsync(supervisor, web);
                 Remember(plan, [web]);
