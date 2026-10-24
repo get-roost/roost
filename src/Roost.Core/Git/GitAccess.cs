@@ -31,6 +31,12 @@ public sealed record GitAccess
     /// <summary>true si hay un token guardado que valga para la dirección: entonces un «pide acceso» es que lo rechazó.</summary>
     public bool HasCredential => CredentialTarget is not null;
 
+    /// <summary>
+    /// true si lo guardado no tiene la forma de un token del proveedor (<see cref="GitCredentials.LooksLikePassword"/>):
+    /// si el servidor lo rechaza, es que era la contraseña de la cuenta. Solo el sí o el no, nunca el secreto.
+    /// </summary>
+    public bool CredentialLooksLikePassword { get; init; }
+
     /// <summary>Pares <c>clave=valor</c> de configuración solo para esta invocación.</summary>
     public IReadOnlyList<(string Key, string Value)> Config { get; init; } = [];
 
@@ -124,6 +130,7 @@ public sealed class GitAccessFactory
                     Url = url,
                     Kind = kind,
                     CredentialTarget = found?.Target,
+                    CredentialLooksLikePassword = found is not null && url.Host is { } host && GitCredentials.LooksLikePassword(host, found.Secret) is not null,
                     Config = HelperCommand is { } helper ? [("credential.helper", ""), ("credential.helper", helper)] : [],
                 };
             }

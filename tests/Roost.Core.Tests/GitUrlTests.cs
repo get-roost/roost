@@ -183,4 +183,39 @@ public class GitUrlTests
         Assert.Equal(63, name.Length);
         Assert.True(Site.IsValidName(name));
     }
+
+    [Theory]
+    [InlineData("git@github.com:acme/tienda.git", "https://github.com/acme/tienda/settings/keys")]
+    [InlineData("https://gitlab.com/acme/web/tienda", "https://gitlab.com/acme/web/tienda/-/settings/repository#js-deploy-keys-settings")]
+    [InlineData("git@bitbucket.org:acme/tienda.git", "https://bitbucket.org/acme/tienda/admin/access-keys/")]
+    [InlineData("git@git.acme.es:web/tienda.git", null)]
+    [InlineData(@"C:\repos\tienda.git", null)]
+    public void DeployKeysUrl_LaPaginaDeEseRepositorio(string text, string? expected)
+    {
+        Assert.Equal(expected, GitUrl.Parse(text).DeployKeysUrl);
+    }
+
+    [Fact]
+    public void NewTokenUrl_ConElPermisoJusto()
+    {
+        var github = GitUrl.Parse("https://github.com/acme/tienda");
+        var gitlab = GitUrl.Parse("https://gitlab.com/acme/tienda");
+
+        Assert.Equal("https://github.com/settings/personal-access-tokens/new", github.NewTokenUrl);
+        Assert.Equal("Contents: Read", github.TokenPermission);
+        Assert.Contains("scopes=read_repository", gitlab.NewTokenUrl);
+        Assert.Null(GitUrl.Parse("https://git.acme.es/web/tienda").NewTokenUrl);
+        Assert.Equal("acme", github.Owner);
+    }
+
+    [Fact]
+    public void ToSshYToHttps_SoloConProveedoresConocidos()
+    {
+        Assert.Equal("git@github.com:acme/tienda.git", GitUrl.Parse("https://github.com/acme/tienda").ToSsh()!.Normalized);
+        Assert.Equal("https://gitlab.com/acme/web/tienda.git", GitUrl.Parse("git@gitlab.com:acme/web/tienda.git").ToHttps()!.Normalized);
+        Assert.Null(GitUrl.Parse("https://git.acme.es/web/tienda").ToSsh());
+        Assert.Null(GitUrl.Parse("ssh://git@github.com:2222/acme/tienda.git").ToHttps());   // con su puerto, no se adivina
+        var ssh = GitUrl.Parse("git@github.com:acme/tienda.git");
+        Assert.Same(ssh, ssh.ToSsh());
+    }
 }

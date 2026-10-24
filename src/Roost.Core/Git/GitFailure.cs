@@ -100,13 +100,16 @@ public sealed partial record GitFailure(GitFailureKind Kind, string Message, str
 
         if (access is { HasCredential: true } && url?.Scheme == GitScheme.Https)
         {
-            if (ContainsAny(stderr, "Support for password authentication was removed", "Password authentication is not supported", "stopped supporting account passwords", "App passwords are no longer"))
-                return new(GitFailureKind.PasswordNotAccepted, $"{url.ProviderName} ya no acepta la contrasena de la cuenta: hace falta un token" + (url.NewTokenUrl is { } create ? $". Crealo en {create} (permiso {url.TokenPermission})." : "."), detail);
-
             if (ContainsAny(stderr, "SAML SSO", "SAML enforcement", "returned error: 403", "Permission to ", "is not authorized to access this resource"))
                 return new(GitFailureKind.TokenForbidden, $"El token existe pero la organizacion {url.Owner} exige autorizarlo (SSO) o no tiene el permiso de contenido ({url.TokenPermission}). Abrelo en {url.ProviderName} y autorizalo.", detail);
 
-            if (ContainsAny(stderr, "terminal prompts disabled", "could not read Username", "could not read Password", "Authentication failed", "HTTP Basic: Access denied", "Invalid username or token", "Invalid username or password", "Invalid credentials", "Repository not found", "The project you were looking for could not be found", "returned error: 401", "Bad credentials"))
+            var rejected = ContainsAny(stderr, "terminal prompts disabled", "could not read Username", "could not read Password", "Authentication failed", "HTTP Basic: Access denied", "Invalid username or token", "Invalid username or password", "Invalid credentials", "Repository not found", "The project you were looking for could not be found", "returned error: 401", "Bad credentials");
+            // GitHub contesta «Password authentication is not supported» a cualquier credencial mala,
+            // también a un token caducado: que era una contraseña se sabe por la forma de lo guardado.
+            if ((rejected && access.CredentialLooksLikePassword) || ContainsAny(stderr, "Support for password authentication was removed", "stopped supporting account passwords", "App passwords are no longer"))
+                return new(GitFailureKind.PasswordNotAccepted, $"{url.ProviderName} ya no acepta la contrasena de la cuenta: hace falta un token" + (url.NewTokenUrl is { } create ? $". Crealo en {create} (permiso {url.TokenPermission})." : "."), detail);
+
+            if (rejected)
                 return new(GitFailureKind.TokenRejected, $"{url.ProviderName} no acepta ese token. Puede haber caducado, ser de otra cuenta o no tener permiso en {label} (necesita {url.TokenPermission}). Crea otro y sustituyelo.", detail);
         }
 

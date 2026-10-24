@@ -107,7 +107,8 @@ public class GitFailureTests
 
     [Theory]
     [InlineData("git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n", GitFailureKind.KeyRejected)]
-    [InlineData("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\nHost key verification failed.\nfatal: Could not read from remote repository.\n", GitFailureKind.HostKeyUnverified)]
+    [InlineData("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\nHost key verification failed.\nfatal: Could not read from remote repository.\n", GitFailureKind.HostKeyChanged)]
+    [InlineData("No ED25519 host key is known for git.acme.es and you have requested strict checking.\nHost key verification failed.\nfatal: Could not read from remote repository.\n", GitFailureKind.HostKeyUnverified)]
     [InlineData("fatal: unable to access 'https://git.acme.es/a/b.git/': SSL certificate problem: unable to get local issuer certificate\n", GitFailureKind.TlsError)]
     [InlineData("error: RPC failed; curl 18 transfer closed with outstanding read data remaining\nfatal: early EOF\nfatal: fetch-pack: invalid index-pack output\n", GitFailureKind.NetworkInterrupted)]
     [InlineData("fatal: detected dubious ownership in repository at 'C:/roost/www/tienda'\n", GitFailureKind.DubiousOwnership)]
@@ -142,5 +143,141 @@ public class GitFailureTests
         Assert.IsAssignableFrom<RoostException>(ex);
         Assert.Equal(GitFailureKind.NotARepository, ex.Failure.Kind);
         Assert.Equal(ex.Failure.Message, ex.Message);
+    }
+
+    // --- Con el acceso que se intento (Git-2): token, clave de Roost, «Mi clave SSH», huellas. ---
+
+    private static GitAccess WithToken(GitUrl url) => new() { Url = url, Kind = Sites.SiteGit.AccessToken, CredentialTarget = "Roost:git:https://github.com/acme/tienda" };
+
+    private static readonly GitUrl GitHubSsh = GitUrl.Parse("git@github.com:acme/tienda.git");
+
+    [Theory]
+    // Lo que contesta GitHub hoy a un token caducado (y a una contrasena): no basta para decir que era una contrasena.
+    [InlineData("remote: Invalid username or token. Password authentication is not supported for Git operations.\nfatal: Authentication failed for 'https://github.com/acme/tienda.git/'\n", GitFailureKind.TokenRejected)]
+    [InlineData("remote: Support for password authentication was removed on August 13, 2021.\nfatal: Authentication failed for 'https://github.com/acme/tienda.git/'\n", GitFailureKind.PasswordNotAccepted)]
+    [InlineData("fatal: Authentication failed for 'https://github.com/acme/tienda.git/'\n", GitFailureKind.TokenRejected)]
+    [InlineData("remote: Repository not found.\nfatal: repository 'https://github.com/acme/tienda.git/' not found\n", GitFailureKind.TokenRejected)]
+    [InlineData("remote: The 'acme' organization has enabled or enforced SAML SSO.\nfatal: unable to access 'https://github.com/acme/tienda.git/': The requested URL returned error: 403\n", GitFailureKind.TokenForbidden)]
+    [InlineData("fatal: unable to access 'https://github.com/acme/tienda.git/': The requested URL returned error: 403\n", GitFailureKind.TokenForbidden)]
+    public void ConUnTokenGuardado_PideAccesoEsQueLoRechazo(string stderr, GitFailureKind kind)
+    {
+        var failure = GitFailure.Classify(128, stderr, GitHub, access: WithToken(GitHub));
+
+        Assert.Equal(kind, failure.Kind);
+        // Sin token, lo mismo es «pide acceso»: lo distingue el llamador, que sabe si habia credencial.
+        Assert.Equal(GitFailureKind.AuthRequired, GitFailure.Classify(128, stderr, GitHub).Kind);
+    }
+
+    [Fact]
+    public void TokenRechazado_ElTextoDelDiseno()
+    {
+        var failure = GitFailure.Classify(128, "fatal: Authentication failed for 'https://github.com/acme/tienda.git/'\n", GitHub, access: WithToken(GitHub));
+
+        Assert.Equal("GitHub no acepta ese token. Puede haber caducado, ser de otra cuenta o no tener permiso en acme/tienda (necesita Contents: Read). Crea otro y sustituyelo.", failure.Message);
+    }
+
+    [Fact]
+    public void TokenConSso_ElTextoDelDiseno()
+    {
+        var failure = GitFailure.Classify(128, "fatal: unable to access 'x': The requested URL returned error: 403\n", GitHub, access: WithToken(GitHub));
+
+        Assert.Equal("El token existe pero la organizacion acme exige autorizarlo (SSO) o no tiene el permiso de contenido (Contents: Read). Abrelo en GitHub y autorizalo.", failure.Message);
+    }
+
+    [Fact]
+    public void ContrasenaEnVezDeToken_ElTextoDelDiseno()
+    {
+        var failure = GitFailure.Classify(128, "remote: Support for password authentication was removed on August 13, 2021.\n", GitHub, access: WithToken(GitHub));
+
+        Assert.Equal("GitHub ya no acepta la contrasena de la cuenta: hace falta un token. Crealo en https://github.com/settings/personal-access-tokens/new (permiso Contents: Read).", failure.Message);
+    }
+
+    [Fact]
+    public void LoGuardadoNoTieneFormaDeToken_ElRechazoEsPorContrasena()
+    {
+        var access = WithToken(GitHub) with { CredentialLooksLikePassword = true };
+
+        var failure = GitFailure.Classify(128, "remote: Invalid username or token. Password authentication is not supported for Git operations.\nfatal: Authentication failed for 'https://github.com/acme/tienda.git/'\n", GitHub, access: access);
+
+        Assert.Equal(GitFailureKind.PasswordNotAccepted, failure.Kind);
+    }
+
+    [Fact]
+    public void ClaveDeRoostNoAutorizada_NombraLaClaveYLasDeployKeys()
+    {
+        var access = new GitAccess { Url = GitHubSsh, Kind = Sites.SiteGit.AccessKey, KeyName = "tienda" };
+
+        var failure = GitFailure.Classify(128, "git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.\n", null, access: access);
+
+        Assert.Equal(GitFailureKind.KeyRejected, failure.Kind);
+        Assert.Equal("github.com no acepta la clave de tienda. Asegurate de haber pegado la clave publica en las deploy keys de acme/tienda (y en ese repositorio, no en otro: GitHub no permite reutilizarlas). https://github.com/acme/tienda/settings/keys", failure.Message);
+    }
+
+    [Fact]
+    public void ClaveDeRoostDeOtroRepositorio_EntraPeroNoLoVe()
+    {
+        var access = new GitAccess { Url = GitHubSsh, Kind = Sites.SiteGit.AccessKey, KeyName = "tienda" };
+
+        var failure = GitFailure.Classify(128, "ERROR: Repository not found.\nfatal: Could not read from remote repository.\n", GitHubSsh, access: access);
+
+        Assert.Equal(GitFailureKind.KeyRejected, failure.Kind);
+        Assert.Contains("deploy keys de otro repositorio", failure.Message);
+    }
+
+    [Fact]
+    public void MiClaveNoAutorizada_RemiteASuTerminal()
+    {
+        var failure = GitFailure.Classify(128, "git@github.com: Permission denied (publickey).\n", GitHubSsh, access: new GitAccess { Kind = Sites.SiteGit.AccessOwn });
+
+        Assert.Equal("github.com no acepta ninguna de tus claves SSH (las de ~/.ssh y las del ssh-agent de Windows). Pruebalo en tu terminal: ssh -T git@github.com", failure.Message);
+    }
+
+    [Fact]
+    public void ClaveConPermisosDeMas_KeyUnusable()
+    {
+        const string stderr = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n@         WARNING: UNPROTECTED PRIVATE KEY FILE!          @\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\nPermissions for 'C:/roost/state/git/keys/tienda' are too open.\nLoad key \"C:/roost/state/git/keys/tienda\": bad permissions\ngit@github.com: Permission denied (publickey).\n";
+
+        Assert.Equal(GitFailureKind.KeyUnusable, GitFailure.Classify(128, stderr, GitHubSsh, access: new GitAccess { Kind = Sites.SiteGit.AccessKey, KeyName = "tienda" }).Kind);
+    }
+
+    [Fact]
+    public void ServidorDesconocido_DiceComoAceptarlo()
+    {
+        var failure = GitFailure.Classify(128, "No ED25519 host key is known for [git.acme.es]:2222 and you have requested strict checking.\nHost key verification failed.\n", GitUrl.Parse("ssh://git@git.acme.es:2222/web/tienda.git"));
+
+        Assert.Equal(GitFailureKind.HostKeyUnverified, failure.Kind);
+        Assert.EndsWith("roost git hosts add [git.acme.es]:2222", failure.Message);
+    }
+
+    [Fact]
+    public void HuellaCambiada_DiceLaDeAntesYLaDeAhora_YQueNoSeHaConectado()
+    {
+        // El aviso de OpenSSH, con la huella que presenta el servidor.
+        const string stderr = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n"
+            + "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\nSomeone could be eavesdropping on you right now (man-in-the-middle attack)!\nIt is also possible that a host key has just been changed.\n"
+            + "The fingerprint for the ED25519 key sent by the remote host is\nSHA256:9kLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwXyZ.\nPlease contact your system administrator.\n"
+            + "Add correct host key in C:/roost/state/git/known_hosts to get rid of this message.\nOffending ED25519 key in C:/roost/state/git/known_hosts:5\n"
+            + "Host key for git.acme.es has changed and you have requested strict checking.\nHost key verification failed.\nfatal: Could not read from remote repository.\n";
+        var stored = KnownHosts.ParseLine("git.acme.es ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL+pitVcgStKA+2SdBhY6HXfTF8cs0wddhi72/OCTOP6 roost:aceptada-2026-10-12")!;
+        var url = GitUrl.Parse("git@git.acme.es:web/tienda.git");
+        var access = new GitAccess { Url = url, Kind = Sites.SiteGit.AccessKey, KeyName = "tienda", HostKeys = [stored] };
+
+        var failure = GitFailure.Classify(128, stderr, url, access: access);
+
+        Assert.Equal(GitFailureKind.HostKeyChanged, failure.Kind);
+        Assert.Equal($"La huella de git.acme.es ha cambiado respecto a la que Roost tenia guardada (ED25519 {stored.Key.Fingerprint} -> SHA256:9kLmNoPqRsTuVwXyZaBcDeFgHiJkLmNoPqRsTuVwXyZ). "
+            + "Puede ser que hayan cambiado la clave del servidor o que alguien se este haciendo pasar por el. No se ha conectado. "
+            + "Si quien lo administra confirma el cambio, olvida la huella guardada (roost git hosts remove git.acme.es) y vuelve a comprobar.", failure.Message);
+    }
+
+    [Fact]
+    public void HuellaCambiadaDeUnServidorDeSerie_RecuerdaActualizarRoost()
+    {
+        var access = new GitAccess { Url = GitHubSsh, Kind = Sites.SiteGit.AccessKey, KeyName = "tienda", PublishedHost = KnownHosts.BuiltIn[0] };
+
+        var failure = GitFailure.Classify(128, "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!\nHost key verification failed.\n", null, access: access);
+
+        Assert.Equal(GitFailureKind.HostKeyChanged, failure.Kind);
+        Assert.EndsWith("Para github.com, Roost trae la que publica GitHub: si la ha cambiado, actualiza Roost.", failure.Message);
     }
 }
