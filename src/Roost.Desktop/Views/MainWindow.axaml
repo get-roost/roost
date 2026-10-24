@@ -65,6 +65,8 @@
     <!-- Servicios (oleada 3) -->
     <DataTemplate DataType="vm:RedisViewModel"><v:RedisView /></DataTemplate>
     <DataTemplate DataType="vm:MailViewModel"><v:MailView /></DataTemplate>
+    <!-- Pasos y plantillas -->
+    <DataTemplate DataType="vm:DeployStepsDialogViewModel"><v:DeployStepsDialogView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="40,*,28">

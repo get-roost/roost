@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Roost.Core;
 using Roost.Core.Audit;
 using Roost.Core.Config;
+using Roost.Core.Deploy;
 using Roost.Core.Install;
 using Roost.Core.Models;
 using Roost.Core.Scanning;
@@ -15,11 +16,25 @@ namespace Roost.Desktop.ViewModels;
 /// Lo que pide el diálogo Nuevo sitio. <c>Root</c> es la raíz web relativa a la carpeta
 /// (<c>.</c> = la carpeta misma); <c>Php</c> null = el global; <c>Database</c> es la base de datos
 /// del sitio (null = ninguna), y <c>CreateDatabase</c> dice si hay que crearla o ya existe.
+/// <c>Template</c> es la plantilla (null = la carpeta de siempre) y <c>Webapp</c>, en Symfony, si va con webapp.
 /// </summary>
-public sealed record NewSiteRequest(string Name, string Folder, string Root, string? Php, string? Database, bool CreateDatabase = false);
+public sealed record NewSiteRequest(string Name, string Folder, string Root, string? Php, string? Database, bool CreateDatabase = false,
+    ProjectTemplate? Template = null, bool Webapp = false);
 
-/// <summary>Una plantilla de proyecto (de momento solo «Vacía»; el resto llega con <c>roost new</c>).</summary>
-public sealed record SiteTemplate(string Label, bool Available, string Hint);
+/// <summary>Una plantilla de Nuevo sitio: la carpeta de siempre, Laravel, WordPress, Symfony (y «Desde git…», que llega aparte).</summary>
+public sealed partial class SiteTemplate(string label, bool available, string hint, TemplateInfo? project = null) : ObservableObject
+{
+    public string Label { get; } = label;
+
+    public bool Available { get; } = available;
+
+    public string Hint { get; } = hint;
+
+    /// <summary>La plantilla de proyecto; null = la carpeta de siempre (o una que aún no está).</summary>
+    public TemplateInfo? Project { get; } = project;
+
+    [ObservableProperty] public partial bool IsSelected { get; set; }
+}
 
 /// <summary>Qué hacer con la base de datos del sitio nuevo.</summary>
 public enum NewSiteDb
@@ -42,7 +57,9 @@ public sealed record PhpInstallChoice(PhpBuild Build, string Label);
 /// toca al proyecto que se detecta: Laravel, Symfony, WordPress, o public/ si la tiene), PHP
 /// (recomendado por el composer.json si lo hay, e «Instalar otra versión» sin perder lo
 /// tecleado), base de datos (crear una, usar una que existe o ninguna) y plantilla, con lo que hará
-/// Roost al crearlo. Devuelve un <see cref="NewSiteRequest"/>.
+/// Roost al crearlo. Con una plantilla (Laravel, WordPress, Symfony; <see cref="ProjectTemplates"/>)
+/// la carpeta tiene que ser nueva o estar vacía, la raíz web la pone ella y solo salen los PHP que
+/// valen para su versión actual. Devuelve un <see cref="NewSiteRequest"/>.
 /// </summary>
 public sealed partial class NewSiteDialogViewModel : DialogViewModel
 {
@@ -78,6 +95,7 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
         try { _db = planner.ResolveDb(config, new DbInstaller(paths).ListInstalled()); } catch (RoostException) { }
         UsesLocalDns = config.UsesLocalDns;
         Template = Templates[0];
+        Templates[0].IsSelected = true;
         DbMode = _db is not null ? NewSiteDb.Create : NewSiteDb.None;
         Update();
         _ = LoadExistingDatabasesAsync();
@@ -85,14 +103,73 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
 
     public override bool Wide => true;
 
+    // Pasos y plantillas: las plantillas de verdad (C12). «Desde git…» llega con Git-app.
     public IReadOnlyList<SiteTemplate> Templates { get; } =
     [
-        new("Vacía", true, "Una carpeta con un index.php. Pon tu proyecto dentro (o elige una carpeta que ya lo tenga)."),
-        new("Laravel", false, "Próximamente: composer create-project laravel/laravel."),
-        new("WordPress", false, "Próximamente: la última versión con su base de datos y su wp-config.php."),
-        new("Symfony", false, "Próximamente: symfony/skeleton."),
+        new("Carpeta (lo de siempre)", true, "Una carpeta con un index.php, o la tuya con tu proyecto dentro: se sirve tal cual."),
+        new("Laravel", true, "composer create-project laravel/laravel: Laravel 13, que pide PHP 8.3 o más nuevo. Después, el .env con su base de datos y su URL, las migraciones y storage:link.", ProjectTemplates.Laravel),
+        new("WordPress", true, "La última versión de wordpress.org, comprobada con su SHA-1, con su base de datos y un wp-config.php con claves nuevas. Luego, su instalador en el navegador.", ProjectTemplates.WordPress),
+        new("Symfony", true, "composer create-project symfony/skeleton: Symfony 8.1 con PHP 8.4 o más nuevo (la 7.4 LTS con 8.2 y 8.3), con su .env.local. Con «webapp», también Twig, Doctrine y formularios.", ProjectTemplates.Symfony),
         new("Desde git…", false, "Próximamente: clonar un repositorio."),
     ];
+
+    /// <summary>La plantilla de proyecto elegida; null = la carpeta de siempre.</summary>
+    public TemplateInfo? Project => Template.Project;
+
+    public bool IsProjectTemplate => Template.Project is not null;
+
+    public bool IsFolderTemplate => Template.Project is null;
+
+    public bool IsSymfony => Template.Project?.Template == ProjectTemplate.Symfony;
+
+    /// <summary>Symfony: también <c>composer require webapp</c> (Twig, Doctrine, formularios, seguridad…).</summary>
+    [ObservableProperty] public partial bool Webapp { get; set; }
+
+    /// <summary>La carpeta vale para lo elegido (una plantilla necesita una nueva o vacía).</summary>
+    [ObservableProperty] public partial bool FolderValid { get; private set; } = true;
+
+    /// <summary>Hay un PHP que vale para la plantilla (con la carpeta de siempre, siempre).</summary>
+    [ObservableProperty] public partial bool PhpValid { get; private set; } = true;
+
+    /// <summary>Con una plantilla: qué PHP pide; vacío con la carpeta de siempre.</summary>
+    [ObservableProperty] public partial string PhpHint { get; private set; } = "";
+
+    /// <summary>Con una plantilla: lo que hace Roost después de crear el proyecto.</summary>
+    [ObservableProperty] public partial string TemplateStep { get; private set; } = "";
+
+    public bool HasPhpHint => PhpHint.Length > 0;
+
+    /// <summary>La raíz web se puede tocar (con una plantilla la pone ella).</summary>
+    public bool RootEditable => IsFolderTemplate;
+
+    public bool CanBrowseRoot => IsFolderTemplate && FolderExists;
+
+    partial void OnTemplateChanged(SiteTemplate value)
+    {
+        foreach (var t in Templates) t.IsSelected = t == value;
+        // La base de datos que pide cada plantilla (si hay una global): Laravel y WordPress sí; Symfony, con webapp.
+        if (value.Project is { } project && HasDb)
+            DbMode = project.Template == ProjectTemplate.Symfony && !Webapp ? NewSiteDb.None : NewSiteDb.Create;
+        _rootTouched = false;
+        OnPropertyChanged(nameof(Project));
+        OnPropertyChanged(nameof(IsProjectTemplate));
+        OnPropertyChanged(nameof(IsFolderTemplate));
+        OnPropertyChanged(nameof(IsSymfony));
+        OnPropertyChanged(nameof(RootEditable));
+        OnPropertyChanged(nameof(CanBrowseRoot));
+        Update();
+    }
+
+    partial void OnWebappChanged(bool value)
+    {
+        if (IsSymfony && HasDb) DbMode = value ? NewSiteDb.Create : NewSiteDb.None;
+        Update();
+    }
+
+    partial void OnFolderValidChanged(bool value) => OnPropertyChanged(nameof(CanCreate));
+    partial void OnPhpValidChanged(bool value) => OnPropertyChanged(nameof(CanCreate));
+    partial void OnPhpHintChanged(string value) => OnPropertyChanged(nameof(HasPhpHint));
+    partial void OnFolderExistsChanged(bool value) => OnPropertyChanged(nameof(CanBrowseRoot));
 
     [ObservableProperty] public partial string Name { get; set; } = "";
     [ObservableProperty] public partial string Folder { get; set; } = "";
@@ -120,8 +197,8 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
 
     public string Host => NameValid ? $"{Name.Trim().ToLowerInvariant()}.test" : "<nombre>.test";
 
-    /// <summary>«Crear y abrir» solo con un nombre que vale, una raíz web que existe y una base de datos que vale.</summary>
-    public bool CanCreate => NameValid && RootValid && DbValid;
+    /// <summary>«Crear y abrir» solo con un nombre que vale, una raíz web que existe y una base de datos que vale (y, con una plantilla, una carpeta nueva y un PHP que valga).</summary>
+    public bool CanCreate => NameValid && RootValid && DbValid && FolderValid && PhpValid;
 
     /// <summary>Con el DNS local, el nombre ya resuelve: no hay que tocar el hosts ni pedir permiso.</summary>
     public bool UsesLocalDns { get; private set; }
@@ -183,6 +260,12 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
             : !NameValid ? "Solo minúsculas, números y guiones (sin empezar ni acabar en guion)."
             : _sites.Any(s => s.Name == name) ? $"Ya existe {name}.test: se actualizará."
             : $"Se servirá en https://{name}.test";
+        // Una plantilla crea un sitio nuevo: sobre uno que ya existe, no.
+        if (Template.Project is not null && NameValid && _sites.Any(s => s.Name == name))
+        {
+            NameValid = false;
+            NameHint = $"Ya existe {name}.test: una plantilla crea un sitio nuevo; elige otro nombre.";
+        }
 
         if (!_folderTouched)
         {
@@ -194,6 +277,28 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
         var path = FolderPath;
         var exists = path is not null && Directory.Exists(path);
         FolderExists = exists;
+        if (Template.Project is { } template)
+            UpdateForTemplate(template, path, exists);
+        else
+            UpdateForFolder(path, exists);
+        OnPropertyChanged(nameof(Host));
+
+        // El nombre de la base de datos nueva sigue al del sitio hasta que se toca.
+        if (!_dbNameTouched)
+        {
+            _settingDbName = true;
+            DbName = name.Length == 0 ? "" : DbAdmin.NameFor(name);
+            _settingDbName = false;
+        }
+        UpdateDb();
+    }
+
+    /// <summary>La carpeta de siempre: se detecta lo que haya dentro y se sirve tal cual.</summary>
+    private void UpdateForFolder(string? path, bool exists)
+    {
+        FolderValid = true;
+        PhpValid = true;
+        PhpHint = "";
         Detect(exists ? path : null);
         var project = _project;
 
@@ -213,16 +318,73 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
         StepFolder = !exists ? $"Crea {Folder} con un index.php" : $"Usa {Folder}{(root is null ? "" : $" (raíz web: {root}/)")}";
 
         BuildPhpOptions(exists ? Recommended() : null);
-        OnPropertyChanged(nameof(Host));
+    }
 
-        // El nombre de la base de datos nueva sigue al del sitio hasta que se toca.
-        if (!_dbNameTouched)
+    /// <summary>
+    /// Una plantilla: la carpeta tiene que ser nueva (o estar vacía), la raíz web la pone ella, y solo
+    /// salen los PHP que valen para su versión actual (Laravel 13 pide 8.3).
+    /// </summary>
+    private void UpdateForTemplate(TemplateInfo template, string? path, bool exists)
+    {
+        var empty = exists && !Directory.EnumerateFileSystemEntries(path!).Any();
+        FolderValid = path is not null && (!exists || empty) && !File.Exists(path);
+        ProjectLabel = "";
+        NeedsComposerInstall = false;
+        FolderHint = path is null ? "Escribe la carpeta del proyecto (o elígela)."
+            : File.Exists(path) ? "Es un fichero, no una carpeta."
+            : !exists ? $"No existe: Roost crea aquí el proyecto {template.Name}."
+            : empty ? $"Existe y está vacía: Roost crea aquí el proyecto {template.Name}."
+            : "Ya existe y no está vacía: una plantilla necesita una carpeta nueva (o vacía). Elige otra, o usa «Carpeta» para servir ese proyecto.";
+
+        // La raíz web la pone la plantilla.
+        var webRoot = template.Expected(Webapp).WebRoot ?? "";
+        _suggestedRoot = webRoot;
+        if (Root != webRoot) Root = webRoot;
+        RootValid = true;
+        RootHint = webRoot.Length == 0 ? "WordPress se sirve desde su carpeta." : $"La pone la plantilla: {webRoot}/ (el resto del proyecto queda fuera de la web).";
+
+        StepFolder = template.Template switch
         {
-            _settingDbName = true;
-            DbName = name.Length == 0 ? "" : DbAdmin.NameFor(name);
-            _settingDbName = false;
+            ProjectTemplate.Laravel => $"Crea el proyecto en {Folder} con composer create-project laravel/laravel ({template.Version})",
+            ProjectTemplate.Symfony => $"Crea el proyecto en {Folder} con composer create-project symfony/skeleton{(Webapp ? " y composer require webapp" : "")}",
+            _ => $"Descarga WordPress en {Folder}: la última de wordpress.org, comprobada con su SHA-1",
+        };
+        BuildTemplatePhpOptions(template);
+    }
+
+    /// <summary>Los PHP que valen para la plantilla: el global si llega, y los instalados que llegan.</summary>
+    private void BuildTemplatePhpOptions(TemplateInfo template)
+    {
+        var previous = Php?.Spec;
+        var options = new List<PhpOption>();
+        if (_global?.Version is { } global && global >= template.MinPhp) options.Add(new PhpOption($"Global (ahora {global})", null));
+        foreach (var php in ProjectTemplates.SuitablePhp(template, _installed))
+        {
+            var eol = php.Version is { } v && _main.Audit.Evaluate(ComponentKind.Php, v).Verdict == AuditVerdict.Eol;
+            options.Add(new PhpOption($"{php.Version}{(eol ? " (EOL)" : "")}", HomeViewModel.Branch(php.Name)));
         }
-        UpdateDb();
+        PhpOptions = options;
+        Php = options.FirstOrDefault(o => o.Spec == previous) ?? options.FirstOrDefault();
+        PhpValid = options.Count > 0;
+        var min = $"{template.MinPhp.Major}.{template.MinPhp.Minor}";
+        PhpHint = options.Count == 0
+            ? $"{template.Name} pide PHP {min} o más nuevo y no tienes ninguno: instálalo con «Instalar otra versión…»."
+            : template.Template == ProjectTemplate.Symfony
+                ? $"Symfony pide PHP {min} o más nuevo: con 8.4 o más sale la 8.1; con 8.2 y 8.3, la 7.4 (LTS)."
+                : $"{template.Version.Split(';')[0]} pide PHP {min} o más nuevo: solo salen los que valen.";
+    }
+
+    /// <summary>Lo que hace Roost tras crear el proyecto, con la base de datos elegida.</summary>
+    private void UpdateTemplateStep()
+    {
+        var db = ChosenDb;
+        TemplateStep = Template.Project?.Template switch
+        {
+            ProjectTemplate.Laravel => $"Deja el .env con {(db is null ? "" : $"la base de datos {db} y ")}https://{Host}, y hace migrate y storage:link, con la salida en vivo",
+            ProjectTemplate.Symfony => $"Deja el .env.local con {(Webapp && db is not null ? $"DATABASE_URL a {db} y " : "")}la URL del sitio{(Webapp ? ", y hace las migraciones" : "")}, con la salida en vivo",
+            ProjectTemplate.WordPress => "Escribe el wp-config.php con la base de datos y claves nuevas (y un mu-plugin para los certificados .test); el instalador de WordPress sale en el navegador",
+            _ => "",
+        };
     }
 
     /// <summary>Lee la carpeta (tipo de proyecto y composer.json) solo si ha cambiado.</summary>
@@ -363,7 +525,13 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
             NewSiteDb.Create => (true, $"Se crea en {DbLabel} (utf8mb4) al terminar."),
             _ => (true, ExistingDbs.Count == 0 ? $"No se ha podido leer la lista de {DbLabel} (¿está parada?): escribe su nombre." : $"El sitio usará {name}; no se crea nada."),
         };
+        // WordPress sin base de datos no se puede dejar listo (su wp-config.php la necesita).
+        if (Template.Project?.Template == ProjectTemplate.WordPress && DbMode == NewSiteDb.None)
+            (DbValid, DbHint) = (false, _db is null
+                ? "WordPress necesita una base de datos y no hay ninguna global: instálala en Bases de datos."
+                : "WordPress necesita una base de datos: crea una o usa una que ya exista.");
         OnPropertyChanged(nameof(ChosenDb));
+        UpdateTemplateStep();
     }
 
     /// <summary>Las bases de datos que ya hay, si la global está en marcha (fuera del hilo de la UI; sin ella, se teclea).</summary>
@@ -408,8 +576,10 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
         {
             var catalog = await WindowsPhpCatalog.FetchAsync(_main.App.Http);
             var installed = _installed.Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            // Con una plantilla, solo las que valen para ella.
+            var min = Template.Project?.MinPhp;
             InstallChoices = catalog
-                .Where(b => !b.ThreadSafe && b.Architecture == "x64" && !installed.Contains(b.InstallName))
+                .Where(b => !b.ThreadSafe && b.Architecture == "x64" && !installed.Contains(b.InstallName) && (min is null || b.Version >= min.Value))
                 .GroupBy(b => b.Branch)
                 .Select(g => g.First())
                 .OrderByDescending(b => b.Version)
@@ -436,7 +606,8 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
 
         InstallChoices = InstallChoices.Where(c => c != choice).ToList();
         ShowInstallChoices = false;
-        BuildPhpOptions(FolderExists ? Recommended() : null);
+        if (Template.Project is { } template) BuildTemplatePhpOptions(template);
+        else BuildPhpOptions(FolderExists ? Recommended() : null);
         Php = PhpOptions.FirstOrDefault(o => o.Spec == choice.Build.Branch && !o.Label.Contains("recomendada", StringComparison.Ordinal)) ?? Php;
     }
 
@@ -470,7 +641,9 @@ public sealed partial class NewSiteDialogViewModel : DialogViewModel
         // usuario la ha borrado a propósito es porque quiere la carpeta.
         var root = Root.Trim();
         var database = HasDb ? ChosenDb : null;
+        var template = Template.Project?.Template;
         Close(new NewSiteRequest(Name.Trim().ToLowerInvariant(), Folder, root.Length == 0 ? "." : root, Php?.Spec, database,
-            CreateDatabase: database is not null && DbMode == NewSiteDb.Create));
+            CreateDatabase: database is not null && DbMode == NewSiteDb.Create,
+            Template: template, Webapp: template == ProjectTemplate.Symfony && Webapp));
     }
 }

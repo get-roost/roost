@@ -1,0 +1,105 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.DeployStepsDialogView"
+             x:DataType="vm:DeployStepsDialogViewModel">
+  <Border Classes="modal wide" Width="720">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8">
+            <Button Content="Omitir" Command="{Binding SkipCommand}" IsVisible="{Binding ShowOffer}"
+                    ToolTip.Tip="No hace nada: el sitio se sirve tal cual (puedes hacerlo luego desde su panel)" />
+            <Button Content="Copiar la salida" Command="{Binding CopyCommand}" IsVisible="{Binding ShowOutput}" IsEnabled="{Binding CanCopy}" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancelar" Command="{Binding CancelCommand}" IsVisible="{Binding Running}"
+                    ToolTip.Tip="Para el paso en marcha y todo lo que haya lanzado" />
+            <Button Classes="danger" Content="Deshacer y cerrar" Command="{Binding UndoCommand}" IsVisible="{Binding ShowUndo}"
+                    ToolTip.Tip="Quita lo que Roost ha creado en este intento: la carpeta nueva, el sitio y su base de datos" />
+            <Button Classes="primary" Content="Reintentar desde aquí" Command="{Binding RetryCommand}" IsVisible="{Binding ShowRetry}" />
+            <Button Classes="primary" Content="{Binding RunLabel}" Command="{Binding RunCommand}" IsVisible="{Binding ShowOffer}" IsEnabled="{Binding CanRun}" />
+            <Button Content="{Binding CloseLabel}" Classes.primary="{Binding !ShowRetry}" Command="{Binding FinishCommand}" IsVisible="{Binding ShowClose}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <ScrollViewer MaxHeight="640">
+        <StackPanel Spacing="12" Margin="20,18,20,18">
+          <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Border Classes="badge-ic" Classes.bad="{Binding Stopped}">
+              <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+                <ctl:Icon Data="{StaticResource IcCheck}" Size="18" StrokeThickness="2.2" IsVisible="{Binding IsAfterClone}" />
+                <ctl:Icon Data="{StaticResource IcPackage}" Size="18" IsVisible="{Binding !IsAfterClone}" />
+              </Panel>
+            </Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+              <TextBlock Classes="h3" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="faint" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Subtitle}" />
+            </StackPanel>
+            <Button Grid.Column="2" Classes="icon ghost" VerticalAlignment="Top" Command="{Binding DismissCommand}" IsVisible="{Binding !Running}"
+                    AutomationProperties.Name="Cerrar">
+              <ctl:Icon Data="{StaticResource IcClose}" Size="15" />
+            </Button>
+          </Grid>
+
+          <TextBlock Classes="small" Text="{Binding PhpLine}" IsVisible="{Binding HasPhpLine}" TextWrapping="Wrap"
+                     Foreground="{DynamicResource MutedBrush}" />
+
+          <StackPanel Spacing="8" IsVisible="{Binding HasSteps}">
+            <TextBlock Classes="lbl" Text="{Binding Intro}" />
+            <ItemsControl ItemsSource="{Binding Rows}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><StackPanel Spacing="6" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DeployStepRow">
+                  <Grid ColumnDefinitions="Auto,230,*,Auto" ColumnSpacing="10" Opacity="{Binding RowOpacity}">
+                    <CheckBox IsChecked="{Binding IsChecked}" IsEnabled="{Binding Editable}" VerticalAlignment="Top" Margin="0,-2,0,0"
+                              AutomationProperties.Name="{Binding Label}" />
+                    <TextBlock Grid.Column="1" Text="{Binding Label}" TextWrapping="Wrap" VerticalAlignment="Top"
+                               Classes="small" Classes.mono="{Binding IsCommand}" FontWeight="SemiBold" />
+                    <TextBlock Grid.Column="2" Classes="small" Text="{Binding Hint}" TextWrapping="Wrap" VerticalAlignment="Top"
+                               Foreground="{DynamicResource MutedBrush}" />
+                    <ctl:Chip Grid.Column="3" Text="{Binding StateText}" Tone="{Binding StateTone}" IsVisible="{Binding ShowState}" VerticalAlignment="Top" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+
+          <ctl:Note Tone="{Binding ResultTone}" IsVisible="{Binding HasResult}">
+            <StackPanel Spacing="8">
+              <TextBlock Text="{Binding ResultText}" TextWrapping="Wrap" />
+              <SelectableTextBlock Classes="mono" FontSize="11.5" Text="{Binding FailureTail}" TextWrapping="Wrap" IsVisible="{Binding HasFailureTail}" />
+            </StackPanel>
+          </ctl:Note>
+          <ctl:Note Tone="Warn" IsVisible="{Binding ShowNote}" Content="{Binding Note}" />
+
+          <StackPanel Spacing="6" IsVisible="{Binding ShowOutput}">
+            <DockPanel>
+              <TextBlock DockPanel.Dock="Right" Classes="faint" Text="{Binding Status}" VerticalAlignment="Center" />
+              <TextBlock Classes="lbl" Text="Salida" VerticalAlignment="Center" />
+            </DockPanel>
+            <ProgressBar IsIndeterminate="{Binding Running}" IsVisible="{Binding Running}" AutomationProperties.Name="En marcha" />
+            <Border Classes="log" Padding="12,10">
+              <ScrollViewer Name="OutputScroll" Height="220" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Lines}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LogLine">
+                      <TextBlock Classes="logline" Classes.e="{Binding IsError}" Classes.w="{Binding IsWarn}" Classes.m="{Binding IsMuted}"
+                                 Text="{Binding Text}" TextWrapping="Wrap" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+        </StackPanel>
+      </ScrollViewer>
+    </DockPanel>
+  </Border>
+</UserControl>

@@ -27,6 +27,28 @@
             </Button>
           </Grid>
 
+          <!-- Pasos y plantillas: la plantilla, lo primero (maqueta A del diseño de git) -->
+          <StackPanel Spacing="6">
+            <TextBlock Classes="lbl" Text="Plantilla" />
+            <Border Classes="seg" HorizontalAlignment="Left">
+              <ItemsControl ItemsSource="{Binding Templates}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SiteTemplate">
+                    <RadioButton Theme="{StaticResource SegButton}" GroupName="plantilla" Content="{Binding Label}" IsEnabled="{Binding Available}"
+                                 IsChecked="{Binding IsSelected, Mode=OneWay}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
+                                 Command="{Binding $parent[ItemsControl].((vm:NewSiteDialogViewModel)DataContext).PickTemplateCommand}" CommandParameter="{Binding}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </Border>
+            <TextBlock Classes="faint" Text="{Binding Template.Hint}" TextWrapping="Wrap" />
+            <CheckBox IsChecked="{Binding Webapp}" IsVisible="{Binding IsSymfony}" AutomationProperties.Name="Symfony con webapp">
+              <TextBlock TextWrapping="Wrap" FontSize="12.5" Text="Con webapp: también Twig, Doctrine (con su base de datos y sus migraciones), formularios y seguridad (composer require webapp)." />
+            </CheckBox>
+          </StackPanel>
           <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="14">
             <StackPanel Spacing="6">
               <TextBlock Classes="lbl" Text="Nombre" />
@@ -45,13 +67,14 @@
                   <ctl:Icon Data="{StaticResource IcFolder}" Size="15" />
                 </Button>
               </Grid>
-              <TextBlock Classes="faint" Text="{Binding FolderHint}" TextWrapping="Wrap" />
+              <TextBlock Classes="faint" Text="{Binding FolderHint}" TextWrapping="Wrap" IsVisible="{Binding FolderValid}" />
+              <TextBlock Classes="small" Text="{Binding FolderHint}" TextWrapping="Wrap" Foreground="{DynamicResource BadBrush}" IsVisible="{Binding !FolderValid}" />
             </StackPanel>
             <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Spacing="6">
               <TextBlock Classes="lbl" Text="Raíz web (dentro de la carpeta; opcional)" />
               <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                <TextBox Classes="mono" Text="{Binding Root}" PlaceholderText="public" AutomationProperties.Name="Raíz web del sitio" />
-                <Button Grid.Column="1" Classes="icon" Command="{Binding BrowseRootCommand}" IsEnabled="{Binding FolderExists}"
+                <TextBox Classes="mono" Text="{Binding Root}" PlaceholderText="public" AutomationProperties.Name="Raíz web del sitio" IsEnabled="{Binding RootEditable}" />
+                <Button Grid.Column="1" Classes="icon" Command="{Binding BrowseRootCommand}" IsEnabled="{Binding CanBrowseRoot}"
                         ToolTip.Tip="Elegir la subcarpeta que se sirve" AutomationProperties.Name="Elegir raíz web">
                   <ctl:Icon Data="{StaticResource IcFolder}" Size="15" />
                 </Button>
@@ -61,6 +84,8 @@
             <StackPanel Grid.Row="2" Spacing="6">
               <TextBlock Classes="lbl" Text="PHP" />
               <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding Php}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
+              <TextBlock Classes="small" Text="{Binding PhpHint}" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" IsVisible="{Binding PhpValid}" />
+              <TextBlock Classes="small" Text="{Binding PhpHint}" TextWrapping="Wrap" Foreground="{DynamicResource BadBrush}" IsVisible="{Binding !PhpValid}" />
               <Button Classes="link" Content="Instalar otra versión…" HorizontalAlignment="Left" FontSize="12" Command="{Binding InstallOtherCommand}"
                       ToolTip.Tip="Sin cerrar este diálogo: lo tecleado se queda" />
               <StackPanel Spacing="6" IsVisible="{Binding ShowInstallChoices}">
@@ -97,24 +122,6 @@
             </StackPanel>
           </Grid>
 
-          <StackPanel Spacing="6">
-            <TextBlock Classes="lbl" Text="Plantilla" />
-            <Border Classes="seg">
-              <ItemsControl ItemsSource="{Binding Templates}">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="2" /></ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:SiteTemplate">
-                    <RadioButton Theme="{StaticResource SegButton}" GroupName="plantilla" Content="{Binding Label}" IsEnabled="{Binding Available}"
-                                 IsChecked="{Binding Available, Mode=OneTime}" ToolTip.Tip="{Binding Hint}" ToolTip.ShowOnDisabled="True"
-                                 Command="{Binding $parent[ItemsControl].((vm:NewSiteDialogViewModel)DataContext).PickTemplateCommand}" CommandParameter="{Binding}" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </Border>
-            <TextBlock Classes="faint" Text="{Binding Template.Hint}" TextWrapping="Wrap" />
-          </StackPanel>
 
           <Border Background="{DynamicResource WinBrush}" CornerRadius="8" Padding="14,12">
             <StackPanel Spacing="10">
@@ -169,6 +176,11 @@
                   <Run Text="Recarga el stack y abre " />
                   <Run Text="{Binding Host, StringFormat='https://{0}/', Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
                 </TextBlock>
+              </Grid>
+              <!-- Pasos y plantillas: lo que hace la plantilla tras crear el proyecto -->
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding IsProjectTemplate}">
+                <ctl:Dot Tone="Ok" VerticalAlignment="Top" Margin="0,5,0,0" />
+                <TextBlock Grid.Column="1" Classes="small" Text="{Binding TemplateStep}" TextWrapping="Wrap" />
               </Grid>
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding NeedsComposerInstall}">
                 <ctl:Dot Tone="Warn" VerticalAlignment="Top" Margin="0,5,0,0" />
