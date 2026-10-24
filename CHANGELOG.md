@@ -2,6 +2,16 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
+## 0.1.6 — en preparación
+
+- **Cambios sin cortar:** con Roost en marcha, dar de alta o de baja un sitio, cambiar su raíz web o renovar los certificados ya no lo rearranca todo: el servidor web lee la configuración nueva en caliente, sin cortar las conexiones, y la base de datos, PHP, Redis y Mailpit siguen como estaban. La terminal dice lo que ha hecho, por ejemplo «recargado nginx; arrancado php-7.4».
+- **Otro PHP para un sitio:** Roost arranca solo esa versión de PHP antes de mandarle nada, y la quita cuando ya no la usa nadie. Cambiar el PHP global también cambia de versión sin cortar.
+- **PHP se reinicia uno a uno:** un cambio en el php.ini (extensiones, Xdebug, ajustes rápidos o tu conf.d) reinicia los procesos de esa versión de uno en uno, esperando a que acaben lo que tienen entre manos. Mientras tanto, las páginas siguen respondiendo.
+- **La base de datos, solo si cambia lo suyo:** se reinicia al cambiar su puerto, su versión o tu `usuario.cnf`, pero no al añadir un sitio ni al cambiar la contraseña de root. Con Redis y Mailpit pasa igual.
+- **«Recargar» recarga de verdad:** en Servidor web, comprueba la configuración y nginx o Apache la leen otra vez sin cortar nada, también lo que hayas editado a mano en un vhost. Si tiene un error, siguen con la que tenían y te dice cuál.
+- **Cambiar de servidor web:** pasar de nginx a Apache, o al revés, con Roost en marcha ya no para PHP ni la base de datos.
+- **Arreglado:** reiniciar PHP con muchas peticiones a la vez podía dejar las páginas dando error 502 (nginx) o 503 (Apache) durante varios segundos, aunque PHP ya hubiera vuelto; y los procesos de PHP ya no se reciclan todos a la vez.
+
 ## 0.1.5 — 24-oct-2026
 
 - **Xdebug con un clic:** en la pantalla PHP, cada versión tiene un interruptor de Xdebug. La primera vez baja de xdebug.org la DLL que toca a esa versión (comprobada con su SHA-256) y la activa; si Roost está en marcha, reinicia solo esa versión de PHP, sin tocar el resto. Viene apagado. Depura la petición que lo pide (`XDEBUG_TRIGGER` o la extensión del navegador) y conecta con el editor en el puerto 9003; «Copiar launch.json» da la configuración de VS Code. También en la terminal: `roost php xdebug on|off|status [versión]`.

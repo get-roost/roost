@@ -138,7 +138,7 @@ roost php ini 8.4 --reset                         # vuelve a los de serie
 ```
 
 - **Ajustes para una sola versión.** Además de `C:\roost\etc\php\conf.d\99-usuario.ini`, que vale para todas, cada versión tiene su `conf.d\<versión>\99-usuario.ini` (por ejemplo, `conf.d\7.4\`). Lo leen el servidor y la terminal, y lo de esa carpeta manda.
-- **Cada cambio reinicia solo esa versión de PHP** si el stack está en marcha; el resto sigue igual. En la app, la pantalla PHP tiene los mismos ajustes, «Ver» el php.ini generado, phpinfo() y la lista de módulos, con buscador.
+- **Cada cambio reinicia solo esa versión de PHP**, uno a uno y sin que las páginas den error, si el stack está en marcha; el resto sigue igual. En la app, la pantalla PHP tiene los mismos ajustes, «Ver» el php.ini generado, phpinfo() y la lista de módulos, con buscador.
 
 #### Depurar con Xdebug
 
@@ -205,8 +205,8 @@ roost db remove mysql@5.7        # quita los binarios; los datos se quedan
 - **O Apache 2.4.69,** si lo prefieres: `roost web use apache` lo instala (de Apache Lounge, con su SHA-256 verificado) y lo deja como servidor web; `roost web use nginx` vuelve. Sirve lo mismo, con HTTPS y HTTP/2, y con los mismos pools de php-cgi (por mod_proxy_fcgi), así que cada sitio sigue con su PHP. Además lee los `.htaccess`, así que WordPress o Laravel funcionan sin tocar nada. Necesita el Visual C++ Redistributable 2017-2026 (14.50 o posterior).
 - **Solo local:** el servidor web escucha solo en 127.0.0.1 y en `[::1]` (si la máquina tiene IPv6), así que no se ve desde la red. Escuchar también en `[::1]` hace que `http://localhost` nunca acabe en otro servidor de la máquina que escuche en `[::]:80`.
 - **Comprobaciones previas:** si el puerto está ocupado, lo dice y no arranca nada. La configuración se valida antes de arrancar (`nginx -t` o `httpd -t`).
-- **Con el stack en marcha, un cambio se comprueba antes de parar nada:** `roost up` valida la configuración nueva y mira los puertos. Si no vale (un puerto ocupado, un vhost sin marcas, algo que nginx o Apache no aceptan), lo de antes sigue en marcha tal cual y el mensaje empieza por «No se ha aplicado el cambio». Solo si lo nuevo no llega a arrancar queda parado, y se dice.
-- **Certificados:** mientras el daemon está en marcha, renueva una vez al día los de los sitios que caducan en menos de 30 días y reinicia solo el servidor web para que los cargue.
+- **Con el stack en marcha, `roost up` solo toca lo que cambia.** Primero valida la configuración nueva y mira los puertos; si no vale (un puerto ocupado, un vhost sin marcas, algo que nginx o Apache no aceptan), lo de antes sigue en marcha tal cual y el mensaje empieza por «No se ha aplicado el cambio». Si vale: un sitio nuevo recarga el servidor web en caliente, sin cortar; un PHP nuevo arranca su pool antes de que le llegue nada; un php.ini cambiado reinicia ese pool uno a uno; y la base de datos, Redis o Mailpit solo se reinician si cambia lo suyo. La salida dice lo que ha hecho («recargado nginx; arrancado php-7.4»). «Recargar» en Servidor web comprueba la configuración (también lo que hayas editado a mano en un vhost) y la recarga sin cortar.
+- **Certificados:** mientras el daemon está en marcha, renueva una vez al día los de los sitios que caducan en menos de 30 días y lo recarga en caliente, sin cortar, para que los cargue.
 - **Si algo no arranca,** `up` lo dice con el final de su log y para el resto. Si es un puerto ocupado, dice qué proceso lo tiene.
 
 Un daemon de usuario (`roost daemon`, que la CLI lanza sola) hace de padre de nginx y de los php-cgi:
@@ -511,7 +511,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - El feed aún no trae CVE de MySQL, MariaDB ni nginx (NVD y los boletines de Oracle y MariaDB vendrán después).
 - `roost php`, `roost db`, `roost site` y `roost up` solo funcionan en Windows: en Linux no hay binarios oficiales de PHP y los builds propios aún no existen.
 - `roost up` arranca una sola base de datos a la vez (la global): no hay base de datos por sitio.
-- Cambiar un sitio rearranca todo el stack, base de datos incluida (un par de segundos), en vez de recargar solo nginx.
+- Con nginx, recargar la configuración con muchas peticiones a la vez puede cortar alguna (nginx para Windows cierra la cola de su proceso viejo); con Apache, no. Con `[php] pool = 1`, reiniciar PHP deja un momento sin atender.
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
 - La app de escritorio no tiene aún plantillas de proyecto (Laravel, WordPress…).
