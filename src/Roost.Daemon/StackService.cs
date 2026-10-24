@@ -24,15 +24,19 @@ internal sealed record StackEnvironment(
     Func<int, CancellationToken, Task<bool>> AcceptsConnections,
     TimeSpan HealthTimeout,
     bool Ipv6,
-    Func<ServiceDefinition, int?, string?>? ReloadWeb = null)
+    Func<ServiceDefinition, int?, Task<string?>>? ReloadWeb = null)
 {
     // Solo se espera lo necesario; el margen es para el primer arranque de MySQL 8 tras crear el datadir.
     public static StackEnvironment Real => new(
         new OsProcessLauncher(), ProcessRunner.Default, StackPlanner.BusyPorts, StackPlanner.AcceptsConnectionsAsync,
         TimeSpan.FromSeconds(45), Loopback.HasIpv6);
 
-    /// <summary>Recarga en caliente el servidor web <paramref name="web"/> (su proceso es <paramref name="pid"/>): null si ha ido bien, o por qué no.</summary>
-    public string? Reload(ServiceDefinition web, int? pid) => ReloadWeb is { } reload ? reload(web, pid) : WebReload.Run(Runner, web, pid);
+    /// <summary>
+    /// Recarga en caliente el servidor web <paramref name="web"/> (su proceso es <paramref name="pid"/>) y
+    /// espera a que sirva lo nuevo: null si ha ido bien, o por qué no.
+    /// </summary>
+    public Task<string?> ReloadAsync(ServiceDefinition web, int? pid) =>
+        ReloadWeb is { } reload ? reload(web, pid) : WebReload.RunAsync(Runner, web, pid);
 }
 
 /// <summary>
@@ -419,7 +423,7 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
     }
 
     /// <summary>
-    /// Recarga en caliente el servidor web en marcha (<see cref="StackEnvironment.Reload"/>); si no
+    /// Recarga en caliente el servidor web en marcha (<see cref="StackEnvironment.ReloadAsync"/>); si no
     /// se puede, lo reinicia, que también lee lo nuevo. Si estaba parado, lo arranca. Devuelve lo
     /// hecho en palabras.
     /// </summary>
@@ -432,7 +436,7 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
             return $"arrancado {web.Name}";
         }
 
-        if (_env.Reload(web, pid) is not { } error)
+        if (await _env.ReloadAsync(web, pid) is not { } error)
         {
             log($"{web.Name}: recargado en caliente (pid {pid})");
             return $"recargado {web.Name}";

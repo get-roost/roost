@@ -77,14 +77,19 @@ public class StackServiceTests : IDisposable
             (_, _) => Task.FromResult(true),
             TimeSpan.FromSeconds(5),
             Ipv6: true,
-            ReloadWeb: reloadWeb ?? ((web, pid) =>
-            {
-                // nginx, con el runner falso (que lo apunta); Apache, aquí: su evento no se puede probar sin un Apache de verdad.
-                if (web.Name != "apache") return WebReload.Run(runner ?? _runner, web, pid);
-                lock (_apacheReloads) _apacheReloads.Add((web.Name, pid));
-                _events.Add("reload:apache");
-                return null;
-            })));
+            ReloadWeb: (web, pid) => Task.FromResult(reloadWeb is not null ? reloadWeb(web, pid) : FakeReload(runner ?? _runner, web, pid))));
+
+    /// <summary>
+    /// nginx -s reload con el runner falso (que lo apunta), sin esperar a los procesos hijos (los pid
+    /// son de mentira); Apache, aquí: su evento no se puede probar sin un Apache de verdad.
+    /// </summary>
+    private string? FakeReload(IProcessRunner runner, ServiceDefinition web, int? pid)
+    {
+        if (web.Name != "apache") return WebReload.Signal(runner, web, pid!.Value);
+        lock (_apacheReloads) _apacheReloads.Add((web.Name, pid));
+        _events.Add("reload:apache");
+        return null;
+    }
 
     /// <summary>Como en la máquina de verdad: los puertos del stack en marcha están cogidos (por nosotros).</summary>
     private void HoldPorts(StatusResponse status)
