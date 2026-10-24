@@ -7,7 +7,8 @@ using Roost.Core.Sites;
 // decision 5). Una lista cerrada de operaciones, sin nada libre que llegue al sistema:
 //
 //   roost-helper hosts-sync <fichero>
-//     <fichero> trae un nombre por linea. Solo valen nombres <etiqueta>.test (HostsBlock.IsValidHost).
+//     <fichero> trae un nombre por linea. Solo valen nombres .test de 1 a 4 etiquetas DNS en ASCII
+//     (tienda.test, api.tienda.test), de 253 caracteres como mucho (HostsBlock.IsValidHost).
 //     En el hosts del sistema (ruta fija, no se acepta otra) solo se reescribe el bloque
 //     "# roost:begin" / "# roost:end" con lineas "127.0.0.1 <nombre>"; lo demas queda intacto byte a
 //     byte (Latin-1 lee y escribe cada byte tal cual).
@@ -57,7 +58,7 @@ static int HostsSync(string requestFile)
     if (names.Count > 1000 || names.Any(n => !HostsBlock.IsValidHost(n)))
     {
         // No se registra el contenido rechazado: podria ser cualquier cosa.
-        Log($"rechazado: {names.Count} lineas, y no todas son un nombre <etiqueta>.test");
+        Log($"rechazado: {names.Count} lineas, y no todas son un nombre .test valido");
         return BadInput;
     }
 

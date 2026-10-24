@@ -5,8 +5,8 @@ namespace Roost.Core.Sites;
 
 /// <summary>
 /// El bloque de Roost en el fichero <c>hosts</c> (ROOST.md §5.7): entre <c># roost:begin</c> y
-/// <c># roost:end</c>, una línea <c>127.0.0.1 &lt;nombre&gt;.test</c> por sitio. Lo de fuera del
-/// bloque no se toca nunca.
+/// <c># roost:end</c>, una línea <c>127.0.0.1 &lt;nombre&gt;.test</c> por nombre (cada sitio, sus
+/// alias y sus subdominios, como <c>api.tienda.test</c>). Lo de fuera del bloque no se toca nunca.
 ///
 /// Este fichero se compila TAMBIÉN dentro de roost-helper (el único ejecutable que corre con
 /// privilegios), así que tiene que ser puro y no depender de nada más de Roost: es lo que decide
@@ -17,11 +17,19 @@ internal static partial class HostsBlock
     public const string Begin = "# roost:begin";
     public const string End = "# roost:end";
 
-    // Solo nombres <etiqueta DNS>.test: nada de dominios reales, ni IPs, ni espacios.
-    [GeneratedRegex(@"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.test$")]
+    /// <summary>Etiquetas como mucho delante de <c>.test</c>: <c>tienda.test</c> tiene una y <c>v1.api.tienda.test</c>, tres.</summary>
+    public const int MaxLabels = 4;
+
+    /// <summary>Longitud máxima de un nombre, la de DNS (RFC 1035).</summary>
+    public const int MaxHostLength = 253;
+
+    // Solo nombres .test de 1 a 4 etiquetas DNS en ASCII (minúsculas, números y guiones; sin guion al
+    // principio ni al final): nada de dominios reales, ni IPs, ni espacios, ni saltos de línea.
+    // \z y no $: en .NET, $ también casa antes de un \n final.
+    [GeneratedRegex(@"\A(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.){1,4}test\z", RegexOptions.CultureInvariant)]
     private static partial Regex HostPattern();
 
-    public static bool IsValidHost(string host) => HostPattern().IsMatch(host);
+    public static bool IsValidHost(string host) => host.Length <= MaxHostLength && HostPattern().IsMatch(host);
 
     /// <summary>Los nombres que hay ahora en el bloque de Roost (vacío si no hay bloque).</summary>
     public static IReadOnlyList<string> ReadHosts(string hosts)
