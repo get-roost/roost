@@ -7,7 +7,11 @@ namespace Roost.Core.Git;
 public sealed record GitCommit(string Sha, string ShortSha, string Author, DateTimeOffset When, string Subject);
 
 /// <summary>Lo que cuenta <c>ls-remote --symref</c>: la rama por defecto del remoto y sus ramas.</summary>
-public sealed record RemoteRefs(string? DefaultBranch, IReadOnlyList<string> Branches);
+public sealed record RemoteRefs(string? DefaultBranch, IReadOnlyList<string> Branches)
+{
+    /// <summary>El commit en el que está cada rama del remoto (la comprobación de novedades lo compara con el checkout).</summary>
+    public IReadOnlyDictionary<string, string> Heads { get; init; } = new Dictionary<string, string>();
+}
 
 /// <summary>
 /// Lo que cuenta <c>status --porcelain=v2 --branch</c>. <see cref="Changed"/> son los ficheros con
@@ -53,6 +57,7 @@ public static partial class GitOutput
     {
         string? defaultBranch = null;
         var branches = new List<string>();
+        var heads = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var raw in Lines(stdout))
         {
             var parts = raw.Split('\t', 2);
@@ -66,9 +71,10 @@ public static partial class GitOutput
             {
                 var name = right[HeadsPrefix.Length..];
                 if (!branches.Contains(name)) branches.Add(name);
+                if (ShaPattern().IsMatch(left)) heads.TryAdd(name, left.ToLowerInvariant());
             }
         }
-        return new RemoteRefs(defaultBranch, branches);
+        return new RemoteRefs(defaultBranch, branches) { Heads = heads };
     }
 
     /// <summary><c>status --porcelain=v2 --branch</c>.</summary>
@@ -203,6 +209,10 @@ public static partial class GitOutput
 
     [GeneratedRegex(@"^# branch\.ab \+(?<a>\d+) -(?<b>\d+)")]
     private static partial Regex AheadBehind();
+
+    /// <summary>Un sha completo (SHA-1 o SHA-256), como los da <c>ls-remote</c>.</summary>
+    [GeneratedRegex("^[0-9a-fA-F]{40}([0-9a-fA-F]{24})?$")]
+    internal static partial Regex ShaPattern();
 
     [GeneratedRegex(@"^(?:remote: )?(?<stage>Enumerating objects|Counting objects|Compressing objects|Receiving objects|Resolving deltas|Updating files|Checking out files|Filtering content):\s*(?<pct>\d+)%\s*\((?<done>\d+)/(?<total>\d+)\)(?<rest>.*)$")]
     private static partial Regex ProgressPattern();
