@@ -94,11 +94,12 @@ public sealed partial class AuditState : ObservableObject
     [ObservableProperty]
     public partial string? OsDescription { get; private set; }
 
-    public int RedCount => Findings.Count(f => f.Color == AuditColor.Red);
+    // Lo ignorado (K1, AuditState.History.cs) no cuenta.
+    public int RedCount => Count(AuditColor.Red);
 
-    public int AmberCount => Findings.Count(f => f.Color == AuditColor.Amber);
+    public int AmberCount => Count(AuditColor.Amber);
 
-    public int GreenCount => Findings.Count(f => f.Color == AuditColor.Green);
+    public int GreenCount => Count(AuditColor.Green);
 
     /// <summary>«6 en rojo, 1 en ámbar», «Todo al día» o «Sin escanear».</summary>
     public string Summary => LastScan is null ? (Scanning ? "Escaneando..." : "Sin escanear")
@@ -128,6 +129,7 @@ public sealed partial class AuditState : ObservableObject
                 .ToList();
             OsDescription = result.OsDescription;
             LastScan = DateTime.Now;
+            Record();   // K1: qué ha cambiado desde la anterior
         }
         finally
         {
@@ -137,11 +139,12 @@ public sealed partial class AuditState : ObservableObject
     }
 
     /// <summary>Para los tests de vistas: hallazgos ya hechos, sin escanear la máquina.</summary>
-    internal void Show(IReadOnlyList<AuditFinding> findings)
+    internal void Show(IReadOnlyList<AuditFinding> findings, DateTime? when = null)
     {
         Findings = findings;
-        LastScan = new DateTime(2026, 10, 23, 9, 30, 0);
+        LastScan = when ?? new DateTime(2026, 10, 23, 9, 30, 0);
         OsDescription = "Windows 11";
+        Record();
         OnPropertyChanged(nameof(Summary));
     }
 

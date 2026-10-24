@@ -14,7 +14,7 @@
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
           <Button Content="Exportar (Markdown / JSON)" Command="{Binding ExportCommand}" />
-          <Button Content="Volver a escanear" Command="{Binding RescanCommand}" IsEnabled="{Binding !Scanning}" />
+          <Button Content="Volver a escanear" Command="{Binding RescanCommand}" IsEnabled="{Binding !Scanning}" ToolTip.Tip="Volver a escanear el equipo (F5)" />
         </StackPanel>
       </Grid>
 
@@ -51,6 +51,23 @@
           </Border>
         </Grid>
 
+        <!-- K1: qué ha cambiado desde la auditoría anterior (nuevos y resueltos) -->
+        <ctl:Note Tone="{Binding ChangesTone}" IsVisible="{Binding HasChanges}">
+          <StackPanel Spacing="4">
+            <TextBlock Classes="strong" Text="{Binding ChangesText}" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding ChangeLines}" IsVisible="{Binding HasChangeLines}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ChangeLine">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <ctl:Dot Tone="{Binding Tone}" VerticalAlignment="Center" />
+                    <TextBlock Classes="small" Text="{Binding Text}" TextWrapping="Wrap" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ctl:Note>
+
         <!-- Inventario -->
         <Border Classes="card">
           <StackPanel>
@@ -73,6 +90,13 @@
                 </StackPanel>
               </DockPanel>
             </Border>
+            <!-- K1: por tipo y por origen -->
+            <StackPanel Orientation="Horizontal" Spacing="10" Margin="16,10,16,10">
+              <TextBlock Classes="muted" Text="Tipo" VerticalAlignment="Center" />
+              <ComboBox ItemsSource="{Binding KindChoices}" SelectedItem="{Binding KindFilter}" MinWidth="150" AutomationProperties.Name="Tipo" />
+              <TextBlock Classes="muted" Text="Origen" VerticalAlignment="Center" Margin="8,0,0,0" />
+              <ComboBox ItemsSource="{Binding SourceChoices}" SelectedItem="{Binding SourceFilter}" MinWidth="160" AutomationProperties.Name="Origen" />
+            </StackPanel>
             <Border Classes="th">
               <Grid ColumnDefinitions="16,1.5*,0.9*,*,2*" ColumnSpacing="12">
                 <TextBlock Grid.Column="1" Text="Componente" />
@@ -117,7 +141,11 @@
           <StackPanel>
             <Border Classes="card-h">
               <DockPanel>
-                <Button DockPanel.Dock="Right" Classes="sm primary" Content="{Binding ActionLabel}" Command="{Binding ActCommand}" IsVisible="{Binding HasAction}" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm ghost" Content="{Binding IgnoreLabel}" Command="{Binding ToggleIgnoreCommand}"
+                          ToolTip.Tip="Lo ignorado no cuenta en rojo ni avisa en la bandeja; sale abajo, en Ignorados, y se puede deshacer" />
+                  <Button Classes="sm primary" Content="{Binding ActionLabel}" Command="{Binding ActCommand}" IsVisible="{Binding HasAction}" />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="10">
                   <ctl:Dot Tone="{Binding Selected.Tone, FallbackValue=Off}" VerticalAlignment="Center" />
                   <TextBlock Classes="h2" Text="{Binding SelectedTitle}" />
@@ -139,7 +167,12 @@
                       <DataTemplate x:DataType="vm:AdvisoryLine">
                         <StackPanel>
                           <StackPanel Orientation="Horizontal" Spacing="6">
-                            <TextBlock Classes="mono strong" Text="{Binding Id}" VerticalAlignment="Center" />
+                            <!-- K1: el aviso se abre en el navegador -->
+                            <Button Classes="link" IsVisible="{Binding HasUrl}" ToolTip.Tip="{Binding Url}" VerticalAlignment="Center"
+                                    Command="{Binding $parent[ItemsControl].((vm:AuditViewModel)DataContext).OpenAdvisoryCommand}" CommandParameter="{Binding}">
+                              <TextBlock Classes="mono strong" Text="{Binding Id}" />
+                            </Button>
+                            <TextBlock Classes="mono strong" Text="{Binding Id}" VerticalAlignment="Center" IsVisible="{Binding !HasUrl}" />
                             <TextBlock Classes="small" Text="{Binding Meta, StringFormat='· {0}'}" VerticalAlignment="Center" />
                             <ctl:Chip Text="KEV" Tone="Bad" IsVisible="{Binding Kev}" />
                           </StackPanel>
@@ -165,6 +198,41 @@
                 </StackPanel>
               </Grid>
             </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- K1: lo ignorado, aparte y con «Dejar de ignorar» -->
+        <Border Classes="card" IsVisible="{Binding HasIgnored}">
+          <StackPanel>
+            <Border Classes="card-h">
+              <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Classes="h2" Text="{Binding IgnoredTitle}" />
+                <TextBlock Classes="hint" Text="No cuentan en rojo ni avisan en la bandeja" />
+              </StackPanel>
+            </Border>
+            <ItemsControl ItemsSource="{Binding IgnoredRows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AuditRow">
+                  <Border Classes="tr" Padding="16,9">
+                    <Grid ColumnDefinitions="16,1.5*,0.9*,*,Auto" ColumnSpacing="12">
+                      <ctl:Dot Tone="{Binding Tone}" VerticalAlignment="Center" />
+                      <Button Grid.Column="1" Classes="link" HorizontalAlignment="Left" VerticalAlignment="Center"
+                              Command="{Binding $parent[ItemsControl].((vm:AuditViewModel)DataContext).ChooseCommand}" CommandParameter="{Binding}">
+                        <TextBlock>
+                          <Run Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" />
+                          <Run Text=" " />
+                          <Run Text="{Binding Version, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                        </TextBlock>
+                      </Button>
+                      <TextBlock Grid.Column="2" Classes="small" Text="{Binding Source}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                      <ctl:Chip Grid.Column="3" Text="{Binding Verdict}" Tone="{Binding Tone}" />
+                      <Button Grid.Column="4" Classes="sm ghost" Content="Dejar de ignorar"
+                              Command="{Binding $parent[ItemsControl].((vm:AuditViewModel)DataContext).UnignoreCommand}" CommandParameter="{Binding}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
         </Border>
 

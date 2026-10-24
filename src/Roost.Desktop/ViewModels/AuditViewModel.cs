@@ -30,7 +30,14 @@ public sealed partial class AuditRow(AuditFinding finding) : ObservableObject
 }
 
 /// <summary>Un aviso (CVE) que casa con el componente elegido.</summary>
-public sealed record AdvisoryLine(string Id, string Meta, bool Kev, string Title);
+/// <param name="Url">La página del aviso (K1): su GHSA, su CVE o la referencia que lo nombra; null si no hay ninguna.</param>
+public sealed record AdvisoryLine(string Id, string Meta, bool Kev, string Title, string? Url = null)
+{
+    public bool HasUrl => Url is not null;
+}
+
+/// <summary>Una línea de «qué ha cambiado» (K1): «Nuevo: PHP 8.3.18 · Laragon · VULNERABLE».</summary>
+public sealed record ChangeLine(string Text, Tone Tone);
 
 /// <summary>
 /// Un servicio de Windows que puede quitarle un puerto a Roost (E7): cómo está, si choca con el
@@ -53,6 +60,7 @@ public sealed partial class AuditViewModel : PageViewModel
         main.Audit.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName is nameof(AuditState.Findings) or nameof(AuditState.Scanning) or nameof(AuditState.LastScan)) Build();
+            if (e.PropertyName is nameof(AuditState.Changes)) BuildChanges(main.Audit.Changes);   // K1: llega tras los hallazgos
             if (e.PropertyName is nameof(AuditState.Dataset) or nameof(AuditState.Origin))
             {
                 OnPropertyChanged(nameof(DatasetDate));
@@ -165,6 +173,54 @@ public sealed partial class AuditViewModel : PageViewModel
     [ObservableProperty] public partial bool ShowGreen { get; set; }
     [ObservableProperty] public partial bool IncludeOutside { get; set; } = true;
 
+    // K1: filtros por tipo y por origen, lo ignorado y qué ha cambiado.
+
+    public const string AllKinds = "Todos los tipos";
+    public const string AllSources = "Todos los orígenes";
+
+    [ObservableProperty] public partial IReadOnlyList<string> KindChoices { get; private set; } = [AllKinds];
+    [ObservableProperty] public partial IReadOnlyList<string> SourceChoices { get; private set; } = [AllSources];
+    [ObservableProperty] public partial string KindFilter { get; set; } = AllKinds;
+    [ObservableProperty] public partial string SourceFilter { get; set; } = AllSources;
+    [ObservableProperty] public partial IReadOnlyList<AuditRow> IgnoredRows { get; private set; } = [];
+    [ObservableProperty] public partial string? ChangesText { get; private set; }
+    [ObservableProperty] public partial Tone ChangesTone { get; private set; } = Tone.Neutral;
+    [ObservableProperty] public partial IReadOnlyList<ChangeLine> ChangeLines { get; private set; } = [];
+
+    public bool HasIgnored => IgnoredRows.Count > 0;
+    public bool HasChanges => ChangesText is not null;
+    public bool HasChangeLines => ChangeLines.Count > 0;
+    public string IgnoredTitle => $"Ignorados ({IgnoredRows.Count})";
+
+    /// <summary>El elegido está ignorado: el botón del detalle es «Dejar de ignorar».</summary>
+    public bool SelectedIgnored => Selected is { } s && Main.Audit.IsIgnored(s.Finding);
+
+    public string IgnoreLabel => SelectedIgnored ? "Dejar de ignorar" : "Ignorar";
+
+    private bool _building;
+
+    // El desplegable deja un null de paso cuando cambian sus opciones: no es una elección.
+    partial void OnKindFilterChanged(string value)
+    {
+        if (value is null) KindFilter = AllKinds;
+        else if (!_building) Build();
+    }
+
+    partial void OnSourceFilterChanged(string value)
+    {
+        if (value is null) SourceFilter = AllSources;
+        else if (!_building) Build();
+    }
+
+    partial void OnIgnoredRowsChanged(IReadOnlyList<AuditRow> value)
+    {
+        OnPropertyChanged(nameof(HasIgnored));
+        OnPropertyChanged(nameof(IgnoredTitle));
+    }
+
+    partial void OnChangesTextChanged(string? value) => OnPropertyChanged(nameof(HasChanges));
+    partial void OnChangeLinesChanged(IReadOnlyList<ChangeLine> value) => OnPropertyChanged(nameof(HasChangeLines));
+
     public bool Scanning => Main.Audit.Scanning;
     public bool HasSelection => Selected is not null;
     public bool HasAdvisories => Advisories.Count > 0;
@@ -195,6 +251,8 @@ public sealed partial class AuditViewModel : PageViewModel
     {
         OnPropertyChanged(nameof(HasSelection));
         OnPropertyChanged(nameof(SelectedTitle));
+        OnPropertyChanged(nameof(SelectedIgnored));
+        OnPropertyChanged(nameof(IgnoreLabel));
     }
 
     public override async Task ShownAsync()
@@ -218,8 +276,28 @@ public sealed partial class AuditViewModel : PageViewModel
             : audit.LastScan is { } when ? $"Escaneado a las {when:HH:mm}" + (audit.OsDescription is { } os ? $" · {os}" : "")
             : "Sin escanear";
 
+        // Las opciones de los filtros salen de lo encontrado; si lo elegido ya no está, vuelve a «todos».
+        _building = true;
+        try
+        {
+            // Solo si cambian: con otra lista, el desplegable perdería lo elegido.
+            IReadOnlyList<string> kinds = [AllKinds, .. audit.Findings.Select(f => f.Component.Kind).Distinct().Order().Select(KindName)];
+            IReadOnlyList<string> sources = [AllSources, .. audit.Findings.Select(f => f.Component.Source).Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.CurrentCultureIgnoreCase)];
+            if (!kinds.SequenceEqual(KindChoices)) KindChoices = kinds;
+            if (!sources.SequenceEqual(SourceChoices)) SourceChoices = sources;
+            if (!KindChoices.Contains(KindFilter)) KindFilter = AllKinds;
+            if (!SourceChoices.Contains(SourceFilter)) SourceFilter = AllSources;
+        }
+        finally
+        {
+            _building = false;
+        }
+
         var rows = audit.Findings
+            .Where(f => !audit.IsIgnored(f))
             .Where(f => IncludeOutside || f.Component.Source == "Roost")
+            .Where(f => KindFilter == AllKinds || KindName(f.Component.Kind) == KindFilter)
+            .Where(f => SourceFilter == AllSources || string.Equals(f.Component.Source, SourceFilter, StringComparison.OrdinalIgnoreCase))
             .Where(f => ShowAll
                         || ShowRed && f.Color == AuditColor.Red
                         || ShowAmber && f.Color == AuditColor.Amber
@@ -227,7 +305,9 @@ public sealed partial class AuditViewModel : PageViewModel
             .Select(f => new AuditRow(f) { Variant = Variant(f.Component) })
             .ToList();
         Rows = rows;
-        var keep = rows.FirstOrDefault(r => r.Finding.Component.ExecutablePath == Selected?.Finding.Component.ExecutablePath) ?? rows.FirstOrDefault();
+        IgnoredRows = audit.Findings.Where(audit.IsIgnored).Select(f => new AuditRow(f) { Variant = Variant(f.Component) }).ToList();
+        BuildChanges(audit.Changes);
+        var keep = rows.Concat(IgnoredRows).FirstOrDefault(r => r.Finding.Component.ExecutablePath == Selected?.Finding.Component.ExecutablePath) ?? rows.FirstOrDefault();
         Pick(keep);
     }
 
@@ -243,8 +323,10 @@ public sealed partial class AuditViewModel : PageViewModel
 
     private void Pick(AuditRow? row)
     {
-        foreach (var r in Rows) r.IsSelected = r == row;
+        foreach (var r in Rows.Concat(IgnoredRows)) r.IsSelected = r == row;
         Selected = row;
+        OnPropertyChanged(nameof(SelectedIgnored));
+        OnPropertyChanged(nameof(IgnoreLabel));
         if (row is null)
         {
             Advisories = [];
@@ -259,7 +341,7 @@ public sealed partial class AuditViewModel : PageViewModel
         Advisories = f.MatchedAdvisories.Select(a => new AdvisoryLine(
             a.Id,
             string.Join(" · ", a.Aliases.Append(Gravity(a))),
-            a.Kev, a.Title)).ToList();
+            a.Kev, a.Title, AdvisoryUrl(a))).ToList();
         Mitigations = f.Mitigations.Select(m => m.ToString()).ToList();
         var fixedIn = f.MatchedAdvisories.SelectMany(a => a.FixedIn.Values).Distinct().Order().ToList();
         RealFix = fixedIn.Count == 0 ? null
@@ -310,6 +392,88 @@ public sealed partial class AuditViewModel : PageViewModel
 
     [RelayCommand]
     private Task RescanAsync() => Main.Audit.ScanAsync();
+
+    // K1
+
+    /// <summary>
+    /// PURO: la página de un aviso. La referencia que lo nombra (la de GitHub de un GHSA, por
+    /// ejemplo) y, si no hay, la de su GHSA en github.com/advisories o la de su CVE en cve.org.
+    /// Las referencias genéricas (php.net/releases) no valen: no dicen nada de ese aviso.
+    /// </summary>
+    public static string? AdvisoryUrl(Roost.Core.Audit.Advisory advisory)
+    {
+        var ids = advisory.Aliases.Prepend(advisory.Id).Where(i => i.Length > 0).ToList();
+        var named = advisory.Refs.FirstOrDefault(r => r.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                                                   && ids.Any(i => r.Contains(i, StringComparison.OrdinalIgnoreCase)));
+        if (named is not null) return named;
+        if (ids.FirstOrDefault(i => i.StartsWith("GHSA-", StringComparison.OrdinalIgnoreCase)) is { } ghsa)
+            return $"https://github.com/advisories/{Uri.EscapeDataString(ghsa)}";
+        if (ids.FirstOrDefault(i => i.StartsWith("CVE-", StringComparison.OrdinalIgnoreCase)) is { } cve)
+            return $"https://www.cve.org/CVERecord?id={Uri.EscapeDataString(cve.ToUpperInvariant())}";
+        return null;
+    }
+
+    [RelayCommand]
+    private Task OpenAdvisoryAsync(AdvisoryLine line) => Main.RunAsync("No se pudo abrir el navegador", () =>
+    {
+        if (line.Url is { } url) Shell.OpenUrl(url);
+        return Task.CompletedTask;
+    });
+
+    /// <summary>«Ignorar» (o «Dejar de ignorar») el elegido: se guarda y se puede deshacer.</summary>
+    [RelayCommand]
+    private void ToggleIgnore()
+    {
+        if (Selected is not { } row) return;
+        var label = $"{row.Name} {row.Version} ({row.Source})";
+        if (Main.Audit.IsIgnored(row.Finding))
+        {
+            Main.Audit.Unignore(AuditHistory.IgnoreIdOf(row.Finding));
+            Main.Flash($"{label} vuelve a contar");
+        }
+        else
+        {
+            Main.Audit.Ignore(row.Finding);
+            Main.Flash($"{label} ignorado: está abajo, en Ignorados");
+        }
+    }
+
+    [RelayCommand]
+    private void Unignore(AuditRow row)
+    {
+        Main.Audit.Unignore(AuditHistory.IgnoreIdOf(row.Finding));
+        Main.Flash($"{row.Name} {row.Version} ({row.Source}) vuelve a contar");
+    }
+
+    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-ES");
+
+    /// <summary>«Desde la auditoría anterior (23-oct, 09:30): 1 nuevo o peor · 2 resueltos», con sus líneas.</summary>
+    private void BuildChanges(AuditChanges? changes)
+    {
+        if (changes is null)
+        {
+            ChangesText = null;
+            ChangeLines = [];
+            return;
+        }
+        var since = changes.Since.ToString("d-MMM, HH:mm", Es);
+        if (!changes.Any)
+        {
+            (ChangesText, ChangesTone) = ($"Sin cambios desde la auditoría anterior ({since}).", Tone.Neutral);
+            ChangeLines = [];
+            return;
+        }
+        var parts = new List<string>();
+        if (changes.New.Count > 0) parts.Add(changes.New.Count == 1 ? "1 nuevo o que empeora" : $"{changes.New.Count} nuevos o que empeoran");
+        if (changes.Resolved.Count > 0) parts.Add(changes.Resolved.Count == 1 ? "1 resuelto" : $"{changes.Resolved.Count} resueltos");
+        ChangesText = $"Desde la auditoría anterior ({since}): {string.Join(" · ", parts)}.";
+        ChangesTone = changes.NewRed.Count > 0 ? Tone.Bad : changes.New.Count > 0 ? Tone.Warn : Tone.Ok;
+        ChangeLines =
+        [
+            .. changes.New.Select(m => new ChangeLine($"Nuevo: {KindName(Enum.Parse<ComponentKind>(m.Kind))} {m.Version} · {m.Source} · {m.Verdict}", AuditState.ToneOf(m.Color))),
+            .. changes.Resolved.Select(m => new ChangeLine($"Resuelto: {KindName(Enum.Parse<ComponentKind>(m.Kind))} {m.Version} · {m.Source}", Tone.Ok)),
+        ];
+    }
 
     [RelayCommand]
     private async Task ActAsync()
