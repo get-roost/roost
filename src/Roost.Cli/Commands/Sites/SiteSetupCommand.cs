@@ -229,6 +229,13 @@ public sealed class SiteSetupCommand : AsyncCommand<SiteSetupCommand.Settings>
                 if (settings.Steps is not null && !AnsiConsole.Confirm("Hacer estos pasos?")) return 0;
             }
 
+            if (!steps.Any(s => s.Checked && s.Available))
+            {
+                if (settings.Json) return JsonOut(site, kind, target, steps, null, null);
+                AnsiConsole.MarkupLineInterpolated($"Nada marcado: lo de la lista ya esta hecho. [grey]Para repetir algo: roost site setup {site.Name} --steps {string.Join(',', steps.Where(s => s.Available).Select(s => s.Id))} --yes[/]");
+                return 0;
+            }
+
             if (steps.Any(s => s.Checked && s.Available && s.RunsProjectCode) && !settings.Json)
                 AnsiConsole.MarkupLineInterpolated($"[grey]{DeployPlan.ScriptsWarning}[/]");
             var runner = new DeployRunner(paths, CommandRunner.Default)
