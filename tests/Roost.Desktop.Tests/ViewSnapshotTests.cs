@@ -1403,4 +1403,245 @@ public class ViewSnapshotTests
         dialog.Close();
         await opening;
     }
+
+    // PHP (oleada 3): Xdebug, la conf.d de la rama, los ajustes rápidos, el php.ini, phpinfo y los módulos.
+
+    /// <summary>Lleva el scroll de la pantalla PHP hasta el detalle de la versión elegida (Xdebug, ajustes, extensiones).</summary>
+    private static void ScrollPhpTo(MainWindow window, double y)
+    {
+        Dispatcher.UIThread.RunJobs();
+        var scroll = window.GetVisualDescendants().OfType<PhpView>().Single().GetVisualDescendants().OfType<ScrollViewer>().First();
+        scroll.Offset = new Avalonia.Vector(0, y);
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private const string PhpV84ConXdebug = "PHP 8.4.27 (cli) (built: Oct 20 2026 04:19:45) (NTS Visual C++ 2022 x64)\nZend Engine v4.4.27, Copyright (c) Zend Technologies\n    with Zend OPcache v8.4.27, Copyright (c), by Zend Technologies\n    with Xdebug v3.5.3, Copyright (c) 2002-2026, by Derick Rethans\n";
+
+    private const string PhpV84SinXdebug = "PHP 8.4.27 (cli) (built: Oct 20 2026 04:19:45) (NTS Visual C++ 2022 x64)\nZend Engine v4.4.27, Copyright (c) Zend Technologies\n    with Zend OPcache v8.4.27, Copyright (c), by Zend Technologies\n";
+
+    /// <summary>Una DLL de Xdebug «instalada» (de pega) para la 8.4: con ella, la app no la baja.</summary>
+    private static string FakeXdebugDll(FakeRoost fake)
+    {
+        var build = Roost.Core.Install.XdebugCatalog.Windows.Single(b => b.PhpBranch == "8.4");
+        var dll = new Roost.Core.Install.XdebugInstaller(fake.Paths).DllPath(build);
+        Directory.CreateDirectory(Path.GetDirectoryName(dll)!);
+        File.WriteAllText(dll, "MZ de pega");
+        return dll;
+    }
+
+    [AvaloniaFact]
+    public async Task Php_DetalleConXdebugConfDDeLaRamaYAjustesRapidos()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        // Un php_xdebug.dll puesto a mano en ext/ no sale entre las extensiones: Xdebug tiene su interruptor.
+        File.WriteAllText(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "ext", "php_xdebug.dll"), "");
+
+        await main.NavigateToAsync(main.Php);
+        var php = main.Php;
+        Assert.Equal("8.4.27", php.Selected?.Version);
+        Assert.DoesNotContain(php.Extensions, e => e.Name == "xdebug");
+        Assert.True(php.XdebugAvailable);
+        Assert.False(php.XdebugOn);
+        Assert.StartsWith("Apagado. La primera vez se baja Xdebug 3.5.3 de xdebug.org", php.XdebugText);
+        Assert.Equal(@"conf.d\8.4\99-usuario.ini", php.BranchIniText);
+        Assert.Equal(["512M", "128M", "128M", "120"], new[] { php.MemoryLimit, php.UploadMaxFilesize, php.PostMaxSize, php.MaxExecutionTime });
+        Assert.False(php.CanSaveSettings);
+        ScrollPhpTo(window, 250);
+        Snapshot(window, "php-detalle");
+
+        // Una subida más grande que post_max_size: se dice al teclear y no se puede guardar.
+        php.UploadMaxFilesize = "300M";
+        Assert.Contains("post_max_size (128M) tiene que ser al menos upload_max_filesize (300M)", php.SettingsError);
+        Assert.False(php.CanSaveSettings);
+        Snapshot(window, "php-ajustes-error");
+        php.MaxExecutionTime = "mucho";
+        Assert.StartsWith("max_execution_time: pon segundos", php.SettingsError);
+
+        php.PostMaxSize = "300m";
+        php.MaxExecutionTime = "300";
+        Assert.Null(php.SettingsError);
+        Assert.True(php.CanSaveSettings);
+        await php.SaveSettingsCommand.ExecuteAsync(null);   // parado: no hay pool que reiniciar
+        var ini = File.ReadAllText(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64", "php.ini"));
+        Assert.Contains("upload_max_filesize = 300M", ini);
+        Assert.Contains("post_max_size = 300M", ini);
+        Assert.Contains("max_execution_time = 300", ini);
+        Assert.Equal("300M", php.PostMaxSize);
+        Assert.False(php.CanSaveSettings);
+
+        // Otra versión enseña los suyos (de serie) y su conf.d; al volver, siguen los guardados.
+        php.PickCommand.Execute(php.Installed.Single(c => c.Version == "7.4.33"));
+        Assert.Equal(@"conf.d\7.4\99-usuario.ini", php.BranchIniText);
+        Assert.Equal("128M", php.UploadMaxFilesize);
+        Assert.Contains("3.1.6", php.XdebugText);
+        php.PickCommand.Execute(php.Installed.Single(c => c.Version == "8.4.27"));
+        Assert.Equal("300M", php.UploadMaxFilesize);
+
+        php.DefaultSettingsCommand.Execute(null);
+        Assert.Equal("128M", php.UploadMaxFilesize);
+        Assert.True(php.CanSaveSettings);   // vuelve a lo de serie, pero hay que guardarlo
+    }
+
+    [AvaloniaFact]
+    public async Task Php_XdebugConSuDll_SeApagaYSeEnciendeComprobandoConPhpV()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        var dll = FakeXdebugDll(fake);
+        Roost.Core.Stack.PhpExtensionChoice.None.With("xdebug", enabled: true)
+            .Save(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64", Roost.Core.Stack.PhpExtensionChoice.FileName));
+        var runner = new CannedCommandRunner().On("-v", PhpV84SinXdebug);
+
+        await main.NavigateToAsync(main.Php);
+        var php = main.Php;
+        php.Runner = runner;
+        Assert.True(php.XdebugOn);
+        Assert.Equal("Xdebug 3.5.3 · depura la petición que trae XDEBUG_TRIGGER · el editor escucha en 127.0.0.1:9003", php.XdebugText);
+        ScrollPhpTo(window, 250);
+        Snapshot(window, "php-xdebug-encendido");
+
+        await php.ToggleXdebugCommand.ExecuteAsync(null);
+        Assert.False(php.XdebugOn);
+        var ini = Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64", "php.ini");
+        Assert.DoesNotContain("[xdebug]", File.ReadAllText(ini));
+        Assert.StartsWith("Apagado (Xdebug 3.5.3 ya está en bin\\xdebug)", php.XdebugText);
+
+        runner.On("-v", PhpV84ConXdebug);
+        await php.ToggleXdebugCommand.ExecuteAsync(null);
+        Assert.True(php.XdebugOn);
+        Assert.Contains($"zend_extension=\"{dll}\"", File.ReadAllText(ini));
+        Assert.Equal("Xdebug 3.5.3 activado en PHP 8.4.27", main.FlashText);
+        Assert.Equal(["-v"], runner.Calls[^1].Arguments);
+        Assert.Contains(";", runner.Calls[^1].Environment!["PHP_INI_SCAN_DIR"]);   // la común y la de la rama
+        Assert.Null(main.Dialog);
+    }
+
+    [AvaloniaFact]
+    public async Task Php_XdebugLaPrimeraVez_LoBajaConElDialogoInstalando()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        var hold = new TaskCompletionSource();
+        fake.Upstream.HoldMissing = hold;   // xdebug.org no está en la «red» de los tests: el 404 espera
+        var runner = new CannedCommandRunner();
+
+        await main.NavigateToAsync(main.Php);
+        main.Php.Runner = runner;
+        var toggling = main.Php.ToggleXdebugCommand.ExecuteAsync(null);
+        await UntilAsync(() => main.Dialog is InstallDialogViewModel);
+        var dialog = (InstallDialogViewModel)main.Dialog!;
+        Assert.Equal("Instalando Xdebug 3.5.3", dialog.Title);
+        Assert.Equal("Para PHP 8.4 · NTS · x64 · vs17 · desde xdebug.org", dialog.Subtitle);
+        Assert.Equal(331_776, dialog.TotalBytes);
+        Assert.Equal("Verificar el SHA-256", dialog.Steps[2].Label);
+        Snapshot(window, "php-xdebug-instalando");
+
+        hold.SetResult();
+        await UntilAsync(() => dialog.Done);
+        Assert.True(dialog.Failed);
+        dialog.CancelCommand.Execute(null);   // «Cerrar»
+        await toggling;
+        Assert.False(main.Php.XdebugOn);       // el interruptor vuelve: no hay DLL
+        Assert.Empty(runner.Calls);            // y php.exe ni se ha tocado
+        var choice = Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64", "extensiones.json");
+        Assert.True(!File.Exists(choice) || !File.ReadAllText(choice).Contains("xdebug"));
+    }
+
+    [AvaloniaFact]
+    public async Task Php_VerPhpIniGenerado_DeSoloLectura_ConBusqueda()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Php);
+        var showing = main.Php.ShowIniCommand.ExecuteAsync(null);
+        await UntilAsync(() => main.Dialog is PhpTextDialogViewModel { Loading: false });
+        var dialog = (PhpTextDialogViewModel)main.Dialog!;
+        Assert.Equal("php.ini de PHP 8.4.27", dialog.Title);
+        Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64", "php.ini"), dialog.Path);
+        Assert.True(dialog.CanOpenFolder);
+        Assert.Contains(dialog.Lines, l => l.Text == "[opcache]");
+        Assert.Contains(dialog.Lines, l => l.IsMuted);   // los comentarios, apagados
+        dialog.Query = "memory";
+        Assert.Equal(["memory_limit = 512M"], dialog.Lines.Select(l => l.Text));
+        Assert.EndsWith("líneas con «memory»", dialog.CountText);
+        dialog.Query = "";
+        Snapshot(window, "php-ver-php-ini");
+
+        dialog.FinishCommand.Execute(null);
+        await showing;
+        Assert.Null(main.Dialog);
+    }
+
+    [AvaloniaFact]
+    public async Task Php_PhpinfoYModulos_ConElPhpIniDeRoost_YBusqueda()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        var runner = new CannedCommandRunner()
+            .On("-i", "phpinfo()\nPHP Version => 8.4.27\n\nLoaded Configuration File => C:\\roost\\etc\\php\\8.4.27-nts-x64\\php.ini\n"
+                      + "Scan this dir for additional .ini files => C:\\roost\\etc\\php\\conf.d;C:\\roost\\etc\\php\\conf.d\\8.4\n\nxdebug\n\nVersion => 3.5.3\nxdebug.mode => debug,develop => debug,develop\nxdebug.client_port => 9003 => 9003\nmemory_limit => 512M => 512M\n",
+                "PHP Warning:  PHP Startup: Unable to load dynamic library 'oci8_19' (tried: C:\\php\\ext\\php_oci8_19.dll (No se puede encontrar el módulo especificado)) in Unknown on line 0\n")
+            .On("-m", "[PHP Modules]\nCore\ncurl\nmbstring\nxdebug\nZend OPcache\n\n[Zend Modules]\nXdebug\nZend OPcache\n");
+
+        await main.NavigateToAsync(main.Php);
+        main.Php.Runner = runner;
+        var info = main.Php.PhpInfoCommand.ExecuteAsync(null);
+        await UntilAsync(() => main.Dialog is PhpTextDialogViewModel { Loading: false });
+        var dialog = (PhpTextDialogViewModel)main.Dialog!;
+        Assert.Equal("phpinfo de PHP 8.4.27", dialog.Title);
+        Assert.False(dialog.HasPath);
+        Assert.True(dialog.Lines[0].IsWarn);   // el aviso de arranque, arriba y en ámbar
+        Assert.StartsWith("Aviso al arrancar: Unable to load dynamic library 'oci8_19'", dialog.Lines[0].Text);
+        dialog.Query = "XDEBUG.";
+        Assert.Equal(["xdebug.mode => debug,develop => debug,develop", "xdebug.client_port => 9003 => 9003"], dialog.Lines.Select(l => l.Text));
+        var spec = runner.Calls.Single();
+        Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", "php.exe"), spec.Exe);
+        Assert.Equal(["-i"], spec.Arguments);
+        Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64"), spec.Environment!["PHPRC"]);
+        Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "conf.d") + ";" + Path.Combine(fake.Paths.Etc, "php", "conf.d", "8.4"), spec.Environment["PHP_INI_SCAN_DIR"]);
+        Snapshot(window, "php-phpinfo");
+        dialog.FinishCommand.Execute(null);
+        await info;
+
+        var modules = main.Php.ModulesCommand.ExecuteAsync(null);
+        await UntilAsync(() => main.Dialog is PhpTextDialogViewModel { Loading: false });
+        dialog = (PhpTextDialogViewModel)main.Dialog!;
+        Assert.Equal("Módulos de PHP 8.4.27", dialog.Title);
+        Assert.Contains(dialog.Lines, l => l.Text == "Zend OPcache");
+        Snapshot(window, "php-modulos");
+        dialog.FinishCommand.Execute(null);
+        await modules;
+    }
+
+    [AvaloniaFact]
+    public async Task Php_UnaExtensionQuePhpNoCarga_SeQuedaApagada_YDiceElPorQue()
+    {
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        var runner = new CannedCommandRunner().On("-v", PhpV84SinXdebug,
+            "PHP Warning:  PHP Startup: Unable to load dynamic library 'ldap' (tried: C:\\php\\ext\\php_ldap.dll (No se puede encontrar el módulo especificado)) in Unknown on line 0\n");
+
+        await main.NavigateToAsync(main.Php);
+        var php = main.Php;
+        php.Runner = runner;
+        var ldap = php.Extensions.Single(e => e.Name == "ldap");
+        var toggling = php.ToggleExtensionCommand.ExecuteAsync(ldap);
+        await UntilAsync(() => main.Dialog is MessageDialogViewModel);
+        var error = (MessageDialogViewModel)main.Dialog!;
+        Assert.Equal("No se pudo cambiar ldap", error.Title);
+        Assert.Contains("no puede cargar ldap; se deja como estaba", error.Text ?? error.Detail);
+        error.Close();
+        await toggling;
+        Assert.False(ldap.IsOn);
+        Assert.DoesNotContain("extension=ldap", File.ReadAllText(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64", "php.ini")));
+
+        // La que sí carga se activa.
+        runner.On("-v", PhpV84SinXdebug);
+        var soap = php.Extensions.Single(e => e.Name == "soap");
+        await php.ToggleExtensionCommand.ExecuteAsync(soap);
+        Assert.True(soap.IsOn);
+        Assert.Contains("extension=soap", File.ReadAllText(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64", "php.ini")));
+    }
 }

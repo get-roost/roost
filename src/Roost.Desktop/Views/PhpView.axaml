@@ -72,7 +72,7 @@
                 </DockPanel>
               </Border>
               <StackPanel Margin="16,14" Spacing="14">
-                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
+                <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
                   <TextBlock Classes="muted" Text="Carpeta" />
                   <Grid Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,-6">
                     <TextBlock Classes="mono" Text="{Binding Folder}" TextTrimming="LeadingCharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Folder}" />
@@ -80,20 +80,77 @@
                       <ctl:Icon Data="{StaticResource IcFolder}" Size="14" />
                     </Button>
                   </Grid>
-                  <TextBlock Grid.Row="1" Classes="muted" Text="php.ini" />
-                  <TextBlock Grid.Row="1" Grid.Column="1" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding IniPath}">
-                    <Run Text="{Binding IniPath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
-                    <Run Text="  (generado, no se edita)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
-                  </TextBlock>
+                  <TextBlock Grid.Row="1" Classes="muted" Text="php.ini" VerticalAlignment="Center" />
+                  <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto" Margin="0,-6">
+                    <TextBlock TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding IniPath}" VerticalAlignment="Center">
+                      <Run Text="{Binding IniPath, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="12" />
+                      <Run Text="  (generado, no se edita)" Foreground="{DynamicResource FaintBrush}" FontSize="12" />
+                    </TextBlock>
+                    <Button Grid.Column="1" Classes="sm ghost" Margin="4,0,0,0" Content="Ver" Command="{Binding ShowIniCommand}"
+                            ToolTip.Tip="El php.ini generado, de solo lectura" AutomationProperties.Name="Ver el php.ini generado" />
+                  </Grid>
                   <TextBlock Grid.Row="2" Classes="muted" Text="Tus ajustes" VerticalAlignment="Center" />
                   <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Spacing="8">
                     <TextBlock Classes="mono" Text="conf.d\99-usuario.ini" VerticalAlignment="Center" />
-                    <Button Classes="sm ghost" Content="Editar" Command="{Binding EditUserIniCommand}" />
-                    <TextBlock Classes="faint" Text="valen para todas las versiones" VerticalAlignment="Center" />
+                    <Button Classes="sm ghost" Content="Editar" Command="{Binding EditUserIniCommand}" AutomationProperties.Name="Editar los ajustes de todas las versiones" />
+                    <TextBlock Classes="faint" Text="todas las versiones" VerticalAlignment="Center" />
                   </StackPanel>
-                  <TextBlock Grid.Row="3" Classes="muted" Text="Pool php-cgi" />
-                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="mono" Text="{Binding PoolText}" />
+                  <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="mono" Text="{Binding BranchIniText}" VerticalAlignment="Center" />
+                    <Button Classes="sm ghost" Content="Editar" Command="{Binding EditBranchIniCommand}" AutomationProperties.Name="Editar los ajustes de esta rama" />
+                    <TextBlock Classes="faint" Text="{Binding BranchHint}" VerticalAlignment="Center" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="4" Classes="muted" Text="Pool php-cgi" />
+                  <TextBlock Grid.Row="4" Grid.Column="1" Classes="mono" Text="{Binding PoolText}" />
+                  <TextBlock Grid.Row="5" Classes="muted" Text="Diagnóstico" VerticalAlignment="Center" />
+                  <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="sm" Content="phpinfo()" Command="{Binding PhpInfoCommand}" ToolTip.Tip="php -i con el php.ini de Roost, con búsqueda" />
+                    <Button Classes="sm" Content="Módulos" Command="{Binding ModulesCommand}" ToolTip.Tip="php -m: lo que carga de verdad" />
+                  </StackPanel>
                 </Grid>
+
+                <!-- PHP (oleada 3): Xdebug con un clic -->
+                <Border Classes="php-box" Padding="12,10">
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <ToggleSwitch IsChecked="{Binding XdebugOn, Mode=OneWay}" Command="{Binding ToggleXdebugCommand}"
+                                  IsEnabled="{Binding XdebugAvailable}" OnContent="" OffContent="" MinWidth="0" VerticalAlignment="Center"
+                                  AutomationProperties.Name="Xdebug" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="2">
+                      <TextBlock Classes="lbl" Text="Xdebug" />
+                      <TextBlock Classes="faint" Text="{Binding XdebugText}" TextWrapping="Wrap" />
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="sm ghost" Content="Copiar launch.json" Command="{Binding CopyLaunchJsonCommand}"
+                            IsVisible="{Binding XdebugOn}" VerticalAlignment="Center"
+                            ToolTip.Tip="La configuración de VS Code (PHP Debug) para escuchar en el 9003 y depurar el script abierto con esta versión" />
+                  </Grid>
+                </Border>
+
+                <!-- PHP (oleada 3): ajustes rápidos de esta versión -->
+                <StackPanel Spacing="8">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Classes="lbl" Text="Ajustes rápidos" />
+                    <TextBlock Classes="faint" Text="De esta versión, en su php.ini. Lo de conf.d manda sobre esto." TextWrapping="Wrap" />
+                  </StackPanel>
+                  <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10" RowDefinitions="Auto,Auto" RowSpacing="4">
+                    <TextBlock Classes="faint" Text="memory_limit" />
+                    <TextBlock Grid.Column="1" Classes="faint" Text="upload_max_filesize" />
+                    <TextBlock Grid.Column="2" Classes="faint" Text="post_max_size" />
+                    <TextBlock Grid.Column="3" Classes="faint" Text="max_execution_time (s)" TextTrimming="CharacterEllipsis" />
+                    <TextBox Grid.Row="1" Classes="mono" Text="{Binding MemoryLimit}" PlaceholderText="512M" AutomationProperties.Name="memory_limit" />
+                    <TextBox Grid.Row="1" Grid.Column="1" Classes="mono" Text="{Binding UploadMaxFilesize}" PlaceholderText="128M" AutomationProperties.Name="upload_max_filesize" />
+                    <TextBox Grid.Row="1" Grid.Column="2" Classes="mono" Text="{Binding PostMaxSize}" PlaceholderText="128M" AutomationProperties.Name="post_max_size" />
+                    <TextBox Grid.Row="1" Grid.Column="3" Classes="mono" Text="{Binding MaxExecutionTime}" PlaceholderText="120" AutomationProperties.Name="max_execution_time" />
+                  </Grid>
+                  <ctl:Note Tone="Bad" IsVisible="{Binding HasSettingsError}" Content="{Binding SettingsError}" />
+                  <DockPanel>
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="8" Margin="0,0,12,0" VerticalAlignment="Center">
+                      <Button Classes="sm primary" Content="Guardar" Command="{Binding SaveSettingsCommand}" IsEnabled="{Binding CanSaveSettings}"
+                              ToolTip.Tip="Rehace el php.ini de esta versión y reinicia solo su pool" ToolTip.ShowOnDisabled="True" />
+                      <Button Classes="sm ghost" Content="De serie" Command="{Binding DefaultSettingsCommand}" ToolTip.Tip="Pone los valores de Roost (512M, 128M, 128M, 120)" />
+                    </StackPanel>
+                    <TextBlock Classes="faint" Text="-1 en memory_limit y 0 en max_execution_time quitan el límite. En la terminal, PHP no aplica max_execution_time." VerticalAlignment="Center" TextWrapping="Wrap" />
+                  </DockPanel>
+                </StackPanel>
 
                 <StackPanel Spacing="8">
                   <StackPanel Orientation="Horizontal" Spacing="8">
@@ -111,8 +168,6 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
-                  <Button Classes="ext dashed" Content="+ xdebug" HorizontalAlignment="Left" IsEnabled="False"
-                          ToolTip.Tip="Próximamente: Xdebug llega en la fase 2" ToolTip.ShowOnDisabled="True" />
                 </StackPanel>
               </StackPanel>
             </StackPanel>

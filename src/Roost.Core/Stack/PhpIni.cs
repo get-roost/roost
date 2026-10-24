@@ -56,18 +56,20 @@ public sealed record PhpExtensionChoice(IReadOnlySet<string> On, IReadOnlySet<st
     }
 }
 
-/// <summary>
-/// El php.ini que genera Roost para cada instalación (ROOST.md §5.10): ajustes de desarrollo,
-/// <c>extension_dir</c> apuntando a SU carpeta <c>ext/</c> y solo las extensiones cuya DLL
-/// trae ese build. Se regenera en cada <c>roost up</c>; lo del usuario va en
-/// <c>conf.d/99-usuario.ini</c>, que PHP lee vía <c>PHP_INI_SCAN_DIR</c> y sobrevive a las
-/// actualizaciones.
-/// </summary>
-/// <summary>El JSON de extensiones.json, generado al compilar (lo lee también el shim, con NativeAOT).</summary>
-[JsonSourceGenerationOptions(WriteIndented = true)]
+/// <summary>El JSON de extensiones.json y de ajustes.json, generado al compilar (lo lee también el shim, con NativeAOT).</summary>
+[JsonSourceGenerationOptions(WriteIndented = true, DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull)]
 [JsonSerializable(typeof(PhpExtensionChoice.Stored))]
+[JsonSerializable(typeof(PhpSettings.Stored), TypeInfoPropertyName = "SettingsStored")]
 internal sealed partial class PhpExtensionJson : JsonSerializerContext;
 
+/// <summary>
+/// El php.ini que genera Roost para cada instalación (ROOST.md §5.10): ajustes de desarrollo (los
+/// rápidos, de <see cref="PhpSettings"/>), <c>extension_dir</c> apuntando a SU carpeta <c>ext/</c>,
+/// solo las extensiones cuya DLL trae ese build y, si se ha pedido, Xdebug. Se regenera en cada
+/// <c>roost up</c>; lo del usuario va en <c>conf.d/99-usuario.ini</c> (todas las versiones) y en
+/// <c>conf.d/&lt;rama&gt;/</c> (solo esa rama), que PHP lee vía <c>PHP_INI_SCAN_DIR</c>, después de este,
+/// y que sobreviven a las actualizaciones.
+/// </summary>
 public static class PhpIni
 {
     /// <summary>Extensiones que se activan si el build trae su DLL (<c>gd2</c> es el nombre en PHP 7.x).</summary>
@@ -77,7 +79,19 @@ public static class PhpIni
         "mysqli", "openssl", "pdo_mysql", "pdo_sqlite", "sodium", "sqlite3", "zip",
     ];
 
+    /// <summary>
+    /// Las que se cargan con <c>zend_extension</c> y nunca con <c>extension</c>: Xdebug 3 se niega a
+    /// arrancar como extensión normal («MUST be loaded as a Zend extension») y OPcache igual. Cada
+    /// una va en su sección (<c>[opcache]</c>, <c>[xdebug]</c>), con sus ajustes.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ZendExtensions = ["opcache", Xdebug];
+
+    public const string Xdebug = "xdebug";
+
     public const string UserFragmentName = "99-usuario.ini";
+
+    /// <summary>true si se carga con <c>zend_extension</c> (<see cref="ZendExtensions"/>).</summary>
+    public static bool IsZendExtension(string name) => ZendExtensions.Contains(name, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Las que trae el build para los tests de PHP mismo: ni se ofrecen ni se cargan.</summary>
     private static readonly string[] TestExtensions = ["dl_test", "zend_test"];
@@ -107,7 +121,25 @@ public static class PhpIni
             .Where(name => (EnabledByDefault(name) || choice.On.Contains(name)) && !choice.Off.Contains(name))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>PURO: genera el texto del php.ini a partir de lo que trae el build y lo que ha elegido el usuario.</summary>
+    /// <summary>Lo que lleva la sección <c>[xdebug]</c> además de la DLL (ver <see cref="Render"/>).</summary>
+    public static readonly IReadOnlyList<(string Key, string Value)> XdebugDefaults =
+    [
+        ("xdebug.mode", "debug,develop"),
+        ("xdebug.start_with_request", "trigger"),
+        ("xdebug.client_host", "127.0.0.1"),
+        ("xdebug.client_port", "9003"),
+    ];
+
+    /// <summary>
+    /// PURO: genera el texto del php.ini a partir de lo que trae el build y lo que ha elegido el usuario.
+    /// </summary>
+    /// <param name="settings">Los ajustes rápidos; null son los de serie.</param>
+    /// <param name="xdebugDll">
+    /// La DLL de Xdebug de Roost (<c>bin/xdebug/…</c>), con la que Xdebug cuenta como disponible. Si es
+    /// null y el build trae <c>ext/php_xdebug.dll</c> (puesta a mano), se carga esa por su nombre.
+    /// Solo se carga si el usuario la ha activado (<paramref name="choice"/>).
+    /// </param>
+    /// <param name="branchConfD">La carpeta conf.d de su rama, para decirlo en la cabecera.</param>
     public static string Render(
         string installName,
         string installDirectory,
@@ -115,20 +147,32 @@ public static class PhpIni
         string confD,
         string errorLog,
         PhpExtensionChoice? choice = null,
-        string? caBundle = null)
+        string? caBundle = null,
+        PhpSettings? settings = null,
+        string? xdebugDll = null,
+        string? branchConfD = null)
     {
         choice ??= PhpExtensionChoice.None;
+        settings = (settings ?? PhpSettings.Default).Normalized();
+        if (xdebugDll is not null && !availableExtensions.Contains(Xdebug))
+            availableExtensions = availableExtensions.Append(Xdebug).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var enabled = Enabled(availableExtensions, choice);
+        var userFiles = branchConfD is null
+            ? $"; Tus ajustes van en {Path.Combine(confD, UserFragmentName)}, que vale para todas las versiones."
+            : $"""
+              ; Tus ajustes van en {Path.Combine(confD, UserFragmentName)} (todas las versiones)
+              ; o en {Path.Combine(branchConfD, UserFragmentName)} (solo esta rama). Se leen despues y mandan.
+              """;
         var sb = new StringBuilder();
         sb.Append($"""
             ; Generado por Roost para PHP {installName}. NO lo edites: se regenera en cada `roost up`.
-            ; Tus ajustes van en {Path.Combine(confD, UserFragmentName)}, que vale para todas las versiones.
+            {userFiles}
 
             [PHP]
-            memory_limit = 512M
-            max_execution_time = 120
-            post_max_size = 128M
-            upload_max_filesize = 128M
+            memory_limit = {settings.MemoryLimit}
+            max_execution_time = {settings.MaxExecutionTime}
+            post_max_size = {settings.PostMaxSize}
+            upload_max_filesize = {settings.UploadMaxFilesize}
             display_errors = On
             display_startup_errors = On
             error_reporting = E_ALL
@@ -144,9 +188,10 @@ public static class PhpIni
             sb.Append($"curl.cainfo = \"{caBundle}\"\n");
         sb.Append('\n');
 
-        // Primero las de serie, en su orden; luego las que ha activado el usuario.
+        // Primero las de serie, en su orden; luego las que ha activado el usuario. Las zend
+        // (OPcache, Xdebug) nunca aquí: van en su sección, con zend_extension.
         var extensions = WantedExtensions.Where(enabled.Contains)
-            .Concat(enabled.Where(name => !EnabledByDefault(name)).Order(StringComparer.Ordinal));
+            .Concat(enabled.Where(name => !EnabledByDefault(name) && !IsZendExtension(name)).Order(StringComparer.Ordinal));
         foreach (var name in extensions)
             sb.Append($"extension={name}\n");
 
@@ -157,6 +202,17 @@ public static class PhpIni
         sb.Append(choice.Off.Contains("opcache") ? "opcache.enable = 0\n" : "opcache.enable = 1\n");
         sb.Append("opcache.validate_timestamps = 1\n");
         sb.Append("opcache.revalidate_freq = 0\n");
+
+        // Xdebug después de OPcache, como pide Xdebug. Con trigger solo depura (y solo intenta
+        // conectar con el editor) la petición que lo pide: el resto va a la velocidad de siempre.
+        if (enabled.Contains(Xdebug))
+        {
+            sb.Append("\n[xdebug]\n");
+            sb.Append(xdebugDll is null ? "zend_extension=xdebug\n" : $"zend_extension=\"{xdebugDll}\"\n");
+            sb.Append("; Se depura la peticion que trae XDEBUG_TRIGGER (o XDEBUG_SESSION): cookie, GET, POST o entorno.\n");
+            foreach (var (key, value) in XdebugDefaults)
+                sb.Append($"{key} = {value}\n");
+        }
         return sb.ToString();
     }
 
@@ -164,9 +220,22 @@ public static class PhpIni
     public const string UserFragmentTemplate = """
         ; Tus ajustes de PHP. Roost no toca este fichero y lo carga en TODAS las versiones
         ; (va despues del php.ini generado, asi que lo que pongas aqui manda).
+        ; Lo que solo valga para una rama (un zend_extension, una DLL de PECL) va en su carpeta:
+        ; conf.d\8.4\99-usuario.ini, conf.d\7.4\99-usuario.ini...
         ; Ejemplo:
         ; memory_limit = 1G
         ; date.timezone = Europe/Madrid
+
+        """;
+
+    /// <summary>Contenido inicial del fragmento del usuario de una rama (<c>conf.d/&lt;rama&gt;/99-usuario.ini</c>).</summary>
+    public static string BranchFragmentTemplate(string branch) => $"""
+        ; Tus ajustes solo para PHP {branch}. Roost no toca este fichero: lo carga en las instalaciones
+        ; de la {branch}, despues del php.ini generado y de conf.d\99-usuario.ini (lo de aqui manda).
+        ; Es el sitio para lo que no vale en otras ramas: una DLL de PECL compilada para la {branch}...
+        ; Ejemplo:
+        ; extension=redis
+        ; memory_limit = 2G
 
         """;
 }

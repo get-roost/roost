@@ -656,4 +656,11 @@
     <Setter Property="FontSize" Value="12" />
     <Setter Property="Foreground" Value="{DynamicResource LogTextBrush}" />
   </Style>
+
+  <!-- PHP (oleada 3): el recuadro de Xdebug en el detalle de una versión -->
+  <Style Selector="Border.php-box">
+    <Setter Property="BorderBrush" Value="{DynamicResource LineBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
 </Styles>
