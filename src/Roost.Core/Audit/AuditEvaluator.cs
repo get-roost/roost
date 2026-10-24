@@ -112,6 +112,12 @@ public sealed partial class AuditEvaluator
         if (component.Kind is ComponentKind.MySql or ComponentKind.MariaDb)
             notes.Add("Solo se comprueba el fin de vida de la rama: el feed de Roost aun no trae CVE de MySQL ni de MariaDB.");
 
+        // nginx tiene dos ramas vivas a la vez, y las dos reciben los parches.
+        if (component.Kind == ComponentKind.Nginx && branch is not null && !isEol)
+            notes.Add(component.Version.Minor % 2 == 0
+                ? $"Rama {branchKey} de nginx: la estable (las pares)."
+                : $"Rama {branchKey} de nginx: la mainline (las impares), la de las novedades; tambien recibe los parches.");
+
         // "Ambar honesto": si es un backport de distro, la comparacion por numero
         // no es fiable. No lo damos por rojo: lo marcamos incierto y lo pintamos ambar.
         if (uncertain)
@@ -135,6 +141,60 @@ public sealed partial class AuditEvaluator
             MatchedAdvisories = matched,
             Mitigations = mitigations,
             Notes = notes,
+        };
+    }
+
+    /// <summary>
+    /// PURO (K4): el hallazgo con el estado de sus mitigaciones frente al php.ini efectivo. Un
+    /// VULNERABLE cierto cuyos avisos están todos mitigados (cada uno con al menos una mitigación, y
+    /// todas cumplidas) baja a ámbar y deja de bloquear (ROOST.md §7.2: «CVE mitigado por
+    /// configuración»), salvo que:
+    /// <list type="bullet">
+    /// <item>alguno esté en KEV (explotación activa: sigue en rojo, solo lo arregla actualizar);</item>
+    /// <item>no sea un PHP de Roost (<paramref name="trusted"/> false): <c>php -i</c> es lo que lee la
+    /// terminal, y el servidor web de Laragon, XAMPP o la distro puede leer otro php.ini.</item>
+    /// </list>
+    /// EOL no baja nunca: sin parches, la mitigación no basta. Siempre parte del hallazgo sin mitigar
+    /// (<see cref="AuditFinding.BeforeMitigations"/>), así que se puede volver a llamar.
+    /// </summary>
+    public static AuditFinding WithMitigations(AuditFinding finding, IReadOnlyList<MitigationState> states, IReadOnlyList<string> iniFiles, bool trusted)
+    {
+        var original = finding.BeforeMitigations ?? finding;
+        bool Done(Mitigation m) => states.Any(s => s.Mitigation.SameAs(m) && s.Status == MitigationStatus.Mitigated);
+        var advisories = original.MatchedAdvisories;
+        var covered = advisories.Where(a => a.Mitigations.Count > 0 && a.Mitigations.All(Done)).ToList();
+        var notes = original.Notes.ToList();
+        var color = original.Color;
+        var headline = original.Headline;
+        var mitigated = false;
+
+        if (covered.Count > 0 && covered.Count == advisories.Count && original.Verdict == AuditVerdict.Vulnerable && !original.Uncertain)
+        {
+            if (covered.Where(a => a.Kev).Select(a => a.Id).ToList() is { Count: > 0 } kev)
+                notes.Add($"Las mitigaciones estan aplicadas, pero sigue en rojo: {string.Join(", ", kev)} esta en KEV (explotacion activa) y solo lo arregla actualizar.");
+            else if (!trusted)
+                notes.Add("Mitigada en el php.ini que lee la terminal, pero su servidor web puede leer otro: sigue en rojo hasta actualizar.");
+            else
+            {
+                color = AuditColor.Amber;
+                mitigated = true;
+                headline = $"Mitigada por configuracion (no sustituye al parche). {headline}";
+            }
+        }
+        else if (covered.Count > 0)
+        {
+            notes.Add($"Mitigados en el php.ini efectivo: {string.Join(", ", covered.Select(a => a.Id))}; los demas avisos siguen abiertos.");
+        }
+
+        return original with
+        {
+            Color = color,
+            Headline = headline,
+            Notes = notes,
+            Mitigated = mitigated,
+            MitigationStates = states,
+            IniFiles = iniFiles,
+            BeforeMitigations = original,
         };
     }
 
@@ -167,12 +227,14 @@ public sealed partial class AuditEvaluator
         return rank < 0 ? "sin puntuacion" : $"gravedad {labels[rank]}";
     }
 
+    /// <summary>A qué subir para quitarse todos los avisos: la mayor de las corregidas en esta rama.</summary>
     private static string? FixTarget(IEnumerable<Advisory> advisories, string branchKey)
     {
+        ComponentVersion? best = null;
         foreach (var a in advisories)
-            if (a.FixedIn.TryGetValue(branchKey, out var fix))
-                return fix;
-        return null;
+            if (a.FixedIn.TryGetValue(branchKey, out var fix) && ComponentVersion.TryParse(fix, out var v) && (best is null || v > best.Value))
+                best = v;
+        return best?.ToString();
     }
 
     private static readonly HashSet<string> SystemSources = new(StringComparer.OrdinalIgnoreCase)

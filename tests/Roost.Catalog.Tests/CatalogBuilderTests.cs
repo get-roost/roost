@@ -244,6 +244,28 @@ public class CatalogBuilderTests
     }
 
     [Fact]
+    public void AMano_UnaMitigacionQueNoSePuedeComparar_NoSePublica_YLaBuenaLlevaSuComparacion()
+    {
+        var page = GhsaPage(Ghsa("GHSA-6wmf-4rv5-p3rp", "CVE-2026-109619", "RCE via stale global state", "critical", null, Php2ShellBranches));
+
+        var bad = CatalogBuilder.Build(Inputs(page, [new ManualAdvisory
+        {
+            Id = "CVE-2026-109619", File = "malo.json",
+            Mitigations = [new Mitigation { Ini = "memory_limit", Value = "128M (razonable)" }, new Mitigation { Ini = "expose_php", Value = "Off", Compare = "~" }],
+        }]));
+        Assert.Equal(2, bad.Errors.Count(e => e.StartsWith("malo.json: la mitigacion", StringComparison.Ordinal)));
+
+        var good = CatalogBuilder.Build(Inputs(page, [new ManualAdvisory
+        {
+            Id = "CVE-2026-109619", File = "bueno.json",
+            Mitigations = [new Mitigation { Ini = "memory_limit", Value = "128M", Compare = "<=", Note = "razonable" }],
+        }]));
+        Assert.Empty(good.Errors);
+        var dataset = AuditDataset.Load(new MemoryStream(CatalogBuilder.Serialize(good.Dataset)));
+        Assert.Equal("<=", dataset.Advisories.Single().Mitigations.Single().Compare);
+    }
+
+    [Fact]
     public void UnAvisoQueDejariaEnRojoLaUltima_SeRetiene_HastaQueLoConfirmaUnFichero()
     {
         // Sin parche aún (o mal leído): afecta a la 8.4.27, que es la última de la 8.4.
@@ -294,7 +316,7 @@ public class CatalogBuilderTests
         var bytes = CatalogBuilder.Serialize(result.Dataset);
         Assert.DoesNotContain((byte)'\r', bytes);
         var dataset = AuditDataset.Load(new MemoryStream(bytes));
-        Assert.Equal("1.0.0", dataset.SchemaVersion);
+        Assert.Equal("1.1.0", dataset.SchemaVersion);
         Assert.Equal(Now, dataset.Generated);
         Assert.Equal("Actualiza a la ultima de tu rama: 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).", dataset.Remediation.RealFix);
 
@@ -316,14 +338,14 @@ public class CatalogBuilderTests
         var meta = ManualData.LoadMeta(dir);
         var manual = ManualData.LoadAdvisories(dir);
 
-        Assert.Equal(["php", "mysql", "mariadb", "nginx"], meta.Products.Keys);
+        Assert.Equal(["php", "mysql", "mariadb", "nginx", "apache"], meta.Products.Keys);
         Assert.NotEmpty(manual);
         var page = GhsaPage(
             Ghsa("GHSA-w8hw-w9fx-j79w", "CVE-2026-109618", "RCE via OOM corruption", "critical", null, Php2ShellBranches),
             Ghsa("GHSA-6wmf-4rv5-p3rp", "CVE-2026-109619", "RCE via stale global state", "critical", null, Php2ShellBranches));
         var result = CatalogBuilder.Build(Inputs(page, manual) with
         {
-            Meta = new CatalogMeta { Products = new(meta.Products.Where(p => p.Key != "nginx")), Remediation = meta.Remediation },
+            Meta = new CatalogMeta { Products = new(meta.Products.Where(p => p.Key is not ("nginx" or "apache"))), Remediation = meta.Remediation },
         });
 
         Assert.Empty(result.Errors);

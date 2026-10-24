@@ -54,8 +54,18 @@ public abstract class ComponentScannerBase : IComponentScanner
     /// </summary>
     protected static IEnumerable<Candidate> RoostCandidates(string binFolder, string relativeExecutable)
     {
+        string root;
+        try { root = RoostPaths.Default().Root; }
+        catch { return []; }
+        return RoostCandidates(root, binFolder, relativeExecutable);
+    }
+
+    /// <summary>Lo mismo con la raíz de Roost dada (los tests ponen una carpeta temporal).</summary>
+    protected static IEnumerable<Candidate> RoostCandidates(string? root, string binFolder, string relativeExecutable)
+    {
+        if (string.IsNullOrEmpty(root)) return [];
         string bin;
-        try { bin = Path.Combine(RoostPaths.Default().Root, "bin", binFolder); }
+        try { bin = Path.Combine(root, "bin", binFolder); }
         catch { return []; }
 
         return Globber.Expand(Path.Combine(bin, "*", relativeExecutable))

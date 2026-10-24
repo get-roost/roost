@@ -4,8 +4,8 @@ using Roost.Core.Models;
 namespace Roost.Core.Scanning;
 
 /// <summary>
-/// Convierte la salida de <c>php -v</c> / <c>mysqld --version</c> / <c>mariadbd --version</c>
-/// en un <see cref="DetectedComponent"/>. Es PURO (no ejecuta nada, no toca disco), así que
+/// Convierte la salida de <c>php -v</c> / <c>mysqld --version</c> / <c>mariadbd --version</c> /
+/// <c>nginx -v</c> / <c>httpd -v</c> en un <see cref="DetectedComponent"/>. Es PURO (no ejecuta nada, no toca disco), así que
 /// es lo que cubren los tests: se le pasan salidas de ejemplo y se comprueba el resultado.
 /// Los scanners se encargan de la parte sucia (descubrir rutas y ejecutar los binarios).
 /// </summary>
@@ -27,6 +27,14 @@ public static partial class ComponentParser
     // El cliente de MariaDB 11: «mariadb from 11.4.2-MariaDB, client 15.2 for Linux».
     [GeneratedRegex(@",\s*client\s+\d", RegexOptions.IgnoreCase)]
     private static partial Regex ClientMarker();
+
+    // «nginx version: nginx/1.30.6» (por stderr). Un fork («openresty/1.25.3.1», «Tengine/3.1.0») no casa.
+    [GeneratedRegex(@"nginx version:\s*nginx/(?<version>\d+\.\d+\.\d+)[^\r\n]*", RegexOptions.IgnoreCase)]
+    private static partial Regex NginxBanner();
+
+    // «Server version: Apache/2.4.69 (Win64)», «Server version: Apache/2.4.58 (Ubuntu)».
+    [GeneratedRegex(@"Server version:\s*Apache/(?<version>\d+\.\d+\.\d+)[^\r\n]*", RegexOptions.IgnoreCase)]
+    private static partial Regex ApacheBanner();
 
     private static readonly HashSet<string> ClientPrograms = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -124,6 +132,51 @@ public static partial class ComponentParser
             Sapi = null,
             IsOnPath = isOnPath,
             Architecture = architecture,
+        };
+    }
+
+    /// <summary>
+    /// Parsea la salida de <c>nginx -v</c> (que nginx escribe en stderr): <c>nginx version:
+    /// nginx/1.30.6</c>. Null si no es nginx (también los forks como OpenResty o Tengine, que
+    /// numeran a su manera y llevan sus propios parches: compararlos con los avisos de nginx mentiría).
+    /// </summary>
+    public static DetectedComponent? ParseNginx(
+        string? output,
+        string executablePath,
+        string source,
+        bool isOnPath,
+        string? folderHint = null)
+        => ParseWebServer(output, NginxBanner(), ComponentKind.Nginx, executablePath, source, isOnPath, folderHint);
+
+    /// <summary>
+    /// Parsea la salida de <c>httpd -v</c> / <c>apache2 -v</c>: <c>Server version: Apache/2.4.69
+    /// (Win64)</c>. La arquitectura sale del paréntesis (Win64, Win32) o de la carpeta.
+    /// </summary>
+    public static DetectedComponent? ParseApache(
+        string? output,
+        string executablePath,
+        string source,
+        bool isOnPath,
+        string? folderHint = null)
+        => ParseWebServer(output, ApacheBanner(), ComponentKind.Apache, executablePath, source, isOnPath, folderHint);
+
+    // La versión cruda es la línea del banner: la auditoría busca en ella los sufijos de distro.
+    private static DetectedComponent? ParseWebServer(string? output, Regex banner, ComponentKind kind,
+        string executablePath, string source, bool isOnPath, string? folderHint)
+    {
+        if (string.IsNullOrWhiteSpace(output)) return null;
+        var m = banner.Match(output);
+        if (!m.Success || !ComponentVersion.TryParse(m.Groups["version"].Value, out var version)) return null;
+
+        return new DetectedComponent
+        {
+            Kind = kind,
+            Version = version with { Raw = m.Value.Trim() },
+            ExecutablePath = executablePath,
+            Source = source,
+            Sapi = null,
+            IsOnPath = isOnPath,
+            Architecture = ParseArchitecture(m.Value) ?? ParseArchitecture(folderHint),
         };
     }
 

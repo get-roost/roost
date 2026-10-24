@@ -5,7 +5,8 @@
     "php": { "displayName": "PHP", "endOfLife": "php" },
     "mysql": { "displayName": "MySQL", "endOfLife": "mysql" },
     "mariadb": { "displayName": "MariaDB", "endOfLife": "mariadb" },
-    "nginx": { "displayName": "nginx", "endOfLife": "nginx" }
+    "nginx": { "displayName": "nginx", "endOfLife": "nginx" },
+    "apache": { "displayName": "Apache", "endOfLife": "apache-http-server" }
   },
   // "realFix" vacio: el generador pone la ultima de cada rama de PHP con soporte.
   "remediation": {

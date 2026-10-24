@@ -91,6 +91,7 @@ public sealed class TrayAlerts
         "Php" => "PHP",
         "MySql" => "MySQL",
         "MariaDb" => "MariaDB",
+        "Nginx" => "nginx",
         _ => kind,
     };
 

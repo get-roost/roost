@@ -107,6 +107,15 @@ static async Task<int> GenerateAsync(string[] args)
         page = NextPage(response);
     }
 
+    // Los boletines de nginx y Apache (HTML): solo si el catalogo lleva el producto.
+    var webSkipped = new List<string>();
+    var nginx = meta.Products.ContainsKey("nginx")
+        ? Sources.ParseNginxAdvisories(await GetAsync(http, "https://nginx.org/en/security_advisories.html"), webSkipped)
+        : [];
+    var apache = meta.Products.ContainsKey("apache")
+        ? Sources.ParseApacheAdvisories(await GetAsync(http, "https://httpd.apache.org/security/vulnerabilities_24.html"), webSkipped)
+        : [];
+
     var (kev, kevVersion) = Sources.ParseKev(await GetAsync(http, "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"));
 
     var result = CatalogBuilder.Build(new CatalogInputs
@@ -116,6 +125,9 @@ static async Task<int> GenerateAsync(string[] args)
         PhpLatest = phpLatest,
         PhpSrc = phpSrc,
         Skipped = skipped,
+        Nginx = nginx,
+        Apache = apache,
+        WebSkipped = webSkipped,
         Kev = kev,
         KevVersion = kevVersion,
         Manual = manual,
@@ -233,8 +245,8 @@ partial class Program
         El feed de avisos de seguridad y ciclos de vida que usa Roost para `roost audit`
         y la pantalla Auditoría (ROOST.md §7.3). Lo regenera cada día el workflow
         `catalog.yml` de la rama `main` a partir de endoflife.date, php.net, los avisos
-        de GitHub de `php/php-src` y el catálogo KEV de CISA, más los avisos revisados a
-        mano de `catalog/advisories/`.
+        de GitHub de `php/php-src`, los de nginx.org y httpd.apache.org y el catálogo KEV
+        de CISA, más los avisos revisados a mano de `catalog/advisories/`.
 
         - `advisories.json`: el feed.
         - `advisories.json.sig`: su firma, ECDSA P-256 sobre SHA-256 (DER).

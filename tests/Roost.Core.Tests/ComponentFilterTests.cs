@@ -22,6 +22,7 @@ public class ComponentFilterTests
     [InlineData("mariadb,mysql", "mysql,mariadb")]        // en el orden de siempre
     [InlineData(" php , mysql ,", "php,mysql")]
     [InlineData("php,php", "php")]
+    [InlineData("Apache,nginx,php", "php,nginx,apache")]   // K2
     public void SeAceptan_SinDistinguirMayusculas_YConEspacios(string text, string keys)
     {
         Assert.True(ComponentFilter.TryParse(text, out var filter, out var error));
@@ -45,7 +46,7 @@ public class ComponentFilterTests
         Assert.False(ComponentFilter.TryParse("php,postgres,redis", out var filter, out var error));
         Assert.Null(filter);
         Assert.Contains("postgres, redis", error);
-        Assert.Contains("php, mysql, mariadb", error);
+        Assert.Contains("php, mysql, mariadb, nginx, apache", error);
     }
 
     [Fact]

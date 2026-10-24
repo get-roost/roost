@@ -222,6 +222,33 @@ public class AuditEvaluatorTests
     }
 
     [Fact]
+    public void ElTitular_DiceLaMayorCorregidaDeLaRama_NoLaDelPrimerAviso()
+    {
+        var dataset = new AuditDataset
+        {
+            Products = new() { ["nginx"] = new ProductInfo { Branches = new() { ["1.30"] = new BranchInfo { Latest = "1.30.6", Status = "active" } } } },
+            Advisories =
+            [
+                new Advisory { Id = "CVE-VIEJO", Product = "nginx", Affected = [">=1.30.0 <1.30.3"], FixedIn = new() { ["1.30"] = "1.30.3" }, Severity = "medium" },
+                new Advisory { Id = "CVE-NUEVO", Product = "nginx", Affected = [">=1.30.0 <1.30.6"], FixedIn = new() { ["1.30"] = "1.30.6" }, Severity = "medium" },
+            ],
+        };
+        var nginx = new DetectedComponent
+        {
+            Kind = ComponentKind.Nginx,
+            Version = new ComponentVersion(1, 30, 2, "nginx version: nginx/1.30.2"),
+            ExecutablePath = @"C:\nginx\nginx.exe",
+            Source = "manual",
+        };
+
+        var finding = new AuditEvaluator(dataset, Today).Evaluate(nginx);
+
+        Assert.EndsWith("actualiza a 1.30.6.", finding.Headline);   // con 1.30.3 seguiría afectada por el otro
+        Assert.Contains(finding.Notes, n => n.Contains("la estable"));
+        Assert.DoesNotContain(finding.Notes, n => n.Contains("MySQL"));
+    }
+
+    [Fact]
     public void SinCvss_ElTitularDiceLaGravedad()
     {
         var dataset = new AuditDataset

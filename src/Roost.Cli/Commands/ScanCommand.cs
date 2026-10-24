@@ -19,7 +19,7 @@ public sealed class ScanCommand : Command<ScanCommand.Settings>
         public bool Json { get; init; }
 
         [CommandOption("--only <TIPOS>")]
-        [Description("Solo esos tipos (php, mysql, mariadb; varios separados por comas).")]
+        [Description("Solo esos tipos (php, mysql, mariadb, nginx, apache; varios separados por comas).")]
         public string? Only { get; init; }
     }
 

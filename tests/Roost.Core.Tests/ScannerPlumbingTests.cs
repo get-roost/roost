@@ -84,14 +84,17 @@ public class ScannerPlumbingTests : IDisposable
     }
 
     [Fact]
-    public void CatalogoPorDefecto_RegistraLosTresScannersEnEsteSo()
+    public void CatalogoPorDefecto_RegistraLosCincoScannersEnEsteSo()
     {
         var scanners = ScannerCatalog.CreateDefault();
 
-        Assert.Equal(3, scanners.Count);
+        Assert.Equal(5, scanners.Count);
         Assert.Contains(scanners, s => s.Kind == ComponentKind.Php);
         Assert.Contains(scanners, s => s.Kind == ComponentKind.MySql);
         Assert.Contains(scanners, s => s.Kind == ComponentKind.MariaDb);
+        Assert.Contains(scanners, s => s.Kind == ComponentKind.Nginx);
+        Assert.Contains(scanners, s => s.Kind == ComponentKind.Apache);
+        Assert.All(scanners, s => Assert.True(s.SupportsCurrentOs));
     }
 
     public void Dispose()
