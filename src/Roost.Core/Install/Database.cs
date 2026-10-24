@@ -30,6 +30,9 @@ public static class DbEngines
     /// <summary>El cliente de línea de comandos.</summary>
     public static string ClientExe(this DbEngine engine) => engine == DbEngine.MariaDb ? "mariadb.exe" : "mysql.exe";
 
+    /// <summary>El que vuelca una base de datos a SQL (BD-2): <c>mariadb-dump.exe</c> o <c>mysqldump.exe</c>.</summary>
+    public static string DumpExe(this DbEngine engine) => engine == DbEngine.MariaDb ? "mariadb-dump.exe" : "mysqldump.exe";
+
     public static bool TryParse(string? text, out DbEngine engine)
     {
         engine = default;
@@ -82,6 +85,7 @@ public sealed record InstalledDb(DbEngine Engine, string Name, string Directory)
     public string Server => Path.Combine(Directory, "bin", Engine.ServerExe());
     public string Admin => Path.Combine(Directory, "bin", Engine.AdminExe());
     public string Client => Path.Combine(Directory, "bin", Engine.ClientExe());
+    public string Dump => Path.Combine(Directory, "bin", Engine.DumpExe());
 
     /// <summary>Como lo escribe el usuario: <c>mariadb@11.4.13</c>.</summary>
     public string Spec => $"{Engine.Key()}@{Name}";

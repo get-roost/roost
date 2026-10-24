@@ -14,6 +14,12 @@ public sealed record DbUser(string Name, string Host, bool AllDatabases, IReadOn
     public string AccessText => AllDatabases ? "todas" : Databases.Count == 0 ? "ninguna" : string.Join(", ", Databases);
 }
 
+/// <summary>Una base de datos del servidor: si existe y cuántas tablas y vistas tiene.</summary>
+public sealed record DbSchemaInfo(bool Exists, int Tables)
+{
+    public bool IsEmpty => Tables == 0;
+}
+
 /// <summary>Lo que contesta un servidor recién instalado a <c>--version</c>, o qué suele faltar si no contesta.</summary>
 public sealed record DbSmokeResult(string? VersionLine, string? MissingRedistributable, string? RedistributableUrl)
 {
@@ -124,6 +130,40 @@ public static partial class DbAdmin
             .Where(line => line.Length > 0 && line != Ok && IsValidName(line) && !SystemSchemas.Contains(line))
             .Order(StringComparer.Ordinal)
             .ToList();
+    }
+
+    // --- Exportar e importar (BD-2) ---
+
+    /// <summary>
+    /// Si existe la base de datos y cuántas tablas y vistas tiene: para crearla si falta y para
+    /// avisar antes de importar encima de una que ya tiene datos.
+    /// </summary>
+    public static DbSchemaInfo Inspect(InstalledDb db, string iniPath, string name, IProcessRunner runner)
+    {
+        if (!IsValidName(name))
+            throw new RoostException($"'{name}' no vale como nombre: usa solo letras, numeros y _ (hasta 64).");
+
+        var output = Run(db, iniPath,
+            $"SELECT COUNT(*) FROM information_schema.SCHEMATA WHERE SCHEMA_NAME = '{name}'; "
+            + $"SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = '{name}'",
+            runner, $"No se pudo mirar {name}", TimeSpan.FromSeconds(15));
+        var numbers = output.Split('\n')
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0 && line.All(char.IsAsciiDigit))
+            .Select(int.Parse)
+            .ToList();
+        if (numbers.Count < 2) throw new RoostException($"No se pudo mirar {name}: {Describe(output)}");
+        return new DbSchemaInfo(numbers[0] > 0, numbers[1]);
+    }
+
+    /// <summary>Las colaciones que conoce el servidor, para adaptar al vuelo un volcado de otro motor.</summary>
+    public static IReadOnlySet<string> Collations(InstalledDb db, string iniPath, IProcessRunner runner)
+    {
+        var output = Run(db, iniPath, "SHOW COLLATION", runner, "No se pudieron leer las colaciones del servidor", TimeSpan.FromSeconds(15));
+        return output.Split('\n')
+            .Select(line => line.Split('\t')[0].Trim())
+            .Where(name => name.Length > 0 && name != Ok && IsValidName(name))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     // --- La contraseña de root ---
