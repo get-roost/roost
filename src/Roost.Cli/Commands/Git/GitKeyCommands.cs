@@ -182,7 +182,7 @@ public sealed class GitKeyRemoveCommand : Command<GitKeyRemoveCommand.Settings>
                 return 0;
             }
             AnsiConsole.MarkupLineInterpolated($"[green]Quitada[/] la clave SSH de {settings.Site} de este equipo.");
-            AnsiConsole.MarkupLineInterpolated($"[grey]Quita tambien la publica de las deploy keys del repositorio{(url?.DeployKeysUrl is { } page ? $": {page}" : "")}.[/]");
+            AnsiConsole.MarkupLineInterpolated($"[grey]Quita tambien la publica de las deploy keys del repositorio{(url?.DeployKeysUrl is { } page ? $": {page}" : ".")}[/]");
             return 0;
         }
         catch (RoostException ex)

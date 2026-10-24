@@ -425,7 +425,7 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
         }
         AnsiConsole.MarkupLineInterpolated($"[red]{failure.Message}[/]");
         if (failure.Detail.Length > 0) AnsiConsole.MarkupLineInterpolated($"[grey]git: {failure.Detail}[/]");
-        if (failure.Kind is GitFailureKind.AuthRequired or GitFailureKind.KeyRequired && settings is { Token: false, Ssh: false, SshKey: null, OwnSsh: false })
+        if (failure.Kind == GitFailureKind.AuthRequired && settings is { Token: false, Ssh: false, SshKey: null, OwnSsh: false })
             AnsiConsole.MarkupLine("[grey]Elige como entrar: --token (HTTPS), --ssh (una clave de Roost para este sitio), --ssh-key <fichero> o --own-ssh (las tuyas).[/]");
         if (key is not null)
             AnsiConsole.MarkupLineInterpolated($"[grey]La clave de {name} se queda en {key.PrivateFile} para la proxima vez (roost git key show {name}; para quitarla, roost git key remove {name}).[/]");

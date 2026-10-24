@@ -194,7 +194,7 @@ public sealed class SiteRemoveCommand : AsyncCommand<SiteRemoveCommand.Settings>
             if (access.KeyShared)
                 AnsiConsole.MarkupLineInterpolated($"[grey]Su clave SSH ({access.KeyName}) se queda: la usa otro sitio.[/]");
             else if (removed && access.KeyRemoved)
-                AnsiConsole.MarkupLineInterpolated($"[green]Quitada[/] su clave SSH de Roost ({access.KeyName}). [grey]Quita tambien la publica de las deploy keys del repositorio{(access.DeployKeysUrl is { } page ? $": {page}" : "")}.[/]");
+                AnsiConsole.MarkupLineInterpolated($"[green]Quitada[/] su clave SSH de Roost ({access.KeyName}). [grey]Quita tambien la publica de las deploy keys del repositorio{(access.DeployKeysUrl is { } page ? $": {page}" : ".")}[/]");
             else if (!removed)
                 AnsiConsole.MarkupLineInterpolated($"[grey]Su clave SSH ({access.KeyName}) se queda; para quitarla: roost git key remove {access.KeyName}[/]");
         }
