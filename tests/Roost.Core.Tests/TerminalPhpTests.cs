@@ -122,8 +122,11 @@ public class TerminalPhpTests : IDisposable
         var env = TerminalPhp.Environment(Paths, php);
 
         Assert.True(File.Exists(Path.Combine(env["PHPRC"], "php.ini")));
-        Assert.Equal(Path.Combine(Paths.Etc, "php", "conf.d"), env["PHP_INI_SCAN_DIR"]);
-        Assert.True(File.Exists(Path.Combine(env["PHP_INI_SCAN_DIR"], "99-usuario.ini")));
+        // La conf.d común y la de su rama, como el pool de php-cgi.
+        var confD = Path.Combine(Paths.Etc, "php", "conf.d");
+        Assert.Equal(confD + Path.PathSeparator + Path.Combine(confD, "8.4"), env["PHP_INI_SCAN_DIR"]);
+        Assert.True(File.Exists(Path.Combine(confD, "99-usuario.ini")));
+        Assert.True(File.Exists(Path.Combine(confD, "8.4", "99-usuario.ini")));
     }
 
     [Theory]

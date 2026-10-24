@@ -140,7 +140,7 @@ public class ComposerTests : IDisposable
         Assert.Null(spec.Timeout);   // un install largo no se corta
         var env = spec.Environment!;
         Assert.Equal(Path.Combine(Paths.Etc, "php", "8.4.27-nts-x64"), env["PHPRC"]);
-        Assert.Equal(Path.Combine(Paths.Etc, "php", "conf.d"), env["PHP_INI_SCAN_DIR"]);
+        Assert.Equal(Path.Combine(Paths.Etc, "php", "conf.d") + Path.PathSeparator + Path.Combine(Paths.Etc, "php", "conf.d", "8.4"), env["PHP_INI_SCAN_DIR"]);
         Assert.Equal("1", env[ComposerTool.NoInteractionVariable]);
         Assert.False(env.ContainsKey("COMPOSER_HOME"));   // la caché y el auth.json del usuario siguen valiendo
 
