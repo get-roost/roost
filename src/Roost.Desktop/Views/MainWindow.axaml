@@ -189,4 +189,11 @@
       <ContentControl Content="{Binding Dialog}" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center" />
     </Panel>
   </Grid>
+
+  <!-- Ajustes y sistema: los atajos (J5) en el tooltip de su entrada de la barra lateral (NavItem.Tip) -->
+  <Window.Styles>
+    <Style Selector="Button.nav" x:DataType="vm:NavItem">
+      <Setter Property="ToolTip.Tip" Value="{Binding Tip}" />
+    </Style>
+  </Window.Styles>
 </Window>
