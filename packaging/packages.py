@@ -204,6 +204,10 @@ def check_scoop(path, schemas, validator_cls):
         problems.append(f"autoupdate no da la misma url que la version actual: {template}")
     if "SHA256SUMS.txt" not in json.dumps(manifest.get("autoupdate", {}).get("hash", {})):
         problems.append("autoupdate/hash no sale de SHA256SUMS.txt")
+    # Actualizar o desinstalar con el daemon viejo en marcha dejaría sus dll en uso: los dos paran el stack.
+    for hook in ("pre_install", "pre_uninstall"):
+        if " down" not in json.dumps(manifest.get(hook, "")):
+            problems.append(f"{hook} no hace roost down")
     return problems
 
 

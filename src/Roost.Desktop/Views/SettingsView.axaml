@@ -41,7 +41,13 @@
             <SelectableTextBlock Classes="mono" Text="{Binding Updates.Command}" Foreground="{DynamicResource TextBrush}" />
           </Border>
           <WrapPanel ItemSpacing="8" LineSpacing="8" Margin="0,2,0,0">
-            <Button Classes="sm primary" Command="{Binding OpenReleaseCommand}">
+            <Button Classes="sm primary" Command="{Binding UpdateNowCommand}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <ctl:Icon Data="{StaticResource IcDownload}" Size="14" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Updates.UpdateLabel}" VerticalAlignment="Center" />
+              </StackPanel>
+            </Button>
+            <Button Classes="sm" Command="{Binding OpenReleaseCommand}">
               <StackPanel Orientation="Horizontal" Spacing="6">
                 <ctl:Icon Data="{StaticResource IcExternal}" Size="14" VerticalAlignment="Center" />
                 <TextBlock Text="Ver la versión en GitHub" VerticalAlignment="Center" />

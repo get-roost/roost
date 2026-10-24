@@ -54,7 +54,7 @@ public sealed partial class NewsViewModel : PageViewModel
     }
 
     [RelayCommand]
-    private Task OpenUpdatesAsync() => Main.NavigateToAsync(Main.Settings);
+    private Task OpenUpdatesAsync() => Main.Updates.OpenAsync(Main);
 
     [RelayCommand]
     private Task OpenReleasesAsync() => Main.RunAsync("No se pudo abrir el navegador", () =>

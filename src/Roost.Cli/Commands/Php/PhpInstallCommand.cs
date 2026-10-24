@@ -57,6 +57,9 @@ public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
             var finding = CatalogAudit.Evaluate(build.Version, build.FileName, "windows.php.net");
             if (finding.Color != AuditColor.Green)
                 AnsiConsole.MarkupLineInterpolated($"[yellow]Ojo:[/] {finding.Headline}");
+            // Sin el VC++ Redistributable, php.exe no arranca: mejor saberlo antes de descargar.
+            if (VcRedist.Warning(VcRedist.Detect(), forApache: false) is { } vc)
+                AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {vc}");
 
             AnsiConsole.MarkupLineInterpolated($"Descargando [bold]{build.FileName}[/] ({build.SizeText ?? "?"}) de {build.Url.Host}");
             InstalledPhp? installed = null;

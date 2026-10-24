@@ -58,6 +58,16 @@ public sealed record RoostPaths(string Root, string Cache, string? ConfigDir = n
     /// <summary>Binarios de un motor de base de datos: <c>bin/mariadb/11.4.13</c>, <c>bin/mysql/8.4.11</c>.</summary>
     public string DbBin(string engineKey) => Path.Combine(Root, "bin", engineKey);
 
+    /// <summary>El MinGit de Roost, una subcarpeta por versión: <c>bin/git/2.55.0.3</c>.</summary>
+    public string GitBin => Path.Combine(Root, "bin", "git");
+
+    /// <summary>
+    /// Lo que git necesita aparte de los repositorios: el <c>gitconfig</c> aislado de Roost, el
+    /// historial de cada sitio (<c>state/git/&lt;sitio&gt;/history.json</c>) y, más adelante, las
+    /// claves y el <c>known_hosts</c>.
+    /// </summary>
+    public string GitState => Path.Combine(State, "git");
+
     /// <summary>
     /// Datos de las bases de datos: <c>data/&lt;motor&gt;/&lt;rama&gt;</c>, uno por versión mayor y
     /// nunca compartido entre motores (ROOST.md §8). Roost nunca borra nada de aquí.

@@ -229,9 +229,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     public Task NavigateToAsync(PageViewModel page) => NavigateAsync(page);
 
-    /// <summary>El aviso de versión nueva lleva a Ajustes: allí están las novedades y cómo actualizar.</summary>
+    /// <summary>El aviso de versión nueva abre el modal «Roost X disponible» (novedades y Actualizar ahora); sin versión nueva, Ajustes.</summary>
     [RelayCommand]
-    private Task OpenUpdatesAsync() => NavigateAsync(Settings);
+    private Task OpenUpdatesAsync() => Updates.OpenAsync(this);
 
     /// <summary>Registros con un fichero ya elegido (el log de errores de nginx, el de un PHP…).</summary>
     public async Task OpenLogAsync(string fileName)

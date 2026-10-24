@@ -67,6 +67,12 @@ public sealed record RoostConfig
 
     public bool UsesLocalDns => SitesResolver == ResolverDns;
 
+    /// <summary>
+    /// <c>[git] exe</c>: otro git en vez del MinGit que instala Roost (el de Git for Windows, por
+    /// ejemplo). null = el de Roost. Se usa con el mismo entorno aislado.
+    /// </summary>
+    public string? GitExe { get; init; }
+
     /// <summary>Lo que se escribe la primera vez que un comando crea el fichero.</summary>
     private static string Template(string? phpVersion, string? dbEngine, string? dbVersion) => $"""
         # Configuracion de Roost. Puedes editarla a mano: cuando un comando cambia una
@@ -99,6 +105,10 @@ public sealed record RoostConfig
         # administrador en cada alta o baja) o "dns" (el DNS local de Roost: roost dns install).
         resolver = "{ResolverHosts}"
 
+        [git]
+        # Otro git en vez del MinGit que instala Roost (roost git install), por ejemplo el de Git for Windows.
+        # exe = 'C:\Program Files\Git\cmd\git.exe'
+
         """;
 
     // Una clave con valor, o comentada con un ejemplo si no lo tiene.
@@ -122,6 +132,7 @@ public sealed record RoostConfig
             DbVersion = ReadString(doc, "db", "version", path),
             DbPort = ReadInteger(doc, "db", "port", path) ?? DefaultDbPort,
             SitesResolver = ReadString(doc, "sites", "resolver", path)?.Trim().ToLowerInvariant() ?? ResolverHosts,
+            GitExe = ReadString(doc, "git", "exe", path) is { } gitExe && !string.IsNullOrWhiteSpace(gitExe) ? gitExe.Trim() : null,
         };
 
         if (config.PhpPool is < 1 or > 10)
@@ -193,6 +204,10 @@ public sealed record RoostConfig
             throw new RoostException("El puerto de la base de datos tiene que estar entre 1 y 65535.");
         Set(path, "db", [("port", Number(port))]);
     }
+
+    /// <summary>Fija <c>[git] exe</c>; null vuelve al git de Roost.</summary>
+    public static void SetGitExe(string path, string? exe) =>
+        Set(path, "git", [("exe", Text(string.IsNullOrWhiteSpace(exe) ? null : exe.Trim()))]);
 
     private static StringValueSyntax? Text(string? value) => value is null ? null : new StringValueSyntax(value);
 

@@ -64,6 +64,33 @@ public sealed class ShimInstaller(RoostPaths paths)
     }
 
     /// <summary>
+    /// Si los shims puestos son de otra Roost: el <c>php.exe</c> instalado no es byte a byte el
+    /// <c>roost-shim.exe</c> de <paramref name="sourceDirectory"/>. Tras actualizar Roost, la app
+    /// los renueva al abrirse. False si no están puestos o falta el shim de origen. Nunca lanza.
+    /// </summary>
+    public bool IsOutdated(string sourceDirectory)
+    {
+        try
+        {
+            var installed = Path.Combine(Directory, OperatingSystem.IsWindows() ? "php.exe" : "php");
+            var source = Path.Combine(sourceDirectory, OperatingSystem.IsWindows() ? ShimName + ".exe" : ShimName);
+            if (!File.Exists(installed) || !File.Exists(source)) return false;
+            if (new FileInfo(installed).Length != new FileInfo(source).Length) return true;
+            return !Sha256(installed).SequenceEqual(Sha256(source));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
+    private static byte[] Sha256(string file)
+    {
+        using var stream = File.OpenRead(file);
+        return System.Security.Cryptography.SHA256.HashData(stream);
+    }
+
+    /// <summary>
     /// Lo que necesita al lado un shim sin NativeAOT: su dll, su runtimeconfig, su deps.json y
     /// las dll que este nombra. Con NativeAOT no hay deps.json y la lista sale vacía.
     /// </summary>

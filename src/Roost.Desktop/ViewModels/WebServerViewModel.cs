@@ -331,10 +331,29 @@ public sealed partial class WebServerViewModel : PageViewModel
     [RelayCommand]
     private Task GoApacheErrorLogAsync() => Main.OpenLogAsync("apache-error.log");
 
+    /// <summary>
+    /// Enseña el diálogo de instalación y espera al resultado aunque se haya pasado a segundo
+    /// plano («Seguir en segundo plano»): entonces el error, o el éxito, no se ha visto aún y se dice.
+    /// </summary>
+    private async Task RunInstallAsync(InstallDialogViewModel dialog, string what, string where)
+    {
+        var run = dialog.RunAsync();
+        var shown = await Main.ShowDialogAsync(dialog);
+        await run;
+        Main.NotifyConfigChanged();
+        Build();
+        if (shown is null && dialog.Failed)
+            await Main.InfoAsync($"No se instaló {what}", dialog.Error!, Tone.Bad);
+        else if (shown is null && !dialog.Failed)
+            await Main.InfoAsync($"{what} instalado", $"Ya está en {where}.", Tone.Ok);
+    }
+
     [RelayCommand]
     private async Task InstallApacheAsync()
     {
         var build = ApacheCatalog.Windows;
+        // Apache de Apache Lounge no arranca sin el VC++ 14.50 o posterior: avisar antes, con el enlace.
+        if (!await VcRedistGuard.ConfirmAsync(Main, $"Apache {build.Version}", forApache: true)) return;
         var installer = new ApacheInstaller(Main.App.Paths, Main.App.Http);
         var dialog = new InstallDialogViewModel(
             $"Instalando Apache {build.Version}",
@@ -352,17 +371,15 @@ public sealed partial class WebServerViewModel : PageViewModel
                 await installer.InstallAsync(build, new Progress<long>(d.Downloaded), cancel);
                 d.Step(3, "Extrayendo");
             });
-        var run = dialog.RunAsync();
-        await Main.ShowDialogAsync(dialog);
-        await run;
-        Main.NotifyConfigChanged();
-        Build();
+        await RunInstallAsync(dialog, $"Apache {build.Version}", Path.Combine(Main.App.Paths.ApacheBin, build.Version));
     }
 
     [RelayCommand]
     private async Task InstallNginxAsync()
     {
         var build = NginxCatalog.Windows;
+        // nginx no lo necesita, pero el PHP que va a servir sí: mejor saberlo antes de empezar.
+        if (!await VcRedistGuard.ConfirmAsync(Main, $"nginx {build.Version}", forApache: false, who: "El PHP que sirve nginx")) return;
         var installer = new NginxInstaller(Main.App.Paths, Main.App.Http);
         var dialog = new InstallDialogViewModel(
             $"Instalando nginx {build.Version}",
@@ -380,9 +397,6 @@ public sealed partial class WebServerViewModel : PageViewModel
                 await installer.InstallAsync(build, new Progress<long>(d.Downloaded), cancel);
                 d.Step(3, "Extrayendo");
             });
-        var run = dialog.RunAsync();
-        await Main.ShowDialogAsync(dialog);
-        await run;
-        Main.NotifyConfigChanged();
+        await RunInstallAsync(dialog, $"nginx {build.Version}", Path.Combine(Main.App.Paths.NginxBin, build.Version));
     }
 }

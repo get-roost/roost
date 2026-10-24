@@ -10,8 +10,10 @@ public sealed record SiteChange(Site Site, bool Created, bool FolderCreated);
 /// <summary>
 /// Dar de alta y de baja sitios, como <c>roost site add / remove</c> (los usan la CLI y la app).
 /// Nunca borra la carpeta de un proyecto; el <c>.conf</c> de un sitio quitado se aparta, no se borra.
+/// Con un <paramref name="git"/>, también clona y actualiza sitios desde un repositorio
+/// (<c>SiteManager.Git.cs</c>).
 /// </summary>
-public sealed class SiteManager(RoostPaths paths)
+public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = null)
 {
     /// <summary>Lo que se escribe en la carpeta de un sitio nuevo si no existía.</summary>
     public const string IndexTemplate = """
@@ -77,7 +79,8 @@ public sealed class SiteManager(RoostPaths paths)
         if (root is null)
             webRoot = sameFolder ? existing!.Root : (Directory.Exists(Path.Combine(dir, "public")) ? "public" : null);
 
-        var site = new Site { Name = name, Folder = dir, Root = webRoot, Php = sitePhp };
+        // El repositorio del que vino el sitio va con su carpeta: si la carpeta cambia, ya no es ese checkout.
+        var site = new Site { Name = name, Folder = dir, Root = webRoot, Php = sitePhp, Git = sameFolder ? existing!.Git : null };
         Registry.Upsert(site);
         new LocalCa(paths).LoadOrCreate();
         return new SiteChange(site, existing is null, folderCreated);

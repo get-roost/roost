@@ -2,8 +2,12 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
-## 0.1.3 — en preparación
+## 0.1.3 — 24-oct-2026
 
+- **Actualizar Roost desde la app:** el aviso de versión nueva abre «Roost X disponible» con las novedades y lo que pesa. «Actualizar ahora» descarga el instalador, comprueba su SHA-256 con el de la release y cierra Roost un momento; Windows pide permiso una vez y Roost vuelve sola, con el stack en marcha si lo estaba. Si cancelas el permiso, vuelve y te dice que no se ha actualizado. Con Scoop o winget abre una terminal que actualiza y la vuelve a abrir; desde la CLI, `roost update --install`.
+- **Sitios desde git:** `roost site clone <url>` crea un sitio clonando un repositorio público de GitHub, GitLab, Bitbucket o de tu servidor (o una carpeta local). Se clona en una carpeta temporal y solo al acabar pasa a ser el sitio: si algo falla, no queda nada a medias.
+- **Actualizar y cambiar de rama sin sustos:** `roost site pull` solo avanza (fast-forward) y `roost site branch` solo cambia de rama si no hay cambios locales; si los hay, Roost lo dice y no toca nada. `roost site git` enseña la rama, si vas por detrás, el último commit y el historial; con `--adopt`, adopta un proyecto que ya tenía su `.git`.
+- **Un git propio y verificado:** Roost descarga MinGit (el git de Git for Windows para aplicaciones) la primera vez que hace falta, comprueba su SHA-256 y lo usa con una configuración aislada: tu `.gitconfig` no se lee ni se toca. `roost git install` y `roost git status`; `[git] exe` en `roost.toml` para usar otro git. De momento, repositorios públicos y locales, y desde la CLI; los privados y la app llegan en las próximas versiones.
 - **Bases de datos:** pantalla rehecha. El puerto se cambia en un solo sitio (junto a la conexión), con quién ocupa cada puerto.
 - **Contraseña de root:** ponla o cámbiala desde la app o con `roost db password`; Roost la recuerda para sus propios comandos y la añade a la línea del `.env`.
 - **Usuarios y bases de datos:** crea usuarios con acceso a una base de datos o a todas, cámbiales la contraseña o bórralos; borra bases de datos (nunca las del propio servidor). En la CLI, `roost db user` y `roost db drop`.
@@ -15,7 +19,11 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 - **Sitios:** si cancelas el permiso de Windows, el mensaje dice la verdad (el sitio está creado o quitado; falta el hosts) y cómo arreglarlo; cambiar el PHP de un sitio pide confirmación; botones para copiar la URL y la ruta, y aviso si la carpeta ya no existe.
 - **Certificados:** al crear un sitio, Roost ofrece confiar en su CA antes de abrir el navegador, así que lo primero que ves ya no es un error de certificado.
 - **Firefox:** también confía en tus sitios `.test`. «Configurar Firefox» en Ajustes, la casilla del diálogo de la CA y `roost cert trust` lo preparan en todos tus perfiles; reinicia Firefox para que lo aplique.
-- **Actualizar Roost desde la app:** «Roost X disponible → Actualizar ahora» descarga la versión nueva, la verifica y Roost vuelve a abrirse solo.
+- **Visual C++ Redistributable:** el instalador lo pone si falta o es antiguo, y la app y la CLI avisan antes de instalar PHP o el servidor web si falta.
+- **Desinstalar limpio:** desinstalar Roost quita también lo que puso en Windows (la regla de DNS de `.test`, su bloque del `hosts`, los shims del PATH y el arranque con Windows) y pregunta si quitar la CA de tus certificados de confianza. Tus proyectos y bases de datos se quedan. Y `roost cert untrust` deja de confiar en la CA cuando quieras.
+- **Scoop:** actualizar y desinstalar paran el stack (`roost down`).
+- **php de la terminal:** tras actualizar Roost, la app renueva el shim si es de otra versión.
+- **Servidor web:** si instalar nginx o Apache en segundo plano falla, la app te lo dice.
 - **Novedades:** esta pestaña, debajo de Ajustes, con lo que cambia cada versión.
 - **Proyectos en `C:\roost\www`:** la carpeta de proyectos por defecto pasa a estar dentro de la raíz de Roost. Los sitios que ya tenías siguen donde están.
 - **PHP y HTTPS:** la extensión curl de PHP (Guzzle, Laravel, WordPress) ya confía en los certificados de internet y en los de tus sitios `.test`.
