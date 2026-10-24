@@ -23,6 +23,12 @@ public sealed partial record Site
     /// <summary>PHP del sitio: rama, versión o instalación; null = el PHP global.</summary>
     public string? Php { get; init; }
 
+    /// <summary>
+    /// Su base de datos en la global, si se eligió una (Nuevo sitio: crear una o usar una que ya
+    /// existe); null = la que sale de su nombre (<c>DbAdmin.NameFor</c>). Solo el nombre: nada secreto.
+    /// </summary>
+    public string? Database { get; init; }
+
     /// <summary>El repositorio del que viene el sitio (ROOST.md: git al estilo Plesk); null en los sitios de siempre.</summary>
     public SiteGit? Git { get; init; }
 

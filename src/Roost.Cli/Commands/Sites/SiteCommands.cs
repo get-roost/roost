@@ -238,6 +238,7 @@ public sealed class SiteListCommand : Command<SiteListCommand.Settings>
                     documentRoot = site.DocumentRoot,
                     php,
                     phpFixed = site.Php is not null,
+                    database = SiteManager.DatabaseOf(site),
                     certExpires = expires,
                     inHosts = inHosts.Contains(site.Host),
                 };

@@ -237,13 +237,13 @@ Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que s
 ### `roost shims`: el `php` de la terminal según la carpeta (solo Windows, por ahora)
 
 ```sh
-roost shims install        # pone C:\roost\bin\shims (con su php.exe) delante en el PATH de tu usuario
+roost shims install        # pone C:\roost\bin\shims (con su php.exe, y composer.exe si tienes el Composer de Roost) delante en el PATH de tu usuario
 roost php use 7.4 --here   # este proyecto, en 7.4: escribe un .php-version en la carpeta
 roost php which            # que php toca aqui y por que
 roost shims remove         # lo deja como estaba
 ```
 
-En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION`, el `.php-version` más cercano (en la carpeta o en una superior), el PHP del sitio cuya carpeta es esta, o el PHP global. Carga el mismo `php.ini` que el servidor, así que Composer y PHPUnit tienen las mismas extensiones. Si hay otro `php.exe` en el PATH del sistema (Laragon, XAMPP), Windows lo mira antes y gana: `roost shims status` lo avisa. En la app, es una casilla de Ajustes.
+En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION`, el `.php-version` más cercano (en la carpeta o en una superior), el PHP del sitio cuya carpeta es esta, o el PHP global. Carga el mismo `php.ini` que el servidor, así que Composer y PHPUnit tienen las mismas extensiones; `composer` va igual (ver [Composer](#composer-solo-windows-por-ahora)). Si hay otro `php.exe` o `composer` en el PATH del sistema (Laragon, XAMPP, Composer-Setup), Windows lo mira antes y gana: `roost shims status` lo avisa. En la app, es una casilla de Ajustes.
 
 ### `roost site` y `roost cert` (solo Windows, por ahora)
 
@@ -259,6 +259,7 @@ roost site list                                          # carpeta, PHP, caducid
 roost site remove legacy                                 # la carpeta del proyecto no se toca
 roost cert trust                                         # que Chrome y Edge confíen en la CA de Roost (una vez)
 roost cert untrust                                       # deja de confiar en ella (y quita lo de Firefox)
+roost cert path tienda                                   # el certificado y la clave del sitio (para Vite; --json)
 roost cert renew                                         # vuelve a emitir los certificados (up ya los renueva solo)
 ```
 
@@ -298,6 +299,63 @@ roost git install | status                                     # el git que usa 
 - **Un git propio.** La primera vez que hace falta, Roost descarga MinGit (el git de Git for Windows para aplicaciones), comprueba su SHA-256 y lo deja en `C:\roost\bin\git`. Lo usa con una configuración aislada en `C:\roost\state\git`: tu `.gitconfig` no se lee ni se toca. Para usar otro git, `[git] exe = 'C:\Program Files\Git\cmd\git.exe'` en `roost.toml`.
 - **El historial.** Cada clonado, actualización y cambio de rama queda en `C:\roost\state\git\<sitio>\history.json`, y la salida completa de git en `C:\roost\logs\git-<sitio>.log` (sin usuarios ni contraseñas, aunque git los imprimiera).
 - **De momento, repositorios públicos y carpetas locales.** El acceso a repositorios privados, con token HTTPS o clave SSH, llega en una versión próxima.
+
+### Composer (solo Windows, por ahora)
+
+Roost trae su propio Composer: un `composer.phar` de getcomposer.org verificado con su SHA-256, en `C:\roost\bin\composer`. Se instala solo la primera vez que lo usas desde la app, o con `roost composer install`.
+
+```sh
+roost composer install                               # instala el Composer de Roost (y su shim, si los shims están puestos)
+roost composer status [--json]                       # qué Composer y qué PHP se usan aquí, y si otro le gana en el PATH
+roost site composer tienda install                   # con el PHP del sitio; también update y require <paquete> [--dev]
+roost site composer tienda require monolog/monolog:^3
+```
+
+- **En la terminal**, con los shims puestos (`roost shims install`) y el Composer de Roost instalado, `composer` usa el PHP de cada carpeta (el de su `.php-version`, el del sitio o el global) con el mismo `php.ini` que el servidor: openssl, curl, zip, mbstring y las CA. Tu caché y tu `auth.json` de Composer siguen valiendo. Mientras no instales el Composer de Roost, su shim no se pone y `composer` sigue siendo el tuyo.
+- **En la app**, el panel de un sitio con `composer.json` tiene «Instalar dependencias», «Actualizar» y «Añadir paquete…», con la salida en directo (se puede cancelar y copiar).
+- **Si tienes Composer-Setup,** su `composer.bat` está en el PATH del sistema, que Windows mira antes que el tuyo, y gana al de Roost: `roost composer status` y `roost shims status` lo avisan. Desinstálalo desde Configuración › Aplicaciones (o quita su carpeta del PATH del sistema).
+
+Composer ejecuta los scripts del `composer.json` del proyecto: úsalo con proyectos en los que confíes.
+
+### Vite (u otro servidor de desarrollo) en HTTPS
+
+La página se sirve en `https://tienda.test`, así que el servidor de Vite también tiene que ir por HTTPS y con ese nombre; si no, el navegador bloquea los assets y el HMR por contenido mixto. Usa el certificado del sitio:
+
+```sh
+roost cert path tienda           # o --json para un script
+```
+
+Te da algo como `C:\roost\certs\sites\tienda.crt` y `tienda.key`, que valen para `tienda.test` y `*.tienda.test`. En `vite.config.js`:
+
+```js
+import fs from 'node:fs';
+import { defineConfig } from 'vite';
+import laravel from 'laravel-vite-plugin';
+
+const host = 'tienda.test';
+
+export default defineConfig({
+    plugins: [laravel({ input: ['resources/css/app.css', 'resources/js/app.js'], refresh: true })],
+    server: {
+        host,                                // escucha en tienda.test (127.0.0.1) y se anuncia con ese nombre
+        https: {
+            key: fs.readFileSync('C:/roost/certs/sites/tienda.key'),
+            cert: fs.readFileSync('C:/roost/certs/sites/tienda.crt'),
+        },
+        hmr: { host },                       // el websocket del HMR, también contra tienda.test
+        cors: { origin: 'https://tienda.test' },
+    },
+});
+```
+
+- `npm run dev` sirve entonces en `https://tienda.test:5173`, y `laravel-vite-plugin` escribe esa URL en `public/hot`.
+- Si Roost usa otro puerto HTTPS (`[web] https_port`, por ejemplo 8443), pon ese puerto en `cors.origin`: `https://tienda.test:8443`.
+- El certificado no vale para `localhost`: usa siempre el nombre `.test`.
+- La clave solo la puede leer tu usuario (Node corre como tú, así que la lee). No la copies ni la subas al repositorio.
+- Roost renueva el certificado antes de que caduque, en la misma ruta: reinicia `npm run dev` para que lo vuelva a leer.
+- Para que el navegador no avise, confía una vez en la CA de Roost: `roost cert trust`, o lo que te ofrece la app al crear un sitio.
+
+Sin Laravel es lo mismo: las opciones de `server` valen para cualquier proyecto con Vite.
 
 ### `roost dns`: los `.test` sin tocar el hosts (solo Windows, por ahora)
 

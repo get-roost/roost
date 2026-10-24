@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Roost.Core;
+using Roost.Core.Composer;
 using Roost.Core.Platform;
 using Roost.Core.Shims;
 
@@ -8,7 +9,8 @@ namespace Roost.Shim;
 /// <summary>
 /// El shim: elige el PHP de esta carpeta y lo ejecuta con los argumentos tal cual llegaron,
 /// heredando la consola, y devuelve su código de salida. Ctrl+C le llega al PHP (comparten
-/// consola); el shim solo espera a que acabe.
+/// consola); el shim solo espera a que acabe. Copiado como <c>composer.exe</c>, ejecuta
+/// <c>&lt;ese php&gt; &lt;composer.phar de Roost&gt; &lt;argumentos&gt;</c>.
 /// </summary>
 internal static class Program
 {
@@ -20,9 +22,24 @@ internal static class Program
         {
             var paths = PathsFor(self);
             var choice = TerminalPhp.Resolve(paths, Environment.CurrentDirectory, Environment.GetEnvironmentVariable(TerminalPhp.VersionVariable));
-            var target = tool == "php-cgi" ? choice.Php.CgiExecutable : choice.Php.Executable;
+            var rest = TerminalPhp.ArgumentsAfterProgram(Environment.CommandLine);
+            string target, arguments;
+            if (tool == "composer")
+            {
+                // Desde la terminal Composer puede preguntar (no se pone COMPOSER_NO_INTERACTION).
+                var composer = ComposerTool.Locate(paths)
+                    ?? throw new RoostException("Composer no esta instalado en Roost. Instalalo con: roost composer install");
+                ComposerTool.CheckPhp(choice.Php);
+                target = choice.Php.Executable;
+                arguments = ComposerTool.ShimArguments(composer.Phar, rest);
+            }
+            else
+            {
+                target = tool == "php-cgi" ? choice.Php.CgiExecutable : choice.Php.Executable;
+                arguments = rest;
+            }
 
-            var start = new ProcessStartInfo(target, TerminalPhp.ArgumentsAfterProgram(Environment.CommandLine)) { UseShellExecute = false };
+            var start = new ProcessStartInfo(target, arguments) { UseShellExecute = false };
             foreach (var (name, value) in TerminalPhp.Environment(paths, choice.Php))
                 start.Environment[name] = value;
 

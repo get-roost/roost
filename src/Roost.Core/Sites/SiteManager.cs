@@ -1,6 +1,7 @@
 using Roost.Core.Config;
 using Roost.Core.Install;
 using Roost.Core.Platform;
+using Roost.Core.Stack;
 
 namespace Roost.Core.Sites;
 
@@ -80,7 +81,7 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
             webRoot = sameFolder ? existing!.Root : (Directory.Exists(Path.Combine(dir, "public")) ? "public" : null);
 
         // El repositorio del que vino el sitio va con su carpeta: si la carpeta cambia, ya no es ese checkout.
-        var site = new Site { Name = name, Folder = dir, Root = webRoot, Php = sitePhp, Git = sameFolder ? existing!.Git : null };
+        var site = new Site { Name = name, Folder = dir, Root = webRoot, Php = sitePhp, Database = existing?.Database, Git = sameFolder ? existing!.Git : null };
         Registry.Upsert(site);
         new LocalCa(paths).LoadOrCreate();
         return new SiteChange(site, existing is null, folderCreated);
@@ -100,6 +101,26 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
         Registry.Upsert(changed);
         return changed;
     }
+
+    /// <summary>
+    /// Fija la base de datos del sitio (solo el nombre, validado como en <c>DbAdmin</c>; no la crea).
+    /// null vuelve a la que sale de su nombre. Devuelve el sitio ya cambiado.
+    /// </summary>
+    public Site SetDatabase(string name, string? database)
+    {
+        name = NormalizeName(name);
+        var site = Registry.Find(name)
+            ?? throw new RoostException($"No hay ningun sitio '{name}'. Mira los registrados con: roost site list");
+        database = string.IsNullOrWhiteSpace(database) ? null : database.Trim();
+        if (database is not null && (!DbAdmin.IsValidName(database) || DbAdmin.SystemSchemas.Contains(database)))
+            throw new RoostException($"'{database}' no vale como base de datos de un sitio: usa solo letras, numeros y _ (hasta 64), y ninguna del sistema.");
+        var changed = site with { Database = database };
+        Registry.Upsert(changed);
+        return changed;
+    }
+
+    /// <summary>La base de datos del sitio: la que tiene fijada o, si no, la que sale de su nombre.</summary>
+    public static string DatabaseOf(Site site) => site.Database ?? DbAdmin.NameFor(site.Name);
 
     /// <summary>
     /// La raíz web que se guarda para <paramref name="root"/>: null si es la propia carpeta del

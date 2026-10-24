@@ -289,6 +289,8 @@ public class StackServiceTests : IDisposable
         using var renewed = X509Certificate2.CreateFromPem(File.ReadAllText(ca.SiteCertFile("blog")));
         Assert.True(renewed.NotAfter > DateTime.Now.AddDays(300));
         Assert.Equal(tiendaBefore, File.ReadAllText(ca.SiteCertFile("tienda")));   // el otro no se toca
+        // RestartAsync mata nginx y el bucle del supervisor lo relanza por su cuenta: se espera a verlo.
+        await UntilAsync(() => _launcher.StartsOf("nginx") == 2, "el relanzamiento de nginx");
         Assert.Equal(2, _launcher.StartsOf("nginx"));      // solo el servidor web
         Assert.Equal(1, _launcher.StartsOf("php-8.4-0"));
         Assert.Equal(1, _launcher.StartsOf("mariadb-11.4"));
@@ -304,6 +306,16 @@ public class StackServiceTests : IDisposable
         AddSite("blog");
         Assert.Equal(0, await Service().RenewCertificatesAsync());
         Assert.Empty(_launcher.StartOrder());
+    }
+
+    private static async Task UntilAsync(Func<bool> condition, string what)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (!condition())
+        {
+            if (DateTime.UtcNow > deadline) Assert.Fail($"Se ha esperado demasiado a: {what}");
+            await Task.Delay(20);
+        }
     }
 
     /// <summary>Un certificado del sitio firmado por la CA de Roost que caduca en <paramref name="days"/> días.</summary>

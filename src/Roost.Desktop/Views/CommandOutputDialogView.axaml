@@ -1,0 +1,61 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:Roost.Desktop.ViewModels"
+             xmlns:ctl="using:Roost.Desktop.Controls"
+             x:Class="Roost.Desktop.Views.CommandOutputDialogView"
+             x:DataType="vm:CommandOutputDialogViewModel">
+  <Border Classes="modal wide" Width="720">
+    <DockPanel>
+      <Border DockPanel.Dock="Bottom" Classes="modal-f">
+        <DockPanel>
+          <Button DockPanel.Dock="Left" Content="Copiar la salida" Command="{Binding CopyCommand}" IsVisible="{Binding CanCopy}" />
+          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right">
+            <Button Content="Cancelar" Command="{Binding CancelCommand}" IsVisible="{Binding Running}"
+                    ToolTip.Tip="Para el proceso y todo lo que haya lanzado" />
+            <Button Classes="primary" Content="Cerrar" Command="{Binding FinishCommand}" IsVisible="{Binding Done}" />
+          </StackPanel>
+        </DockPanel>
+      </Border>
+      <StackPanel Spacing="12" Margin="20,18,20,18">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+          <Border Classes="badge-ic" Classes.bad="{Binding Failed}">
+            <ctl:Icon Data="{StaticResource IcTerminal}" Size="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock Classes="h3" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
+            <TextBlock Classes="faint" Text="{Binding Subtitle}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Subtitle}" />
+          </StackPanel>
+        </Grid>
+
+        <ctl:Note Tone="Warn" IsVisible="{Binding HasNote}" Content="{Binding Note}" />
+
+        <StackPanel Spacing="6">
+          <DockPanel>
+            <TextBlock DockPanel.Dock="Right" Classes="faint" Text="{Binding Status}" VerticalAlignment="Center" />
+            <TextBlock Classes="mono strong" Text="{Binding CommandText, StringFormat='&gt; {0}'}" TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="{Binding Folder}" VerticalAlignment="Center" />
+          </DockPanel>
+          <ProgressBar IsIndeterminate="{Binding Running}" IsVisible="{Binding Running}" AutomationProperties.Name="En marcha" />
+        </StackPanel>
+
+        <Border Classes="log" Padding="12,10">
+          <ScrollViewer Name="OutputScroll" Height="300" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Lines}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:LogLine">
+                  <TextBlock Classes="logline" Classes.e="{Binding IsError}" Classes.w="{Binding IsWarn}" Classes.m="{Binding IsMuted}"
+                             Text="{Binding Text}" TextWrapping="Wrap" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+
+        <ctl:Note Tone="{Binding ResultTone}" IsVisible="{Binding Done}" Content="{Binding ResultText}" />
+      </StackPanel>
+    </DockPanel>
+  </Border>
+</UserControl>

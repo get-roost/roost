@@ -10,6 +10,11 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 - **localhost:** nginx y Apache escuchan también en `[::1]`, así `http://localhost` nunca acaba en otro servidor de la máquina; el DNS local contesta también la dirección IPv6.
 - **Certificados:** Roost renueva solo los certificados de los sitios que caducan pronto, aunque lleve semanas en marcha.
 - **Arreglo:** `roost down` seguido en el acto de `roost up` ya no deja el stack parado.
+- **Composer incluido:** Roost trae Composer 2.10.3, verificado con su SHA-256, y lo instala la primera vez que hace falta. En la terminal, con los shims puestos, `composer` usa el PHP de cada carpeta igual que `php`; mientras no instales el de Roost, tu `composer` sigue siendo el tuyo. `roost composer status` avisa si otro Composer, como el de Composer-Setup, le gana.
+- **Composer en Sitios:** si el proyecto tiene `composer.json`, su panel tiene «Instalar dependencias», «Actualizar» y «Añadir paquete…», con el PHP del sitio y la salida en directo (se puede cancelar y copiar). Avisa si falta `vendor/` y de que Composer ejecuta los scripts del proyecto. Desde la terminal, `roost site composer tienda install`.
+- **La base de datos de cada sitio:** desde su panel puedes crearla, abrir la consola dentro de ella o copiar su línea del `.env`. Si la base de datos está parada o no hay ninguna, el panel lo dice y te ofrece arrancarla.
+- **Nuevo sitio más listo:** reconoce Laravel, Symfony y WordPress por sus ficheros y pone su raíz web; si eliges primero la carpeta, el nombre sale de ella; la base de datos puede ser una nueva, una que ya tienes o ninguna; e «Instalar otra versión» de PHP ya no cierra el diálogo ni pierde lo que habías escrito.
+- **Vite en HTTPS:** `roost cert path tienda` te da el certificado y la clave del sitio para el servidor de desarrollo; la guía está en el README.
 
 ## 0.1.3 — 24-oct-2026
 

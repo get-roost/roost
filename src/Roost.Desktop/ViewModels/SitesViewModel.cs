@@ -74,7 +74,6 @@ public sealed partial class SitesViewModel : PageViewModel
     [ObservableProperty] public partial string Urls { get; private set; } = "";
     [ObservableProperty] public partial string RootText { get; private set; } = "";
     [ObservableProperty] public partial string CertDetail { get; private set; } = "";
-    [ObservableProperty] public partial string DbText { get; private set; } = "";
     [ObservableProperty] public partial string ConfPath { get; private set; } = "";
 
     /// <summary>Las subcarpetas típicas que existen en el proyecto y no son ya la raíz web.</summary>
@@ -111,11 +110,17 @@ public sealed partial class SitesViewModel : PageViewModel
 
     public override Task ShownAsync()
     {
+        // Al volver a la pantalla se vuelven a mirar las bases de datos (una creada desde la CLI aparece).
+        ForgetDatabases();
         Build();
         return Task.CompletedTask;
     }
 
-    public override void StackChanged() => Build();
+    public override void StackChanged()
+    {
+        ForgetDatabases();
+        Build();
+    }
 
     private void Build()
     {
@@ -186,7 +191,11 @@ public sealed partial class SitesViewModel : PageViewModel
     {
         foreach (var r in _all) r.IsSelected = r == row;
         Selected = row;
-        if (row is null) return;
+        if (row is null)
+        {
+            Project = null;
+            return;
+        }
 
         var paths = Main.App.Paths;
         if (config is null)
@@ -199,8 +208,8 @@ public sealed partial class SitesViewModel : PageViewModel
         RootText = RootLabel(site);
         CertDetail = $"Roost Local CA · {site.Host}, *.{site.Host}";
         ConfPath = new SiteManager(paths).ConfFile(site, config);
-        var db = Main.Stack.Status?.Db;
-        DbText = db is null ? "La global no está en marcha" : $"La global: {db} en 127.0.0.1:{Main.Stack.Status!.DbPort}";
+        PickDatabase(site, config);
+        PickComposer(site);
 
         // La carpeta o la raíz web pueden haber desaparecido desde que se registró el sitio.
         var folderExists = Directory.Exists(site.Folder);
@@ -426,7 +435,10 @@ public sealed partial class SitesViewModel : PageViewModel
     private Task CreateAsync(NewSiteRequest request) => Main.RunAsync($"No se pudo crear {request.Name}.test", async () =>
     {
         var paths = Main.App.Paths;
-        var change = new SiteManager(paths).Add(request.Name, request.Folder, request.Root, request.Php ?? "global");
+        var sites = new SiteManager(paths);
+        var change = sites.Add(request.Name, request.Folder, request.Root, request.Php ?? "global");
+        // La base de datos elegida (nueva o una que ya existe) queda como la del sitio, para su panel.
+        if (request.Database is { } chosen) change = change with { Site = sites.SetDatabase(change.Site.Name, chosen) };
         var host = change.Site.Host;
         Main.NotifyConfigChanged();
 
@@ -449,7 +461,7 @@ public sealed partial class SitesViewModel : PageViewModel
             if (!Main.Stack.IsRunning) return;
         }
 
-        if (request.Database is { } database && Main.Stack.Status?.Db is not null)
+        if (request.CreateDatabase && request.Database is { } database && Main.Stack.Status?.Db is not null)
         {
             var db = new StackPlanner(paths, ProcessRunner.Default).ResolveDb(RoostConfig.Load(paths.ConfigFile), new DbInstaller(paths).ListInstalled());
             if (db is not null)

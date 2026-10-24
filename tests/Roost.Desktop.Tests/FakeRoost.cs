@@ -100,6 +100,30 @@ public sealed class FakeRoost : IDisposable
         ],
         new DateTimeOffset(2026, 10, 23, 21, 14, 0, TimeSpan.FromHours(2)));
 
+    // Composer y Sitios-2
+
+    /// <summary>Un composer.phar «instalado» (de pega) en bin/composer: con él, la app no intenta descargarlo.</summary>
+    public string InstallFakeComposer()
+    {
+        var phar = Path.Combine(Paths.ComposerBin, Roost.Core.Composer.ComposerCatalog.Stable.Version, Roost.Core.Composer.InstalledComposer.PharName);
+        Touch(phar);
+        return phar;
+    }
+
+    /// <summary>Un proyecto en la www con estos ficheros (vacíos; los que acaban en / son carpetas).</summary>
+    public string Project(string name, params string[] files)
+    {
+        var dir = Path.Combine(Paths.Www, name);
+        Directory.CreateDirectory(dir);
+        foreach (var file in files)
+        {
+            var path = Path.Combine(dir, file.TrimEnd('/'));
+            if (file.EndsWith('/')) Directory.CreateDirectory(path);
+            else Write(path, file == "composer.json" ? """{ "require": { "php": "^8.2", "laravel/framework": "^11.0" } }""" : "");
+        }
+        return dir;
+    }
+
     private static string Esc(string path) => path.Replace("\\", "\\\\");
 
     private static void Touch(string file) => Write(file, "");
