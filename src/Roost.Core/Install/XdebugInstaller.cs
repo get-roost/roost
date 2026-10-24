@@ -19,9 +19,15 @@ namespace Roost.Core.Install;
 /// <c>extension=</c>;</item>
 /// <item>quitar un PHP no la borra (330 KB): la reutiliza el siguiente de esa rama.</item>
 /// </list>
+/// <b>En Linux</b> es al revés: el <c>xdebug.so</c> solo vale con el PHP exacto con el que se compiló,
+/// así que cada PHP de roost-builds trae el suyo en <c>ext/xdebug.so</c> y aquí no se instala nada:
+/// <see cref="Locate"/> devuelve ese fichero (<see cref="BundledPath"/>).
 /// </remarks>
 public sealed class XdebugInstaller
 {
+    /// <summary>El nombre del módulo compartido en Linux, dentro del <c>ext/</c> de cada PHP de roost-builds.</summary>
+    public const string SharedObjectName = "xdebug.so";
+
     private readonly RoostPaths _paths;
     private readonly HttpClient? _http;
 
@@ -40,13 +46,25 @@ public sealed class XdebugInstaller
     /// <summary>La DLL de ese build si ya está instalada.</summary>
     public string? Find(XdebugBuild build) => File.Exists(DllPath(build)) ? DllPath(build) : null;
 
+    /// <summary>El <c>ext/xdebug.so</c> que trae la propia instalación (los PHP de roost-builds), o null si no lo trae.</summary>
+    public static string? BundledPath(InstalledPhp php)
+    {
+        var so = Path.Combine(php.Directory, "ext", SharedObjectName);
+        return File.Exists(so) ? so : null;
+    }
+
+    /// <summary>La versión del Xdebug que trae la instalación, según su <c>BUILD.json</c>; null si no lo dice.</summary>
+    public static string? BundledVersion(InstalledPhp php) => php.ReadBuildInfo()?.Xdebug;
+
     /// <summary>
-    /// La DLL que carga una instalación: la que fija <see cref="XdebugCatalog"/> si está y, si no (una
-    /// Roost nueva fija otra versión), la más nueva que haya de su rama. null si no hay ninguna o si
-    /// Roost no pone Xdebug en esa instalación (TS, x86).
+    /// El módulo de Xdebug que carga una instalación. En Linux, el <c>ext/xdebug.so</c> de la propia
+    /// instalación. En Windows, la DLL que fija <see cref="XdebugCatalog"/> si está y, si no (una Roost
+    /// nueva fija otra versión), la más nueva que haya de su rama. null si no hay ninguna o si Roost
+    /// no pone Xdebug en esa instalación (TS, x86).
     /// </summary>
     public string? Locate(InstalledPhp php)
     {
+        if (XdebugCatalog.IsBundled(php)) return BundledPath(php);
         if (XdebugCatalog.WhyNot(php) is not null || php.Version is not { } v) return null;
         if (XdebugCatalog.For(php) is { } pinned && Find(pinned) is { } dll) return dll;
         if (!Directory.Exists(Bin)) return null;
@@ -72,6 +90,8 @@ public sealed class XdebugInstaller
     /// </summary>
     public async Task<string> InstallAsync(XdebugBuild build, IProgress<long>? downloaded = null, CancellationToken cancellation = default)
     {
+        if (!OperatingSystem.IsWindows())
+            throw new RoostException("En Linux Xdebug va dentro de cada PHP de roost-builds (ext/xdebug.so): no hay nada que bajar.");
         var target = DllPath(build);
         if (File.Exists(target) && Sha256Of(target) == build.Sha256) return target;
 

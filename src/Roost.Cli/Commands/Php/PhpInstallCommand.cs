@@ -11,9 +11,9 @@ using Spectre.Console.Cli;
 namespace Roost.Cli.Commands.Php;
 
 /// <summary>
-/// <c>roost php install</c>: descarga un PHP oficial de windows.php.net, verifica su SHA-256
-/// e instala en <c>bin/php/&lt;version&gt;-&lt;nts|ts&gt;-&lt;arq&gt;</c>. Avisa si la rama ya
-/// es EOL (instalar una 7.4 para un proyecto viejo es legitimo, pero que se sepa).
+/// <c>roost php install</c>: descarga un PHP (en Windows, el oficial de windows.php.net; en Linux, el
+/// de get-roost/roost-builds), verifica su SHA-256 e instala en <c>bin/php/&lt;version&gt;-&lt;nts|ts&gt;-&lt;arq&gt;</c>.
+/// Avisa si la rama ya es EOL (instalar una 7.4 para un proyecto viejo es legitimo, pero que se sepa).
 /// </summary>
 public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
 {
@@ -24,19 +24,17 @@ public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
         public string Version { get; init; } = "";
 
         [CommandOption("--ts")]
-        [Description("Build thread-safe (para Apache/mod_php). Por defecto NTS, el que usa nginx.")]
+        [Description("Build thread-safe (para Apache/mod_php; solo en Windows). Por defecto NTS, el que usan nginx y php-fpm.")]
         public bool ThreadSafe { get; init; }
 
         [CommandOption("--arch <ARQ>")]
-        [Description("Arquitectura: x64 (por defecto) o x86.")]
+        [Description("Arquitectura: x64 (por defecto) o x86 (solo en Windows).")]
         [DefaultValue("x64")]
         public string Architecture { get; init; } = "x64";
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("php install")) return 1;
-
         var installer = new PhpInstaller(RoostPaths.Default(), RoostHttp.Client);
         try
         {
@@ -49,11 +47,11 @@ public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
                 return 0;
             }
 
-            var finding = CatalogAudit.Evaluate(build.Version, build.FileName, "windows.php.net");
+            var finding = CatalogAudit.Evaluate(build.Version, build.FileName, PhpCatalog.SourceName);
             if (finding.Color != AuditColor.Green)
                 AnsiConsole.MarkupLineInterpolated($"[yellow]Ojo:[/] {finding.Headline}");
             // Sin el VC++ Redistributable, php.exe no arranca: mejor saberlo antes de descargar.
-            if (VcRedist.Warning(VcRedist.Detect(), forApache: false) is { } vc)
+            if (OperatingSystem.IsWindows() && VcRedist.Warning(VcRedist.Detect(), forApache: false) is { } vc)
                 AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {vc}");
 
             AnsiConsole.MarkupLineInterpolated($"Descargando [bold]{build.FileName}[/] ({build.SizeText ?? "?"}) de {build.Url.Host}");
@@ -66,6 +64,8 @@ public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
             });
 
             AnsiConsole.MarkupLineInterpolated($"[green]Instalado[/] PHP {installed!.Name} en {installed.Directory} [grey](SHA-256 verificado)[/]");
+            if (build.Os == PhpOs.Linux && installed.ReadBuildInfo() is { } info)
+                AnsiConsole.MarkupLineInterpolated($"[grey]php, php-fpm y Xdebug {info.Xdebug ?? "?"} dentro; {info.Extensions.Count} extensiones integradas (static-php-cli {info.StaticPhp ?? "?"}, glibc {info.Glibc ?? "?"}).[/]");
             SmokeTest(installed, build);
             return 0;
         }
@@ -76,14 +76,16 @@ public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
         }
         catch (HttpRequestException ex)
         {
-            AnsiConsole.MarkupLineInterpolated($"[red]No se pudo leer el catalogo de windows.php.net:[/] {ex.Message}");
+            var what = PhpCatalog.IsOnline ? $"leer el catalogo de {PhpCatalog.SourceName}" : $"descargar de {PhpCatalog.SourceName}";
+            AnsiConsole.MarkupLineInterpolated($"[red]No se pudo {what}:[/] {ex.Message}");
             return 1;
         }
     }
 
     /// <summary>
-    /// Arranca el php.exe recien instalado. Si no responde, casi siempre es que falta el
-    /// Visual C++ Redistributable con el que se compilo (vc15/vs16/vs17: el 2015-2022 vale para todos).
+    /// Arranca el php recien instalado. Si no responde, en Windows casi siempre es que falta el
+    /// Visual C++ Redistributable con el que se compilo (vc15/vs16/vs17: el 2015-2022 vale para todos);
+    /// en Linux, una glibc mas vieja que la 2.17 o un sistema que no es x86_64.
     /// </summary>
     private static void SmokeTest(InstalledPhp installed, PhpBuild build)
     {
@@ -95,6 +97,12 @@ public sealed class PhpInstallCommand : AsyncCommand<PhpInstallCommand.Settings>
             return;
         }
 
+        if (build.Os == PhpOs.Linux)
+        {
+            AnsiConsole.MarkupLineInterpolated(
+                $"[yellow]Aviso:[/] {installed.Executable} no responde a -v. Los PHP de roost-builds piden Linux x86_64 con glibc 2.17 o mas nueva (ldd --version lo dice).");
+            return;
+        }
         var redist = $"https://aka.ms/vc14/vc_redist.{build.Architecture}.exe";
         AnsiConsole.MarkupLineInterpolated(
             $"[yellow]Aviso:[/] {installed.Executable} no responde a -v. Suele faltar el Visual C++ Redistributable ({build.Compiler}, {build.Architecture}): {redist}");

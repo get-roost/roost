@@ -31,7 +31,6 @@ public sealed class PhpExtListCommand : Command<PhpExtListCommand.Settings>
 
     public override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("php ext list")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -45,7 +44,7 @@ public sealed class PhpExtListCommand : Command<PhpExtListCommand.Settings>
                 {
                     php = php.Name,
                     ini = configurator.Planner.PhpIniPath(php),
-                    extensions = extensions.Select(e => new { name = e.Name, on = e.On, byDefault = e.ByDefault, zend = e.Zend }),
+                    extensions = extensions.Select(e => new { name = e.Name, on = e.On, byDefault = e.ByDefault, zend = e.Zend, builtIn = e.BuiltIn }),
                 }, JsonOutput.Options));
                 return 0;
             }
@@ -53,12 +52,15 @@ public sealed class PhpExtListCommand : Command<PhpExtListCommand.Settings>
             var table = new Table().Border(TableBorder.Rounded).AddColumn("Extension").AddColumn("Estado").AddColumn("De serie").AddColumn("");
             foreach (var e in extensions)
             {
-                var note = e.Name == PhpIni.Xdebug ? "[grey]roost php xdebug on|off[/]" : e.Zend ? "[grey]zend_extension[/]" : "";
+                var note = e.Name == PhpIni.Xdebug ? "[grey]roost php xdebug on|off[/]"
+                    : e.BuiltIn ? "[grey]integrada en el binario (no se quita)[/]"
+                    : e.Zend ? "[grey]zend_extension[/]" : "";
                 table.AddRow(Markup.Escape(e.Name), e.On ? "[green]activa[/]" : "[grey]-[/]", e.ByDefault ? "si" : "", note);
             }
             AnsiConsole.MarkupLineInterpolated($"PHP {php.Name} [grey]({configurator.Planner.PhpIniPath(php)})[/]");
             AnsiConsole.Write(table);
-            AnsiConsole.MarkupLineInterpolated($"[grey]{extensions.Count(e => e.On)} de {extensions.Count} activas. Para cambiar una: roost php ext enable|disable <extension> --php {PhpTarget.Branch(php)}[/]");
+            var builtIn = extensions.Count(e => e.BuiltIn);
+            AnsiConsole.MarkupLineInterpolated($"[grey]{extensions.Count(e => e.On)} de {extensions.Count} activas{(builtIn > 0 ? $" ({builtIn} integradas en el binario)" : "")}. Para cambiar una: roost php ext enable|disable <extension> --php {PhpTarget.Branch(php)}[/]");
             if (XdebugCatalog.WhyNot(php) is null && extensions.All(e => e.Name != PhpIni.Xdebug))
                 AnsiConsole.MarkupLine("[grey]Xdebug no sale porque aun no esta instalado: roost php xdebug on lo baja y lo activa.[/]");
             return 0;
@@ -91,7 +93,6 @@ public abstract class PhpExtToggleCommand(bool enable) : AsyncCommand<PhpExtTogg
 {
     public override async Task<int> ExecuteAsync(CommandContext context, PhpExtToggleSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require(enable ? "php ext enable" : "php ext disable")) return 1;
         var paths = RoostPaths.Default();
         try
         {

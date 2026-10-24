@@ -4,7 +4,11 @@ using Roost.Core.Platform;
 
 namespace Roost.Core.Install;
 
-/// <summary>Un PHP instalado por Roost, en su carpeta bajo <see cref="RoostPaths.PhpBin"/>.</summary>
+/// <summary>
+/// Un PHP instalado por Roost, en su carpeta bajo <see cref="RoostPaths.PhpBin"/>. El ejecutable
+/// está en la raíz de la carpeta en Windows (el zip oficial) y en <c>bin/</c> en Linux (el tar.gz de
+/// roost-builds); los demás binarios (php-cgi, php-fpm) van a su lado.
+/// </summary>
 public sealed record InstalledPhp(string Name, string Directory, string Executable)
 {
     /// <summary>Versión sacada del nombre de la carpeta (<c>8.3.36-nts-x64</c>).</summary>
@@ -13,8 +17,20 @@ public sealed record InstalledPhp(string Name, string Directory, string Executab
     /// <summary>true si es un build thread-safe (<c>…-ts-…</c>).</summary>
     public bool ThreadSafe => Name.Contains("-ts-", StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>El binario FastCGI que sirve las peticiones web (Windows no tiene php-fpm).</summary>
-    public string CgiExecutable => Path.Combine(Directory, OsNames.Exe("php-cgi"));
+    /// <summary>La carpeta del ejecutable: la de la instalación en Windows, <c>bin/</c> en los builds de Linux.</summary>
+    public string BinDirectory => Path.GetDirectoryName(Executable) ?? Directory;
+
+    /// <summary>El php-cgi que sirve las peticiones web en Windows (que no tiene php-fpm).</summary>
+    public string CgiExecutable => Path.Combine(BinDirectory, OsNames.Exe("php-cgi"));
+
+    /// <summary>El php-fpm que sirve las peticiones web en Linux (<c>bin/php-fpm</c> en los builds de roost-builds). En Windows no existe.</summary>
+    public string FpmExecutable => Path.Combine(BinDirectory, "php-fpm");
+
+    /// <summary>true si trae php-fpm: los PHP de roost-builds. Uno copiado a mano sin él sirve con php-cgi, como en Windows.</summary>
+    public bool HasFpm => !OperatingSystem.IsWindows() && File.Exists(FpmExecutable);
+
+    /// <summary>Lo que dice su <c>BUILD.json</c> (los de roost-builds: extensiones integradas, Xdebug…); null en los de Windows.</summary>
+    public PhpBuildInfo? ReadBuildInfo() => PhpBuildInfo.Read(Directory);
 }
 
 /// <summary>
@@ -24,7 +40,7 @@ public sealed record InstalledPhp(string Name, string Directory, string Executab
 /// </summary>
 public sealed partial class PhpInstaller
 {
-    /// <summary>Lo que se instala son los zips de Windows: el ejecutable es siempre php.exe.</summary>
+    /// <summary>El nombre del ejecutable en este sistema: <c>php.exe</c> o <c>php</c>.</summary>
     public static string ExecutableName => OsNames.Exe("php");
 
     private readonly RoostPaths _paths;
@@ -40,13 +56,28 @@ public sealed partial class PhpInstaller
     [GeneratedRegex(@"^\d+\.\d+$")]
     private static partial Regex BranchPattern();
 
+    /// <summary>
+    /// El ejecutable de una carpeta de instalación: <c>php.exe</c> en la raíz (los zips de Windows);
+    /// en Linux, <c>bin/php</c> (el tar.gz de roost-builds) o, si no lo hay, <c>php</c> en la raíz (una
+    /// instalación copiada a mano). Que exista lo comprueba quien lo llama.
+    /// </summary>
+    public static string ExecutableIn(string directory)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            var nested = Path.Combine(directory, "bin", "php");
+            if (File.Exists(nested)) return nested;
+        }
+        return Path.Combine(directory, ExecutableName);
+    }
+
     /// <summary>PHP instalados por Roost, de más nuevo a más viejo.</summary>
     public IReadOnlyList<InstalledPhp> ListInstalled()
     {
         if (!Directory.Exists(_paths.PhpBin)) return [];
 
         return Directory.EnumerateDirectories(_paths.PhpBin)
-            .Select(d => new InstalledPhp(Path.GetFileName(d), d, Path.Combine(d, ExecutableName)))
+            .Select(d => new InstalledPhp(Path.GetFileName(d), d, ExecutableIn(d)))
             .Where(p => !p.Name.StartsWith('.') && File.Exists(p.Executable))
             .OrderByDescending(p => p.Version)
             .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
@@ -101,12 +132,23 @@ public sealed partial class PhpInstaller
             throw new RoostException($"PHP {build.InstallName} ya esta instalado en {target}.");
 
         InstallFiles.CleanLeftovers(_paths.PhpBin);
-        var zip = await InstallFiles.DownloadVerifiedAsync(
+        var archive = await InstallFiles.DownloadVerifiedAsync(
             http, [build.Url], build.FileName, build.Sha256, _paths.Downloads, downloaded, cancellation);
 
-        // Los zips de PHP para Windows traen php.exe en la raíz, sin carpeta envolvente.
-        InstallFiles.ExtractAtomic(zip, target, ExecutableName, stripSingleRoot: false, build.FileName);
-        return new InstalledPhp(build.InstallName, target, Path.Combine(target, ExecutableName));
+        // Los zips de PHP para Windows traen php.exe en la raíz, sin carpeta envolvente; los tar.gz de
+        // roost-builds, bin/php, bin/php-fpm, ext/xdebug.so, BUILD.json y las licencias, también sin ella.
+        InstallFiles.ExtractAtomic(archive, target, build.ExecutableRelativePath, stripSingleRoot: false, build.FileName);
+        var executable = Path.Combine(target, build.ExecutableRelativePath);
+        if (build.Os == PhpOs.Linux)
+        {
+            // El tar conserva los permisos; por si lo empaquetó algo que no los pone, los binarios quedan ejecutables.
+            foreach (var name in new[] { "php", "php-fpm", "php-cgi" })
+            {
+                var file = Path.Combine(target, "bin", name);
+                if (File.Exists(file)) InstallFiles.MarkExecutable(file);
+            }
+        }
+        return new InstalledPhp(build.InstallName, target, executable);
     }
 
     /// <summary>

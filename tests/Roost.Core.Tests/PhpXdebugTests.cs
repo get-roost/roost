@@ -212,7 +212,7 @@ public class PhpXdebugTests : IDisposable
 
     // F2: la conf.d de la rama y los ajustes rápidos
 
-    [WindowsFact("Pendiente en Linux: Builds y PHP (L1).")]
+    [Fact]
     public void ConfDDeLaRama_EnElPoolYEnLaTerminal_DespuesDeLaComun()
     {
         var php84 = Php("8.4.27-nts-x64");
@@ -220,12 +220,14 @@ public class PhpXdebugTests : IDisposable
         var planner = new StackPlanner(Paths, new NginxTestOk());
         var common = Path.Combine(Paths.Etc, "php", "conf.d");
         var branch = Path.Combine(common, "8.4");
+        // PHP separa las carpetas de PHP_INI_SCAN_DIR con «;» en Windows y con «:» en Linux.
+        var scanDir = common + Path.PathSeparator + branch;
 
         var plan = planner.Prepare(new RoostConfig { HttpPort = 8765, PhpPool = 1 }, php84, nginx);
 
-        Assert.Equal(common + ";" + branch, planner.PhpScanDir(php84));
-        Assert.Equal(common + ";" + branch, plan.Services.Single(s => s.Name == "php-8.4-0").Environment["PHP_INI_SCAN_DIR"]);
-        Assert.Equal(common + ";" + branch, TerminalPhp.Environment(Paths, php84)["PHP_INI_SCAN_DIR"]);
+        Assert.Equal(scanDir, planner.PhpScanDir(php84));
+        Assert.Equal(scanDir, plan.Services.Single(s => s.Name == "php-8.4-0").Environment["PHP_INI_SCAN_DIR"]);
+        Assert.Equal(scanDir, TerminalPhp.Environment(Paths, php84)["PHP_INI_SCAN_DIR"]);
         Assert.True(File.Exists(Path.Combine(common, PhpIni.UserFragmentName)));
         Assert.Contains("solo para PHP 8.4", File.ReadAllText(Path.Combine(branch, PhpIni.UserFragmentName)));
         Assert.Contains(Path.Combine(branch, PhpIni.UserFragmentName), File.ReadAllText(planner.PhpIniPath(php84)));

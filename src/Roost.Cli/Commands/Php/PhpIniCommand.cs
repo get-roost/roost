@@ -40,7 +40,6 @@ public sealed class PhpIniCommand : AsyncCommand<PhpIniCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("php ini")) return 1;
         var paths = RoostPaths.Default();
         try
         {

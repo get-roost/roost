@@ -23,9 +23,15 @@ public sealed record XdebugBuild(string Version, string PhpBranch, string Compil
 /// instalación porque la página solo dice qué hay, no qué bytes son los buenos: el SHA-256 va en el
 /// binario de Roost, comprobado al fijarlo. La 7.4 se quedó en Xdebug 3.1 (la 3.2 ya pide PHP 8.0);
 /// las demás van con la última.
+/// <para>
+/// <b>En Linux no se baja nada:</b> cada PHP de roost-builds trae su <c>xdebug.so</c> dentro
+/// (<c>ext/xdebug.so</c>, compilado con ese mismo PHP), así que el catálogo de Linux está vacío y
+/// <see cref="For"/> da null; <see cref="XdebugInstaller.Locate"/> devuelve el <c>.so</c> de la
+/// instalación y <see cref="WhyNot"/> solo se queja si la instalación no lo trae.
+/// </para>
 /// </summary>
 /// <remarks>
-/// Para cambiar de versión:
+/// Para cambiar de versión en Windows:
 /// <list type="number">
 /// <item>mirar en <c>https://xdebug.org/docs/compat</c> qué ramas de PHP soporta y en
 /// <c>https://xdebug.org/download</c> la última, con sus DLL de Windows: «NTS», «64 bit», una por
@@ -41,12 +47,16 @@ public sealed record XdebugBuild(string Version, string PhpBranch, string Compil
 /// Xdebug no firma las DLL (ni PGP ni Authenticode): lo que hay es el HTTPS de xdebug.org y su
 /// SHA-256, que por eso se comprueba con el fichero bajado. Xdebug saca arreglos: hay que subirlo
 /// con Roost. La DLL de una versión vieja que ya esté instalada se sigue usando hasta que se vuelva
-/// a activar (<see cref="XdebugInstaller.Locate"/>).
+/// a activar (<see cref="XdebugInstaller.Locate"/>). En Linux la versión la fija <c>php.yml</c> de
+/// roost-builds (la fuente de xdebug.org verificada con su SHA-256) y la dice el <c>BUILD.json</c> de cada PHP.
 /// </remarks>
 public static class XdebugCatalog
 {
-    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
-    public static IReadOnlyList<XdebugBuild> Current => Windows;
+    /// <summary>El de este sistema: el de Windows, o el de Linux, que está vacío porque no se baja nada.</summary>
+    public static IReadOnlyList<XdebugBuild> Current => OperatingSystem.IsWindows() ? Windows : Linux;
+
+    /// <summary>En Linux no hay nada que bajar: el <c>xdebug.so</c> va dentro de cada PHP de roost-builds.</summary>
+    public static readonly IReadOnlyList<XdebugBuild> Linux = [];
 
     // Verificado el 24-oct-2026: el SHA-256 del title de xdebug.org/download (y /download/historical
     // para la 3.1.6) y el del fichero bajado a una carpeta vacía coinciden en las siete. Xdebug 3.5.3
@@ -62,13 +72,25 @@ public static class XdebugCatalog
         new("3.5.3", "8.5", "vs17", "php_xdebug-3.5.3-8.5-nts-vs17-x86_64.dll", "0a0d52bf276dad7e5f90ac30a5110b3119d291b20c118be0cb7f5752064f1811", 331_776),
     ];
 
-    /// <summary>La DLL de una instalación, o null si Roost no tiene ninguna para ella (TS, x86 o una rama sin DLL).</summary>
+    /// <summary>
+    /// La DLL que hay que bajar para una instalación, o null si no hay nada que bajar: porque Roost
+    /// no pone Xdebug en ella (TS, x86, una rama sin DLL) o porque ya viene dentro (Linux).
+    /// </summary>
     public static XdebugBuild? For(InstalledPhp php) =>
         WhyNot(php) is null ? Current.FirstOrDefault(b => b.PhpBranch == BranchOf(php)) : null;
+
+    /// <summary>true si el Xdebug de esta instalación va dentro de ella (los PHP de roost-builds, en Linux) y no se baja.</summary>
+    public static bool IsBundled(InstalledPhp php) => !OperatingSystem.IsWindows();
 
     /// <summary>Por qué Roost no puede poner Xdebug en una instalación, o null si puede.</summary>
     public static string? WhyNot(InstalledPhp php)
     {
+        if (IsBundled(php))
+        {
+            if (XdebugInstaller.BundledPath(php) is not null) return null;
+            return $"PHP {php.Name} no trae Xdebug ({Path.Combine("ext", XdebugInstaller.SharedObjectName)}): los PHP de roost-builds lo llevan dentro. "
+                 + $"Vuelve a instalarlo (roost php remove {php.Name} y roost php install {BranchOf(php) ?? "<rama>"}).";
+        }
         if (php.ThreadSafe)
             return $"{php.Name} es TS: Roost pone Xdebug en las NTS, que son las que sirve (php-cgi). Instala la NTS de esa version.";
         if (!php.Name.EndsWith("-x64", StringComparison.OrdinalIgnoreCase))

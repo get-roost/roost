@@ -110,6 +110,24 @@ public sealed partial class StackPlanner
     /// <summary>El php.ini generado de una instalación.</summary>
     public string PhpIniPath(InstalledPhp php) => Path.Combine(paths.Etc, "php", php.Name, "php.ini");
 
+    /// <summary>El <c>php-fpm.conf</c> generado de una instalación (Linux; en Windows no se escribe).</summary>
+    public string PhpFpmConfPath(InstalledPhp php) => Path.Combine(paths.Etc, "php", php.Name, PhpFpmConf.FileName);
+
+    /// <summary>
+    /// Las extensiones integradas en el binario de una instalación (Linux, compiladas estáticas): las
+    /// de su <c>BUILD.json</c> o, si no lo trae (una instalación copiada a mano), las que lista
+    /// <c>php -n -m</c>. En Windows, ninguna: todas son DLL de <c>ext/</c>.
+    /// </summary>
+    public IReadOnlySet<string> BuiltInExtensions(InstalledPhp php)
+    {
+        if (OperatingSystem.IsWindows()) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (php.ReadBuildInfo() is { } info) return info.Extensions;
+        // Sin php.ini (-n): lo que lista es lo compilado dentro. Si no contesta como php -m, nada.
+        var output = runner.Run(php.Executable, "-n -m", TimeSpan.FromSeconds(15));
+        if (output is null || !output.Contains("[PHP Modules]", StringComparison.Ordinal)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        return PhpConfigurator.Modules(output).Select(PhpIni.ModuleName).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
     /// <summary>Las extensiones que ha elegido el usuario para una instalación (también Xdebug).</summary>
     public string PhpExtensionChoicePath(InstalledPhp php) => Path.Combine(paths.Etc, "php", php.Name, PhpExtensionChoice.FileName);
 
@@ -128,26 +146,40 @@ public sealed partial class StackPlanner
         Directory.CreateDirectory(Path.GetDirectoryName(ini)!);
         EnsureUserIni();
         EnsureBranchUserIni(php);
+        var builtIn = BuiltInExtensions(php);
+        var available = new HashSet<string>(PhpIni.AvailableExtensions(php.Directory), StringComparer.OrdinalIgnoreCase);
+        available.UnionWith(builtIn);
         File.WriteAllText(ini, PhpIni.Render(
             php.Name,
             php.Directory,
-            PhpIni.AvailableExtensions(php.Directory),
+            available,
             PhpConfD,
             Path.Combine(paths.Logs, $"php-{Branch(php)}-error.log"),
             PhpExtensionChoice.Load(PhpExtensionChoicePath(php)),
             CaBundle.Write(paths),
             PhpSettings.Load(PhpSettingsPath(php)),
             new XdebugInstaller(paths).Locate(php),
-            PhpBranchConfD(php)));
+            PhpBranchConfD(php),
+            builtIn,
+            opensslCaFile: !OperatingSystem.IsWindows()));
         return ini;
     }
 
-    /// <summary>php.ini de la instalación y los php-cgi de su pool (ROOST.md §5.5 y §5.10).</summary>
+    /// <summary>
+    /// php.ini de la instalación y su pool (ROOST.md §5.5 y §5.10): en Linux, un php-fpm
+    /// (<see cref="PhpFpmConf"/>) en el primer puerto del pool, que se para con SIGQUIT; en Windows,
+    /// y en una instalación de Linux sin php-fpm (una copiada a mano), un php-cgi por puerto.
+    /// </summary>
     private (NginxUpstream Upstream, List<ServiceDefinition> Services) PreparePhp(InstalledPhp php, int poolSize, string confD)
     {
         var version = php.Version!.Value;
-        if (!File.Exists(php.CgiExecutable))
-            throw new RoostException($"{php.Name} no trae php-cgi.exe: no puede servir peticiones web.");
+        var fpm = php.HasFpm;
+        if (!fpm && !File.Exists(php.CgiExecutable))
+        {
+            throw new RoostException(OperatingSystem.IsWindows()
+                ? $"{php.Name} no trae php-cgi.exe: no puede servir peticiones web."
+                : $"{php.Name} no trae bin/php-fpm (ni php-cgi): no puede servir peticiones web. Los PHP de roost-builds lo traen: roost php install {Branch(php)}.");
+        }
 
         // php.ini generado (se pisa siempre); lo del usuario va en conf.d, la común y la de la rama.
         var ini = WritePhpIni(php);
@@ -155,6 +187,31 @@ public sealed partial class StackPlanner
         var scanDir = string.Join(Path.PathSeparator, confD, PhpBranchConfD(php));
 
         var ports = PhpPool.Ports(version, poolSize);
+        if (fpm)
+        {
+            var conf = PhpFpmConfPath(php);
+            File.WriteAllText(conf, PhpFpmConf.Render(
+                php.Name,
+                Path.Combine(paths.Run, $"php-{branch}.pid"),
+                Path.Combine(paths.Logs, $"php-{branch}-fpm.log"),
+                ports[0],
+                poolSize,
+                PhpPool.MaxRequests(0)));
+            var service = new ServiceDefinition
+            {
+                Name = $"php-{branch}-0",
+                Executable = php.FpmExecutable,
+                Arguments = PhpFpmConf.Arguments(conf, ini),
+                WorkingDirectory = php.Directory,
+                Environment = new Dictionary<string, string> { ["PHP_INI_SCAN_DIR"] = scanDir },
+                LogFile = Path.Combine(paths.Logs, $"php-{branch}-0.log"),
+                Port = ports[0],
+                // SIGQUIT: php-fpm acaba lo que esté sirviendo y sale; matarlo cortaría peticiones a medias.
+                StopSignal = StopSignal.Quit,
+            };
+            return (new NginxUpstream(PhpPool.UpstreamName(version), [ports[0]]), [service]);
+        }
+
         var services = new List<ServiceDefinition>();
         for (var i = 0; i < ports.Count; i++)
         {

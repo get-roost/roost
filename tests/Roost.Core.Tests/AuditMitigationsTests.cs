@@ -76,7 +76,7 @@ public class AuditMitigationsTests : IDisposable
 
     // ---- php -i --------------------------------------------------------------------------------
 
-    [WindowsFact("Pendiente en Linux: Builds y PHP (L1).")]
+    [Fact]
     public void PhpI_DaLosValoresLocales_YLosFicherosEnElOrdenEnQuePhpLosLee()
     {
         var s = PhpIniSnapshot.Parse(PhpI(withOurs: true))!;
@@ -87,7 +87,10 @@ public class AuditMitigationsTests : IDisposable
         Assert.False(s.Values.ContainsKey("Directive"));
         Assert.False(s.Values.ContainsKey("Session Support"));
         Assert.Equal(
-            ["8.5.12-nts-x64\\php.ini", "conf.d\\99-usuario.ini", "conf.d\\8.5\\50-roost-mitigaciones.ini", "conf.d\\8.5\\99-usuario.ini"],
+            [
+                Path.Combine("8.5.12-nts-x64", "php.ini"), Path.Combine("conf.d", "99-usuario.ini"),
+                Path.Combine("conf.d", "8.5", "50-roost-mitigaciones.ini"), Path.Combine("conf.d", "8.5", "99-usuario.ini"),
+            ],
             s.Files.Select(f => Path.GetRelativePath(Path.Combine(_paths.Root, "etc", "php"), f)));
         Assert.Null(PhpIniSnapshot.Parse("'php' no se reconoce como un comando"));
         Assert.Empty(PhpIniSnapshot.Parse("PHP Version => 8.5.12\nLoaded Configuration File => (none)\nAdditional .ini files parsed => (none)\n")!.Files);
@@ -141,7 +144,7 @@ public class AuditMitigationsTests : IDisposable
         };
         var text = PhpMitigations.Render("8.5", entries);
 
-        Assert.Contains("conf.d\\8.5\\99-usuario.ini, que manda sobre esto", text);
+        Assert.Contains(Path.Combine("conf.d", "8.5", "99-usuario.ini") + ", que manda sobre esto", text);
         Assert.Contains("; por: CVE-2026-109619 (PHP2Shell)\nsession.upload_progress.enabled = 0\n", text);
         Assert.Contains("error_log = \"C:\\ruta con espacios\\php.log\"", text);
         Assert.Equal(entries, PhpMitigations.Parse(text));

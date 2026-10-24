@@ -77,6 +77,22 @@ public static class TerminalPhp
     }
 
     /// <summary>
+    /// PURO: la herramienta que hace de shim según su <c>argv[0]</c>: <c>php</c>, <c>composer</c>, <c>node</c>…
+    /// Solo el nombre, sin carpeta ni <c>.exe</c> y en minúsculas; con nada, <c>php</c>. Es <c>argv[0]</c> y
+    /// no la ruta del proceso porque en Linux los shims son enlaces a un mismo <c>roost-shim</c>, y lo que
+    /// distingue a uno de otro es el nombre con el que se le llamó.
+    /// </summary>
+    public static string ToolName(string? argv0)
+    {
+        if (string.IsNullOrWhiteSpace(argv0)) return "php";
+        var name = argv0.Trim();
+        var cut = name.LastIndexOfAny(['/', '\\']);
+        if (cut >= 0) name = name[(cut + 1)..];
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)) name = name[..^4];
+        return name.Length == 0 ? "php" : name.ToLowerInvariant();
+    }
+
+    /// <summary>
     /// PURO: la línea de órdenes sin el propio ejecutable, sin volver a partirla ni a
     /// entrecomillarla. Lo que llegó al shim es lo que recibe PHP: rutas con espacios, comillas
     /// dentro de <c>-r</c>, etc. (re-entrecomillar argv en Windows no es reversible).
