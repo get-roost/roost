@@ -261,17 +261,17 @@ Cuando un comando cambia una clave, Roost toca solo esa clave y respeta el resto
 - **PHP:** las versiones instaladas, con su veredicto, quién las usa y sus extensiones (activar una reinicia solo su pool), el catálogo de windows.php.net (NTS/TS, x64/x86) y lo que hay fuera de Roost.
 - **Servidor web:** cuál arranca (nginx o Apache, que se instala al elegirlo), sus puertos HTTP y HTTPS, la validación (`nginx -t` / `httpd -t`) y su configuración.
 - **Bases de datos:** la conexión (con copiar y la línea para el `.env`), el puerto con quién ocupa cada uno, MariaDB y MySQL instaladas y disponibles, y las bases de datos del servidor (crear, consola SQL).
-- **Auditoría:** todo lo de la máquina frente a los avisos, con sus mitigaciones y una exportación a Markdown o JSON.
+- **Auditoría:** todo lo de la máquina frente a los avisos, con filtros por color, tipo y origen, el CVE o GHSA de cada aviso a un clic, sus mitigaciones, lo ignorado aparte, qué ha cambiado desde la anterior y una exportación a Markdown o JSON.
 - **Registros:** el final de cada log, coloreado, con filtro y en vivo.
-- **Ajustes:** inicio con Windows, bandeja, tema claro u oscuro, puertos, la CA local y cómo se resuelven los `.test` (hosts o DNS local).
+- **Ajustes:** inicio con Windows (la app en la bandeja, o solo el stack con una tarea programada), la bandeja y sus avisos, tema claro u oscuro, el editor, la terminal y el navegador con los que se abre todo, la carpeta raíz de Roost (cambiarla mueve lo que hay o empieza de cero), puertos, la CA local, cómo se resuelven los `.test` (hosts o DNS local), roostd (reiniciarlo) y el log de la propia app.
 
-La primera vez, una bienvenida propone traer las ramas de PHP que ya usas, una MariaDB, las carpetas de la www de Laragon como sitios y, si quieres, sus bases de datos (volcadas sin tocar Laragon: de su servidor si está en marcha o de una copia de sus datos si no). Desde la bandeja se arranca y se para todo, se cambia el PHP o la base de datos global y se abren los sitios. La app lleva `roost.exe` (el daemon) y `roost-helper.exe` a su lado.
+La primera vez, una bienvenida propone traer las ramas de PHP que ya usas, una MariaDB, las carpetas de la www de Laragon como sitios y, si quieres, sus bases de datos (volcadas sin tocar Laragon: de su servidor si está en marcha o de una copia de sus datos si no). Desde la bandeja se arranca y se para todo, se abre localhost, un sitio o Registros, se crea un sitio, se reinicia o se cambia el servidor web, se elige el PHP global (por versión exacta) o la base de datos, y avisa si un servicio se cae o algo pasa a rojo en la auditoría. Atajos: Ctrl+N nuevo sitio, F5 actualizar, Ctrl+L Registros, Ctrl+, Ajustes. La app lleva `roost.exe` (el daemon) y `roost-helper.exe` a su lado.
 
 ```sh
 dotnet run --project src/Roost.Desktop
 ```
 
-Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que sigue en marcha aunque salgas de la app (al salir, pregunta). Lo que está previsto pero aún no hecho (plantillas distintas de «Vacía», cambiar las rutas) aparece desactivado y marcado como «próximamente».
+Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que sigue en marcha aunque salgas de la app (al salir, pregunta).
 
 ### `roost shims`: el `php` de la terminal según la carpeta (solo Windows, por ahora)
 
@@ -480,6 +480,10 @@ Windows solo le pregunta por `.test`, gracias a una regla NRPT con el comentario
 
 Es opcional (`[sites] resolver` en `roost.toml`): por defecto se usa el `hosts`, que también funciona con el stack parado. En la app, está en Ajustes › Nombres .test.
 
+### `roost autostart`: el stack al iniciar sesión, sin la app (solo Windows)
+
+`roost autostart on` crea una tarea programada de tu usuario (`\Roost\Iniciar Roost al iniciar sesion`) que, al entrar en Windows, lanza `roost up` sin ventanas y sin permisos de administrador; `status` dice si está y qué lanza, y `off` la quita. Es lo mismo que la casilla «Iniciar todo al iniciar sesión, sin abrir la app» de Ajustes. Con `ROOST_HOME` no se crea (la tarea no lleva variables de entorno). Al desinstalar Roost, se quita.
+
 ### `roost update`: saber si hay una Roost nueva y actualizar
 
 nginx, las versiones de MySQL y el dataset de avisos van fijados dentro de Roost, así que lo nuevo de ellos solo llega con una Roost nueva.
@@ -522,7 +526,9 @@ roost update --install   # con el instalador de Windows: descarga el setup nuevo
 | Tu configuración | `%APPDATA%\Roost\roost.toml` |
 | Zips descargados (se reutilizan) | `%LOCALAPPDATA%\Roost\cache\downloads\` |
 
-La variable de entorno `ROOST_HOME` lo mete todo bajo una carpeta, para probar sin tocar `C:\roost`: binarios, configuración, `www` y `roost.toml` van directamente en `ROOST_HOME`, y la caché en `ROOST_HOME\cache`.
+La variable de entorno `ROOST_HOME` lo mete todo bajo una carpeta, para probar sin tocar `C:\roost`: binarios, configuración, `www` y `roost.toml` van directamente en `ROOST_HOME`, y la caché en `ROOST_HOME\cache`. Con `[paths] root` en su `roost.toml`, la raíz va donde diga (el `roost.toml` y la caché se quedan en `ROOST_HOME`); el `%APPDATA%` de verdad no se lee nunca con la variable puesta.
+
+`C:\roost` es la raíz de siempre. Se cambia en la app (Ajustes › Rutas › Cambiar…), que mueve lo que hay comprobándolo fichero a fichero (la carpeta de antes se queda como `…antigua-<fecha>`, nunca se borra) o empieza de cero; se guarda en `%APPDATA%\Roost\roost.toml` como `[paths] root`, y todo lo de la tabla que cuelga de `C:\roost` pasa a colgar de la nueva. El log de la app es `<raíz>\logs\roost-desktop.log`.
 
 ## El feed de avisos (`roost-catalog`)
 
