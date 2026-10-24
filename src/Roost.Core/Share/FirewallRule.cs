@@ -95,4 +95,44 @@ internal static class FirewallRule
     {
         if (!IsAllowedPort(port)) throw new ArgumentOutOfRangeException(nameof(port), port, "Puerto no permitido para la regla del cortafuegos.");
     }
+
+    // Linux (L1, Privilegios): ufw (Ubuntu) y firewalld (Fedora), por el helper y solo si están
+    // activos. Como no hay un «LocalSubnet» que valga para los dos, se deja entrar solo desde las
+    // redes privadas de RFC 1918, que es lo que se comparte con roost share --lan. Todo por rutas
+    // fijas y con los argumentos ya partidos: lo único que cambia es el puerto, ya validado.
+
+    /// <summary>Las redes desde las que se deja entrar en Linux (RFC 1918): lo más parecido al perfil privado + subred local de Windows.</summary>
+    public static readonly string[] PrivateNetworks = ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"];
+
+    /// <summary>ufw, por su ruta: no se busca en el PATH.</summary>
+    public const string UfwPath = "/usr/sbin/ufw";
+
+    /// <summary>firewall-cmd (firewalld), por su ruta.</summary>
+    public const string FirewalldPath = "/usr/bin/firewall-cmd";
+
+    /// <summary>
+    /// Los argumentos de <c>ufw</c> para una red: dejar entrar TCP a ese puerto desde ella (con el
+    /// comentario «Roost LAN &lt;puerto&gt;», que es como se ve en <c>ufw status</c>), o quitar justo esa
+    /// regla (<c>--force delete</c> con la misma especificación: ufw no pregunta).
+    /// </summary>
+    public static string[] UfwArguments(int port, string network, bool allow)
+    {
+        Check(port);
+        string[] rule = ["allow", "in", "proto", "tcp", "from", network, "to", "any", "port", port.ToString(System.Globalization.CultureInfo.InvariantCulture), "comment", DisplayName(port)];
+        return allow ? rule : ["--force", "delete", .. rule];
+    }
+
+    /// <summary>La regla enriquecida de firewalld para una red: solo IPv4, solo ese puerto TCP, solo desde esa red.</summary>
+    public static string FirewalldRichRule(int port, string network)
+    {
+        Check(port);
+        return $"rule family=\"ipv4\" source address=\"{network}\" port port=\"{port}\" protocol=\"tcp\" accept";
+    }
+
+    /// <summary>Los argumentos de <c>firewall-cmd</c> para poner o quitar esa regla, en caliente o de forma permanente (hacen falta los dos).</summary>
+    public static string[] FirewalldArguments(int port, string network, bool allow, bool permanent)
+    {
+        var action = (allow ? "--add-rich-rule=" : "--remove-rich-rule=") + FirewalldRichRule(port, network);
+        return permanent ? ["--permanent", action] : [action];
+    }
 }

@@ -88,57 +88,96 @@ public sealed class LocalCa(RoostPaths paths)
         }
     }
 
-    /// <summary>true si la CA actual está en el almacén raíz de confianza del usuario.</summary>
+    private ITrustStore? _store;
+
+    /// <summary>
+    /// Dónde se confía en la CA (<see cref="ITrustStore"/>): el almacén raíz del usuario en Windows,
+    /// los NSS del usuario en Linux (Chrome y cada perfil de Firefox, con certutil) o el de Windows
+    /// desde WSL. Los tests ponen el suyo.
+    /// </summary>
+    public ITrustStore Store
+    {
+        get => _store ??= TrustStores.Default();
+        init => _store = value;
+    }
+
+    /// <summary>true si la CA actual está en el almacén de confianza del usuario (<see cref="Store"/>).</summary>
     public bool IsTrusted()
     {
         if (!File.Exists(CaCertFile)) return false;
         using var ca = X509Certificate2.CreateFromPem(File.ReadAllText(CaCertFile));
-        using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
-        store.Open(OpenFlags.ReadOnly);
-        return store.Certificates.Find(X509FindType.FindByThumbprint, ca.Thumbprint, false).Count > 0;
+        return Store.IsTrusted(ca);
     }
 
     /// <summary>
-    /// Añade la CA al almacén raíz del USUARIO (no al de la máquina: no hace falta ser
-    /// administrador). Windows enseña un aviso que el usuario tiene que aceptar; si lo rechaza,
-    /// lanza <see cref="RoostException"/>. Chrome y Edge usan ese almacén.
+    /// Añade la CA al almacén del USUARIO (<see cref="Store"/>; nunca al de la máquina: no hace falta
+    /// ser administrador). En Windows sale un aviso que el usuario tiene que aceptar; si lo rechaza,
+    /// lanza <see cref="RoostException"/>. Devuelve dónde ha quedado (en Linux, qué navegadores y perfiles).
     /// </summary>
-    public void Trust()
+    public TrustReport Trust()
     {
         using var ca = LoadOrCreate();
-        using var publicOnly = X509Certificate2.CreateFromPem(ca.ExportCertificatePem());
-        using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
-        try
-        {
-            store.Open(OpenFlags.ReadWrite);
-            store.Add(publicOnly);
-        }
-        catch (CryptographicException ex)
-        {
-            throw new RoostException($"No se ha anadido la CA de Roost a los certificados de confianza: {ex.Message}");
-        }
+        return Store.Trust(ca);
     }
 
     /// <summary>
-    /// Quita la CA del almacén raíz del usuario (Windows vuelve a preguntar). Los certificados de
-    /// los sitios siguen ahí; el navegador vuelve a avisar de que no son de confianza.
+    /// Quita la CA del almacén del usuario (Windows vuelve a preguntar). Los certificados de los
+    /// sitios siguen ahí; el navegador vuelve a avisar de que no son de confianza.
     /// </summary>
-    public void Untrust()
+    public TrustReport Untrust()
     {
-        if (!File.Exists(CaCertFile)) return;
+        if (!File.Exists(CaCertFile)) return TrustReport.Empty;
         using var ca = X509Certificate2.CreateFromPem(File.ReadAllText(CaCertFile));
-        using var store = new X509Store(StoreName.Root, StoreLocation.CurrentUser);
+        return Store.Untrust(ca);
+    }
+
+    // Linux: la CA del SISTEMA (curl, wget, el PHP de la distro, git), opcional y por el helper (root):
+    // /usr/local/share/ca-certificates/roost-<uid>.crt + update-ca-certificates. Es «roost cert trust --system».
+
+    public const string SystemCaDirectory = "/usr/local/share/ca-certificates";
+
+    /// <summary>El fichero de la CA de este usuario en el sistema (<c>roost-&lt;uid&gt;.crt</c>; uno por usuario); null fuera de Linux.</summary>
+    public static string? SystemCaFile() => HelperChecks.CurrentUid() is { } uid ? $"{SystemCaDirectory}/roost-{uid}.crt" : null;
+
+    /// <summary>true si el sistema tiene esta misma CA (el fichero existe y es el mismo PEM).</summary>
+    public bool IsTrustedBySystem()
+    {
+        if (SystemCaFile() is not { } file || !File.Exists(file) || !File.Exists(CaCertFile)) return false;
         try
         {
-            store.Open(OpenFlags.ReadWrite);
-            foreach (var found in store.Certificates.Find(X509FindType.FindByThumbprint, ca.Thumbprint, false))
-                store.Remove(found);
+            return Pem(File.ReadAllText(file)) == Pem(File.ReadAllText(CaCertFile));
         }
-        catch (CryptographicException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            throw new RoostException($"No se ha quitado la CA de Roost de los certificados de confianza: {ex.Message}");
+            return false;
         }
+        static string Pem(string text) => text.Replace("\r\n", "\n").Trim();
     }
+
+    /// <summary>Pone la CA en el sistema con el helper (<c>ca-trust</c>, el PEM por stdin). Lanza <see cref="RoostException"/> si se cancela o falla.</summary>
+    public HelperRun TrustSystem(string helperExe, Elevation? elevation = null)
+    {
+        using var ca = LoadOrCreate();
+        var run = (elevation ?? Elevation.Default).Run(helperExe, ["ca-trust"], stdin: ca.ExportCertificatePem(), stdinFile: CaCertFile);
+        if (run.Status == ElevationStatus.Cancelled)
+            throw new RoostException("Has cancelado el permiso de administrador: la CA del sistema no se ha tocado.");
+        if (run.ExitCode != 0)
+            throw new RoostException($"roost-helper no pudo anadir la CA al sistema (codigo {run.ExitCode}). Detalle en {HostsUpdater.HelperLog}.{Detail(run)}");
+        return run;
+    }
+
+    /// <summary>Quita la CA de este usuario del sistema con el helper (<c>ca-untrust</c>). Lanza <see cref="RoostException"/> si se cancela o falla.</summary>
+    public HelperRun UntrustSystem(string helperExe, Elevation? elevation = null)
+    {
+        var run = (elevation ?? Elevation.Default).Run(helperExe, ["ca-untrust"]);
+        if (run.Status == ElevationStatus.Cancelled)
+            throw new RoostException("Has cancelado el permiso de administrador: la CA del sistema se queda como estaba.");
+        if (run.ExitCode != 0)
+            throw new RoostException($"roost-helper no pudo quitar la CA del sistema (codigo {run.ExitCode}). Detalle en {HostsUpdater.HelperLog}.{Detail(run)}");
+        return run;
+    }
+
+    private static string Detail(HelperRun run) => run.Output.Length == 0 ? "" : $" ({run.Output})";
 
     /// <summary>Nombre, huella SHA-1 y caducidad de la CA, para enseñarlos; null si aún no existe.</summary>
     public (string Subject, string Thumbprint, DateTime NotAfter)? Describe()

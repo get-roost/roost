@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  La política de polkit de roost-helper (ROOST.md §6: pkexec con política propia). El paquete .deb la
+  deja en /usr/share/polkit-1/actions/ y el helper en /usr/libexec/roost/roost-helper (de root, 0755):
+  exec.path la ata a ESE binario, así que pkexec solo la aplica a él. auth_admin_keep: la contraseña de
+  administrador, y vale unos minutos (crear varios sitios seguidos pide una vez); el daño posible lo
+  acota la lista cerrada del helper (hosts, drop-in de resolved, setcap del nginx del usuario,
+  /var/www/roost, la CA de Roost en el sistema, ufw/firewalld).
+-->
+<policyconfig>
+  <vendor>Roost</vendor>
+  <vendor_url>https://get-roost.com</vendor_url>
+
+  <action id="dev.roost.helper">
+    <description>Cambiar el hosts, el DNS local, la CA y el cortafuegos para los sitios .test de Roost</description>
+    <description xml:lang="en">Change the hosts file, local DNS, CA and firewall for Roost's .test sites</description>
+    <message>Roost necesita permiso de administrador para dar de alta los sitios .test (hosts o DNS local), confiar en su CA o abrir un puerto en el cortafuegos</message>
+    <message xml:lang="en">Roost needs administrator rights to register .test sites (hosts or local DNS), trust its CA or open a firewall port</message>
+    <defaults>
+      <allow_any>auth_admin_keep</allow_any>
+      <allow_inactive>auth_admin_keep</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/libexec/roost/roost-helper</annotate>
+  </action>
+</policyconfig>

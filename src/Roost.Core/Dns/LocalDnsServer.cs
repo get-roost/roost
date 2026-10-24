@@ -38,8 +38,10 @@ public sealed class LocalDnsServer : IAsyncDisposable
         var udp = new UdpClient(endPoint.AddressFamily);
         try
         {
-            // Sin reutilizar la dirección: si otro tiene justo esta, que falle aquí y no a medias.
-            udp.ExclusiveAddressUse = OperatingSystem.IsWindows();
+            // Sin reutilizar la dirección: si otro tiene justo esta, que falle aquí y no a medias. En
+            // Windows es SO_EXCLUSIVEADDRUSE; en Linux, .NET lo traduce a SO_REUSEADDR = 0 (ponerlo a
+            // false lo ENCENDÍA, y dos servidores UDP podían compartir el puerto sin que fallara ninguno).
+            udp.ExclusiveAddressUse = true;
             udp.Client.Bind(endPoint);
         }
         catch (SocketException ex)

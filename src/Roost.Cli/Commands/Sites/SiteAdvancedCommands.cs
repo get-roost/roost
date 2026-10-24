@@ -84,7 +84,6 @@ public sealed class SiteRenameCommand : AsyncCommand<SiteRenameCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("site rename")) return 1;
         var paths = RoostPaths.Default();
         var sites = new SiteManager(paths);
         try
@@ -180,7 +179,6 @@ public sealed class SiteMoveCommand : AsyncCommand<SiteMoveCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("site move")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -275,7 +273,6 @@ public sealed class SiteHostsCommand : Command<EmptyCommandSettings>
 {
     public override int Execute(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("site hosts")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -305,7 +302,6 @@ public sealed class ParkCommand : AsyncCommand<ParkCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("park")) return 1;
         var paths = RoostPaths.Default();
         var sites = new SiteManager(paths);
         try
@@ -368,7 +364,7 @@ public sealed class ParkedCommand : Command<EmptyCommandSettings>
             var folders = new ParkedFolders(paths).Load();
             if (folders.Count == 0)
             {
-                AnsiConsole.MarkupLine("Ninguna carpeta aparcada." + PlatformGate.WindowsHint(" Prueba: roost park C:\\proyectos"));
+                AnsiConsole.MarkupLine("Ninguna carpeta aparcada. Prueba: roost park " + (OperatingSystem.IsWindows() ? "C:\\proyectos" : "~/proyectos"));
                 return 0;
             }
             var sites = new SiteRegistry(paths).Load();

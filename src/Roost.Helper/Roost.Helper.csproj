@@ -2,9 +2,12 @@
 
   <!--
     roost-helper: lo único de Roost que se ejecuta con privilegios (ROOST.md §5.1, decisión 5).
-    A propósito sin dependencias: solo su Program.cs, y HostsBlock.cs, NrptScripts.cs y
-    FirewallRule.cs de Roost.Core enlazados como fuente, para que lo que puede escribir en el hosts
-    (y la regla de DNS y la del cortafuegos que pone) lo decida código de Core probado por los tests.
+    A propósito sin dependencias: solo sus ficheros y unos pocos de Roost.Core enlazados como fuente,
+    que son los que deciden qué se admite y qué se escribe, y que los tests de Core prueban con
+    entradas hostiles: HostsBlock (el bloque del hosts), NrptScripts (la regla NRPT de Windows),
+    FirewallRule (la regla del cortafuegos, en Windows y en Linux), ResolvedDropIn (el drop-in de
+    systemd-resolved), CaCertRules (qué PEM se acepta como CA de Roost) y HelperChecks (rutas, ELF,
+    uid y los códigos de salida).
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -21,6 +24,9 @@
     <Compile Include="..\Roost.Core\Sites\HostsBlock.cs" Link="HostsBlock.cs" />
     <Compile Include="..\Roost.Core\Dns\NrptScripts.cs" Link="NrptScripts.cs" />
     <Compile Include="..\Roost.Core\Share\FirewallRule.cs" Link="FirewallRule.cs" />
+    <Compile Include="..\Roost.Core\Dns\ResolvedDropIn.cs" Link="ResolvedDropIn.cs" />
+    <Compile Include="..\Roost.Core\Sites\CaCertRules.cs" Link="CaCertRules.cs" />
+    <Compile Include="..\Roost.Core\Platform\HelperChecks.cs" Link="HelperChecks.cs" />
   </ItemGroup>
 
 </Project>

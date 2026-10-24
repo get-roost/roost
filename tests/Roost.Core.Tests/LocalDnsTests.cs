@@ -88,7 +88,7 @@ public class LocalDnsTests : IDisposable
         Assert.Equal(1, Rcode(error));
     }
 
-    [WindowsFact("Pendiente en Linux: Privilegios y confianza (L1).")]
+    [Fact]
     public async Task ElServidor_ContestaPorUdp_YNoComparteSuPuerto()
     {
         await using var server = LocalDnsServer.Start(new IPEndPoint(IPAddress.Loopback, 0));
@@ -114,12 +114,48 @@ public class LocalDnsTests : IDisposable
     {
         NrptRule tailscale = new([".100.100.in-addr.arpa"], "100.100.100.100;fd7a:115c:a1e0::53", null);
         NrptRule roost = new([".test"], "127.53.0.1", "Roost");
+        NrptRule roostLinux = new([".test"], "127.53.0.1:5353", "Roost");   // el drop-in de resolved
         NrptRule otra = new([".test"], "127.0.0.1", "Acrylic");
 
         Assert.False(LocalDns.HasRoostRule([tailscale]));
         Assert.True(LocalDns.HasRoostRule([tailscale, roost]));
+        Assert.True(LocalDns.HasRoostRule([roostLinux]));
         Assert.Null(LocalDns.ForeignRule([tailscale, roost]));
         Assert.Equal(otra, LocalDns.ForeignRule([tailscale, otra]));
+    }
+
+    [Fact]
+    public void Resolved_LosFicherosDeResolved_SeLeenComoReglas_YElDeRoostSeReconoce()
+    {
+        var dir = Path.Combine(_root, "resolved.conf.d");
+        Directory.CreateDirectory(dir);
+        var main = Path.Combine(_root, "resolved.conf");
+        File.WriteAllText(main, "[Resolve]\n#DNS=\nDomains=~corp.example\nDNS=10.0.0.53\n");
+        File.WriteAllText(Path.Combine(dir, "10-otro.conf"), "[Resolve]\nDNS=127.0.0.1:5300\nDomains=~test ~docker\n");
+        File.WriteAllText(Path.Combine(dir, "sin-dominios.conf"), "[Resolve]\nDNSOverTLS=no\n");
+
+        var rules = LocalDns.ReadResolved(dir, main);
+
+        Assert.Equal(2, rules.Count);   // el que no enruta nada no cuenta
+        Assert.Equal([".corp.example"], rules[0].Namespaces);
+        Assert.Equal("10.0.0.53", rules[0].Servers);
+        Assert.Equal([".test", ".docker"], rules[1].Namespaces);
+        Assert.Null(rules[1].Comment);
+        Assert.False(LocalDns.HasRoostRule(rules));
+        Assert.Equal(rules[1], LocalDns.ForeignRule(rules));
+
+        // Con el drop-in de Roost (su contenido fijo), la regla de Roost está y la ajena sigue viéndose.
+        File.WriteAllText(Path.Combine(dir, "roost.conf"), ResolvedDropIn.Content);
+        rules = LocalDns.ReadResolved(dir, main);
+        Assert.True(LocalDns.HasRoostRule(rules));
+        Assert.Equal("Roost", rules.Single(r => r.Servers == "127.53.0.1:5353").Comment);
+    }
+
+    [WindowsFact("Solo en Windows: en Linux depende de systemd-resolved y de WSL.")]
+    public void EnWindows_ElDnsLocal_SiempreEstaDisponible_YEscuchaEnEl53()
+    {
+        Assert.Null(LocalDns.WhyNotAvailable());
+        Assert.Equal(53, LocalDns.Port);
     }
 
     [Fact]
