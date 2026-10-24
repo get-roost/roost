@@ -139,7 +139,7 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
             ?? throw new RoostException($"No hay ningun sitio '{name}'. Mira los registrados con: roost site list");
         var changed = site with { Root = NormalizeRoot(site.Folder, root) };
         Registry.Upsert(changed);
-        KeepProjectFile(changed);
+        KeepProjectFile(changed, ProjectKeys.Root);
         return changed;
     }
 
@@ -157,7 +157,7 @@ public sealed partial class SiteManager(RoostPaths paths, Git.GitClient? git = n
             throw new RoostException($"'{database}' no vale como base de datos de un sitio: usa solo letras, numeros y _ (hasta 64), y ninguna del sistema.");
         var changed = site with { Database = database };
         Registry.Upsert(changed);
-        KeepProjectFile(changed);
+        KeepProjectFile(changed, ProjectKeys.Db);
         return changed;
     }
 

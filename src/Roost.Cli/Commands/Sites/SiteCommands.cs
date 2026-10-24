@@ -109,7 +109,7 @@ public sealed class SiteAddCommand : AsyncCommand<SiteAddCommand.Settings>
             if (settings.Save)
                 AnsiConsole.MarkupLineInterpolated($"[green]Guardado[/] en {sites.SaveProjectFile(site.Name)}");
             else
-                sites.KeepProjectFile(site);
+                sites.KeepProjectFile(site, (settings.Php is null ? ProjectKeys.None : ProjectKeys.Php) | (settings.Root is null ? ProjectKeys.None : ProjectKeys.Root));
 
             SiteSupport.SyncHosts(paths, sites.Registry.Load());
             SiteSupport.TrustHint(new LocalCa(paths));

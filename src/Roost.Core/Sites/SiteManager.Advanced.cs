@@ -25,6 +25,17 @@ public sealed record ProjectSync(IReadOnlyList<ProjectChange> Changes, IReadOnly
     public bool NamesChanged { get; init; }
 }
 
+/// <summary>Las claves del <c>.roost.toml</c> que acaba de cambiar una operación (<see cref="SiteManager.KeepProjectFile"/>).</summary>
+[Flags]
+public enum ProjectKeys
+{
+    None = 0,
+    Php = 1,
+    Root = 2,
+    Db = 4,
+    Aliases = 8,
+}
+
 /// <summary>Una subcarpeta de una carpeta aparcada que no es sitio, y por qué.</summary>
 public sealed record ParkSkip(string Folder, string Reason);
 
@@ -114,7 +125,7 @@ public sealed partial class SiteManager
         moved.AddRange(MoveIfFree(Path.Combine(paths.Logs, $"pasos-{name}.log"), Path.Combine(paths.Logs, $"pasos-{newName}.log")));
         moved.AddRange(SiteLogs.Rename(paths, name, newName));
 
-        KeepProjectFile(renamed);
+        KeepProjectFile(renamed, ProjectKeys.Db | ProjectKeys.Aliases);
         return new SiteRenamed(site, renamed, moved, kept, movedAliases);
     }
 
@@ -231,7 +242,7 @@ public sealed partial class SiteManager
         if (SiteAliases.WhyNot(site, normalized, all) is { } why) throw new RoostException(why);
         var changed = site with { Aliases = [.. site.Aliases ?? [], normalized] };
         Registry.Upsert(changed);
-        KeepProjectFile(changed);
+        KeepProjectFile(changed, ProjectKeys.Aliases);
         return changed;
     }
 
@@ -247,7 +258,24 @@ public sealed partial class SiteManager
         var rest = site.Aliases.Where(a => a != normalized).ToList();
         var changed = site with { Aliases = rest.Count == 0 ? null : rest };
         Registry.Upsert(changed);
-        KeepProjectFile(changed);
+        KeepProjectFile(changed, ProjectKeys.Aliases);
+        return changed;
+    }
+
+    /// <summary>
+    /// Deja los alias del sitio exactamente en <paramref name="aliases"/> (normalizados y validados; lanza
+    /// con el primero que no vale y no cambia nada). Lo usa el diálogo «Alias…» de la app.
+    /// </summary>
+    public Site SetAliases(string name, IEnumerable<string> aliases)
+    {
+        name = NormalizeName(name);
+        var all = Registry.Load();
+        var site = all.FirstOrDefault(s => s.Name == name)
+            ?? throw new RoostException($"No hay ningun sitio '{name}'. Mira los registrados con: roost site list");
+        var valid = ValidAliases(site with { Aliases = null }, aliases, all, site.Host);
+        var changed = site with { Aliases = valid.Count == 0 ? null : valid };
+        Registry.Upsert(changed);
+        KeepProjectFile(changed, ProjectKeys.Aliases);
         return changed;
     }
 
@@ -270,22 +298,23 @@ public sealed partial class SiteManager
     // C11: el .roost.toml del proyecto
 
     /// <summary>
-    /// Si la carpeta del sitio tiene <c>.roost.toml</c>, lo deja como el registro (php, root, db,
-    /// aliases): así lo que se cambia con la CLI o la app no lo deshace el siguiente <c>up</c>. Sin
-    /// fichero, no crea ninguno (eso es <see cref="SaveProjectFile"/>). Nunca lanza: es un extra.
+    /// Si la carpeta del sitio tiene <c>.roost.toml</c>, le pasa lo que se acaba de cambiar
+    /// (<paramref name="keys"/>) y que el fichero ya dice: así el siguiente <c>up</c> no lo deshace. Lo
+    /// demás no se toca (el fichero puede decir algo que aún no se ha aplicado), y una clave que no
+    /// tiene no se añade: no dice nada, y nada se deshace. Sin fichero, no crea ninguno (eso es
+    /// <see cref="SaveProjectFile"/>). Nunca lanza: es un extra.
     /// </summary>
-    public void KeepProjectFile(Site site)
+    public void KeepProjectFile(Site site, ProjectKeys keys)
     {
         try
         {
-            if (!Directory.Exists(site.Folder) || ProjectFile.Read(site.Folder) is not { } current) return;
-            // Solo las claves que ya tiene: una que no está no dice nada, y el siguiente up no deshace nada.
+            if (keys == ProjectKeys.None || !Directory.Exists(site.Folder) || ProjectFile.Read(site.Folder) is not { } current) return;
             var wanted = current with
             {
-                Php = current.Php is null ? null : site.Php ?? "global",
-                Root = current.Root is null ? null : site.Root ?? ".",
-                Db = current.Db is null ? null : site.Database,
-                Aliases = current.Aliases is null ? null : site.Aliases ?? [],
+                Php = current.Php is not null && keys.HasFlag(ProjectKeys.Php) ? site.Php ?? "global" : current.Php,
+                Root = current.Root is not null && keys.HasFlag(ProjectKeys.Root) ? site.Root ?? "." : current.Root,
+                Db = current.Db is not null && keys.HasFlag(ProjectKeys.Db) ? site.Database : current.Db,
+                Aliases = current.Aliases is not null && keys.HasFlag(ProjectKeys.Aliases) ? site.Aliases ?? [] : current.Aliases,
             };
             if (wanted.Php == current.Php && wanted.Root == current.Root && wanted.Db == current.Db && SameList(wanted.Aliases, current.Aliases)) return;
             ProjectFile.Write(site.Folder, wanted);
