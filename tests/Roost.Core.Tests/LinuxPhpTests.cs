@@ -403,8 +403,9 @@ public class LinuxPhpTests : IDisposable
         Assert.Contains("sendmail_path = \"/casa/bin/mailpit/1.32.0/mailpit sendmail --smtp-addr 127.0.0.1:1026\"", File.ReadAllText(Path.Combine(confD, MailConf.PhpIniName)));
         Assert.True(MailConf.SyncPhpIni(confD, config));                      // sin Mailpit instalado: solo el SMTP
         Assert.DoesNotContain("sendmail_path", File.ReadAllText(Path.Combine(confD, MailConf.PhpIniName)));
-        Assert.True(MailConf.SyncPhpIni(Paths, confD, config));                // busca el Mailpit de Roost: no hay ninguno
-        Assert.False(MailConf.SyncPhpIni(confD, config with { MailEnabled = false }) && File.Exists(Path.Combine(confD, MailConf.PhpIniName)));
+        Assert.False(MailConf.SyncPhpIni(Paths, confD, config));               // busca el Mailpit de Roost: no hay ninguno, y el fichero ya es ese
+        Assert.True(MailConf.SyncPhpIni(confD, config with { MailEnabled = false }));   // sin Mailpit en el stack, se quita
+        Assert.False(File.Exists(Path.Combine(confD, MailConf.PhpIniName)));
     }
 
     /// <summary>Un <see cref="IProcessRunner"/> que contesta siempre lo mismo (el <c>nginx -t</c> o el <c>php -m</c>).</summary>

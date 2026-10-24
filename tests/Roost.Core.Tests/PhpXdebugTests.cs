@@ -147,7 +147,7 @@ public class PhpXdebugTests : IDisposable
         Assert.Single(XdebugCatalog.Windows.Where(b => b.PhpBranch != "7.4").Select(b => b.Version).Distinct());
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: la DLL de xdebug.org (en Linux Xdebug va dentro de cada PHP de roost-builds).")]
     public void Catalogo_SoloNtsX64_YDiceElPorQue()
     {
         Assert.Equal("3.1.6", XdebugCatalog.For(Php("7.4.33-nts-x64"))?.Version);
@@ -192,7 +192,7 @@ public class PhpXdebugTests : IDisposable
         Assert.True(!Directory.Exists(dir) || !Directory.EnumerateFileSystemEntries(dir).Any());
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: la DLL de xdebug.org (en Linux Xdebug va dentro de cada PHP de roost-builds).")]
     public void Locate_LaFijada_OLaMasNuevaDeSuRama_NuncaParaUnaTs()
     {
         var php = Php("8.4.27-nts-x64");
@@ -347,7 +347,7 @@ public class PhpXdebugTests : IDisposable
         Assert.Contains("roost php xdebug", xdebug.Message);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: la DLL de xdebug.org (en Linux Xdebug va dentro de cada PHP de roost-builds).")]
     public async Task Xdebug_SeEnciendeSiCarga_YSeApaga()
     {
         var php = Php("8.4.27-nts-x64");
@@ -369,7 +369,7 @@ public class PhpXdebugTests : IDisposable
         Assert.DoesNotContain("xdebug.mode", ini);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: la DLL de xdebug.org (en Linux Xdebug va dentro de cada PHP de roost-builds).")]
     public async Task Xdebug_SinSuDll_SiNoCarga_OEnUnaTs_SeQuedaApagado()
     {
         var php = Php("8.4.27-nts-x64");

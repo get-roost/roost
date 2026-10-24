@@ -115,13 +115,15 @@ public sealed partial class StackPlanner
 
     /// <summary>
     /// Las extensiones integradas en el binario de una instalación (Linux, compiladas estáticas): las
-    /// de su <c>BUILD.json</c> o, si no lo trae (una instalación copiada a mano), las que lista
-    /// <c>php -n -m</c>. En Windows, ninguna: todas son DLL de <c>ext/</c>.
+    /// de su <c>BUILD.json</c> o, si un build de roost-builds no lo trae (copiado a mano sin él), las
+    /// que lista <c>php -n -m</c>. En Windows, ninguna: todas son DLL de <c>ext/</c>; y una instalación
+    /// de Linux sin php-fpm (de pega, o de otro sitio) tampoco se pregunta: no es de roost-builds.
     /// </summary>
     public IReadOnlySet<string> BuiltInExtensions(InstalledPhp php)
     {
         if (OperatingSystem.IsWindows()) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (php.ReadBuildInfo() is { } info) return info.Extensions;
+        if (!php.HasFpm) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         // Sin php.ini (-n): lo que lista es lo compilado dentro. Si no contesta como php -m, nada.
         var output = runner.Run(php.Executable, "-n -m", TimeSpan.FromSeconds(15));
         if (output is null || !output.Contains("[PHP Modules]", StringComparison.Ordinal)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);

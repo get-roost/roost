@@ -71,7 +71,7 @@ public class ViewSnapshotTests
         Snapshot(window, "inicio-parado");
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Php_ConCatalogoYExtensiones()
     {
         var (main, window, fake) = await OpenAsync(running: true);
@@ -1431,7 +1431,7 @@ public class ViewSnapshotTests
         return dll;
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Php_DetalleConXdebugConfDDeLaRamaYAjustesRapidos()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -1519,7 +1519,7 @@ public class ViewSnapshotTests
         Assert.Null(main.Dialog);
     }
 
-    [AvaloniaFact]
+    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Php_XdebugLaPrimeraVez_LoBajaConElDialogoInstalando()
     {
         var (main, window, fake) = await OpenAsync(running: false);

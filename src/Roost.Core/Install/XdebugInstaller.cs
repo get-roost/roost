@@ -90,8 +90,6 @@ public sealed class XdebugInstaller
     /// </summary>
     public async Task<string> InstallAsync(XdebugBuild build, IProgress<long>? downloaded = null, CancellationToken cancellation = default)
     {
-        if (!OperatingSystem.IsWindows())
-            throw new RoostException("En Linux Xdebug va dentro de cada PHP de roost-builds (ext/xdebug.so): no hay nada que bajar.");
         var target = DllPath(build);
         if (File.Exists(target) && Sha256Of(target) == build.Sha256) return target;
 

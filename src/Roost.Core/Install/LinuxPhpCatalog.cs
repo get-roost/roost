@@ -47,11 +47,11 @@ public static partial class LinuxPhpCatalog
     // Si la release se publica desde otro run, hay que volver a fijarlos (ver remarks).
     private static readonly (string Version, string Sha256, long Size)[] Pinned =
     [
-        ("8.5.12", "PENDIENTE", 0),
+        ("8.5.12", "a404c39be611e4047e030a45275336d091232c9b615afd434a7ba57fe3de86f5", 55_530_232),
         ("8.4.27", "5b5cb8036491c978e30e823181cec874d5421285e88dea514ec49c8ef74dfb95", 54_258_532),
         ("8.3.36", "e32286ea703c77f6e63a8073b361156f38eaf27de410af53370e8a5a52a35b26", 52_496_952),
         ("8.2.35", "6bb77305ef9bf19ddcb0ae4d4c0f823351c7487c46e5e252b6ba28326d897618", 52_262_193),
-        ("8.1.34", "PENDIENTE", 0),
+        ("8.1.34", "b05b5f62f5cf61762b1112a38827c4cd5e1f461204235df44558610fb76aaaed", 51_918_667),
     ];
 
     [GeneratedRegex(@"^\d+\.\d+$")]
