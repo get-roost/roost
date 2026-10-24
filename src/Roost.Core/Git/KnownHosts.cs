@@ -253,14 +253,53 @@ public sealed partial class KnownHosts(string file, ICommandRunner runner, OpenS
     {
         ValidateHost(host);
         var tools = ssh ?? OpenSsh.Locate();
+        var portText = (port ?? 22).ToString(CultureInfo.InvariantCulture);
         var args = new List<string> { "-T", ((int)ScanTimeout.TotalSeconds).ToString(CultureInfo.InvariantCulture), "-t", "ed25519,ecdsa,rsa" };
-        if (port is { } p && p != 22) args.AddRange(["-p", p.ToString(CultureInfo.InvariantCulture)]);
+        if (port is { } p && p != 22) args.AddRange(["-p", portText]);
         args.Add(host);
-        var result = await runner.RunAsync(new CommandSpec(tools.SshKeyscan, args, Timeout: ScanTimeout + TimeSpan.FromSeconds(5)), null, cancellation);
+        var result = await runner.RunAsync(new CommandSpec(tools.SshKeyscan, args, Timeout: ScanTimeout + TimeSpan.FromSeconds(5), Stdin: ""), null, cancellation);
         var keys = ParseScan(result.Stdout, host, port);
-        if (keys.Count == 0)
-            throw new RoostException($"{HostToken(host, port)} no ha dado ninguna clave SSH (ssh-keyscan{(result.TimedOut ? " no contesto a tiempo" : "")}). Comprueba el nombre, el puerto y tu conexion.");
-        return keys;
+        if (keys.Count > 0) return keys;
+
+        // El ssh-keyscan del OpenSSH 9.5 de Windows ofrece un intercambio de claves que no sabe hacer
+        // («choose_kex: unsupported KEX method sntrup761x25519-sha512») y no saca nada. El cliente ssh
+        // sí negocia bien: se le deja apuntar la clave en un known_hosts temporal, de usar y tirar (ni
+        // el de Roost ni el del usuario), sin ofrecer ninguna credencial; la huella se calcula aquí igual.
+        var temp = Path.Combine(Path.GetTempPath(), "roost-hostkey-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        try
+        {
+            var capture = Path.Combine(temp, "known_hosts");
+            var none = Path.Combine(temp, "global_known_hosts");
+            var probe = await runner.RunAsync(new CommandSpec(tools.Ssh,
+            [
+                "-F", "none",
+                "-o", "BatchMode=yes",
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "UserKnownHostsFile=" + OpenSsh.ConfigPath(capture),
+                "-o", "GlobalKnownHostsFile=" + OpenSsh.ConfigPath(none),
+                "-o", "UpdateHostKeys=no",
+                "-o", "HashKnownHosts=no",
+                "-o", "PubkeyAuthentication=no",
+                "-o", "PasswordAuthentication=no",
+                "-o", "KbdInteractiveAuthentication=no",
+                "-o", "GSSAPIAuthentication=no",
+                "-o", "IdentityAgent=none",
+                "-o", "HostKeyAlgorithms=ssh-ed25519,ecdsa-sha2-nistp256,ecdsa-sha2-nistp384,ecdsa-sha2-nistp521,rsa-sha2-512,rsa-sha2-256",
+                "-o", "ConnectTimeout=" + ((int)ScanTimeout.TotalSeconds).ToString(CultureInfo.InvariantCulture),
+                "-p", portText,
+                "-l", "git",
+                host,
+            ], Timeout: ScanTimeout + TimeSpan.FromSeconds(10), Stdin: ""), null, cancellation);
+            if (File.Exists(capture)) keys = ParseScan(File.ReadAllText(capture), host, port);
+            if (keys.Count > 0) return keys;
+            var why = GitOutput.Headline(probe.Stderr.Length > 0 ? probe.Stderr : result.Stderr);
+            throw new RoostException($"{HostToken(host, port)} no ha dado ninguna clave SSH{(result.TimedOut || probe.TimedOut ? " (no contesto a tiempo)" : why.Length > 0 ? $" ({why})" : "")}. Comprueba el nombre, el puerto y tu conexion.");
+        }
+        finally
+        {
+            Install.InstallFiles.TryDeleteDirectory(temp);
+        }
     }
 
     /// <summary>Las claves de la salida de <c>ssh-keyscan</c> que son de ese servidor, sin repetir (PURO).</summary>

@@ -163,7 +163,8 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
                     if (why is not null) throw new GitException(new GitFailure(GitFailureKind.HostKeyUnverified, why, ""));
                 }
 
-                if (!settings.Json) AnsiConsole.MarkupLineInterpolated($"Comprobando {url.Normalized}{(access is null ? "" : $" [grey]({AccessLabel(access, plan.Name)})[/]")}...");
+                if (!settings.Json)
+                    AnsiConsole.MarkupLine($"Comprobando {Markup.Escape(url.Normalized)}" + (access is null ? "" : $" [grey]({Markup.Escape(AccessLabel(access, plan.Name))})[/]") + "...");
                 probe = await ProbeAsync(sites, url, access, cancellation);
                 if (probe.Reachable) break;
 

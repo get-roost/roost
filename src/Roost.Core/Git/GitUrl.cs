@@ -348,9 +348,9 @@ public sealed partial record GitUrl
 
     private static GitProvider ProviderOf(string host) => host switch
     {
-        "github.com" or "www.github.com" or "gist.github.com" => GitProvider.GitHub,
-        "gitlab.com" or "www.gitlab.com" => GitProvider.GitLab,
-        "bitbucket.org" or "www.bitbucket.org" => GitProvider.Bitbucket,
+        "github.com" or "www.github.com" or "gist.github.com" or "ssh.github.com" => GitProvider.GitHub,
+        "gitlab.com" or "www.gitlab.com" or "altssh.gitlab.com" => GitProvider.GitLab,
+        "bitbucket.org" or "www.bitbucket.org" or "altssh.bitbucket.org" => GitProvider.Bitbucket,
         "codeberg.org" => GitProvider.Codeberg,
         "dev.azure.com" or "ssh.dev.azure.com" or "vs-ssh.visualstudio.com" => GitProvider.AzureDevOps,
         _ when host.EndsWith(".visualstudio.com", StringComparison.Ordinal) => GitProvider.AzureDevOps,

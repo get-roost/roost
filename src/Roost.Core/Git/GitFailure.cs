@@ -71,7 +71,7 @@ public sealed partial record GitFailure(GitFailureKind Kind, string Message, str
 
         // Lo de las huellas va antes que «no se encuentra»: el aviso de ssh habla de «connection».
         if (ContainsAny(stderr, "REMOTE HOST IDENTIFICATION HAS CHANGED", "has changed and you have requested strict checking"))
-            return HostKeyChanged(url, stderr, access, detail);
+            return HostKeyChanged(url, stderr, access, LineWith(stderr, "has changed and you have") ?? LineWith(stderr, "HAS CHANGED") ?? detail);
 
         if (ContainsAny(stderr, "Host key verification failed", "No ED25519 host key is known", "No RSA host key is known", "No ECDSA host key is known"))
         {
@@ -92,7 +92,7 @@ public sealed partial record GitFailure(GitFailureKind Kind, string Message, str
             return new(GitFailureKind.KeyUnusable, $"No se puede usar la clave{KeyOf(access)}: tiene contrasena o no tiene un formato de OpenSSH. Roost no puede preguntar la contrasena (git corre sin terminal).", detail);
 
         if (ContainsAny(stderr, "Permission denied (publickey", "Permission denied (publickey,"))
-            return KeyRejected(url, access, detail);
+            return KeyRejected(url, access, LineWith(stderr, "Permission denied (publickey") ?? detail);
 
         // La clave entra en el servidor pero no ve el repositorio: es la deploy key de otro.
         if (access?.Kind == Sites.SiteGit.AccessKey && url?.Scheme == GitScheme.Ssh && ContainsAny(stderr, "Repository not found", "does not appear to be a git repository", "The project you were looking for could not be found"))
@@ -228,6 +228,10 @@ public sealed partial record GitFailure(GitFailureKind Kind, string Message, str
             return new(GitFailureKind.KeyRejected, $"{host} no acepta ninguna de tus claves SSH (las de ~/.ssh y las del ssh-agent de Windows). Pruebalo en tu terminal: ssh -T git@{host}", detail);
         return new(GitFailureKind.KeyRejected, $"{host} no acepta ninguna clave SSH de este equipo (Permission denied (publickey)).", detail);
     }
+
+    /// <summary>La primera línea de stderr que lleva <paramref name="needle"/>, recortada: el detalle que explica de verdad el fallo.</summary>
+    private static string? LineWith(string stderr, string needle) =>
+        stderr.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Contains(needle, StringComparison.OrdinalIgnoreCase));
 
     private static string KeyOf(GitAccess? access) => access?.KeyName is { } key ? $" de {key}" : "";
 

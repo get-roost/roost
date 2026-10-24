@@ -155,11 +155,39 @@ public class KnownHostsTests : IDisposable
     [Fact]
     public async Task Scan_SinRespuesta_LanzaConElMotivo()
     {
-        _runner.On("-T 10", exitCode: 1, stderr: "getaddrinfo git.nada.invalid: No such host is known.\n");
+        _runner.On("-T 10", exitCode: 1, stderr: "getaddrinfo git.nada.invalid: No such host is known.\n")
+            .On("-F none", exitCode: 255, stderr: "ssh: Could not resolve hostname git.nada.invalid: No such host is known.\n");
 
         var ex = await Assert.ThrowsAsync<RoostException>(() => Hosts.ScanAsync("git.nada.invalid", null, CancellationToken.None));
 
         Assert.Contains("no ha dado ninguna clave SSH", ex.Message);
+        Assert.Contains("Could not resolve hostname", ex.Message);
+    }
+
+    [Fact]
+    public async Task Scan_ConElKeyscanDeWindowsRoto_LaSacaSshEnUnKnownHostsDeUsarYTirar()
+    {
+        // Lo que hace el ssh-keyscan del OpenSSH 9.5 de Windows contra github.com (grabado el 24-oct-2026).
+        _runner.On("-T 10", exitCode: 1, stderr: "# github.com:22 SSH-2.0-35b973d6\r\nchoose_kex: unsupported KEX method sntrup761x25519-sha512@openssh.com\r\n");
+        string? capture = null;
+        _runner.On("-F none", exitCode: 255, stderr: "Warning: Permanently added 'git.acme.es' (ED25519) to the list of known hosts.\r\ngit@git.acme.es: Permission denied (publickey).\r\n", onRun: spec =>
+        {
+            // ssh apunta la clave en el UserKnownHostsFile que se le pasa, como haria el de verdad.
+            var option = spec.Arguments.Single(a => a.StartsWith("UserKnownHostsFile=", StringComparison.Ordinal));
+            capture = option["UserKnownHostsFile=".Length..].Trim('"').Replace("%%", "%");
+            File.WriteAllText(capture, $"git.acme.es ssh-ed25519 {FakeEd25519}\n");
+        });
+
+        var keys = await Hosts.ScanAsync("git.acme.es", null, CancellationToken.None);
+
+        Assert.Equal(KnownHosts.Fingerprint(FakeEd25519), Assert.Single(keys).Fingerprint);
+        var ssh = _runner.Calls[1];
+        Assert.EndsWith("ssh.exe", ssh.Exe);
+        Assert.Contains("PubkeyAuthentication=no", ssh.Arguments);           // no ofrece ninguna credencial
+        Assert.Contains("StrictHostKeyChecking=accept-new", ssh.Arguments);
+        Assert.DoesNotContain(File_, string.Join(' ', ssh.Arguments));       // ni el known_hosts de Roost
+        Assert.False(File.Exists(capture));                                   // el temporal se borra
+        Assert.False(File.Exists(File_));
     }
 
     [Theory]

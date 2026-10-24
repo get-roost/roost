@@ -271,6 +271,26 @@ public class GitFailureTests
     }
 
     [Fact]
+    public void HuellaCambiada_ConLaSalidaRealDelOpenSshDeWindows()
+    {
+        // OpenSSH_for_Windows_9.5p2 contra github.com con la ED25519 cambiada a mano en el known_hosts
+        // de Roost (grabado el 24-oct-2026; la ruta, cambiada por la de una instalacion normal).
+        const string stderr = "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\r\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\r\n"
+            + "IT IS POSSIBLE THAT SOMEONE IS DOING SOMETHING NASTY!\r\nSomeone could be eavesdropping on you right now (man-in-the-middle attack)!\r\nIt is also possible that a host key has just been changed.\r\n"
+            + "The fingerprint for the ED25519 key sent by the remote host is\r\nSHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU.\r\nPlease contact your system administrator.\r\n"
+            + "Add correct host key in C:/roost/state/git/known_hosts to get rid of this message.\r\nOffending RSA key in C:/roost/state/git/known_hosts:6\r\n"
+            + "Host key for github.com has changed and you have requested strict checking.\r\nHost key verification failed.\r\nfatal: Could not read from remote repository.\r\n";
+        var stored = KnownHosts.ParseLine("github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL+pitVcgStKA+2SdBhY6HXfTF8cs0wddhi72/OCTOP6")!;
+        var access = new GitAccess { Url = GitHubSsh, Kind = Sites.SiteGit.AccessKey, KeyName = "tienda", HostKeys = [stored], PublishedHost = KnownHosts.BuiltIn[0] };
+
+        var failure = GitFailure.Classify(128, stderr, null, access: access);
+
+        Assert.Equal(GitFailureKind.HostKeyChanged, failure.Kind);
+        Assert.Contains($"(ED25519 {stored.Key.Fingerprint} -> SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU)", failure.Message);
+        Assert.Equal("Host key for github.com has changed and you have requested strict checking.", failure.Detail);
+    }
+
+    [Fact]
     public void HuellaCambiadaDeUnServidorDeSerie_RecuerdaActualizarRoost()
     {
         var access = new GitAccess { Url = GitHubSsh, Kind = Sites.SiteGit.AccessKey, KeyName = "tienda", PublishedHost = KnownHosts.BuiltIn[0] };
