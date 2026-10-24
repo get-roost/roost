@@ -345,6 +345,8 @@ roost git install | status                                     # el git que usa 
   roost git hosts list | add git.acme.es | remove git.acme.es    # servidores SSH conocidos, con su huella
   ```
 
+- **En la app:** Sitios › «Desde git…» (o la plantilla «Desde git…» de Nuevo sitio) clona en tres pasos: la dirección y «Comprobar», que no descarga nada; cómo entrar, con la huella del servidor a la vista; y el sitio (nombre, carpeta, rama, PHP y base de datos). Después vienen los pasos de instalación. El panel de cada sitio tiene su bloque Git (rama, si está al día o por detrás, el último commit, «Actualizar», «Historial», «Acceso…» y «Comprobar ahora»), y Ajustes › Git reúne el git que usa Roost, el OpenSSH, las claves, los tokens y los servidores conocidos. Con la app abierta, cada 30 minutos (se cambia en Ajustes › Git) Roost pregunta al remoto de cada sitio si hay commits nuevos, sin descargar nada.
+
 - **Tokens.** Se guardan en el Administrador de credenciales de Windows (genéricos, del equipo local, cifrados para tu usuario), con el nombre `Roost:git:https://servidor/ruta`. Un token vale para su ruta y lo que cuelga de ella: el de `github.com/acme/tienda`, solo para ese repositorio; el de `github.com/acme`, para todos los de acme. git los pide a Roost por una tubería (el helper `roost git-credential`, que Roost le pasa solo en cada orden): nunca van en la dirección, en los argumentos, en el entorno ni en los registros. Crea tokens con el permiso justo: en GitHub, fine-grained con *Contents: Read*; en GitLab, `read_repository`.
 - **Claves SSH.** Una ed25519 por sitio en `C:\roost\state\git\keys\<sitio>`, sin contraseña (como Plesk, Forge o Coolify) y solo legible por tu usuario. Pégala como deploy key **de solo lectura**, una por repositorio (GitHub no deja reutilizarlas). Usa el cliente OpenSSH de Windows; si falta, es una característica opcional: Configuración › Sistema › Características opcionales › Cliente OpenSSH.
 - **Huellas.** El ssh de Roost solo se fía de su propio `known_hosts` (`C:\roost\state\git\known_hosts`), siempre con `StrictHostKeyChecking=yes`. Trae de serie las claves de GitHub, GitLab y Bitbucket, comprobadas con las que publica cada uno; cualquier otro servidor se acepta solo tras ver su huella (`roost git hosts add`, o `--fingerprint SHA256:…` para scripts). Si un servidor conocido presenta otra huella, no conecta. Con `--own-ssh` se leen también tus `known_hosts`, pero Roost nunca escribe en ellos.
@@ -527,7 +529,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Con nginx, recargar la configuración con muchas peticiones a la vez puede cortar alguna (nginx para Windows cierra la cola de su proceso viejo); con Apache, no. Con `[php] pool = 1`, reiniciar PHP deja un momento sin atender.
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
-- «Desde git…» en la app, con su acceso, llega en la próxima versión: de momento, los repositorios (públicos o privados) se clonan desde la CLI. SSH por un proxy no se soporta: usa un token HTTPS.
+- SSH por un proxy no se soporta: usa un token HTTPS.
 
 ## Desarrollo
 
