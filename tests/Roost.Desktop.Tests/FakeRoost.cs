@@ -132,6 +132,18 @@ internal sealed class FakeUpstream : HttpMessageHandler
     /// <summary>Actualizador: el SHA256SUMS.txt miente sobre el setup (para ver que entonces no se ejecuta nada).</summary>
     public bool CorruptSums { get; set; }
 
+    /// <summary>
+    /// Actualizador (A6): mientras no se complete, lo que daría 404 (el zip de nginx…) espera. Así
+    /// da tiempo a pasar una instalación a segundo plano antes de que falle.
+    /// </summary>
+    public TaskCompletionSource? HoldMissing { get; set; }
+
+    private static async Task<HttpResponseMessage> Held404Async(HttpRequestMessage request, Task hold)
+    {
+        await hold;
+        return new HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { RequestMessage = request };
+    }
+
     private string Sums => $"{(CorruptSums ? new string('0', 64) : RoostSetupSha)}  roost-0.2.0-win-x64-setup.exe\n"
         + $"{new string('a', 64)}  roost-0.2.0-win-x64.zip\n{new string('b', 64)}  roost-0.2.0-linux-x64.tar.gz\n";
 
@@ -203,6 +215,7 @@ internal sealed class FakeUpstream : HttpMessageHandler
             : url == "https://downloads.mariadb.org/rest-api/mariadb/" ? MajorsJson
             : MariaDb.FirstOrDefault(m => url == $"https://downloads.mariadb.org/rest-api/mariadb/{m.Branch}/latest/") is { Branch: not null } major ? LatestJson(major.Branch)
             : null;
+        if (body is null && HoldMissing is { } hold) return Held404Async(request, hold.Task);
         var response = body is null
             ? new HttpResponseMessage(System.Net.HttpStatusCode.NotFound)
             : new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(body) };

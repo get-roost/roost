@@ -735,4 +735,41 @@ public class ViewSnapshotTests
         Assert.Equal(new StartupArgs(true, true, true, 5), StartupArgs.Parse(["--minimized", "--updated", "--start", "--update-failed=5"]));
         Assert.Equal(StartupArgs.None, StartupArgs.Parse(null));
     }
+
+    [AvaloniaFact]
+    public async Task ServidorWeb_InstalarEnSegundoPlano_SiFallaLoDice()
+    {
+        // A6: instalar nginx, pasarlo a segundo plano y que falle la descarga: se avisa igual que en PHP y BD.
+        var (main, window, fake) = await OpenAsync(running: false);
+        using var _ = fake;
+        Directory.Delete(fake.Paths.NginxBin, recursive: true);
+        await main.NavigateToAsync(main.Web);
+        main.Web.StackChanged();
+        Assert.False(main.Web.NginxInstalled);
+        var hold = new TaskCompletionSource();
+        fake.Upstream.HoldMissing = hold;
+
+        var install = main.Web.InstallNginxCommand.ExecuteAsync(null);
+        await WaitUntilAsync(() => main.Dialog is InstallDialogViewModel or MessageDialogViewModel, "el diálogo de instalación");
+        // En una máquina sin el VC++ sale antes su aviso: se sigue igualmente.
+        if (main.Dialog is MessageDialogViewModel vc)
+        {
+            Assert.Contains("Visual C++", vc.Title);
+            vc.Close("continue");
+            await WaitUntilAsync(() => main.Dialog is InstallDialogViewModel, "el diálogo de instalación");
+        }
+        var dialog = Assert.IsType<InstallDialogViewModel>(main.Dialog);
+        dialog.BackgroundCommand.Execute(null);
+        await WaitUntilAsync(() => main.Dialog is null, "que se cierre al pasar a segundo plano");
+
+        hold.SetResult();   // nginx.org da 404
+        await WaitUntilAsync(() => main.Dialog is MessageDialogViewModel, "el aviso del fallo");
+        var info = (MessageDialogViewModel)main.Dialog!;
+        Assert.Equal($"No se instaló nginx {Roost.Core.Install.NginxCatalog.Windows.Version}", info.Title);
+        Assert.Equal(Roost.Desktop.Controls.Tone.Bad, info.Tone);
+        Snapshot(window, "servidor-web-instalar-fallo");
+        info.Close();
+        await install;
+        Assert.False(main.Web.NginxInstalled);
+    }
 }
