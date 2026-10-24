@@ -58,7 +58,8 @@ public sealed record ShareListener(string Site, ShareKind Kind, string Address, 
 /// <item>Túnel: HTTP en loopback (lo cifra Cloudflare hasta el visitante); a PHP se le dice que la
 /// petición es HTTPS en el 443 (así no salen URLs <c>http://</c> en una página <c>https://</c>) y la IP
 /// del visitante (<c>CF-Connecting-IP</c>, que pone Cloudflare), para que lo que solo se enseña a
-/// 127.0.0.1 no se le enseñe a internet. Lleva <c>X-Robots-Tag: noindex</c>.</item>
+/// 127.0.0.1 no se le enseñe a internet. Lleva <c>X-Robots-Tag: noindex</c> y quita el
+/// <c>X-Powered-By</c> de PHP (su versión no se anuncia a internet).</item>
 /// <item>Red local: HTTPS con el certificado del sitio que lleva la IP, y la CA (solo su certificado)
 /// en <see cref="CaPath"/>, para instalarla en el móvil si se quiere.</item>
 /// </list>
@@ -92,6 +93,8 @@ public static class ShareConf
         var head = tunnel
             ? """
                   add_header X-Robots-Tag "noindex, nofollow" always;
+                  # Por internet no se dice que PHP hay detras (con expose_php, PHP lo anuncia en cada respuesta).
+                  fastcgi_hide_header X-Powered-By;
 
               """
             : $$"""
@@ -153,6 +156,10 @@ public static class ShareConf
         var extra = tunnel
             ? """
                   Header always set X-Robots-Tag "noindex, nofollow"
+                  # Por internet no se dice que PHP hay detras (con expose_php, PHP lo anuncia en cada respuesta).
+                  # "always": Apache guarda las cabeceras que da PHP por FastCGI en la tabla de los errores.
+                  Header always unset X-Powered-By
+                  Header unset X-Powered-By
                   # Para PHP es HTTPS en el 443 (lo cifra Cloudflare hasta el visitante), y REMOTE_ADDR
                   # es la IP del visitante, no 127.0.0.1.
                   ProxyFCGISetEnvIf "true" HTTPS "on"

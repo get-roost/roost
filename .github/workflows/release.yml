@@ -372,6 +372,11 @@ jobs:
             Write-Host "Desinstalador firmado por $($sig.SignerCertificate.Subject)"
           }
           if (Get-Process roost-desktop -ErrorAction SilentlyContinue) { throw 'Un /VERYSILENT sin /ROOSTRELAUNCH no deberia abrir la app' }
+          # Una regla «Roost LAN» que se hubiera quedado (un roost share --lan sin cerrar): la pone el helper
+          # instalado (el runner ya es administrador) y el desinstalador la tiene que quitar.
+          & (Join-Path $dir 'roost-helper.exe') firewall-allow 8443
+          if ($LASTEXITCODE -ne 0) { throw "roost-helper firewall-allow ha salido con $LASTEXITCODE" }
+          if (-not (Get-NetFirewallRule -Name 'Roost-LAN-8443' -ErrorAction SilentlyContinue)) { throw 'El helper no ha puesto la regla Roost LAN 8443' }
           $u = Start-Process (Join-Path $dir 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -Wait -PassThru
           if ($u.ExitCode -ne 0) { throw "El desinstalador ha salido con $($u.ExitCode)" }
           # El desinstalador se copia a %TEMP% y termina de borrar desde ahi: se espera a que acabe.
@@ -386,7 +391,9 @@ jobs:
           Get-Content $cleanup | ForEach-Object { Write-Host "  $_" }
           if (Select-String -Path $cleanup -Pattern 'FALLO' -Quiet) { throw 'roost uninstall-cleanup ha fallado en algun paso' }
           if (-not (Select-String -Path $cleanup -Pattern 'CA: se deja' -Quiet)) { throw 'En silencioso, uninstall-cleanup deberia dejar la CA (--keep-ca)' }
-          Write-Host "Instalador probado: instala, roost --version $v, PATH del sistema, desinstala y lo quita."
+          if (Get-NetFirewallRule -Group 'Roost' -ErrorAction SilentlyContinue) { throw 'El desinstalador ha dejado reglas Roost LAN en el cortafuegos' }
+          if (-not (Select-String -Path $cleanup -Pattern 'Roost LAN 8443' -SimpleMatch -Quiet)) { throw 'uninstall-cleanup no dice que ha quitado la regla Roost LAN 8443' }
+          Write-Host "Instalador probado: instala, roost --version $v, PATH del sistema, desinstala (y quita la regla del cortafuegos) y lo quita."
 
       # Actualizar encima de la última publicada, como lo hace la app: se instala la 0.1.2 desde su
       # release, se dejan datos en C:\roost, se instala encima la nueva en silencio y se comprueba que

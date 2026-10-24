@@ -124,6 +124,7 @@ public class ShareTests : IDisposable
         Assert.Contains("include \"C:/roost/bin/nginx/1.30.6/conf/fastcgi_params\";", conf);
         Assert.Contains("try_files $uri $uri/ /index.php?$query_string;", conf);
         Assert.Contains("add_header X-Robots-Tag \"noindex, nofollow\" always;", conf);
+        Assert.Contains("fastcgi_hide_header X-Powered-By;", conf);   // la version de PHP no se anuncia a internet
         // Lo del túnel va detrás del include: php-cgi se queda con el último valor.
         var include = conf.IndexOf("include \"", StringComparison.Ordinal);
         Assert.True(conf.IndexOf("fastcgi_param HTTPS on;", StringComparison.Ordinal) > include);
@@ -151,6 +152,7 @@ public class ShareTests : IDisposable
         Assert.DoesNotContain("roost-ca.key", conf);
         Assert.DoesNotContain("HTTPS on", conf);
         Assert.DoesNotContain("X-Robots-Tag", conf);
+        Assert.DoesNotContain("X-Powered-By", conf);
         AssertSinTildes(conf);
     }
 
@@ -166,6 +168,7 @@ public class ShareTests : IDisposable
         Assert.Contains("ProxyFCGISetEnvIf \"true\" HTTPS \"on\"", tunnel);
         Assert.Contains("ProxyFCGISetEnvIf \"-n req('CF-Connecting-IP')\" REMOTE_ADDR \"%{req:CF-Connecting-IP}\"", tunnel);
         Assert.Contains("Header always set X-Robots-Tag", tunnel);
+        Assert.Contains("Header always unset X-Powered-By", tunnel);   // la de PHP por FastCGI va en la tabla de "always"
         Assert.DoesNotContain("SSLEngine", tunnel);
         AssertSinTildes(tunnel);
 
