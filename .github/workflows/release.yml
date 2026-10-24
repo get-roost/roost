@@ -101,7 +101,20 @@ jobs:
       - name: Build
         run: dotnet build Roost.slnx -c Release
       - name: Tests
-        run: dotnet test Roost.slnx -c Release --no-build
+        shell: pwsh
+        run: |
+          # Si lo que falla es el arranque del runner de tests (xUnit: «Catastrophic failure», sin ningún
+          # test en rojo: ha pasado con «Waiting 10 seconds for foreground threads to exit» colado en su
+          # JSON), se repite una vez. Un test que falla no se repite nunca.
+          $log = Join-Path $env:RUNNER_TEMP 'tests.log'
+          dotnet test Roost.slnx -c Release --no-build 2>&1 | Tee-Object -FilePath $log
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          $catastrophic = Select-String -Path $log -Pattern 'Catastrophic failure' -SimpleMatch -Quiet
+          $failedTest = Select-String -Path $log -Pattern '[FAIL]' -SimpleMatch -Quiet
+          if (-not $catastrophic -or $failedTest) { exit 1 }
+          Write-Host '::warning::El runner de tests no ha arrancado bien (Catastrophic failure, ningún test en rojo): se repite una vez.'
+          dotnet test Roost.slnx -c Release --no-build
+          exit $LASTEXITCODE
 
   windows:
     name: Windows x64

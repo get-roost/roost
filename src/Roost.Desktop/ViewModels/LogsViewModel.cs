@@ -154,14 +154,20 @@ public sealed partial class LogsViewModel : PageViewModel
             var logs = Main.App.Paths.Logs;
             var sites = SiteLogs.Directory(Main.App.Paths);
             return !Directory.Exists(logs) ? ""
-                : string.Join("|", new DirectoryInfo(logs).EnumerateFiles("*.log").OrderBy(f => f.Name, StringComparer.Ordinal).Select(f => $"{f.Name}:{f.Length}"))
-                  + (Directory.Exists(sites) ? "|" + string.Join("|", new DirectoryInfo(sites).EnumerateFiles("*.log").OrderBy(f => f.Name, StringComparer.Ordinal).Select(f => $"sites/{f.Name}:{f.Length}")) : "");
+                : Signature(logs, "") + (Directory.Exists(sites) ? "|" + Signature(sites, "sites/") : "");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return _filesSignature;
         }
     }
+
+    // El tamaño se pregunta a cada fichero: el del listado de la carpeta (EnumerateFiles) va atrasado
+    // mientras nginx tiene el log abierto (NTFS no lo pone al día en el directorio hasta que se cierra),
+    // y los contadores de errores se quedaban una tanda por detrás.
+    private static string Signature(string directory, string prefix) =>
+        string.Join("|", Directory.EnumerateFiles(directory, "*.log").Order(StringComparer.Ordinal)
+            .Select(path => $"{prefix}{System.IO.Path.GetFileName(path)}:{new FileInfo(path).Length}"));
 
     private void BuildFiles()
     {

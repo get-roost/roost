@@ -4,6 +4,7 @@ Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** 
 
 ## 0.1.9 — en preparación
 
+- **Arreglado:** con «Seguir» en Registros, los contadores de errores de los demás ficheros (los de cada sitio, los de nginx) podían quedarse una tanda por detrás mientras el servidor web los tenía abiertos. Ahora se ponen al día con cada línea nueva.
 - **Compartir por internet sin anunciar tu PHP:** las respuestas del túnel ya no llevan `X-Powered-By: PHP/<versión>`, con nginx y con Apache. En tu equipo, el sitio sigue igual.
 - **Arreglado:** «Importar…» en Bases de datos ofrece las bases de datos que hay en el servidor en ese momento, no las que tenía la pantalla al abrirse: una creada después (desde la terminal, o una lista que aún se estaba cargando) ya sale para importar encima.
 
