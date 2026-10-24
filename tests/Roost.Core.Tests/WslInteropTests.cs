@@ -83,7 +83,8 @@ public class WslInteropTests : IDisposable
         var call = Assert.Single(runner.Calls);
         Assert.Equal(WslInterop.PowerShell, call.Exe);
         var script = Encoding.Unicode.GetString(Convert.FromBase64String(call.Arguments[^1]));
-        Assert.Contains($"-FilePath '{WindowsHelper}' -ArgumentList @('hosts-sync', '{RequestForWindows}')", script);
+        // El exe va con su ruta de WINDOWS: PowerShell no sabe que es /mnt/c (probado en la 24.04: con la de Linux, «no se encuentra el archivo»).
+        Assert.Contains(@"-FilePath 'C:\Program Files\Roost\roost-helper.exe' -ArgumentList @('hosts-sync', '" + RequestForWindows + "')", script);
         Assert.Equal(["api.tienda.test", "tienda.test"], File.ReadAllLines(request));
         Assert.Equal(["api.tienda.test", "tienda.test"], HostsBlock.ReadHosts(File.ReadAllText(hosts)));
         Assert.StartsWith("# Copyright (c) 1993-2009 Microsoft Corp.\r\n127.0.0.1 localhost\r\n", File.ReadAllText(hosts));

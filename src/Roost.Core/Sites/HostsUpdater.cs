@@ -152,7 +152,9 @@ public sealed class HostsUpdater
             ?? throw new ElevationNeededException(
                 $"No se sabe el nombre de esta distro ({WslInterop.DistroVariable}), asi que Windows no puede leer la peticion. Pon esto a mano en {HostsFile}, entre '# roost:begin' y '# roost:end':\n" + block,
                 block);
-        var result = Runner.RunAsync(WslInterop.RunAs(helper, ["hosts-sync", requestForWindows]), null, CancellationToken.None).GetAwaiter().GetResult();
+        // PowerShell corre en Windows: el helper va con su ruta de Windows (C:\Program Files\Roost\…), no con la de /mnt/c.
+        var helperForWindows = WslInterop.ToWindowsPath(helper, null)!;
+        var result = Runner.RunAsync(WslInterop.RunAs(helperForWindows, ["hosts-sync", requestForWindows]), null, CancellationToken.None).GetAwaiter().GetResult();
         switch (result.ExitCode)
         {
             case 0:
