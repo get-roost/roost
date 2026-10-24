@@ -28,13 +28,16 @@ public sealed class NssTrust : ITrustStore
     private readonly string _home;
 
     /// <param name="home">La home que se recorre (los tests, una carpeta temporal); null = la del usuario.</param>
-    /// <param name="certutil">Dónde está certutil; null = buscarlo (<see cref="FindCertutil"/>).</param>
+    /// <param name="certutil">Dónde está certutil; null = buscarlo (<see cref="FindCertutil"/>) y <see cref="NoCertutil"/> = que no lo hay.</param>
     public NssTrust(ICommandRunner runner, string? home = null, string? certutil = null)
     {
         _runner = runner;
         _home = home ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        Certutil = certutil ?? FindCertutil();
+        Certutil = certutil is null ? FindCertutil() : certutil.Length == 0 ? null : certutil;
     }
+
+    /// <summary>Para el parámetro <c>certutil</c>: como si no estuviera instalado (los tests, en una máquina que sí lo tiene).</summary>
+    public const string NoCertutil = "";
 
     public string Description => "los almacenes de tu usuario (Chrome, Chromium, Edge, Brave y cada perfil de Firefox)";
 

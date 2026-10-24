@@ -153,7 +153,7 @@ public class NssTrustTests : IDisposable
     public void SinCertutil_IsTrustedEsFalse_YTrustDiceElPaquete()
     {
         using var ca = NewCa();
-        var nss = new NssTrust(new FakeCommandRunner(), _home, certutil: null);
+        var nss = new NssTrust(new FakeCommandRunner(), _home, certutil: NssTrust.NoCertutil);
 
         Assert.False(nss.IsTrusted(ca));
         var ex = Assert.Throws<RoostException>(() => nss.Trust(ca));

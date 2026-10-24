@@ -591,10 +591,12 @@ public class StackServiceTests : IDisposable
     [Fact]
     public async Task Up_UnPuertoQueElUsuarioNoPuedeAbrir_LoExplica_YNoDiceQueEstaOcupado()
     {
-        // Linux: el 80 como usuario normal no esta ocupado, es que no se puede abrir (EACCES).
+        // Linux: el 80 como usuario normal no esta ocupado, es que no se puede abrir (EACCES), y nginx sin
+        // el permiso (setcap) tampoco: su -t falla con «13: Permission denied».
         Config(httpPort: 80, httpsPort: 8443, dbPort: 3407);
         _busy.Add(80);
         _denied.Add(80);
+        _runner.FailNext("nginx: [emerg] bind() to 127.0.0.1:80 failed (13: Permission denied)\nnginx: configuration file test failed");
         var stack = Service();
 
         var result = await stack.UpAsync();
@@ -606,6 +608,37 @@ public class StackServiceTests : IDisposable
         Assert.DoesNotContain("ya esta en uso", result.Error);
         Assert.False(result.Status.Running);
         Assert.Empty(_launcher.StartOrder());
+    }
+
+    [Fact]
+    public async Task Up_NginxConElPermisoDeLosPuertosBajos_ArrancaEnEl80_AunqueElDaemonNoPuedaAbrirlo()
+    {
+        // Linux: el daemon (un usuario normal) no puede abrir el 80, pero el nginx de Roost tiene
+        // cap_net_bind_service (roost up se la pidio al helper) y su -t lo abre: no cuenta como cogido.
+        Config(httpPort: 80, httpsPort: 8443, dbPort: 3407);
+        _busy.Add(80);
+        _denied.Add(80);
+        var stack = Service();
+
+        var result = await stack.UpAsync();
+
+        Assert.True(result.Ok, result.Error);
+        Assert.Contains("nginx", _launcher.StartOrder());
+    }
+
+    [Fact]
+    public async Task Up_UnPuertoBajoQueNoEsDelWeb_SigueSinValer()
+    {
+        // El permiso es de nginx: un puerto bajo de otro servicio (la base de datos en el 330) no lo abre nadie.
+        Config(httpPort: 8765, httpsPort: 8443, dbPort: 330);
+        _busy.Add(330);
+        _denied.Add(330);
+        var stack = Service();
+
+        var result = await stack.UpAsync();
+
+        Assert.False(result.Ok);
+        Assert.StartsWith("El puerto 330 esta por debajo del 1024", result.Error);
     }
 
     // E2: la recarga selectiva

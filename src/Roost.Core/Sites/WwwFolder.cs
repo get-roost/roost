@@ -11,7 +11,7 @@ namespace Roost.Core.Sites;
 /// </summary>
 public static class WwwFolder
 {
-    public const string Path = "/var/www/roost";
+    public const string Path = RoostPaths.LinuxSharedWww;
 
     /// <summary>true si <see cref="Path"/> existe y este usuario puede crear cosas dentro.</summary>
     public static bool IsUsable()

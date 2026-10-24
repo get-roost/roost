@@ -242,7 +242,7 @@ public class ViewSnapshotTests
 
         var dns = main.Home.Services[0];
         Assert.Equal("DNS local", dns.Name);
-        Assert.Equal("127.53.0.1:53", dns.Listen);
+        Assert.Equal($"127.53.0.1:{Roost.Core.Dns.LocalDns.Port}", dns.Listen);   // 53 en Windows, 5353 en Linux
         Assert.StartsWith("DNS local", main.HostsText);
         Snapshot(window, "inicio-dns-local");
 

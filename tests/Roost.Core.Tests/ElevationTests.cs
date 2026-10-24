@@ -34,14 +34,25 @@ public class ElevationTests
     [Fact]
     public void Linux_PkexecPrimero_YSuCodigoEsElDelHelper()
     {
-        var runner = new FakeCommandRunner().On($"{Helper} dns-enable", exitCode: 69, stderr: "");
+        var runner = new FakeCommandRunner().On($"--disable-internal-agent {Helper} dns-enable", exitCode: 69, stderr: "");
         var run = Linux(runner).Run(Helper, ["dns-enable"]);
 
         Assert.Equal(ElevationStatus.Done, run.Status);
         Assert.Equal(69, run.ExitCode);
         var call = Assert.Single(runner.Calls);
         Assert.Equal(Elevation.Pkexec, call.Exe);
-        Assert.Equal([Helper, "dns-enable"], call.Arguments);
+        // Sin terminal, sin el agente de texto de pkexec: se quedaría esperando una contraseña que nadie escribe.
+        Assert.Equal(["--disable-internal-agent", Helper, "dns-enable"], call.Arguments);
+    }
+
+    [Fact]
+    public void Linux_ConTerminal_PkexecPuedePreguntarEnElla()
+    {
+        var runner = new FakeCommandRunner().On($"{Helper} dns-enable", exitCode: 0);
+        var run = Linux(runner, terminal: true).Run(Helper, ["dns-enable"]);
+
+        Assert.True(run.Ok);
+        Assert.Equal([Helper, "dns-enable"], Assert.Single(runner.Calls).Arguments);
     }
 
     [Fact]
@@ -85,7 +96,7 @@ public class ElevationTests
     public void Linux_SinTerminal_SudoSoloSinContrasena_YSiLaPide_EjecutaEsto()
     {
         var runner = new FakeCommandRunner()
-            .On($"{Helper} hosts-sync", exitCode: 127, stderr: "polkit-agent-helper-1: pam_authenticate failed: Authentication failure")
+            .On($"--disable-internal-agent {Helper} hosts-sync", exitCode: 127, stderr: "polkit-agent-helper-1: pam_authenticate failed: Authentication failure")
             .On($"-n -- {Helper} hosts-sync", exitCode: 1, stderr: "sudo: a password is required\n");
 
         var ex = Assert.Throws<ElevationNeededException>(() => Linux(runner).Run(Helper, ["hosts-sync"], stdin: "a.test\n", stdinFile: Request));
@@ -102,7 +113,7 @@ public class ElevationTests
     public void Linux_SinTerminal_SudoSinContrasena_Vale()
     {
         var runner = new FakeCommandRunner()
-            .On($"{Helper} setcap-nginx /home/ana/nginx", exitCode: 127)
+            .On($"--disable-internal-agent {Helper} setcap-nginx /home/ana/nginx", exitCode: 127)
             .On($"-n -- {Helper} setcap-nginx /home/ana/nginx", exitCode: 0);
         var run = Linux(runner).Run(Helper, ["setcap-nginx", "/home/ana/nginx"]);
 

@@ -178,7 +178,7 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
                 plan = Prepare();
 
                 // Los puertos del stack en marcha son nuestros: se liberan al pararlo.
-                var busy = _env.BusyPorts(plan.Ports.Except(_plan?.Ports ?? []));
+                var busy = WithoutNginxLowPorts(_env.BusyPorts(plan.Ports.Except(_plan?.Ports ?? [])), plan, config);
                 if (busy.Count > 0)
                     throw new RoostException(BusyPortsMessage(busy, config));
 
@@ -203,7 +203,7 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
                 try
                 {
                     plan = Prepare();
-                    var busy = _env.BusyPorts(plan.Ports.Except(running.Ports));
+                    var busy = WithoutNginxLowPorts(_env.BusyPorts(plan.Ports.Except(running.Ports)), plan, config);
                     if (busy.Count > 0)
                         throw new RoostException(BusyPortsMessage(busy, config));
                     if (config.UsesLocalDns && _dns is null)
@@ -917,6 +917,18 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
             }
         }
         return string.Concat(lines);
+    }
+
+    /// <summary>
+    /// Linux: un puerto web por debajo del 1024 que el daemon no puede abrir (es un usuario normal) sí puede
+    /// ser de nginx si su binario tiene <c>cap_net_bind_service</c> (<c>roost up</c> se la pide al helper). Si
+    /// el plan llegó hasta aquí, el <c>nginx -t</c> de <c>Prepare</c> ya los abrió de verdad: esos no cuentan.
+    /// </summary>
+    private IReadOnlyList<int> WithoutNginxLowPorts(IReadOnlyList<int> busy, StackPlan plan, RoostConfig config)
+    {
+        if (busy.Count == 0 || plan.WebServer != "nginx") return busy;
+        var denied = _env.DeniedOf(busy);
+        return busy.Where(port => !(denied.Contains(port) && (port == config.HttpPort || port == config.HttpsPort))).ToList();
     }
 
     private string BusyPortsMessage(IReadOnlyList<int> busy, RoostConfig config)

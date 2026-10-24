@@ -35,6 +35,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             var globalDb = planner.ResolveDb(config, new DbInstaller(paths).ListInstalled());
 
             await WebServerSetup.EnsureAsync(paths, config.WebServer, cancellation);
+            await GrantLowPortsAsync(config, paths, cancellation);
             // Redis y Mailpit, si van en el stack y aun no hay ninguno (roost.toml editado a mano).
             if (config.RedisEnabled) await Services.ServiceSetup.EnsureRedisAsync(paths, cancellation);
             if (config.MailEnabled) await Services.ServiceSetup.EnsureMailpitAsync(paths, cancellation);
@@ -62,7 +63,9 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             AnsiConsole.MarkupLineInterpolated($"[green]En marcha:[/] [bold]{status.Url}[/]");
             // Ya estaba en marcha: el daemon solo ha tocado lo que cambiaba, y lo dice.
             if (wasRunning) StackApply.PrintApplied(response, partial: false);
-            AnsiConsole.MarkupLineInterpolated($"  PHP {status.Php} ({pool} php-cgi) · {status.WebLabel}");
+            // En Linux el pool de cada rama es un solo php-fpm (con sus procesos dentro); en Windows, n php-cgi.
+            var phpProcesses = !OperatingSystem.IsWindows() && pool == 1 ? "php-fpm" : $"{pool} php-cgi";
+            AnsiConsole.MarkupLineInterpolated($"  PHP {status.Php} ({phpProcesses}) · {status.WebLabel}");
             if (status.Db is null)
                 AnsiConsole.MarkupLine("  [grey]Sin base de datos" + PlatformGate.WindowsHint(" (instala una con: roost db install mariadb@11.4)") + "[/]");
             else
@@ -116,6 +119,25 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             AnsiConsole.MarkupLineInterpolated(
                 $"  [grey]Si se lo queda, Roost no podra arrancar. {system.HowToFree(service)}, o cambia el puerto en {paths.ConfigFile}. {system.Disclaimer}[/]");
         }
+    }
+
+    /// <summary>
+    /// Linux: con [web] port o https_port por debajo del 1024, el binario de nginx necesita la capability
+    /// cap_net_bind_service (un usuario normal no puede abrir esos puertos). Si aun no la tiene (la primera
+    /// vez, o tras instalar otra version de nginx, que la pierde), se pide al helper con su aviso de permiso.
+    /// Apache, el de la distro, no se toca: con el, puertos a partir del 1024.
+    /// </summary>
+    private static async Task GrantLowPortsAsync(RoostConfig config, RoostPaths paths, CancellationToken cancellation)
+    {
+        if (!OperatingSystem.IsLinux() || config.UsesApache) return;
+        var low = new[] { config.HttpPort, config.HttpsPort }.Where(port => port < 1024).Distinct().ToList();
+        if (low.Count == 0) return;
+        if (new NginxInstaller(paths).Find(NginxCatalog.Current) is not { } nginx) return;   // sin nginx, lo dira el daemon
+        if (await NginxCapability.IsGrantedAsync(CommandRunner.Default, nginx.Executable, cancellation)) return;
+
+        AnsiConsole.MarkupLine(Sites.SiteSupport.ElevationNotice($"que nginx pueda escuchar en el {string.Join(" y el ", low)} (setcap)"));
+        NginxCapability.Request(Sites.SiteSupport.HelperExe, nginx.Executable);
+        AnsiConsole.MarkupLineInterpolated($"[green]nginx ya puede escuchar en el {string.Join(" y el ", low)}[/] [grey]({nginx.Executable})[/]");
     }
 
     /// <summary>

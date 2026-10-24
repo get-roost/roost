@@ -7,7 +7,11 @@ namespace Roost.Core.Platform;
 /// </summary>
 public static class Wsl
 {
-    /// <summary>true en un Linux de WSL 1 o 2.</summary>
+    /// <summary>
+    /// true en un Linux de WSL 1 o 2. <c>ROOST_WSL=0</c> hace que Roost se porte como en un Linux
+    /// cualquiera (el hosts y la CA de esta distro, no los de Windows) y <c>ROOST_WSL=1</c> fuerza lo
+    /// de WSL: así se prueba cada camino en una distro de WSL sin tocar el Windows de verdad.
+    /// </summary>
     public static bool IsWsl { get; } = Detect();
 
     /// <summary>El hosts de Windows visto desde WSL (con la unidad C: montada donde la monta WSL por defecto); null fuera de WSL.</summary>
@@ -16,6 +20,11 @@ public static class Wsl
     private static bool Detect()
     {
         if (!OperatingSystem.IsLinux()) return false;
+        switch (Environment.GetEnvironmentVariable("ROOST_WSL"))
+        {
+            case "0": return false;
+            case "1": return true;
+        }
         if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WSL_DISTRO_NAME"))) return true;
         try
         {

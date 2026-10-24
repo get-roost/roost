@@ -39,7 +39,8 @@ public sealed class ElevationNeededException(string message, string command) : R
 /// <item>Linux: <c>pkexec &lt;helper&gt; &lt;op&gt;</c> con la política <c>dev.roost.helper</c> del
 /// paquete (cancelar es 126; sin agente de polkit o sin autorizar, 127) y, si eso no vale y hay una
 /// terminal, <c>sudo</c> (pregunta la contraseña en la terminal); sin terminal se prueba <c>sudo -n</c>
-/// por si no pide contraseña. Como root, el helper tal cual.</item>
+/// por si no pide contraseña, y pkexec va con <c>--disable-internal-agent</c> (su agente de texto
+/// esperaría una contraseña que nadie va a escribir). Como root, el helper tal cual.</item>
 /// <item>Si no hay manera (sin pkexec ni sudo, sin agente y sin terminal), no se lanza nada:
 /// <see cref="ElevationNeededException"/> trae la orden exacta para que el usuario la ejecute él.</item>
 /// </list>
@@ -110,9 +111,12 @@ public sealed class Elevation
             return Done(Exec(helperExe, arguments, stdin), manual);
 
         var reasons = new List<string>();
+        var terminal = _hasTerminal();
         if (_exists(Pkexec))
         {
-            var result = Exec(Pkexec, [helperExe, .. arguments], stdin);
+            // Sin terminal, pkexec no debe sacar su agente de texto: preguntaría la contraseña en una terminal que nadie
+            // mira (la app lanzada desde una consola, un guion) y se quedaría esperando. Así, sin agente, da 127 y se sigue.
+            var result = Exec(Pkexec, terminal ? [helperExe, .. arguments] : ["--disable-internal-agent", helperExe, .. arguments], stdin);
             switch (result.ExitCode)
             {
                 case 126:
@@ -132,7 +136,7 @@ public sealed class Elevation
 
         if (_exists(Sudo))
         {
-            if (_hasTerminal())
+            if (terminal)
             {
                 // sudo pregunta la contraseña en la terminal. Lo que sale con 1 y «sudo:» es de sudo (tres intentos
                 // mal, Ctrl+C, «no estás en sudoers»), no del helper, que nunca sale con 1.

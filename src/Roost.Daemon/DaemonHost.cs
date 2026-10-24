@@ -197,7 +197,7 @@ public static class DaemonHost
         {
             await app.StartAsync(cancellation);
             // Solo este usuario habla con su daemon (ROOST.md §5.1): el socket a 0600 (su carpeta ya es 0700).
-            if (unixSocket is not null && File.Exists(unixSocket))
+            if (unixSocket is not null && !OperatingSystem.IsWindows() && File.Exists(unixSocket))
                 File.SetUnixFileMode(unixSocket, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             log.Write($"roostd en marcha (pid {Environment.ProcessId}, raiz {paths.Root}{(unixSocket is null ? "" : $", socket {unixSocket}")})");
             foreach (var extension in extensions.Loaded)

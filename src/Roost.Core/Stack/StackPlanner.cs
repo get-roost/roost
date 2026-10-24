@@ -227,11 +227,11 @@ public sealed partial class StackPlanner(RoostPaths paths, IProcessRunner runner
     /// <summary>
     /// PURO: el mensaje de un puerto que este usuario no puede abrir (Linux, &lt; 1024), sin tildes:
     /// no está ocupado, y lo que toca es un puerto alto (<paramref name="key"/> = <paramref name="suggested"/>
-    /// en <paramref name="configFile"/>) hasta que Roost pueda dar a nginx el permiso con setcap.
+    /// en <paramref name="configFile"/>) o, con nginx, que <c>roost up</c> le dé el permiso con setcap.
     /// </summary>
     public static string DeniedPortMessage(int port, string key, int suggested, string configFile) =>
         $"El puerto {port} esta por debajo del 1024 y en Linux un usuario normal no puede abrirlo (no es que este ocupado). "
-        + $"Usa un puerto alto: {key} = {suggested} en {configFile}. Cuando Roost pueda dar a nginx el permiso para los puertos bajos (setcap, con el helper), valdra el {port}.";
+        + $"Usa un puerto alto: {key} = {suggested} en {configFile}. Con nginx, roost up en una terminal le da el permiso para los puertos bajos (setcap, con el helper) y vale el {port}.";
 
     /// <summary>
     /// PURO: el primer puerto que el <c>-t</c> del servidor web no pudo abrir por permisos («bind() to

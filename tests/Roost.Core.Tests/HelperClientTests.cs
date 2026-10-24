@@ -66,7 +66,7 @@ public class HelperClientTests : IDisposable
         var hosts = Path.Combine(_root, "hosts");
         File.WriteAllText(hosts, "127.0.0.1 localhost\n");
         var runner = new FakeCommandRunner().On($"{Helper} hosts-sync", exitCode: 126);
-        var cancelled = new Elevation(runner, linux: true, isRoot: () => false, exists: _ => true);
+        var cancelled = new Elevation(runner, linux: true, isRoot: () => false, hasTerminal: () => true, exists: _ => true);
         var updater = new HostsUpdater(hosts, isSystemFile: true, windowsFromWsl: false) { Elevation = cancelled, LinuxHelper = true };
 
         var ex = Assert.Throws<RoostException>(() => updater.Sync(["tienda.test"], Helper, Path.Combine(_root, "run", "req.txt")));
