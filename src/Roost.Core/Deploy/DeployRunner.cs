@@ -225,6 +225,13 @@ public sealed class DeployRunner(RoostPaths paths, ICommandRunner commands, IPro
         var parent = Path.GetDirectoryName(folder) ?? folder;
         Directory.CreateDirectory(parent);
 
+        // Un intento cancelado deja su temporal (lo quita Undo); si se reintenta, se quita antes.
+        if (Journal.TempFolder is { } previous)
+        {
+            InstallFiles.TryDeleteDirectory(previous);
+            Journal.TempFolder = null;
+        }
+
         if (plan.Template.UsesComposer)
         {
             // En una carpeta temporal al lado y renombrada al final: si falla o se cancela, no queda nada.

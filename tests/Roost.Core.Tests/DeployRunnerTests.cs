@@ -400,6 +400,52 @@ public class DeployRunnerTests
     }
 
     [Fact]
+    public async Task PlantillaCancelada_DejaSuTemporalParaUndo_YAlReintentarLoQuitaAntes()
+    {
+        using var root = new DeployRoot();
+        var plan = ProjectTemplates.Plan(root.Paths, new NewProjectRequest(ProjectTemplate.Laravel, "tienda"));
+        var target = ProjectTemplates.Target(root.Paths, plan, dbRunning: false);
+        var composer = FakeComposer(root);
+        using var cancel = new CancellationTokenSource();
+        string? first = null;
+        var commands = new FakeCommandRunner().On(composer.Phar + " create-project", onRun: s =>
+        {
+            first = s.Arguments[3];
+            Directory.CreateDirectory(first);   // composer ya había empezado a escribir
+            cancel.Cancel();
+        });
+        var runner = new DeployRunner(root.Paths, new CancelAfterRun(commands, cancel.Token)) { Composer = composer, Template = plan };
+        var create = ProjectTemplates.Steps(plan, target)[0];
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runner.RunStepAsync(target, create, null, cancel.Token));
+        Assert.Equal(first, runner.Journal.TempFolder);
+        Assert.True(Directory.Exists(first));
+
+        // Reintentar: el temporal del intento cancelado se va antes de empezar otro.
+        var retry = new DeployRunner(root.Paths, new FakeCommandRunner().On(composer.Phar + " create-project", exitCode: 1)) { Composer = composer, Template = plan };
+        retry.Journal.TempFolder = first;
+        await retry.RunStepAsync(target, create, null, CancellationToken.None);
+        Assert.False(Directory.Exists(first));
+        Assert.Empty(Directory.GetDirectories(root.Paths.Www));
+
+        // Y si no se reintenta, Undo lo quita.
+        Directory.CreateDirectory(first!);
+        runner.Undo(target);
+        Assert.False(Directory.Exists(first));
+    }
+
+    /// <summary>Ejecuta y, si el token se canceló durante la orden, lanza como el runner de verdad.</summary>
+    private sealed class CancelAfterRun(ICommandRunner inner, CancellationToken token) : ICommandRunner
+    {
+        public async Task<CommandResult> RunAsync(CommandSpec spec, IProgress<string>? lines, CancellationToken cancellation)
+        {
+            var result = await inner.RunAsync(spec, lines, CancellationToken.None);
+            token.ThrowIfCancellationRequested();
+            return result;
+        }
+    }
+
+    [Fact]
     public async Task PlantillaQueFallaAlCrear_NoDejaNi_Carpeta_NiSitio_YUnaCarpetaVaciaSigueVacia()
     {
         using var root = new DeployRoot();
