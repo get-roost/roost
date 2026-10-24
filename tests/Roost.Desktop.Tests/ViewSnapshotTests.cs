@@ -2197,22 +2197,41 @@ public class ViewSnapshotTests
     }
 
     [AvaloniaFact]
-    public async Task PasosDeInstalacion_UnaCarpetaSinProyecto_NoProponeNada()
+    public async Task PasosTrasClonar_UnaCarpetaSinProyecto_NiAbreElDialogo()
     {
         var (main, window, fake) = await OpenAsync(running: true);
         using var _ = fake;
         var folder = fake.Project("estatica", "index.php");
         var site = new Roost.Core.Sites.SiteManager(fake.Paths).Add("estatica", folder).Site;
 
-        var offering = main.Sites.OfferDeployStepsAsync(site);
-        await UntilAsync(() => main.Dialog is DeployStepsDialogViewModel);
-        var dialog = (DeployStepsDialogViewModel)main.Dialog!;
+        await main.Sites.OfferDeployStepsAsync(site);   // vuelve en el acto: nada que proponer
+
+        Assert.Null(main.Dialog);
+        Assert.Equal("estatica.test: no hay pasos de instalación que hacer", main.FlashText);
+    }
+
+    [AvaloniaFact]
+    public async Task PasosDeInstalacion_SinPasos_ElDialogoLoDice()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+        var target = new Roost.Core.Deploy.DeployTarget
+        {
+            SiteName = "estatica",
+            Folder = fake.Paths.Www,
+            Url = "https://estatica.test",
+            Php = new Roost.Core.Install.InstalledPhp("8.4.27-nts-x64", fake.Paths.PhpBin, "php.exe"),
+        };
+        var dialog = new DeployStepsDialogViewModel(DeployDialogMode.Panel, new Roost.Core.Sites.ProjectKind(Roost.Core.Sites.ProjectType.Plain, null, false, false, false),
+            target, [], (_, _, _) => Task.FromResult(Roost.Core.Deploy.DeployOutcome.Done()));
 
         Assert.True(dialog.NoSteps);
         Assert.Equal("No hay pasos que proponer. Se sirve tal cual.", dialog.ResultText);
         Assert.True(dialog.ShowClose);
         Assert.False(dialog.ShowOffer);
+        Assert.False(dialog.CanRun);
+        var showing = main.ShowDialogAsync(dialog);
         dialog.FinishCommand.Execute(null);
-        await offering;
+        Assert.IsType<DeployDialogResult>(await showing);
     }
 }

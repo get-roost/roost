@@ -52,8 +52,9 @@ public sealed partial class SitesViewModel
 
     /// <summary>
     /// Los «Pasos tras clonar» de un sitio ya registrado: el diálogo con los pasos que tocan a su
-    /// proyecto, marcados los que hacen falta; el usuario elige y los ejecuta (o los omite). No
-    /// abre el navegador ni ofrece la CA: eso lo hace quien llama, después.
+    /// proyecto, marcados los que hacen falta; el usuario elige y los ejecuta (o los omite). Vuelve
+    /// cuando se cierra. Si no hay ningún paso que proponer (una carpeta sin proyecto), no abre nada.
+    /// No abre el navegador ni ofrece la CA: eso lo hace quien llama, después.
     /// </summary>
     public Task OfferDeployStepsAsync(Site site) => ShowDeployStepsAsync(site, DeployDialogMode.AfterClone);
 
@@ -88,6 +89,12 @@ public sealed partial class SitesViewModel
             }
 
             var steps = DeployPlan.For(kind, target);
+            // Recién clonado y sin nada que proponer: ni diálogo (se sirve tal cual).
+            if (steps.Count == 0 && mode == DeployDialogMode.AfterClone)
+            {
+                Main.Flash($"{site.Host}: no hay pasos de instalación que hacer");
+                return;
+            }
             var runner = new DeployRunner(paths, Runner, DbRunner)
             {
                 Composer = ComposerTool.IsCurrentInstalled(paths) ? ComposerTool.Locate(paths) : null,
