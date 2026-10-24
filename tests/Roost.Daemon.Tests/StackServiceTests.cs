@@ -78,10 +78,14 @@ public class StackServiceTests : IDisposable
             TimeSpan.FromSeconds(5),
             Ipv6: true,
             ReloadWeb: (web, pid) => Task.FromResult(reloadWeb is not null ? reloadWeb(web, pid) : FakeReload(runner ?? _runner, web, pid)),
-            Connections: port => _connections(port)));
+            Connections: port => _connections(port),
+            DeniedPorts: ports => ports.Where(_denied.Contains).ToList()));
 
     /// <summary>Las conexiones establecidas a cada puerto (las peticiones de un php-cgi): ninguna, salvo que el test diga.</summary>
     private Func<int, IReadOnlyCollection<int>> _connections = _ => [];
+
+    /// <summary>De los puertos ocupados, los que lo estan por permisos (Linux, por debajo del 1024): ninguno, salvo que el test diga.</summary>
+    private readonly HashSet<int> _denied = [];
 
     /// <summary>
     /// nginx -s reload con el runner falso (que lo apunta), sin esperar a los procesos hijos (los pid
@@ -578,8 +582,31 @@ public class StackServiceTests : IDisposable
     [InlineData("bind() to 127.0.0.1:80 failed (10013: x)\nbind() to 127.0.0.1:8080 failed (10013: x)", false)]   // uno no es nuestro
     [InlineData("bind() to 127.0.0.1:80 failed (10049: address not valid)", false)]
     [InlineData("unknown directive \"servr\" in sites/tienda.conf:3", false)]
+    [InlineData("nginx: [emerg] bind() to 127.0.0.1:80 failed (98: Address already in use)", true)]   // Linux: ocupado por nosotros
+    [InlineData("nginx: [emerg] bind() to 127.0.0.1:443 failed (13: Permission denied)", true)]       // Linux: un puerto bajo que es nuestro
+    [InlineData("nginx: [emerg] bind() to 127.0.0.1:8080 failed (98: Address already in use)", false)]
     public void FailsOnlyOnOwnPorts_SoloSiTodosLosBindSonNuestrosPuertos(string message, bool expected) =>
         Assert.Equal(expected, StackService.FailsOnlyOnOwnPorts(message, [80, 443, 3407]));
+
+    [Fact]
+    public async Task Up_UnPuertoQueElUsuarioNoPuedeAbrir_LoExplica_YNoDiceQueEstaOcupado()
+    {
+        // Linux: el 80 como usuario normal no esta ocupado, es que no se puede abrir (EACCES).
+        Config(httpPort: 80, httpsPort: 8443, dbPort: 3407);
+        _busy.Add(80);
+        _denied.Add(80);
+        var stack = Service();
+
+        var result = await stack.UpAsync();
+
+        Assert.False(result.Ok);
+        Assert.StartsWith("El puerto 80 esta por debajo del 1024 y en Linux un usuario normal no puede abrirlo (no es que este ocupado).", result.Error);
+        Assert.Contains("[web] port = 8080", result.Error);
+        Assert.Contains("setcap", result.Error);
+        Assert.DoesNotContain("ya esta en uso", result.Error);
+        Assert.False(result.Status.Running);
+        Assert.Empty(_launcher.StartOrder());
+    }
 
     // E2: la recarga selectiva
 

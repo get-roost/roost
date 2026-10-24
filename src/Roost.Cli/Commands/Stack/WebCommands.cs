@@ -32,8 +32,9 @@ internal static class WebServerSetup
             var installer = new NginxInstaller(paths, RoostHttp.Client);
             var build = NginxCatalog.Current;
             if (installer.Find(build) is not null) return;
-            // nginx no lo necesita, pero el PHP que va a servir si.
+            // nginx no lo necesita, pero el PHP que va a servir si (en Windows el VC++; en Linux, la glibc).
             WarnVcRedist(forApache: false);
+            WarnLinuxDeps(LinuxNeed.Php);
             await InstallAsync($"nginx {build.Version}", build.Url.Host, (progress, ct) => installer.InstallAsync(build, progress, ct), cancellation);
         }
     }
@@ -41,6 +42,13 @@ internal static class WebServerSetup
     private static void WarnVcRedist(bool forApache)
     {
         if (VcRedist.Warning(VcRedist.Detect(), forApache) is { } warning)
+            AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {warning}");
+    }
+
+    /// <summary>Linux: lo que falta en la distro para <paramref name="need"/> (fuera de Linux no se comprueba nada).</summary>
+    private static void WarnLinuxDeps(LinuxNeed need)
+    {
+        if (LinuxDeps.Warning(LinuxDeps.Detect(), need) is { } warning)
             AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {warning}");
     }
 
@@ -72,13 +80,14 @@ public sealed class WebUseCommand : AsyncCommand<WebUseCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("web use")) return 1;
         var server = settings.Server.Trim().ToLowerInvariant();
         if (server is not (RoostConfig.WebNginx or RoostConfig.WebApache))
         {
             AnsiConsole.MarkupLineInterpolated($"[red]El servidor web tiene que ser nginx o apache[/] (no {settings.Server}).");
             return 1;
         }
+        // nginx ya va en Linux (el estatico de roost-builds); Apache, el de la distro, llega en la siguiente oleada.
+        if (server == RoostConfig.WebApache && !PlatformGate.Require("web use apache")) return 1;
 
         var paths = RoostPaths.Default();
         try

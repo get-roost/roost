@@ -26,7 +26,8 @@ internal sealed record StackEnvironment(
     bool Ipv6,
     Func<ServiceDefinition, int?, Task<string?>>? ReloadWeb = null,
     Func<int, IReadOnlyCollection<int>>? Connections = null,
-    ShareEnvironment? Share = null)
+    ShareEnvironment? Share = null,
+    Func<IEnumerable<int>, IReadOnlyList<int>>? DeniedPorts = null)
 {
     /// <summary>Compartir (oleada 6): lo que necesitan el túnel y la red local; sin dar, lo de verdad.</summary>
     public ShareEnvironment Shares => Share ?? ShareEnvironment.Real;
@@ -37,13 +38,27 @@ internal sealed record StackEnvironment(
     /// </summary>
     public IReadOnlyCollection<int> ConnectionsTo(int port) => Connections is { } connections ? connections(port) : TcpConnections.To(port);
 
+    /// <summary>
+    /// De unos puertos que no se pueden abrir, los que es por permisos (Linux: los &lt; 1024 como usuario
+    /// normal, <see cref="StackPlanner.DeniedPorts"/>), que no están ocupados y piden otro mensaje. Sin dar, ninguno.
+    /// </summary>
+    public IReadOnlyList<int> DeniedOf(IEnumerable<int> ports) => DeniedPorts is { } denied ? denied(ports) : [];
+
     /// <summary>Lo que se espera, como mucho, a que un php-cgi acabe las peticiones que tiene antes de reiniciarlo.</summary>
     public static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(10);
 
     // Solo se espera lo necesario; el margen es para el primer arranque de MySQL 8 tras crear el datadir.
     public static StackEnvironment Real => new(
         new OsProcessLauncher(), ProcessRunner.Default, StackPlanner.BusyPorts, StackPlanner.AcceptsConnectionsAsync,
-        TimeSpan.FromSeconds(45), Loopback.HasIpv6);
+        TimeSpan.FromSeconds(45), Loopback.HasIpv6, DeniedPorts: StackPlanner.DeniedPorts);
+
+    /// <summary>
+    /// <see cref="Real"/> para una raíz: fuera de Windows, el lanzador apunta cada hijo en el libro de pids de
+    /// <c>run/</c> (<see cref="PosixPidLedger"/>), que es lo que permite al siguiente roostd reconciliar si este muere sin limpiar.
+    /// </summary>
+    public static StackEnvironment RealFor(RoostPaths paths) => OperatingSystem.IsWindows()
+        ? Real
+        : Real with { Launcher = new LedgerLauncher(new OsProcessLauncher(), PosixPidLedger.For(paths)) };
 
     /// <summary>
     /// Recarga en caliente el servidor web <paramref name="web"/> (su proceso es <paramref name="pid"/>) y
@@ -64,7 +79,7 @@ internal sealed record StackEnvironment(
 /// </summary>
 internal sealed partial class StackService(RoostPaths paths, Action<string> log, ExtensionSet extensions, StackEnvironment? environment = null)
 {
-    private readonly StackEnvironment _env = environment ?? StackEnvironment.Real;
+    private readonly StackEnvironment _env = environment ?? StackEnvironment.RealFor(paths);
     private readonly SemaphoreSlim _gate = new(1, 1);
     private Supervisor? _supervisor;
     private StackPlan? _plan;
@@ -791,7 +806,8 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
 
     /// <summary>
     /// PURO: true si el <c>-t</c> del servidor web solo ha fallado por no poder abrir puertos que
-    /// tiene el stack en marcha (<c>bind() to …:puerto failed (10013</c> o <c>10048</c>). Pasa al
+    /// tiene el stack en marcha: <c>bind() to …:puerto failed (10013</c> o <c>10048</c> en Windows,
+    /// <c>(98: Address already in use)</c> o <c>(13: Permission denied)</c> en Linux. Pasa al
     /// cambiar de Apache a nginx: nginx -t abre los puertos y Apache los tiene en exclusiva.
     /// </summary>
     internal static bool FailsOnlyOnOwnPorts(string message, IEnumerable<int> ownPorts)
@@ -799,7 +815,7 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
         var own = ownPorts.ToHashSet();
         var binds = BindFailure.Matches(message);
         return binds.Count > 0 && binds.All(m =>
-            own.Contains(int.Parse(m.Groups[1].Value)) && m.Groups[2].Value is "10013" or "10048");
+            own.Contains(int.Parse(m.Groups[1].Value)) && m.Groups[2].Value is "10013" or "10048" or "98" or "13");
     }
 
     private static readonly System.Text.RegularExpressions.Regex BindFailure =
@@ -903,8 +919,16 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
         return string.Concat(lines);
     }
 
-    private string BusyPortsMessage(IReadOnlyList<int> busy, RoostConfig config) =>
-        BusyPortsText(busy, config) + ServiceHint(busy);
+    private string BusyPortsMessage(IReadOnlyList<int> busy, RoostConfig config)
+    {
+        // En Linux, un puerto por debajo del 1024 no está ocupado: es que este usuario no puede abrirlo.
+        if (_env.DeniedOf(busy) is [var denied, ..])
+        {
+            var (key, suggested) = StackPlanner.SuggestionFor(denied, config);
+            return StackPlanner.DeniedPortMessage(denied, key, suggested, paths.ConfigFile);
+        }
+        return BusyPortsText(busy, config) + ServiceHint(busy);
+    }
 
     private string BusyPortsText(IReadOnlyList<int> busy, RoostConfig config)
     {
@@ -939,23 +963,24 @@ internal sealed partial class StackService(RoostPaths paths, Action<string> log,
     }
 
     private static string OwnedBy(int port) =>
-        PortOwners.Find(port) is { } owner ? $" por {owner.ProcessName ?? "otro proceso"} (PID {owner.Pid})" : "";
+        PortOwners.Find(port) is { } owner ? $" por {PortOwners.Describe(owner)}" : "";
 
     /// <summary>
-    /// Si el que tiene el puerto es un servicio de Windows (el MySQL80 de su MSI, una MariaDB
-    /// instalada aparte, IIS en el 80), cuál es y cómo dejarlo en Manual: es lo que suele pasar
-    /// (E7). Roost no toca servicios: solo lo dice. Vacío si no es un servicio.
+    /// Si el que tiene el puerto es un servicio del sistema (en Windows, el MySQL80 de su MSI, una
+    /// MariaDB instalada aparte, IIS en el 80; en Linux, el apache2 o el mysql de la distro), cuál es y
+    /// cómo dejarlo fuera: es lo que suele pasar (E7). Roost no toca servicios: solo lo dice
+    /// (<see cref="SystemServices.Current"/>). Vacío si no es un servicio.
     /// </summary>
     private string ServiceHint(IReadOnlyList<int> busy)
     {
         var owners = busy.Select(PortOwners.Find).Where(o => o is not null).ToList();
         if (owners.Count == 0) return "";
-        var services = WindowsServices.Find(_env.Runner);
+        var system = SystemServices.Current;
+        var services = system.Find(_env.Runner);
         foreach (var owner in owners)
         {
-            if (WindowsServices.OwnerOf(owner, services) is not { } service) continue;
-            return $"\nEl puerto {owner!.Port} lo tiene el servicio de Windows {WindowsServices.Label(service)}, que {WindowsServices.StateText(service)}. "
-                + $"Para que no se lo quede, ponlo en Manual en services.msc (o, en una consola de administrador: {WindowsServices.ManualCommand(service)}) y paralo.";
+            if (system.OwnerOf(owner, services) is not { } service) continue;
+            return "\n" + system.PortHint(owner!, service);
         }
         return "";
     }
