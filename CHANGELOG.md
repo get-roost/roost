@@ -2,7 +2,7 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
-## 0.1.5 — en preparación
+## 0.1.5 — 24-oct-2026
 
 - **Xdebug con un clic:** en la pantalla PHP, cada versión tiene un interruptor de Xdebug. La primera vez baja de xdebug.org la DLL que toca a esa versión (comprobada con su SHA-256) y la activa; si Roost está en marcha, reinicia solo esa versión de PHP, sin tocar el resto. Viene apagado. Depura la petición que lo pide (`XDEBUG_TRIGGER` o la extensión del navegador) y conecta con el editor en el puerto 9003; «Copiar launch.json» da la configuración de VS Code. También en la terminal: `roost php xdebug on|off|status [versión]`.
 - **Ajustes de PHP solo para una versión:** además de `conf.d\99-usuario.ini`, que vale para todas, cada versión tiene su `conf.d\<versión>\99-usuario.ini`. Lo que pongas ahí no afecta a las demás versiones. Lo leen el servidor y la terminal.
