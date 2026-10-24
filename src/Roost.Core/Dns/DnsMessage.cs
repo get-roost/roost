@@ -9,9 +9,10 @@ public sealed record DnsQuery(ushort Id, bool RecursionDesired, string Name, ush
 /// <summary>
 /// PURO: leer una pregunta DNS (RFC 1035) y contestarla como lo hace el DNS local de Roost
 /// (ROOST.md §5.7). Cualquier <c>*.test</c> (también los subdominios, como el certificado) es
-/// <c>127.0.0.1</c>; a AAAA se contesta sin respuesta, porque nginx solo escucha en IPv4 y un
-/// <c>::1</c> haría que el navegador probara primero una dirección que no responde. Lo que no es
-/// <c>.test</c> se rechaza (REFUSED): Roost no es el DNS de nada más.
+/// <c>127.0.0.1</c> (A) y <c>::1</c> (AAAA), porque el servidor web escucha en las dos; en una
+/// máquina sin IPv6 en loopback se contesta el AAAA sin respuesta (NODATA), para que el navegador
+/// no pruebe primero una dirección que no responde. Lo que no es <c>.test</c> se rechaza
+/// (REFUSED): Roost no es el DNS de nada más.
 /// </summary>
 public static class DnsMessage
 {
@@ -62,23 +63,33 @@ public static class DnsMessage
     }
 
     /// <summary>La respuesta a <paramref name="query"/>.</summary>
-    public static byte[] Answer(DnsQuery query)
+    /// <param name="ipv6">Si se contesta <c>::1</c> a las AAAA (false: sin respuesta, como antes de escuchar en [::1]).</param>
+    public static byte[] Answer(DnsQuery query, bool ipv6 = true)
     {
         var ours = IsOurs(query.Name);
-        var withAddress = ours && query.Type == TypeA && query.Class == ClassIn;
+        var withAddress = ours && query.Class == ClassIn && (query.Type == TypeA || (query.Type == TypeAaaa && ipv6));
         var rcode = ours ? RcodeNoError : RcodeRefused;
 
-        var response = new List<byte>(HeaderSize + query.Question.Length + 16);
+        var response = new List<byte>(HeaderSize + query.Question.Length + 28);
         Header(response, query.Id, query.RecursionDesired, rcode, answers: withAddress ? (ushort)1 : (ushort)0, authoritative: ours);
         response.AddRange(query.Question);
         if (withAddress)
         {
             response.AddRange([0xC0, 0x0C]);               // el nombre: puntero a la pregunta
-            Add16(response, TypeA);
+            Add16(response, query.Type);
             Add16(response, ClassIn);
             response.AddRange([0, 0, 0, 60]);              // TTL: 60 s
-            Add16(response, 4);
-            response.AddRange([127, 0, 0, 1]);
+            if (query.Type == TypeA)
+            {
+                Add16(response, 4);
+                response.AddRange([127, 0, 0, 1]);
+            }
+            else
+            {
+                Add16(response, 16);
+                response.AddRange(new byte[15]);
+                response.Add(1);                           // ::1
+            }
         }
         return [.. response];
     }

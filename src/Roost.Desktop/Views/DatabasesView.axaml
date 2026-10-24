@@ -29,8 +29,11 @@
                 <DockPanel>
                   <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
                     <Button Classes="sm" Content="Reiniciar" Command="{Binding RestartCommand}" IsEnabled="{Binding DbRunning}" />
-                    <Button Classes="sm" Content="Parar" Command="{Binding StopCommand}" IsEnabled="{Binding HasGlobal}"
-                            ToolTip.Tip="Deja Roost sin base de datos (roost db use none)" />
+                    <!-- Parar e Iniciar de verdad (roost stop / start): PHP y el servidor web siguen; la configuración no cambia. -->
+                    <Button Classes="sm" Content="Parar" Command="{Binding StopCommand}" IsVisible="{Binding !CanStartDb}" IsEnabled="{Binding DbRunning}"
+                            ToolTip.Tip="Para solo la base de datos, limpia; PHP y el servidor web siguen (roost stop)" />
+                    <Button Classes="sm primary" Content="Iniciar" Command="{Binding StartCommand}" IsVisible="{Binding CanStartDb}"
+                            ToolTip.Tip="Vuelve a arrancar la base de datos (roost start)" />
                   </StackPanel>
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Classes="h2" Text="{Binding HeaderTitle}" />

@@ -1028,4 +1028,105 @@ public class ViewSnapshotTests
         await install;
         Assert.False(main.Web.NginxInstalled);
     }
+
+    // Daemon-1: parar e iniciar un servicio suelto (E3 + B5), y «Reiniciar todo».
+
+    /// <summary>Lo que cuenta roostd con la base de datos parada a mano (roost stop mariadb-11.4): el resto sigue.</summary>
+    private static Roost.Daemon.StatusResponse RunningWithDbStopped()
+    {
+        var status = FakeRoost.Running;
+        return status with
+        {
+            Services = status.Services.Select(s => s.Name == "mariadb-11.4" ? s with { State = "Stopped", Pid = null } : s).ToList(),
+        };
+    }
+
+    [AvaloniaFact]
+    public async Task Inicio_ConLaBaseDeDatosParadaAMano_OfreceIniciarla_YRestaurarTodo()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        // Con todo en marcha: Parar y Reiniciar en cada fila, y Reiniciar todo arriba.
+        Assert.True(main.Home.IsRunning);
+        Assert.All(main.Home.Services, r => { Assert.True(r.CanStop); Assert.False(r.CanStart); Assert.True(r.CanRestart); });
+
+        main.Stack.Show(RunningWithDbStopped());
+        Dispatcher.UIThread.RunJobs();
+
+        var db = main.Home.Services.Single(r => r.Name == "MariaDB");
+        Assert.Equal("Parado", db.State);
+        Assert.True(db.CanStart);
+        Assert.False(db.CanStop);
+        Assert.True(db.CanRestart);
+        Assert.True(main.Home.Services.Single(r => r.Name == "nginx").CanStop);
+        Assert.True(main.Home.IsRunning);
+        Assert.StartsWith("En marcha, con mariadb-11.4 parado a mano", main.Home.Subtitle);
+        Snapshot(window, "inicio-servicio-parado");
+
+        // Parado del todo, no hay nada que parar, iniciar ni reiniciar.
+        main.Stack.Show(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(main.Home.IsRunning);
+        Assert.All(main.Home.Services, r => { Assert.False(r.CanStop); Assert.False(r.CanStart); Assert.False(r.CanRestart); });
+    }
+
+    [AvaloniaFact]
+    public async Task BasesDeDatos_Parada_OfreceIniciar_SinCambiarLaConfiguracion()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        await main.NavigateToAsync(main.Databases);
+        var db = main.Databases;
+        Assert.True(db.DbRunning);
+        Assert.False(db.CanStartDb);   // en marcha: el botón es Parar
+
+        main.Stack.Show(RunningWithDbStopped());
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(db.DbRunning);
+        Assert.True(db.CanStartDb);    // parada con el stack en marcha: el botón es Iniciar
+        Assert.True(db.HasGlobal);     // y la base de datos global sigue siendo la misma (no es db use none)
+        Assert.Contains("engine = \"mariadb\"", File.ReadAllText(fake.Paths.ConfigFile));
+        Snapshot(window, "bases-de-datos-parada");
+
+        // Con el stack parado del todo no se puede iniciar solo la base de datos: es Iniciar todo.
+        main.Stack.Show(null);
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(db.CanStartDb);
+    }
+
+    // Daemon-1: un cambio rechazado antes de parar nada (E1) se cuenta como tal en el diálogo.
+
+    [AvaloniaFact]
+    public async Task ArranqueFallido_ConElCambioRechazado_DiceQueSigueEnMarchaLoDeAntes()
+    {
+        var (main, window, fake) = await OpenAsync(running: true);
+        using var _ = fake;
+
+        // Lo que devuelve StackController cuando el daemon rechaza el cambio con el stack en marcha.
+        var failure = new StartFailure(
+            "No se ha aplicado el cambio",
+            "No se ha aplicado el cambio: El puerto 8445 (HTTPS de los sitios .test) ya esta en uso en esta maquina por powershell (PID 4242) (IIS, VMware, Skype u otro servidor?). "
+            + "Paralo, o cambia [web] https_port en roost.toml.\nSigue en marcha lo de antes, con la configuracion anterior.",
+            [new BusyPort(8445, "HTTPS de los sitios .test", new Roost.Core.Platform.PortOwner(8445, 4242, "powershell"), 9443, "[web] https_port")],
+            WasRunning: true,
+            StillRunning: true);
+        var opening = main.ShowDialogAsync(new StartErrorDialogViewModel(main, failure));
+        await UntilAsync(() => main.Dialog is StartErrorDialogViewModel);
+        var dialog = Assert.IsType<StartErrorDialogViewModel>(main.Dialog);
+
+        Assert.Contains("sigue en marcha, con la configuración de antes", dialog.Subtitle);
+        Assert.StartsWith("No se ha aplicado el cambio: El puerto 8445", dialog.Message);
+        Assert.Contains("Sigue en marcha lo de antes", dialog.LogTail);
+        Assert.Single(dialog.Ports);
+        Assert.Equal("Usar el puerto 9443", dialog.Ports[0].UseLabel);
+        Snapshot(window, "arranque-fallido-cambio-rechazado");
+
+        dialog.Close();
+        await opening;
+        await UntilAsync(() => main.Dialog is null);
+        Assert.True(main.Stack.IsRunning);   // y la app lo sigue viendo en marcha
+    }
 }

@@ -168,8 +168,10 @@ roost db remove mysql@5.7        # quita los binarios; los datos se quedan
 - **php-cgi:** como Windows no tiene php-fpm, arranca un pool de 4 `php-cgi` (por defecto) detrás de nginx, en los puertos `9000 + mayor·100 + menor·10 + i` (la 8.4 usa 9840-9843).
 - **nginx 1.30.6:** la primera vez lo descarga de nginx.org y verifica su SHA-256.
 - **O Apache 2.4.69,** si lo prefieres: `roost web use apache` lo instala (de Apache Lounge, con su SHA-256 verificado) y lo deja como servidor web; `roost web use nginx` vuelve. Sirve lo mismo, con HTTPS y HTTP/2, y con los mismos pools de php-cgi (por mod_proxy_fcgi), así que cada sitio sigue con su PHP. Además lee los `.htaccess`, así que WordPress o Laravel funcionan sin tocar nada. Necesita el Visual C++ Redistributable 2017-2026 (14.50 o posterior).
-- **Solo local:** el servidor web escucha solo en 127.0.0.1, así que no se ve desde la red.
+- **Solo local:** el servidor web escucha solo en 127.0.0.1 y en `[::1]` (si la máquina tiene IPv6), así que no se ve desde la red. Escuchar también en `[::1]` hace que `http://localhost` nunca acabe en otro servidor de la máquina que escuche en `[::]:80`.
 - **Comprobaciones previas:** si el puerto está ocupado, lo dice y no arranca nada. La configuración se valida antes de arrancar (`nginx -t` o `httpd -t`).
+- **Con el stack en marcha, un cambio se comprueba antes de parar nada:** `roost up` valida la configuración nueva y mira los puertos. Si no vale (un puerto ocupado, un vhost sin marcas, algo que nginx o Apache no aceptan), lo de antes sigue en marcha tal cual y el mensaje empieza por «No se ha aplicado el cambio». Solo si lo nuevo no llega a arrancar queda parado, y se dice.
+- **Certificados:** mientras el daemon está en marcha, renueva una vez al día los de los sitios que caducan en menos de 30 días y reinicia solo el servidor web para que los cargue.
 - **Si algo no arranca,** `up` lo dice con el final de su log y para el resto. Si es un puerto ocupado, dice qué proceso lo tiene.
 
 Un daemon de usuario (`roost daemon`, que la CLI lanza sola) hace de padre de nginx y de los php-cgi:
@@ -182,6 +184,9 @@ Un daemon de usuario (`roost daemon`, que la CLI lanza sola) hace de padre de ng
 roost up          # arranca, o re-arranca con la configuración actual
 roost status      # servicios, PID, puertos y reinicios (también --json)
 roost restart nginx   # reinicia un servicio sin tocar el resto: nginx (o apache), php-8.4 (todo su pool), mariadb-11.4
+roost restart         # reinicia todo el stack en orden, con la misma configuración
+roost stop mariadb-11.4   # para un servicio suelto (la base de datos, limpia); nadie lo relanza
+roost start mariadb-11.4  # lo vuelve a arrancar (roost up también lo arranca todo)
 roost web use apache  # cambia de servidor web (y lo instala si falta)
 roost down        # lo para todo, daemon incluido
 ```

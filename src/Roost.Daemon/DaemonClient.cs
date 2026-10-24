@@ -76,12 +76,26 @@ public sealed class DaemonClient : IDisposable
     {
         if (await TryStatusAsync(cancellation) is { } running) return running;
 
-        Process.Start(launch)?.Dispose();
-        var deadline = DateTime.UtcNow.AddSeconds(15);
-        while (DateTime.UtcNow < deadline)
+        var process = Process.Start(launch);
+        try
         {
-            await Task.Delay(250, cancellation);
-            if (await TryStatusAsync(cancellation) is { } status) return status;
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(250, cancellation);
+                if (await TryStatusAsync(cancellation) is { } status) return status;
+                // El lanzado se ha ido sin llegar a contestar: pasa con un `roost up` justo tras un
+                // `roost down`, cuando el daemon anterior aún no ha soltado el mutex. Se lanza otro.
+                if (process is { HasExited: true })
+                {
+                    process.Dispose();
+                    process = Process.Start(launch);
+                }
+            }
+        }
+        finally
+        {
+            process?.Dispose();
         }
 
         throw new RoostException($"El daemon de Roost no responde. Mira {DaemonHost.LogFile(_paths)}.");
@@ -94,6 +108,17 @@ public sealed class DaemonClient : IDisposable
     /// <summary>Reinicia un servicio o grupo (<c>nginx</c>, <c>php-8.4</c>, <c>mariadb-11.4</c>).</summary>
     public Task<CommandResponse> RestartAsync(string service, CancellationToken cancellation = default) =>
         PostAsync("restart/" + Uri.EscapeDataString(service), cancellation);
+
+    /// <summary>Reinicia todo el stack con el mismo plan: para en orden inverso y arranca en orden, sin regenerar nada.</summary>
+    public Task<CommandResponse> RestartAllAsync(CancellationToken cancellation = default) => PostAsync("restart", cancellation);
+
+    /// <summary>Para un servicio o grupo sin tocar el resto; queda parado hasta <see cref="StartServiceAsync"/> o un <c>up</c>.</summary>
+    public Task<CommandResponse> StopServiceAsync(string service, CancellationToken cancellation = default) =>
+        PostAsync("stop/" + Uri.EscapeDataString(service), cancellation);
+
+    /// <summary>Vuelve a arrancar un servicio o grupo parado (o que dejó de relanzarse).</summary>
+    public Task<CommandResponse> StartServiceAsync(string service, CancellationToken cancellation = default) =>
+        PostAsync("start/" + Uri.EscapeDataString(service), cancellation);
 
     private async Task<CommandResponse> PostAsync(string path, CancellationToken cancellation)
     {

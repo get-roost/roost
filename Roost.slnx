@@ -12,6 +12,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/Roost.Catalog.Tests/Roost.Catalog.Tests.csproj" />
     <Project Path="tests/Roost.Core.Tests/Roost.Core.Tests.csproj" />
+    <Project Path="tests/Roost.Daemon.Tests/Roost.Daemon.Tests.csproj" />
     <Project Path="tests/Roost.Desktop.Tests/Roost.Desktop.Tests.csproj" />
     <Project Path="tests/Roost.Extensibility.Sample/Roost.Extensibility.Sample.csproj" />
     <Project Path="tests/Roost.Extensibility.Tests/Roost.Extensibility.Tests.csproj" />

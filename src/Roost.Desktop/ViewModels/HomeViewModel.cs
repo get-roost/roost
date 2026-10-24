@@ -15,6 +15,8 @@ using Roost.Desktop.Services;
 namespace Roost.Desktop.ViewModels;
 
 /// <summary>Una fila de la tabla Servicios de Inicio: un servicio o un pool de php-cgi entero.</summary>
+/// <param name="RestartKey">El nombre con el que se le pide al daemon reiniciar, parar o iniciar el grupo; null con el stack parado.</param>
+/// <param name="Running">Algún proceso del grupo vive (o se está relanzando): se ofrece Parar; si no, Iniciar.</param>
 public sealed record ServiceRow(
     string Name,
     string? Tag,
@@ -25,10 +27,13 @@ public sealed record ServiceRow(
     string State,
     Tone StateTone,
     int Restarts,
-    string? RestartKey)
+    string? RestartKey,
+    bool Running = true)
 {
     public bool HasTag => Tag is not null;
     public bool CanRestart => RestartKey is not null;
+    public bool CanStop => RestartKey is not null && Running;
+    public bool CanStart => RestartKey is not null && !Running;
 }
 
 /// <summary>Un sitio en la lista de Inicio.</summary>
@@ -65,6 +70,9 @@ public sealed partial class HomeViewModel : PageViewModel
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasConfigError))]
     public partial string? ConfigError { get; private set; }
+
+    /// <summary>El stack está en marcha (según el daemon): se puede reiniciar todo.</summary>
+    [ObservableProperty] public partial bool IsRunning { get; private set; }
 
     public string WwwPath => Main.App.Paths.Www;
 
@@ -111,6 +119,7 @@ public sealed partial class HomeViewModel : PageViewModel
         try { globalDb = planner.ResolveDb(config, installedDb); } catch (RoostException) { }
 
         var running = status?.Running == true;
+        IsRunning = running;
         WebUrl = status?.Url ?? (config.HttpPort == 80 ? "http://localhost/" : $"http://localhost:{config.HttpPort}/");
         TerminalHint = globalPhp is null ? "PHP no instalado"
             : new Roost.Core.Shims.ShimInstaller(paths).IsInstalled ? "php según la carpeta"
@@ -131,10 +140,14 @@ public sealed partial class HomeViewModel : PageViewModel
         SiteLines = lines;
 
         Services = running ? RunningRows(status!, config, sites) : PlannedRows(config, globalPhp, globalDb, sites, installedPhp, planner);
-        // «Todo en marcha» solo si de verdad todo está Running; si algo se ha caído, se dice qué.
-        var down = running ? status!.Services.Where(s => s.State != "Running").Select(s => s.Name).ToList() : [];
+        // «Todo en marcha» solo si de verdad todo está Running; si algo se ha caído, se dice qué,
+        // y lo parado a mano (Stopped) se dice aparte: no es un problema.
+        var stopped = running ? status!.Services.Where(s => s.State == "Stopped").Select(s => s.Name).ToList() : [];
+        var down = running ? status!.Services.Where(s => s.State is not ("Running" or "Stopped")).Select(s => s.Name).ToList() : [];
         Subtitle = running
-            ? (down.Count == 0 ? "Todo en marcha" : $"En marcha, pero con problemas en {Join(down)}")
+            ? (down.Count > 0 ? $"En marcha, pero con problemas en {Join(down)}"
+                : stopped.Count > 0 ? $"En marcha, con {Join(stopped)} parado{(stopped.Count == 1 ? "" : "s")} a mano"
+                : "Todo en marcha")
               + $"{(status!.Since is { } since ? $" desde las {since.LocalDateTime:HH:mm}" : "")} · "
               + $"{Count(sites.Count, "sitio", "sitios")}, PHP {Branch(status.Php)} global, {(status.Db is null ? "sin base de datos" : Short(status.Db))}"
             : "Parado. Iniciar todo arranca la base de datos, los PHP en uso y el servidor web.";
@@ -150,6 +163,7 @@ public sealed partial class HomeViewModel : PageViewModel
             var list = group.ToList();
             var (state, tone) = GroupState(list);
             var restarts = list.Sum(s => s.Restarts);
+            var alive = list.Any(s => s.State is "Running" or "Restarting");
             if (group.Key.StartsWith("php-", StringComparison.Ordinal))
             {
                 var branch = group.Key["php-".Length..];
@@ -162,7 +176,7 @@ public sealed partial class HomeViewModel : PageViewModel
                     $"PHP {branch}", tag, tagTone,
                     $"{Count(list.Count, "proceso php-cgi", "procesos php-cgi")} · lo usa{(users.Count == 1 ? "" : "n")} {Join(users)}",
                     PhpLabel(install), ports.Count == 0 ? "-" : ports.Count == 1 ? $"{ports[0]}" : $"{ports[0]}–{ports[^1]}",
-                    state, tone, restarts, group.Key));
+                    state, tone, restarts, group.Key, alive));
             }
             else if (group.Key is "nginx" or "apache")
             {
@@ -170,19 +184,19 @@ public sealed partial class HomeViewModel : PageViewModel
                 rows.Add(new ServiceRow(group.Key == "apache" ? "Apache" : "nginx", null, Tone.Neutral,
                     (sites.Count == 0 ? "localhost" : $"localhost y {Count(sites.Count, "sitio .test", "sitios .test")}")
                         + (group.Key == "apache" ? " · lee los .htaccess" : ""),
-                    status.WebVersion ?? "", listen, state, tone, restarts, group.Key));
+                    status.WebVersion ?? "", listen, state, tone, restarts, group.Key, alive));
             }
             else if (group.Key == "dns")
             {
-                rows.Add(new ServiceRow("DNS local", null, Tone.Neutral, "Responde *.test con 127.0.0.1 (dentro de roostd)", "",
-                    $"{Roost.Core.Dns.LocalDns.Address}:{Roost.Core.Dns.LocalDns.Port}", state, tone, restarts, "dns"));
+                rows.Add(new ServiceRow("DNS local", null, Tone.Neutral, "Responde *.test con 127.0.0.1 y ::1 (dentro de roostd)", "",
+                    $"{Roost.Core.Dns.LocalDns.Address}:{Roost.Core.Dns.LocalDns.Port}", state, tone, restarts, "dns", alive));
             }
             else if (!group.Key.StartsWith("mariadb-", StringComparison.Ordinal) && !group.Key.StartsWith("mysql-", StringComparison.Ordinal))
             {
                 // Un servicio de una extensión (un Redis, un Mailpit): con su nombre y su puerto.
                 var port = list.FirstOrDefault(s => s.Port is not null)?.Port;
                 rows.Add(new ServiceRow(group.Key, "extensión", Tone.Neutral, "Lo añade una extensión", "",
-                    port is null ? "-" : $"127.0.0.1:{port}", state, tone, restarts, group.Key));
+                    port is null ? "-" : $"127.0.0.1:{port}", state, tone, restarts, group.Key, alive));
             }
             else
             {
@@ -190,7 +204,7 @@ public sealed partial class HomeViewModel : PageViewModel
                 var engine = group.Key[..group.Key.IndexOf('-')];
                 rows.Add(new ServiceRow(engine == "mysql" ? "MySQL" : "MariaDB", null, Tone.Neutral,
                     $"Base de datos global · datos en data\\{engine}\\{branch}",
-                    status.Db?.Split(' ').LastOrDefault() ?? branch, $"127.0.0.1:{status.DbPort}", state, tone, restarts, group.Key));
+                    status.Db?.Split(' ').LastOrDefault() ?? branch, $"127.0.0.1:{status.DbPort}", state, tone, restarts, group.Key, alive));
             }
         }
 
@@ -379,5 +393,36 @@ public sealed partial class HomeViewModel : PageViewModel
         var response = await Main.App.Daemon.RestartAsync(row.RestartKey);
         if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
         await Main.Stack.RefreshAsync();
+    });
+
+    /// <summary>Para solo ese servicio o grupo (la base de datos, limpia); el resto sigue, y queda parado hasta Iniciar.</summary>
+    [RelayCommand]
+    private Task StopAsync(ServiceRow row) => Main.RunAsync($"No se pudo parar {row.Name}", async () =>
+    {
+        if (row.RestartKey is null) return;
+        var response = await Main.App.Daemon.StopServiceAsync(row.RestartKey);
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        await Main.Stack.RefreshAsync();
+        Main.Flash($"{row.Name} parado");
+    });
+
+    /// <summary>Vuelve a arrancar un servicio o grupo parado con Parar (o que dejó de relanzarse).</summary>
+    [RelayCommand]
+    private Task StartAsync(ServiceRow row) => Main.RunAsync($"No se pudo iniciar {row.Name}", async () =>
+    {
+        if (row.RestartKey is null) return;
+        var response = await Main.App.Daemon.StartServiceAsync(row.RestartKey);
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        await Main.Stack.RefreshAsync();
+    });
+
+    /// <summary>Todo el stack, con el mismo plan: se para en orden inverso y se arranca en orden. No vuelve a leer la configuración (eso es Iniciar todo).</summary>
+    [RelayCommand]
+    private Task RestartAllAsync() => Main.RunAsync("No se pudo reiniciar el stack", async () =>
+    {
+        var response = await Main.App.Daemon.RestartAllAsync();
+        await Main.Stack.RefreshAsync();
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        Main.Flash("Stack reiniciado");
     });
 }

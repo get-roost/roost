@@ -13,6 +13,7 @@ public static class SiteConf
     public const string End = "# roost:end";
 
     /// <summary>Lo que necesita el bloque de Roost; todas las rutas, absolutas.</summary>
+    /// <param name="Ipv6">Escuchar también en <c>[::1]</c> (false en una máquina sin IPv6 en loopback).</param>
     public sealed record Input(
         Site Site,
         string Upstream,
@@ -20,7 +21,8 @@ public static class SiteConf
         int HttpsPort,
         string CertFile,
         string KeyFile,
-        string FastCgiParams);
+        string FastCgiParams,
+        bool Ipv6 = true);
 
     /// <summary>PURO: el bloque que regenera Roost, marcas incluidas, sangrado para ir dentro de <c>server { }</c>.</summary>
     public static string RenderBlock(Input input)
@@ -28,9 +30,7 @@ public static class SiteConf
         var host = input.Site.Host;
         return $$"""
                 {{Begin}}  (lo regenera Roost en cada roost up; edita fuera de las marcas)
-                listen 127.0.0.1:{{input.HttpPort}};
-                listen 127.0.0.1:{{input.HttpsPort}} ssl;
-                http2 on;
+            {{NginxConf.Listen(input.HttpPort, input.Ipv6, "    ")}}{{NginxConf.Listen(input.HttpsPort, input.Ipv6, "    ", " ssl")}}    http2 on;
                 server_name {{host}} *.{{host}};
                 root "{{NginxConf.Nginx(input.Site.DocumentRoot)}}";
                 index index.php index.html index.htm;

@@ -235,7 +235,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             var (certFile, keyFile) = ca!.EnsureSiteCert(plan.Site);
             var input = new SiteConf.Input(
                 plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort,
-                certFile, keyFile, nginx.FastCgiParams);
+                certFile, keyFile, nginx.FastCgiParams, Loopback.HasIpv6);
             var file = Path.Combine(paths.NginxSites, plan.Site.Name + ".conf");
             File.WriteAllText(file, File.Exists(file) ? SiteConf.Merge(File.ReadAllText(file), input, file) : SiteConf.RenderNew(input));
         }
@@ -250,7 +250,8 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             config.HttpPort,
             upstreams,
             upstreams[0].Name,
-            paths.NginxSites)));
+            paths.NginxSites,
+            Loopback.HasIpv6)));
 
         var test = TestNginx(nginx);
         if (test is null || !test.Contains("test is successful", StringComparison.OrdinalIgnoreCase))
@@ -281,7 +282,7 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
         {
             var (certFile, keyFile) = ca!.EnsureSiteCert(plan.Site);
             var input = new ApacheSiteConf.Input(
-                plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort, certFile, keyFile);
+                plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort, certFile, keyFile, Loopback.HasIpv6);
             var file = Path.Combine(paths.ApacheSites, plan.Site.Name + ".conf");
             File.WriteAllText(file, File.Exists(file) ? ApacheSiteConf.Merge(File.ReadAllText(file), input, file) : ApacheSiteConf.RenderNew(input));
         }
@@ -296,7 +297,8 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             sitePlans.Count > 0 ? config.HttpsPort : null,
             pools,
             pools[0].Name,
-            paths.ApacheSites)));
+            paths.ApacheSites,
+            Loopback.HasIpv6)));
 
         var test = TestApache(apache);
         if (test is null || !test.Contains("Syntax OK", StringComparison.OrdinalIgnoreCase))
@@ -512,22 +514,28 @@ public sealed class StackPlanner(RoostPaths paths, IProcessRunner runner)
             """);
     }
 
-    /// <summary>Puertos de la lista que ya tiene ocupados otro proceso en 127.0.0.1.</summary>
+    /// <summary>
+    /// Puertos de la lista que ya tiene ocupados otro proceso en loopback: en 127.0.0.1 o, si la
+    /// máquina tiene IPv6, en [::1] (Roost escucha en las dos, y un servidor en <c>[::]:80</c> solo
+    /// se ve por la segunda).
+    /// </summary>
     public static IReadOnlyList<int> BusyPorts(IEnumerable<int> ports) =>
-        ports.Where(port =>
+        ports.Where(port => IsBusy(IPAddress.Loopback, port) || (Loopback.HasIpv6 && IsBusy(IPAddress.IPv6Loopback, port))).ToList();
+
+    private static bool IsBusy(IPAddress address, int port)
+    {
+        try
         {
-            try
-            {
-                var listener = new TcpListener(IPAddress.Loopback, port);
-                listener.Start();
-                listener.Stop();
-                return false;
-            }
-            catch (SocketException)
-            {
-                return true;
-            }
-        }).ToList();
+            var listener = new TcpListener(address, port);
+            listener.Start();
+            listener.Stop();
+            return false;
+        }
+        catch (SocketException)
+        {
+            return true;
+        }
+    }
 
     /// <summary>true si algo acepta conexiones en 127.0.0.1:<paramref name="port"/>.</summary>
     public static async Task<bool> AcceptsConnectionsAsync(int port, CancellationToken cancellation = default)

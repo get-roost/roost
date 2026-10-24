@@ -20,6 +20,8 @@ public static class DaemonHost
     /// <summary>
     /// Uno por usuario y raíz: una Roost con <c>ROOST_HOME</c>, o un cliente sobre otra raíz (los tests de la
     /// app), tiene su propia tubería y nunca habla con el daemon de la Roost de siempre.
+    /// Endpoints: <c>GET /status</c>, <c>POST /up</c>, <c>/down</c>, <c>/restart</c> (todo),
+    /// <c>/restart/{servicio}</c>, <c>/stop/{servicio}</c> y <c>/start/{servicio}</c>.
     /// </summary>
     public static string PipeName(RoostPaths paths) => "roost-" + Environment.UserName + RoostPaths.InstanceTag(paths);
 
@@ -62,14 +64,32 @@ public static class DaemonHost
 
         var app = builder.Build();
         extensions ??= ExtensionSet.Load(paths);
-        var stack = new StackService(paths, log, extensions);
+        var stack = new StackService(paths, log.Write, extensions);
+
+        // Tras /down este daemon se va: lo que llegue mientras tanto (un `roost up` justo después)
+        // no se atiende, para que el cliente lance otro en vez de montar un stack que este iba a
+        // tirar al salir.
+        var stopping = 0;
+        app.Use(async (context, next) =>
+        {
+            if (Volatile.Read(ref stopping) == 1)
+            {
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                return;
+            }
+            await next(context);
+        });
 
         app.MapGet("/status", () => stack.Status());
         app.MapPost("/up", () => stack.UpAsync());
+        app.MapPost("/restart", () => stack.RestartAllAsync());
         app.MapPost("/restart/{service}", (string service) => stack.RestartAsync(service));
+        app.MapPost("/stop/{service}", (string service) => stack.StopServiceAsync(service));
+        app.MapPost("/start/{service}", (string service) => stack.StartServiceAsync(service));
         app.MapPost("/down", async () =>
         {
             var response = await stack.DownAsync();
+            Volatile.Write(ref stopping, 1);
             // Se para el daemon después de contestar, no durante.
             _ = Task.Run(async () =>
             {
@@ -89,6 +109,8 @@ public static class DaemonHost
                 log.Write($"extension {error.Source}: {error.Message}");
             // El aviso de versión nueva para quien usa solo la CLI; acaba solo al pararse roostd.
             _ = UpdateRefresher.RunAsync(paths, log, app.Lifetime.ApplicationStopping);
+            // Y los certificados de los sitios, que un daemon de semanas vería caducar.
+            _ = CertRenewer.RunAsync(stack, log.Write, app.Lifetime.ApplicationStopping);
             await app.WaitForShutdownAsync(cancellation);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

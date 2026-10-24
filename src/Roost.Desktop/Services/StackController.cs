@@ -14,8 +14,12 @@ namespace Roost.Desktop.Services;
 public sealed record BusyPort(int Port, string Role, PortOwner? Owner, int? Suggestion, string ConfigKey);
 
 /// <summary>Por qué no arrancó el stack: el mensaje del daemon y, si los hay, los puertos ocupados.</summary>
-/// <param name="WasRunning">El stack estaba en marcha (se aplicaba un cambio) y ha quedado parado.</param>
-public sealed record StartFailure(string Title, string Message, IReadOnlyList<BusyPort> BusyPorts, bool WasRunning = false);
+/// <param name="WasRunning">El stack estaba en marcha: se aplicaba un cambio.</param>
+/// <param name="StillRunning">
+/// Y sigue en marcha, con la configuración de antes: el daemon rechazó el cambio antes de parar
+/// nada. false con <paramref name="WasRunning"/> = lo nuevo no arrancó y el stack ha quedado parado.
+/// </param>
+public sealed record StartFailure(string Title, string Message, IReadOnlyList<BusyPort> BusyPorts, bool WasRunning = false, bool StillRunning = false);
 
 /// <summary>
 /// Estado del stack tal como lo cuenta roostd, y las órdenes de arrancar, parar y aplicar
@@ -119,7 +123,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
             await app.Daemon.EnsureRunningAsync(DaemonLauncher.FromDirectory(AppServices.AppDirectory));
             var response = await app.Daemon.UpAsync();
             Status = response.Status;
-            return response.Ok ? null : Failure(response.Error ?? "El daemon no ha dicho por qué.", config);
+            return response.Ok ? null : Failure(response.Error ?? "El daemon no ha dicho por qué.", config, response.Status);
         }
         catch (RoostException ex)
         {
@@ -152,9 +156,11 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         }
     }
 
-    private StartFailure Failure(string error, RoostConfig config)
+    private StartFailure Failure(string error, RoostConfig config, StatusResponse status)
     {
-        // Tras un up fallido no queda nada nuestro en marcha: lo que esté ocupado es de otro.
+        // Si el daemon rechazó el cambio, lo de antes sigue en marcha con sus puertos: esos son
+        // nuestros, no de otro. Tras un up que no arrancó no queda nada nuestro en marcha.
+        var ours = status.Running ? status.Ports ?? status.Services.Where(s => s.Port is not null).Select(s => s.Port!.Value).ToList() : [];
         var wanted = new List<(int Port, string Role, string Key, int[] Alternatives)>
         {
             (config.HttpPort, config.UsesApache ? "HTTP de Apache" : "HTTP de nginx", "[web] port", [8080, 8000, 8081, 8888, 8088]),
@@ -167,7 +173,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         var busy = new List<BusyPort>();
         foreach (var (port, role, key, alternatives) in wanted)
         {
-            if (StackPlanner.BusyPorts([port]).Count == 0) continue;
+            if (ours.Contains(port) || StackPlanner.BusyPorts([port]).Count == 0) continue;
             int? suggestion = alternatives.Where(p => p != config.HttpPort && p != config.HttpsPort && p != config.DbPort)
                 .FirstOrDefault(p => StackPlanner.BusyPorts([p]).Count == 0) is var free and > 0 ? free : null;
             busy.Add(new BusyPort(port, role, PortOwners.Find(port), suggestion, key));
@@ -179,6 +185,8 @@ public sealed partial class StackController(AppServices app) : ObservableObject
             : first is "apache" ? "Apache"
             : busy.Count > 0 ? busy[0].Role
             : null;
-        return new StartFailure(service is null ? "No se pudo arrancar Roost" : $"No se pudo arrancar {service}", error, busy);
+        var title = status.Running ? "No se ha aplicado el cambio"
+            : service is null ? "No se pudo arrancar Roost" : $"No se pudo arrancar {service}";
+        return new StartFailure(title, error, busy, StillRunning: status.Running);
     }
 }

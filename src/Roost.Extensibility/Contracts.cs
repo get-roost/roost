@@ -7,10 +7,14 @@ using Spectre.Console.Cli;
 
 namespace Roost.Extensibility;
 
-/// <summary>La versión del contrato. Sube cuando cambia algo que rompe a las extensiones ya compiladas.</summary>
+/// <summary>
+/// La versión del contrato. Sube cuando cambia algo que rompe a las extensiones ya compiladas.
+/// 2: el supervisor para y arranca grupos, las configuraciones del servidor web y el DNS llevan
+/// IPv6, y <c>StatusResponse</c> trae los puertos del stack.
+/// </summary>
 public static class ExtensionApi
 {
-    public const int Current = 1;
+    public const int Current = 2;
 }
 
 /// <summary>

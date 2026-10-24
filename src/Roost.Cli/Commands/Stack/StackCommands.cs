@@ -104,14 +104,25 @@ public sealed class DownCommand : AsyncCommand<EmptyCommandSettings>
     }
 }
 
-/// <summary><c>roost restart &lt;servicio&gt;</c>: reinicia nginx, el pool de un PHP o la base de datos.</summary>
+/// <summary>Un servicio o grupo del stack, como lo muestra <c>roost status</c>.</summary>
+public sealed class ServiceSettings : CommandSettings
+{
+    [CommandArgument(0, "<servicio>")]
+    [Description("nginx, apache, php-<rama> (todo su pool), <motor>-<rama> o dns, como los muestra roost status.")]
+    public string Service { get; init; } = "";
+}
+
+/// <summary>
+/// <c>roost restart [servicio]</c>: reinicia nginx, el pool de un PHP o la base de datos sin
+/// tocar el resto; sin servicio, todo el stack en orden, con el mismo plan.
+/// </summary>
 public sealed class RestartCommand : AsyncCommand<RestartCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
-        [CommandArgument(0, "<servicio>")]
-        [Description("nginx, php-<rama> (todo su pool) o <motor>-<rama>, como los muestra roost status.")]
-        public string Service { get; init; } = "";
+        [CommandArgument(0, "[servicio]")]
+        [Description("nginx, apache, php-<rama> (todo su pool), <motor>-<rama> o dns, como los muestra roost status. Sin servicio, se reinicia todo.")]
+        public string? Service { get; init; }
     }
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
@@ -124,13 +135,69 @@ public sealed class RestartCommand : AsyncCommand<RestartCommand.Settings>
             return 1;
         }
 
-        var response = await client.RestartAsync(settings.Service, cancellation);
+        var all = string.IsNullOrWhiteSpace(settings.Service);
+        CommandResponse response = null!;
+        if (all)
+            await AnsiConsole.Status().StartAsync("Reiniciando todo...", async _ => response = await client.RestartAllAsync(cancellation));
+        else
+            response = await client.RestartAsync(settings.Service!, cancellation);
         if (!response.Ok)
         {
             AnsiConsole.MarkupLineInterpolated($"[red]{response.Error}[/]");
             return 1;
         }
-        AnsiConsole.MarkupLineInterpolated($"[green]Reiniciado:[/] {settings.Service}");
+        AnsiConsole.MarkupLineInterpolated($"[green]Reiniciado:[/] {(all ? "todo el stack" : settings.Service)}");
+        return 0;
+    }
+}
+
+/// <summary>
+/// <c>roost stop &lt;servicio&gt;</c>: para un servicio o grupo sin tocar el resto (la base de
+/// datos, limpia). Queda parado hasta <c>roost start</c>, <c>roost restart</c> o el siguiente <c>up</c>.
+/// </summary>
+public sealed class StopServiceCommand : AsyncCommand<ServiceSettings>
+{
+    public override async Task<int> ExecuteAsync(CommandContext context, ServiceSettings settings, CancellationToken cancellation)
+    {
+        if (!WindowsOnly.Check(context.Name)) return 1;
+        using var client = new DaemonClient(RoostPaths.Default());
+        if (await client.TryStatusAsync(cancellation) is not { Running: true })
+        {
+            AnsiConsole.MarkupLine("Roost esta parado: no hay nada que parar. Para parar todo el stack: roost down");
+            return 1;
+        }
+
+        var response = await client.StopServiceAsync(settings.Service, cancellation);
+        if (!response.Ok)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]{response.Error}[/]");
+            return 1;
+        }
+        AnsiConsole.MarkupLineInterpolated($"[green]Parado:[/] {settings.Service} [grey](vuelve con: roost start {settings.Service})[/]");
+        return 0;
+    }
+}
+
+/// <summary><c>roost start &lt;servicio&gt;</c>: vuelve a arrancar un servicio o grupo parado con <c>roost stop</c>.</summary>
+public sealed class StartServiceCommand : AsyncCommand<ServiceSettings>
+{
+    public override async Task<int> ExecuteAsync(CommandContext context, ServiceSettings settings, CancellationToken cancellation)
+    {
+        if (!WindowsOnly.Check(context.Name)) return 1;
+        using var client = new DaemonClient(RoostPaths.Default());
+        if (await client.TryStatusAsync(cancellation) is not { Running: true })
+        {
+            AnsiConsole.MarkupLine("Roost esta parado. Para arrancar todo el stack: roost up");
+            return 1;
+        }
+
+        var response = await client.StartServiceAsync(settings.Service, cancellation);
+        if (!response.Ok)
+        {
+            AnsiConsole.MarkupLineInterpolated($"[red]{response.Error}[/]");
+            return 1;
+        }
+        AnsiConsole.MarkupLineInterpolated($"[green]Arrancado:[/] {settings.Service}");
         return 0;
     }
 }

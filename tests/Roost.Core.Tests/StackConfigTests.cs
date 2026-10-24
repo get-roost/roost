@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using Roost.Core.Config;
 using Roost.Core.Install;
 using Roost.Core.Models;
@@ -180,13 +182,49 @@ public class StackConfigTests : IDisposable
             @"C:\roost\etc\nginx\sites"));
 
         Assert.Contains("upstream php-8.4 {\n        server 127.0.0.1:9840;\n        server 127.0.0.1:9841;\n    }", conf);
-        Assert.Contains("listen 127.0.0.1:8765;", conf);   // solo loopback
+        Assert.Contains("        listen 127.0.0.1:8765;\n        listen [::1]:8765;\n        server_name localhost;", conf);   // solo loopback, en las dos
+        Assert.DoesNotContain("listen 8765", conf);
         Assert.Contains("fastcgi_read_timeout 600s;", conf);   // Xdebug y tareas largas, sin 504 a los 60 s
         Assert.Contains("fastcgi_pass php-8.4;", conf);
         Assert.Contains("root \"C:/www\";", conf);
         Assert.Contains("include \"C:/roost/bin/nginx/1.30.6/conf/fastcgi_params\";", conf);
         Assert.Contains("include \"C:/roost/etc/nginx/sites/*.conf\";", conf);
         Assert.DoesNotContain("\\", conf.Replace(@"\.php$", ""));   // ninguna '\' en rutas
+    }
+
+    [Fact]
+    public void NginxConf_SinIpv6EnLaMaquina_SoloEscuchaEn127()
+    {
+        var conf = NginxConf.Render(new NginxConfInput(
+            @"C:\x\mime.types", @"C:\x\fastcgi_params", @"C:\roost\run", @"C:\roost\logs", @"C:\www", 8765,
+            [new NginxUpstream("php-8.4", [9840])], "php-8.4", @"C:\roost\etc\nginx\sites", Ipv6: false));
+
+        Assert.Contains("listen 127.0.0.1:8765;", conf);
+        Assert.DoesNotContain("[::1]", conf);
+    }
+
+    [Fact]
+    public void BusyPorts_VeLoQueEscuchaEnIpv4_YTambienLoQueSoloEscuchaEnIpv6()
+    {
+        // Un puerto libre en las dos no está ocupado.
+        var free = new TcpListener(IPAddress.Loopback, 0);
+        free.Start();
+        var port = ((IPEndPoint)free.LocalEndpoint).Port;
+        free.Stop();
+        Assert.Empty(StackPlanner.BusyPorts([port]));
+
+        // Cogido solo en [::1] (como un servidor en [::]:80): la sonda de IPv4 no lo vería.
+        if (!Loopback.HasIpv6) return;
+        var onlyV6 = new TcpListener(IPAddress.IPv6Loopback, port);
+        onlyV6.Start();
+        try
+        {
+            Assert.Equal([port], StackPlanner.BusyPorts([port]));
+        }
+        finally
+        {
+            onlyV6.Stop();
+        }
     }
 
     private static InstalledPhp Installed(string name) => new(name, @"C:\roost\bin\php\" + name, @"C:\roost\bin\php\" + name + @"\php.exe");

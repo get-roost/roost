@@ -2,6 +2,15 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
+## 0.1.4 — en preparación
+
+- **Stack:** un cambio que no vale (un puerto ocupado, un vhost sin marcas, una configuración que nginx o Apache no aceptan) ya no deja Roost parado: se comprueba antes de parar nada y lo que estaba en marcha sigue igual.
+- **Servicios:** se puede parar y volver a iniciar un servicio suelto (la base de datos, un PHP, el servidor web) desde Inicio, desde Bases de datos y con `roost stop` / `roost start`; un servicio parado a mano no se relanza solo. «Reiniciar todo» (o `roost restart` sin más) reinicia el stack entero en orden.
+- **Bases de datos:** «Parar» para de verdad la base de datos, sin cambiar la configuración; antes la quitaba del stack.
+- **localhost:** nginx y Apache escuchan también en `[::1]`, así `http://localhost` nunca acaba en otro servidor de la máquina; el DNS local contesta también la dirección IPv6.
+- **Certificados:** Roost renueva solo los certificados de los sitios que caducan pronto, aunque lleve semanas en marcha.
+- **Arreglo:** `roost down` seguido en el acto de `roost up` ya no deja el stack parado.
+
 ## 0.1.3 — 24-oct-2026
 
 - **Actualizar Roost desde la app:** el aviso de versión nueva abre «Roost X disponible» con las novedades y lo que pesa. «Actualizar ahora» descarga el instalador, comprueba su SHA-256 con el de la release y cierra Roost un momento; Windows pide permiso una vez y Roost vuelve sola, con el stack en marcha si lo estaba. Si cancelas el permiso, vuelve y te dice que no se ha actualizado. Con Scoop o winget abre una terminal que actualiza y la vuelve a abrir; desde la CLI, `roost update --install`.

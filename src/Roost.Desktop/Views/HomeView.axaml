@@ -88,7 +88,16 @@
           <StackPanel>
             <Border Classes="card-h">
               <DockPanel>
-                <Button DockPanel.Dock="Right" Classes="sm ghost" Content="Ver registros" Command="{Binding GoLogsCommand}" />
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                  <Button Classes="sm ghost" Command="{Binding RestartAllCommand}" IsEnabled="{Binding IsRunning}"
+                          ToolTip.Tip="Para todo en orden inverso y lo arranca en orden, con la misma configuración">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <ctl:Icon Data="{StaticResource IcRestart}" Size="14" VerticalAlignment="Center" />
+                      <TextBlock Text="Reiniciar todo" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Button Classes="sm ghost" Content="Ver registros" Command="{Binding GoLogsCommand}" />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="10">
                   <TextBlock Classes="h2" Text="Servicios" />
                   <TextBlock Classes="hint" Text="Arrancan en este orden y se paran al revés: base de datos, PHP, servidor web" TextTrimming="CharacterEllipsis" />
@@ -96,7 +105,7 @@
               </DockPanel>
             </Border>
             <Border Classes="th">
-              <Grid ColumnDefinitions="*,150,130,150,80,56">
+              <Grid ColumnDefinitions="*,150,130,150,80,112">
                 <TextBlock Text="Servicio" />
                 <TextBlock Grid.Column="1" Text="Versión" />
                 <TextBlock Grid.Column="2" Text="Escucha en" />
@@ -109,7 +118,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:ServiceRow">
                   <Border Classes="tr">
-                    <Grid ColumnDefinitions="*,150,130,150,80,56">
+                    <Grid ColumnDefinitions="*,150,130,150,80,112">
                       <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                           <TextBlock Classes="strong" Text="{Binding Name}" VerticalAlignment="Center" />
@@ -121,11 +130,24 @@
                       <TextBlock Grid.Column="2" Classes="mono" Text="{Binding Listen}" VerticalAlignment="Center" />
                       <ctl:Chip Grid.Column="3" Text="{Binding State}" Tone="{Binding StateTone}" ShowDot="True" />
                       <TextBlock Grid.Column="4" Classes="mono" Text="{Binding Restarts}" HorizontalAlignment="Right" VerticalAlignment="Center" />
-                      <Button Grid.Column="5" Classes="sm icon ghost" HorizontalAlignment="Right" IsEnabled="{Binding CanRestart}"
-                              Command="{Binding $parent[ItemsControl].((vm:HomeViewModel)DataContext).RestartCommand}" CommandParameter="{Binding}"
-                              ToolTip.Tip="Reiniciar" AutomationProperties.Name="{Binding Name, StringFormat='Reiniciar {0}'}">
-                        <ctl:Icon Data="{StaticResource IcRestart}" Size="15" />
-                      </Button>
+                      <!-- Parar o Iniciar (según esté), y Reiniciar: solo con el stack en marcha. -->
+                      <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="4" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Classes="sm icon ghost" IsVisible="{Binding !CanStart}" IsEnabled="{Binding CanStop}"
+                                Command="{Binding $parent[ItemsControl].((vm:HomeViewModel)DataContext).StopCommand}" CommandParameter="{Binding}"
+                                ToolTip.Tip="Parar solo este servicio (el resto sigue)" AutomationProperties.Name="{Binding Name, StringFormat='Parar {0}'}">
+                          <ctl:Icon Data="{StaticResource IcStop}" Size="15" />
+                        </Button>
+                        <Button Classes="sm icon ghost" IsVisible="{Binding CanStart}"
+                                Command="{Binding $parent[ItemsControl].((vm:HomeViewModel)DataContext).StartCommand}" CommandParameter="{Binding}"
+                                ToolTip.Tip="Iniciar este servicio" AutomationProperties.Name="{Binding Name, StringFormat='Iniciar {0}'}">
+                          <ctl:Icon Data="{StaticResource IcPlay}" Size="15" />
+                        </Button>
+                        <Button Classes="sm icon ghost" IsEnabled="{Binding CanRestart}"
+                                Command="{Binding $parent[ItemsControl].((vm:HomeViewModel)DataContext).RestartCommand}" CommandParameter="{Binding}"
+                                ToolTip.Tip="Reiniciar" AutomationProperties.Name="{Binding Name, StringFormat='Reiniciar {0}'}">
+                          <ctl:Icon Data="{StaticResource IcRestart}" Size="15" />
+                        </Button>
+                      </StackPanel>
                     </Grid>
                   </Border>
                 </DataTemplate>

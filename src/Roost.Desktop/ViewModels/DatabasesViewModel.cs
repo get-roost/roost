@@ -84,6 +84,8 @@ public sealed partial class DatabasesViewModel : PageViewModel
     [ObservableProperty] public partial Tone HeaderTone { get; private set; } = Tone.Off;
     [ObservableProperty] public partial bool HasGlobal { get; private set; }
     [ObservableProperty] public partial bool DbRunning { get; private set; }
+    /// <summary>La base de datos está en el stack en marcha pero parada (Parar, o se cayó): el botón Iniciar.</summary>
+    [ObservableProperty] public partial bool CanStartDb { get; private set; }
     [ObservableProperty] public partial int Port { get; private set; } = RoostConfig.DefaultDbPort;
     [ObservableProperty] public partial string EnvLine { get; private set; } = "";
     [ObservableProperty] public partial string DataPath { get; private set; } = "";
@@ -213,6 +215,8 @@ public sealed partial class DatabasesViewModel : PageViewModel
         HasGlobal = _global is not null;
         var service = _global is null ? null : $"{_global.Engine.Key()}-{_global.Branch}";
         DbRunning = status?.Running == true && status.Services.Any(s => s.Name == service && s.State == "Running");
+        // Parada a mano con el stack en marcha (o caída): el daemon la puede volver a arrancar.
+        CanStartDb = status?.Running == true && status.Services.Any(s => s.Name == service && s.State != "Running");
         Port = DbRunning ? status!.DbPort ?? _config.DbPort : _config.DbPort;
         HeaderTitle = DbRunning ? "En marcha" : "Base de datos global";
         HeaderChip = _global is null ? "ninguna" : _global.Label;
@@ -434,15 +438,29 @@ public sealed partial class DatabasesViewModel : PageViewModel
         await Main.Stack.RefreshAsync();
     });
 
+    /// <summary>
+    /// Para solo la base de datos, limpia (como <c>roost stop mariadb-11.4</c>): PHP y el servidor
+    /// web siguen, y la configuración no cambia. Vuelve con Iniciar, o con Iniciar todo.
+    /// </summary>
     [RelayCommand]
-    private async Task StopAsync()
+    private Task StopAsync() => Main.RunAsync("No se pudo parar la base de datos", async () =>
     {
-        if (!await Main.ConfirmAsync("Parar la base de datos",
-                "Roost seguirá sirviendo PHP, sin base de datos (como roost db use none). Para volver a tenerla, pulsa Usar en la lista de instaladas.",
-                "Parar"))
-            return;
-        await Main.UseDbAsync(null, null);
-    }
+        if (_global is null) return;
+        var response = await Main.App.Daemon.StopServiceAsync($"{_global.Engine.Key()}-{_global.Branch}");
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        await Main.Stack.RefreshAsync();
+        Main.Flash("Base de datos parada");
+    });
+
+    /// <summary>Vuelve a arrancar la base de datos parada con Parar (el stack tiene que estar en marcha).</summary>
+    [RelayCommand]
+    private Task StartAsync() => Main.RunAsync("No se pudo iniciar la base de datos", async () =>
+    {
+        if (_global is null) return;
+        var response = await Main.App.Daemon.StartServiceAsync($"{_global.Engine.Key()}-{_global.Branch}");
+        if (!response.Ok) throw new RoostException(response.Error ?? "El daemon no ha dicho por qué.");
+        await Main.Stack.RefreshAsync();
+    });
 
     [RelayCommand]
     private Task ApplyPortAsync() => Main.RunAsync("No se pudo cambiar el puerto", async () =>
