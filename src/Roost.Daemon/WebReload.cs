@@ -20,9 +20,9 @@ namespace Roost.Daemon;
 /// los sockets del padre; el viejo deja de aceptar cuando el nuevo está listo y acaba lo que estaba
 /// sirviendo. Sin un solo fallo, también con varios clientes.</item>
 /// </list>
-/// La recarga es asíncrona: se espera a que el servidor web cambie de hijo, así quien la pide (un
-/// <c>site add</c>, un script que pide la página justo después) ya ve lo nuevo. Antes hay que validar
-/// (<c>-t</c>): con la configuración mala, nginx se queda con la de antes y Apache se pararía.
+/// La recarga es asíncrona: se espera a que el servidor web tenga su hijo nuevo listo, así quien la
+/// pide (un <c>site add</c>, un script que pide la página justo después) ya ve lo nuevo. Antes hay
+/// que validar (<c>-t</c>): con la configuración mala, nginx se queda con la de antes y Apache se pararía.
 /// </summary>
 internal static class WebReload
 {
@@ -32,7 +32,7 @@ internal static class WebReload
         if (pid is not { } parent) return $"{web.Name} no esta en marcha";
         var before = ChildProcesses.Of(parent);
         if (Signal(runner, web, parent) is { } error) return error;
-        return await WaitForNewChildAsync(web.Name, parent, before);
+        return await WaitForNewChildAsync(web, parent, before);
     }
 
     /// <summary>Le pide la recarga (sin esperar a que acabe); null si se la ha podido pedir o por qué no.</summary>
@@ -69,12 +69,12 @@ internal static class WebReload
     }
 
     /// <summary>
-    /// Espera a que el servidor web tenga un hijo que no estaba (el worker de nginx o el hijo de Apache
-    /// con la configuración nueva; nginx tarda unos 400 ms). Con Apache se espera además a que se vaya el
-    /// viejo, que sigue aceptando hasta que el nuevo está listo (un segundo, más lo que tarde en acabar
-    /// lo que sirve), pero como mucho 5 s: si atiende una petición larga, sigue con ella.
+    /// Espera a que el servidor web tenga un hijo que no estaba, con la configuración nueva. El worker
+    /// de nginx atiende en cuanto nace (unos 400 ms). El hijo de Apache tarda un segundo en estar listo
+    /// (y hasta entonces sigue aceptando el viejo): se espera a que apunte en su log que arranca sus
+    /// hilos (AH00354, con su pid) o, si no hay log que leer, a que se vaya el viejo, como mucho 5 s.
     /// </summary>
-    private static async Task<string?> WaitForNewChildAsync(string server, int pid, IReadOnlyList<int> before)
+    private static async Task<string?> WaitForNewChildAsync(ServiceDefinition web, int pid, IReadOnlyList<int> before)
     {
         if (before.Count == 0)
         {
@@ -84,23 +84,50 @@ internal static class WebReload
         }
 
         var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
-        while (!ChildProcesses.Of(pid).Except(before).Any())
+        int? child;
+        while ((child = ChildProcesses.Of(pid).Except(before).Cast<int?>().FirstOrDefault()) is null)
         {
             if (DateTime.UtcNow > deadline)
-                return $"{server} no ha arrancado un proceso con la configuracion nueva en 10 s";
+                return $"{web.Name} no ha arrancado un proceso con la configuracion nueva en 10 s";
             await Task.Delay(25);
         }
 
-        if (server == RoostConfig.WebApache)
-        {
-            var oldGone = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-            while (ChildProcesses.Of(pid).Intersect(before).Any() && DateTime.UtcNow < oldGone)
-                await Task.Delay(50);
-        }
-        else
+        if (web.Name != RoostConfig.WebApache)
         {
             await Task.Delay(50);   // el worker nuevo abre sus puertos al nacer
+            return null;
+        }
+
+        var errorLog = web.LogFile is { } stdout ? Path.Combine(Path.GetDirectoryName(stdout)!, "apache-error.log") : null;
+        var ready = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (DateTime.UtcNow < ready)
+        {
+            if (errorLog is not null && ApacheChildStarted(errorLog, child.Value))
+            {
+                await Task.Delay(100);   // el viejo deja de aceptar en cuanto el nuevo está listo
+                return null;
+            }
+            if (!ChildProcesses.Of(pid).Intersect(before).Any()) return null;   // el viejo ya se ha ido
+            await Task.Delay(50);
         }
         return null;
+    }
+
+    /// <summary>true si el log de errores de Apache dice que el hijo <paramref name="child"/> ya arranca sus hilos (AH00354).</summary>
+    internal static bool ApacheChildStarted(string errorLog, int child)
+    {
+        try
+        {
+            using var stream = new FileStream(errorLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            stream.Seek(Math.Max(0, stream.Length - 65536), SeekOrigin.Begin);
+            using var reader = new StreamReader(stream);
+            var tail = reader.ReadToEnd();
+            var marker = $"[pid {child}:";
+            return tail.Split('\n').Any(line => line.Contains(marker, StringComparison.Ordinal) && line.Contains("AH00354", StringComparison.Ordinal));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 }
