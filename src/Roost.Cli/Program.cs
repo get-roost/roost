@@ -1,6 +1,7 @@
 using System.Text;
 using Roost.Cli.Commands;
 using Roost.Cli.Commands.Db;
+using Roost.Cli.Commands.Git;
 using Roost.Cli.Commands.Php;
 using Roost.Cli.Commands.Shims;
 using Roost.Cli.Commands.Sites;
@@ -174,6 +175,26 @@ app.Configure(config =>
             .WithExample("site", "root", "tienda")
             .WithExample("site", "root", "tienda", "public")
             .WithExample("site", "root", "tienda", ".");
+
+        site.AddCommand<SiteCloneCommand>("clone")
+            .WithDescription("Crea un sitio clonando un repositorio git (publico o local; se clona en una carpeta temporal y solo al acabar pasa a ser el sitio).")
+            .WithExample("site", "clone", "https://github.com/acme/tienda")
+            .WithExample("site", "clone", "https://github.com/acme/tienda.git", "--name", "tienda", "--branch", "develop", "--php", "8.3");
+
+        site.AddCommand<SitePullCommand>("pull")
+            .WithDescription("Trae lo nuevo del remoto a un sitio: solo fast-forward y solo si no hay cambios locales.")
+            .WithExample("site", "pull", "tienda");
+
+        site.AddCommand<SiteBranchCommand>("branch")
+            .WithDescription("Lista las ramas del remoto de un sitio o cambia a una (solo sin cambios locales).")
+            .WithExample("site", "branch", "tienda")
+            .WithExample("site", "branch", "tienda", "feature/checkout");
+
+        site.AddCommand<SiteGitCommand>("git")
+            .WithDescription("El repositorio de un sitio: rama, si va por detras, cambios locales, ultimo commit e historial. Con --adopt, adopta un .git que ya existe.")
+            .WithExample("site", "git", "tienda")
+            .WithExample("site", "git", "tienda", "--check")
+            .WithExample("site", "git", "legacy", "--adopt");
     });
 
     config.AddBranch("dns", dns =>
@@ -191,6 +212,20 @@ app.Configure(config =>
         dns.AddCommand<DnsStatusCommand>("status")
             .WithDescription("Como se resuelven los .test, si la regla esta puesta y si el DNS local contesta.")
             .WithExample("dns", "status");
+    });
+
+    config.AddBranch("git", git =>
+    {
+        git.SetDescription("El git con el que Roost clona y actualiza los sitios: un MinGit verificado en bin/git, o el que diga [git] exe en roost.toml.");
+
+        git.AddCommand<GitInstallCommand>("install")
+            .WithDescription("Descarga MinGit, verifica su SHA-256 y lo instala en bin/git (roost site clone lo hace solo la primera vez).")
+            .WithExample("git", "install");
+
+        git.AddCommand<GitStatusCommand>("status")
+            .WithDescription("Que git usa Roost, su version y donde esta su configuracion aislada.")
+            .WithExample("git", "status")
+            .WithExample("git", "status", "--json");
     });
 
     config.AddBranch("cert", cert =>

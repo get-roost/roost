@@ -133,6 +133,22 @@ public class RoostConfigTests : IDisposable
     }
 
     [Fact]
+    public void GitExe_SeLeeDeGitExe_YSetGitExeLoPoneYLoQuita()
+    {
+        Assert.Null(RoostConfig.Load(ConfigFile).GitExe);
+        Write("[git]\nexe = 'C:\\Program Files\\Git\\cmd\\git.exe'\n");
+        Assert.Equal(@"C:\Program Files\Git\cmd\git.exe", RoostConfig.Load(ConfigFile).GitExe);
+
+        Write("[git]\nexe = \"\"\n");
+        Assert.Null(RoostConfig.Load(ConfigFile).GitExe);   // vacio = el de Roost
+
+        RoostConfig.SetGitExe(ConfigFile, @"D:\herramientas\git.exe");
+        Assert.Equal(@"D:\herramientas\git.exe", RoostConfig.Load(ConfigFile).GitExe);
+        RoostConfig.SetGitExe(ConfigFile, null);
+        Assert.Null(RoostConfig.Load(ConfigFile).GitExe);
+    }
+
+    [Fact]
     public void SetDbPortYPool_SinFichero_ParteDeLaPlantilla()
     {
         RoostConfig.SetDbPort(ConfigFile, 3407);

@@ -174,6 +174,7 @@ public static class DbClients
 
     private static string? ReadString(RegistryKey hive, string key, string? value)
     {
+        if (!OperatingSystem.IsWindows()) return null;
         try
         {
             using var sub = hive.OpenSubKey(key);
