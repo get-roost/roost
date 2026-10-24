@@ -262,8 +262,8 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
             AnsiConsole.MarkupLineInterpolated($"[green]Sitio registrado:[/] [bold]{site.Host}[/] -> {site.DocumentRoot} [grey](PHP {site.Php ?? "global"}; {result.Elapsed.TotalSeconds:0.0} s)[/]");
             AnsiConsole.MarkupLineInterpolated($"[grey]{result.Branch}: {SiteGitSupport.Describe(result.Head)}[/]");
             if (site.Root is not null) AnsiConsole.MarkupLineInterpolated($"[grey]Raiz web detectada: {site.Root}/[/]");
-            if (File.Exists(Path.Combine(site.Folder, "composer.json")))
-                AnsiConsole.MarkupLine("[grey]Hay un composer.json: recuerda composer install (los pasos tras clonar llegaran en una version proxima).[/]");
+            if (ProjectKind.Detect(site.Folder).Type != ProjectType.Plain)
+                AnsiConsole.MarkupLineInterpolated($"[grey]Pasos de instalacion (composer install, .env, clave, migraciones): roost site setup {site.Name}[/]");
 
             SiteSupport.SyncHosts(paths, sites.Registry.Load());
             SiteSupport.TrustHint(new LocalCa(paths));
