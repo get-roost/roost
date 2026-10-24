@@ -2,6 +2,10 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
+## 0.1.9 — en preparación
+
+- **Arreglado:** «Importar…» en Bases de datos ofrece las bases de datos que hay en el servidor en ese momento, no las que tenía la pantalla al abrirse: una creada después (desde la terminal, o una lista que aún se estaba cargando) ya sale para importar encima.
+
 ## 0.1.8 — 24-oct-2026
 
 - **Renombrar y mover un sitio:** «Editar…» en el panel del sitio (o `roost site rename tienda shop` y `roost site move tienda <carpeta>`) cambia su nombre o su carpeta. Al renombrar se llevan su certificado, su línea del hosts, sus subdominios, su git y sus registros; su base de datos se queda como estaba o, si lo eliges, se copia al nombre nuevo (con sus vistas, rutinas y triggers) y la de antes no se borra. Al mover, Roost mueve la carpeta del proyecto o solo apunta a otra que ya tengas.

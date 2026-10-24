@@ -278,10 +278,13 @@ public class BdDumpViewTests
         db.PickImportFile = () => Task.FromResult<string?>(file);
         var runner = new StreamingRunner { StopAfter = 3 << 20, OnFinish = _ => server.Tables["blog_mysql"] = 1 };
         db.Runner = runner;
+        server.Databases.Add("desde_la_cli");   // creada después de cargar la pantalla
 
         var importing = db.ImportCommand.ExecuteAsync(null);
         await UntilAsync(() => main.Dialog is DbImportDialogViewModel);
         var choose = (DbImportDialogViewModel)main.Dialog!;
+        // La lista es la del servidor al importar, no la que cargó la pantalla.
+        Assert.Contains("desde_la_cli", choose.Existing);
         // «blog» ya existe: propone importar encima de ella, y avisa de las colaciones de MySQL 8.
         Assert.True(choose.ToExisting);
         Assert.Equal("blog", choose.SelectedExisting);

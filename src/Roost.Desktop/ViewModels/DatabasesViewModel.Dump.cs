@@ -99,6 +99,7 @@ public sealed partial class DatabasesViewModel
         var ini = IniPath;
         DumpInfo info;
         CompatPlan plan;
+        IReadOnlyList<string> existing;
         try
         {
             info = await DbDump.SniffAsync(file);
@@ -107,6 +108,10 @@ public sealed partial class DatabasesViewModel
             IReadOnlySet<string>? collations = null;
             try { collations = await Task.Run(() => DbAdmin.Collations(db, ini, DbClient)); } catch (RoostException) { }
             plan = SqlCompat.PlanFor(db.Engine, db.Version, collations);
+            // Las que hay ahora en el servidor, no las de la pantalla: esa lista se carga en segundo
+            // plano y puede ir por detrás (una creada desde la CLI, o una carga que aún no ha llegado).
+            try { existing = await Task.Run(() => DbAdmin.List(db, ini, DbClient)); }
+            catch (RoostException) { existing = Databases.Select(d => d.Name).ToList(); }
         }
         catch (Exception ex) when (ex is RoostException or IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -114,7 +119,7 @@ public sealed partial class DatabasesViewModel
             return;
         }
 
-        var dialog = new DbImportDialogViewModel(file, new FileInfo(file).Length, info, db.Label, Databases.Select(d => d.Name).ToList(),
+        var dialog = new DbImportDialogViewModel(file, new FileInfo(file).Length, info, db.Label, existing,
             SqlCompat.Issues(info, plan), database);
         if (await Main.ShowDialogAsync(dialog) is not DbImportChoice choice) return;
 
