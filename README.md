@@ -350,6 +350,19 @@ roost git install | status                                     # el git que usa 
 - **Huellas.** El ssh de Roost solo se fía de su propio `known_hosts` (`C:\roost\state\git\known_hosts`), siempre con `StrictHostKeyChecking=yes`. Trae de serie las claves de GitHub, GitLab y Bitbucket, comprobadas con las que publica cada uno; cualquier otro servidor se acepta solo tras ver su huella (`roost git hosts add`, o `--fingerprint SHA256:…` para scripts). Si un servidor conocido presenta otra huella, no conecta. Con `--own-ssh` se leen también tus `known_hosts`, pero Roost nunca escribe en ellos.
 - **Quitar un sitio** quita también su clave y su token, salvo los que use otro sitio (`--keep-access` para dejarlos).
 
+### Plantillas y pasos de instalación (solo Windows, por ahora)
+
+```sh
+roost new laravel tienda [--php 8.4] [--path C:\proyectos\tienda] [--db tienda|--no-db] [--yes] [--json]
+roost new wordpress blog            # la última de wordpress.org (SHA-1 comprobado), con su wp-config.php
+roost new symfony api [--webapp]    # con webapp: Twig, Doctrine y formularios
+roost site setup tienda [--steps composer,env,key,migrate] [--yes] [--json]   # los pasos de instalación de un sitio
+```
+
+- **Plantillas.** `roost new` (y el selector de plantilla de Nuevo sitio en la app) crea un proyecto Laravel, Symfony o WordPress con su base de datos y su `.env` o su `wp-config.php` ya puestos. Solo ofrece los PHP que valen para cada una (hoy, Laravel 13 pide PHP 8.3; Symfony 8.1, 8.4, y la 7.4 LTS, 8.2). Laravel y Symfony salen de `composer create-project` en una carpeta temporal que se renombra al acabar; WordPress, del zip de wordpress.org, comprobado con su SHA-1 (wordpress.org no publica SHA-256). Si algo falla o lo dejas, no queda un sitio a medias: Roost quita la carpeta, el sitio y la base de datos que había creado en ese intento.
+- **Pasos de instalación.** Al clonar un sitio, o cuando quieras con `roost site setup` o «Pasos de instalación…» en su panel, Roost propone lo que le falta según el proyecto: `composer install`, el `.env` desde `.env.example` con la base de datos de Roost y la URL del sitio (y Mailpit y Redis si van en el stack), `key:generate`, las migraciones (apagadas si la base de datos ya tiene tablas) y `storage:link` en Laravel; el `.env.local` y las migraciones de Doctrine en Symfony; el `wp-config.php` con claves nuevas en WordPress. Tu `.env` nunca se pisa: si ya existe, solo se añade lo que falta. Si un paso falla, Roost dice cuál y se puede seguir desde ahí. Lo que hace queda en `C:\roost\logs\pasos-<sitio>.log`, nunca con contraseñas.
+- **WordPress y los `.test`:** los WordPress que crea Roost llevan un mu-plugin para que sus peticiones a su propio `https://….test` (la Salud del sitio, WP-Cron, plugins) se fíen de la CA local; sin él fallan con «cURL error 60». Nunca apaga la comprobación del certificado.
+
 ### Composer (solo Windows, por ahora)
 
 Roost trae su propio Composer: un `composer.phar` de getcomposer.org verificado con su SHA-256, en `C:\roost\bin\composer`. Se instala solo la primera vez que lo usas desde la app, o con `roost composer install`.
@@ -514,7 +527,6 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Con nginx, recargar la configuración con muchas peticiones a la vez puede cortar alguna (nginx para Windows cierra la cola de su proceso viejo); con Apache, no. Con `[php] pool = 1`, reiniciar PHP deja un momento sin atender.
 - Por defecto, los nombres `.test` se resuelven por el `hosts`, y cada alta o baja de un sitio pide UAC. Con el DNS local (`roost dns install`) ya no lo pide, pero los `.test` solo resuelven con el stack en marcha.
 - Las versiones de MySQL van fijadas en Roost: para tener una nueva (8.4.12…), hay que actualizar Roost.
-- La app de escritorio no tiene aún plantillas de proyecto (Laravel, WordPress…).
 - «Desde git…» en la app, con su acceso, llega en la próxima versión: de momento, los repositorios (públicos o privados) se clonan desde la CLI. SSH por un proxy no se soporta: usa un token HTTPS.
 
 ## Desarrollo
