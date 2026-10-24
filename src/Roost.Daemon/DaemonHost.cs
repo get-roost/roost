@@ -66,6 +66,20 @@ public static class DaemonHost
         extensions ??= ExtensionSet.Load(paths);
         var stack = new StackService(paths, log.Write, extensions);
 
+        // Tras /down este daemon se va: lo que llegue mientras tanto (un `roost up` justo después)
+        // no se atiende, para que el cliente lance otro en vez de montar un stack que este iba a
+        // tirar al salir.
+        var stopping = 0;
+        app.Use(async (context, next) =>
+        {
+            if (Volatile.Read(ref stopping) == 1)
+            {
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                return;
+            }
+            await next(context);
+        });
+
         app.MapGet("/status", () => stack.Status());
         app.MapPost("/up", () => stack.UpAsync());
         app.MapPost("/restart", () => stack.RestartAllAsync());
@@ -75,6 +89,7 @@ public static class DaemonHost
         app.MapPost("/down", async () =>
         {
             var response = await stack.DownAsync();
+            Volatile.Write(ref stopping, 1);
             // Se para el daemon después de contestar, no durante.
             _ = Task.Run(async () =>
             {

@@ -76,12 +76,26 @@ public sealed class DaemonClient : IDisposable
     {
         if (await TryStatusAsync(cancellation) is { } running) return running;
 
-        Process.Start(launch)?.Dispose();
-        var deadline = DateTime.UtcNow.AddSeconds(15);
-        while (DateTime.UtcNow < deadline)
+        var process = Process.Start(launch);
+        try
         {
-            await Task.Delay(250, cancellation);
-            if (await TryStatusAsync(cancellation) is { } status) return status;
+            var deadline = DateTime.UtcNow.AddSeconds(15);
+            while (DateTime.UtcNow < deadline)
+            {
+                await Task.Delay(250, cancellation);
+                if (await TryStatusAsync(cancellation) is { } status) return status;
+                // El lanzado se ha ido sin llegar a contestar: pasa con un `roost up` justo tras un
+                // `roost down`, cuando el daemon anterior aún no ha soltado el mutex. Se lanza otro.
+                if (process is { HasExited: true })
+                {
+                    process.Dispose();
+                    process = Process.Start(launch);
+                }
+            }
+        }
+        finally
+        {
+            process?.Dispose();
         }
 
         throw new RoostException($"El daemon de Roost no responde. Mira {DaemonHost.LogFile(_paths)}.");
