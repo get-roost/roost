@@ -155,13 +155,22 @@ internal static class LinuxOps
                 if (!HelperChecks.IsElf(head.AsSpan(0, read))) return Rejected("setcap-nginx: no es un ejecutable ELF");
             }
 
-            // 7) setcap sobre el descriptor abierto (/proc/<pid>/fd/N): el mismo fichero que se ha comprobado.
-            var target = $"/proc/{Environment.ProcessId}/fd/{fd}";
-            var (exitCode, output) = Run(Setcap, ["cap_net_bind_service=+ep", target]);
+            // 7) setcap sobre la ruta (setcap no admite /proc/<pid>/fd/N: «Invalid file for capability
+            //    operation») y, despues, comprobar que lo que hay en la ruta sigue siendo el fichero que se
+            //    abrio y se comprobo: mismo dispositivo e inodo, fichero normal y del mismo usuario. Si alguien
+            //    lo cambio en medio (un enlace o otro fichero colado entre la comprobacion y el setcap), se le
+            //    quita la capability a lo que haya ahora y se rechaza.
+            var (exitCode, output) = Run(Setcap, ["cap_net_bind_service=+ep", path]);
             if (exitCode != 0)
             {
                 Log.Write($"setcap-nginx: setcap salio con {exitCode}: {output}");
                 return HelperExit.ScriptFailed;
+            }
+            var after = Posix.LStat(path);
+            if (after is null || !after.IsRegular || after.Uid != user.Uid || !after.SameFile(status))
+            {
+                Run(Setcap, ["-r", path]);
+                return Rejected($"setcap-nginx: {path} cambio durante la operacion; se ha deshecho");
             }
             Log.Write($"setcap-nginx: cap_net_bind_service=+ep en {path} (de {user.Name})");
             return HelperExit.Ok;

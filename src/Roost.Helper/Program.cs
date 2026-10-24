@@ -44,7 +44,8 @@ using Roost.Helper;
 //     root. Solo si <ruta> es absoluta y limpia, se llama nginx, se abre sin seguir enlaces, su ruta real
 //     es esa misma (ningun enlace en el camino), cuelga de la home del usuario que invoca (getpwuid de
 //     PKEXEC_UID/SUDO_UID, nunca $HOME), es un fichero normal de ese usuario y empieza por la firma ELF.
-//     Todo se comprueba sobre el descriptor ya abierto, y setcap se aplica a ese mismo descriptor.
+//     Todo se comprueba sobre el descriptor ya abierto; tras el setcap se comprueba que la ruta sigue
+//     siendo ese mismo fichero (dispositivo e inodo) y, si no, se deshace.
 //
 //   roost-helper www-init
 //     Crea /var/www/roost (0755) con dueno el usuario que invoca. Si ya existe y es suyo, nada; si es de

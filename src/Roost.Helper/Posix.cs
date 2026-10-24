@@ -87,12 +87,15 @@ internal static class Posix
     private const uint STATX_BASIC_STATS = 0x7ff;
     private const int StatxSize = 256;
 
-    /// <summary>El dueno, el grupo y el tipo de un fichero (de <c>stx_mode</c>).</summary>
-    public sealed record FileStatus(uint Uid, uint Gid, ushort Mode)
+    /// <summary>El dueno, el grupo, el tipo (de <c>stx_mode</c>) y la identidad (dispositivo e inodo) de un fichero.</summary>
+    public sealed record FileStatus(uint Uid, uint Gid, ushort Mode, ulong Ino, ulong Dev)
     {
         public bool IsRegular => (Mode & 0xF000) == 0x8000;
         public bool IsDirectory => (Mode & 0xF000) == 0x4000;
         public bool IsSymlink => (Mode & 0xF000) == 0xA000;
+
+        /// <summary>true si <paramref name="other"/> es el mismo fichero (mismo dispositivo y mismo inodo).</summary>
+        public bool SameFile(FileStatus other) => Ino == other.Ino && Dev == other.Dev;
     }
 
     /// <summary>El estado de una ruta SIN seguir un enlace final (como <c>lstat</c>); null si no existe.</summary>
@@ -110,8 +113,11 @@ internal static class Posix
     }
 
     // struct statx: stx_mask u32 @0, stx_blksize u32 @4, stx_attributes u64 @8, stx_nlink u32 @16,
-    // stx_uid u32 @20, stx_gid u32 @24, stx_mode u16 @28, ...
-    private static FileStatus Parse(byte[] b) => new(BitConverter.ToUInt32(b, 20), BitConverter.ToUInt32(b, 24), BitConverter.ToUInt16(b, 28));
+    // stx_uid u32 @20, stx_gid u32 @24, stx_mode u16 @28, stx_ino u64 @32, stx_size u64 @40, ...,
+    // stx_rdev_major/minor u32 @128/@132, stx_dev_major/minor u32 @136/@140.
+    private static FileStatus Parse(byte[] b) => new(
+        BitConverter.ToUInt32(b, 20), BitConverter.ToUInt32(b, 24), BitConverter.ToUInt16(b, 28),
+        BitConverter.ToUInt64(b, 32), ((ulong)BitConverter.ToUInt32(b, 136) << 32) | BitConverter.ToUInt32(b, 140));
 
     [DllImport(Libc, SetLastError = true)] private static extern int open(string path, int flags);
     [DllImport(Libc)] private static extern int close(int fd);
