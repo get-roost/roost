@@ -41,7 +41,7 @@
                 <CheckBox IsChecked="{Binding InStack}">
                   <StackPanel>
                     <TextBlock Classes="strong" Text="En el stack" />
-                    <TextBlock Classes="faint" TextWrapping="Wrap" Text="Arranca con Iniciar todo y el mail() de PHP va a él. Cambiarlo rearranca el stack." />
+                    <TextBlock Classes="faint" TextWrapping="Wrap" Text="Arranca con Iniciar todo y el mail() de PHP va a él. Cambiarlo arranca o para Mailpit y reinicia PHP uno a uno, sin cortar." />
                   </StackPanel>
                 </CheckBox>
 

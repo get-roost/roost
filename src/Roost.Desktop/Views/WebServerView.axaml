@@ -18,7 +18,7 @@
             <Border Classes="card-h">
               <StackPanel Orientation="Horizontal" Spacing="10">
                 <TextBlock Classes="h2" Text="Servidor activo" />
-                <TextBlock Classes="hint" Text="Cambiarlo rearranca el stack" />
+                <TextBlock Classes="hint" Text="Cambiarlo no para PHP ni la base de datos" />
               </StackPanel>
             </Border>
             <Grid Margin="16,14" ColumnDefinitions="*,Auto" ColumnSpacing="24">

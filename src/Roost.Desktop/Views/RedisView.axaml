@@ -44,7 +44,7 @@
                   <CheckBox IsChecked="{Binding InStack}" VerticalAlignment="Center">
                     <StackPanel>
                       <TextBlock Classes="strong" Text="En el stack" />
-                      <TextBlock Classes="faint" TextWrapping="Wrap" Text="Arranca con Iniciar todo, después de la base de datos. Cambiarlo rearranca el stack." />
+                      <TextBlock Classes="faint" TextWrapping="Wrap" Text="Arranca con Iniciar todo, después de la base de datos. Cambiarlo arranca o para solo Redis." />
                     </StackPanel>
                   </CheckBox>
                   <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom">

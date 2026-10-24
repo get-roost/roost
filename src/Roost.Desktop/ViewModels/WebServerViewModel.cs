@@ -277,7 +277,8 @@ public sealed partial class WebServerViewModel : PageViewModel
 
     /// <summary>
     /// Cambia el servidor web activo: lo instala si falta (con su diálogo), lo guarda en roost.toml
-    /// y rearranca el stack si está en marcha. Si se cancela la instalación, se queda como estaba.
+    /// y, si el stack está en marcha, el daemon cambia solo el servidor web (PHP y la base de datos
+    /// siguen). Si se cancela la instalación, se queda como estaba.
     /// </summary>
     private async Task SwitchServerAsync(string server)
     {

@@ -76,7 +76,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
         a is null || b is null ? a is null && b is null
             : System.Text.Json.JsonSerializer.Serialize(a) == System.Text.Json.JsonSerializer.Serialize(b);
 
-    /// <summary>Arranca (o rearranca con la configuración actual) el stack. null si ha ido bien.</summary>
+    /// <summary>Arranca el stack (o, si ya está en marcha, le aplica la configuración actual). null si ha ido bien.</summary>
     public Task<StartFailure?> StartAsync(IProgress<string>? progress = null) =>
         RunBusyAsync("Arrancando...", () => StartCoreAsync(progress));
 

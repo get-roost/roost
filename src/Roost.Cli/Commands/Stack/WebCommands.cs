@@ -58,7 +58,8 @@ internal static class WebServerSetup
 
 /// <summary>
 /// <c>roost web use nginx|apache</c>: elige el servidor web que arranca roost up. Lo instala si
-/// falta y, si el stack esta en marcha, lo rearranca con el nuevo. Los dos usan los mismos PHP.
+/// falta y, si el stack esta en marcha, cambia solo el servidor web (PHP y la base de datos siguen).
+/// Los dos usan los mismos PHP.
 /// </summary>
 public sealed class WebUseCommand : AsyncCommand<WebUseCommand.Settings>
 {
