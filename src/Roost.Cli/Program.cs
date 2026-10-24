@@ -254,7 +254,23 @@ app.Configure(config =>
             .WithExample("site", "composer", "tienda", "install")
             .WithExample("site", "composer", "tienda", "require", "monolog/monolog:^3")
             .WithExample("site", "composer", "tienda", "require", "phpunit/phpunit", "--dev");
+
+        // Pasos y plantillas (oleada 4): los pasos de instalación de un sitio ya registrado.
+        site.AddCommand<SiteSetupCommand>("setup")
+            .WithDescription("Los pasos de instalacion de un sitio (tras clonarlo, o cuando quieras): composer install, el .env con la base de datos de Roost, la clave, las migraciones, storage:link, el .env.local de Symfony o el wp-config.php de WordPress. Con terminal deja elegir; con --yes hace los propuestos.")
+            .WithExample("site", "setup", "tienda")
+            .WithExample("site", "setup", "tienda", "--yes")
+            .WithExample("site", "setup", "tienda", "--steps", "env,key", "--yes")
+            .WithExample("site", "setup", "tienda", "--json");
     });
+
+    // Pasos y plantillas (oleada 4): un proyecto nuevo con una plantilla.
+    config.AddCommand<NewCommand>("new")
+        .WithDescription("Un proyecto nuevo con una plantilla (laravel, wordpress o symfony), servido en https://<nombre>.test con su base de datos y su .env o su wp-config.php. Si algo falla, no queda nada a medias.")
+        .WithExample("new", "laravel", "tienda")
+        .WithExample("new", "wordpress", "blog", "--php", "8.3")
+        .WithExample("new", "symfony", "api", "--webapp")
+        .WithExample("new", "laravel", "tienda", "--path", "C:\\proyectos\\tienda", "--yes", "--json");
 
     config.AddBranch("dns", dns =>
     {
