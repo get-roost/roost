@@ -62,7 +62,13 @@ internal sealed class GeneratedConfig
     /// <summary>Lo que genera Prepare y lee el stack: existan o no en este momento.</summary>
     private static IEnumerable<string> Enumerate(RoostPaths paths)
     {
-        foreach (var file in new[] { Path.Combine(paths.Etc, "nginx", "nginx.conf"), Path.Combine(paths.Etc, "apache", "httpd.conf") })
+        // El redis.conf (Redis lo relee al relanzarse) y el fragmento del correo de PHP (un php-cgi
+        // reciclado lo leería con el puerto SMTP nuevo).
+        foreach (var file in new[]
+                 {
+                     Path.Combine(paths.Etc, "nginx", "nginx.conf"), Path.Combine(paths.Etc, "apache", "httpd.conf"),
+                     Roost.Core.Stack.RedisConf.ConfPath(paths), Path.Combine(paths.Etc, "php", "conf.d", Roost.Core.Stack.MailConf.PhpIniName),
+                 })
         {
             if (File.Exists(file)) yield return file;
         }

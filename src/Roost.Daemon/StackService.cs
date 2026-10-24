@@ -163,6 +163,8 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
             starting = null;
             log($"stack en marcha en {plan.Url} con PHP {php.Name}, {plan.WebServer} {plan.WebVersion}"
                 + (db is null ? ", sin base de datos" : $", {db.Label} en el puerto {plan.DbPort}")
+                + (plan.Redis is { } redis ? $", {redis.Label} en el {config.RedisPort}" : "")
+                + (plan.Mailpit is { } mailpit ? $", {mailpit.Label} (SMTP {config.MailSmtpPort}, bandeja {config.MailWebPort})" : "")
                 + $" y {plan.Sites.Count} sitio(s)");
             return new CommandResponse(true, null, Status());
         }
@@ -483,7 +485,10 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
         return string.Concat(lines);
     }
 
-    private string BusyPortsMessage(IReadOnlyList<int> busy, RoostConfig config)
+    private string BusyPortsMessage(IReadOnlyList<int> busy, RoostConfig config) =>
+        BusyPortsText(busy, config) + ServiceHint(busy);
+
+    private string BusyPortsText(IReadOnlyList<int> busy, RoostConfig config)
     {
         if (busy.Contains(config.HttpPort))
         {
@@ -500,10 +505,40 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
             return $"El puerto {config.DbPort} ya esta en uso en esta maquina{OwnedBy(config.DbPort)} (otro MySQL o MariaDB, quiza un servicio de Windows?). "
                 + $"Paralo, cambia [db] port en {paths.ConfigFile}, o arranca sin base de datos con: roost db use none";
         }
+        if (config.RedisEnabled && busy.Contains(config.RedisPort))
+        {
+            return $"El puerto {config.RedisPort} (Redis) ya esta en uso en esta maquina{OwnedBy(config.RedisPort)} (otro Redis, Memurai?). "
+                + $"Paralo, cambia [redis] port en {paths.ConfigFile} (roost redis port <puerto>), o quita Redis del stack con: roost redis disable";
+        }
+        if (config.MailEnabled && (busy.Contains(config.MailSmtpPort) || busy.Contains(config.MailWebPort)))
+        {
+            var (port, key) = busy.Contains(config.MailSmtpPort) ? (config.MailSmtpPort, "smtp_port") : (config.MailWebPort, "web_port");
+            return $"El puerto {port} (Mailpit) ya esta en uso en esta maquina{OwnedBy(port)} (otro Mailpit o MailHog?). "
+                + $"Paralo, cambia [mail] {key} en {paths.ConfigFile}, o quita Mailpit del stack con: roost mail disable";
+        }
         return $"Los puertos {string.Join(", ", busy)} del pool de PHP ya estan en uso por otro proceso. "
             + $"Paralo, o baja [php] pool en {paths.ConfigFile}.";
     }
 
     private static string OwnedBy(int port) =>
         PortOwners.Find(port) is { } owner ? $" por {owner.ProcessName ?? "otro proceso"} (PID {owner.Pid})" : "";
+
+    /// <summary>
+    /// Si el que tiene el puerto es un servicio de Windows (el MySQL80 de su MSI, una MariaDB
+    /// instalada aparte, IIS en el 80), cuál es y cómo dejarlo en Manual: es lo que suele pasar
+    /// (E7). Roost no toca servicios: solo lo dice. Vacío si no es un servicio.
+    /// </summary>
+    private string ServiceHint(IReadOnlyList<int> busy)
+    {
+        var owners = busy.Select(PortOwners.Find).Where(o => o is not null).ToList();
+        if (owners.Count == 0) return "";
+        var services = WindowsServices.Find(_env.Runner);
+        foreach (var owner in owners)
+        {
+            if (WindowsServices.OwnerOf(owner, services) is not { } service) continue;
+            return $"\nEl puerto {owner!.Port} lo tiene el servicio de Windows {WindowsServices.Label(service)}, que {WindowsServices.StateText(service)}. "
+                + $"Para que no se lo quede, ponlo en Manual en services.msc (o, en una consola de administrador: {WindowsServices.ManualCommand(service)}) y paralo.";
+        }
+        return "";
+    }
 }

@@ -15,7 +15,14 @@ public sealed record ApacheConfInput(
     IReadOnlyList<NginxUpstream> Pools,
     string DefaultPool,
     string SitesDirectory,
-    bool Ipv6 = true);
+    bool Ipv6 = true)
+{
+    /// <summary>
+    /// La carpeta de Adminer (<c>bin/adminer/&lt;versión&gt;</c>) que se sirve en <c>/adminer</c> con el
+    /// PHP global; null = sin Adminer (el usuario tiene su propia <c>www/adminer</c>).
+    /// </summary>
+    public string? AdminerDirectory { get; init; }
+}
 
 /// <summary>
 /// El httpd.conf que genera Roost para Apache. El PHP va por los mismos pools de php-cgi que
@@ -118,7 +125,7 @@ public static class ApacheConf
                     AllowOverride All
                     Require all granted
                 </Directory>
-            {{PhpHandler(input.DefaultPool)}}
+            {{PhpHandler(input.DefaultPool)}}{{Adminer(input)}}
             </VirtualHost>
 
             # Un fichero por sitio *.test, editable fuera de las marcas de Roost.
@@ -137,6 +144,34 @@ public static class ApacheConf
                 SetHandler "proxy:balancer://{{pool}}/"
             </FilesMatch>
         """;
+
+    /// <summary>
+    /// PURO: <c>/adminer</c> en el VirtualHost de localhost: un alias a la carpeta de Adminer, que solo
+    /// ejecuta la entrada de Roost (<c>index.php</c>). <c>adminer.php</c> no se sirve suelto, y el
+    /// SCRIPT_FILENAME se fija a mano: el <c>ProxyFCGISetEnvIf</c> global lo arma con la www
+    /// (<c>DOCUMENT_ROOT</c>), que aquí no es la carpeta del script.
+    /// </summary>
+    public static string Adminer(ApacheConfInput input)
+    {
+        if (input.AdminerDirectory is not { } dir) return "";
+        var folder = Path(dir);
+        return $$"""
+
+
+                # Adminer de Roost (bin\adminer), con el PHP global. Solo atiende a localhost.
+                Alias "/adminer" "{{folder}}"
+                <Directory "{{folder}}">
+                    Options None
+                    AllowOverride None
+                    Require all granted
+                    DirectoryIndex index.php
+                    <Files "adminer.php">
+                        Require all denied
+                    </Files>
+                    ProxyFCGISetEnvIf "true" SCRIPT_FILENAME "{{folder}}/index.php"
+                </Directory>
+            """;
+    }
 
     /// <summary>Apache en Windows acepta '/' y así no hay que escapar las '\' dentro de comillas.</summary>
     public static string Path(string path) => path.Replace('\\', '/');

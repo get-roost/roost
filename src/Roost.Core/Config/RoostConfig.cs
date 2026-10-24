@@ -73,6 +73,51 @@ public sealed record RoostConfig
     /// </summary>
     public string? GitExe { get; init; }
 
+    // Servicios (oleada 3): Redis y el correo de pruebas (Mailpit).
+
+    public const int DefaultRedisPort = 6379;
+    public const int DefaultMailSmtpPort = 1025;
+    public const int DefaultMailWebPort = 8025;
+
+    /// <summary>
+    /// <c>[redis] enabled</c>: Redis arranca con el stack, después de la base de datos. Lo pone
+    /// <c>roost redis install</c> (o <c>enable</c>); sin la clave, no arranca.
+    /// </summary>
+    public bool RedisEnabled { get; init; }
+
+    /// <summary><c>[redis] port</c>, solo en 127.0.0.1.</summary>
+    public int RedisPort { get; init; } = DefaultRedisPort;
+
+    /// <summary>
+    /// <c>[mail] enabled</c>: Mailpit arranca con el stack y el <c>mail()</c> de PHP le manda el
+    /// correo (<c>etc/php/conf.d/20-roost-mail.ini</c>). Lo pone <c>roost mail install</c>.
+    /// </summary>
+    public bool MailEnabled { get; init; }
+
+    /// <summary><c>[mail] smtp_port</c>: donde recibe Mailpit el correo, solo en 127.0.0.1.</summary>
+    public int MailSmtpPort { get; init; } = DefaultMailSmtpPort;
+
+    /// <summary><c>[mail] web_port</c>: la bandeja de Mailpit (web y API), solo en 127.0.0.1.</summary>
+    public int MailWebPort { get; init; } = DefaultMailWebPort;
+
+    /// <summary>La URL de la bandeja de Mailpit.</summary>
+    public string MailWebUrl => $"http://localhost:{MailWebPort}/";
+
+    /// <summary>
+    /// Los puertos que va a coger el stack con esta configuración, sin los del pool de PHP: la web,
+    /// el HTTPS si hay sitios, la base de datos si hay una, Redis y Mailpit si van. Lo usan los avisos
+    /// de los servicios de Windows que se quedan los puertos.
+    /// </summary>
+    public IReadOnlyList<int> PlannedPorts(bool withSites, bool withDb)
+    {
+        var ports = new List<int> { HttpPort };
+        if (withSites) ports.Add(HttpsPort);
+        if (withDb) ports.Add(DbPort);
+        if (RedisEnabled) ports.Add(RedisPort);
+        if (MailEnabled) ports.AddRange([MailSmtpPort, MailWebPort]);
+        return ports.Distinct().ToList();
+    }
+
     /// <summary>Lo que se escribe la primera vez que un comando crea el fichero.</summary>
     private static string Template(string? phpVersion, string? dbEngine, string? dbVersion) => $"""
         # Configuracion de Roost. Puedes editarla a mano: cuando un comando cambia una
@@ -109,6 +154,17 @@ public sealed record RoostConfig
         # Otro git en vez del MinGit que instala Roost (roost git install), por ejemplo el de Git for Windows.
         # exe = 'C:\Program Files\Git\cmd\git.exe'
 
+        [redis]
+        # Redis con el stack (roost redis install): enabled = true y su puerto (solo en 127.0.0.1).
+        enabled = false
+        port = {DefaultRedisPort}
+
+        [mail]
+        # Mailpit con el stack (roost mail install): el correo de PHP se queda en su bandeja.
+        enabled = false
+        smtp_port = {DefaultMailSmtpPort}
+        web_port = {DefaultMailWebPort}
+
         """;
 
     // Una clave con valor, o comentada con un ejemplo si no lo tiene.
@@ -133,6 +189,11 @@ public sealed record RoostConfig
             DbPort = ReadInteger(doc, "db", "port", path) ?? DefaultDbPort,
             SitesResolver = ReadString(doc, "sites", "resolver", path)?.Trim().ToLowerInvariant() ?? ResolverHosts,
             GitExe = ReadString(doc, "git", "exe", path) is { } gitExe && !string.IsNullOrWhiteSpace(gitExe) ? gitExe.Trim() : null,
+            RedisEnabled = ReadBool(doc, "redis", "enabled", path) ?? false,
+            RedisPort = ReadInteger(doc, "redis", "port", path) ?? DefaultRedisPort,
+            MailEnabled = ReadBool(doc, "mail", "enabled", path) ?? false,
+            MailSmtpPort = ReadInteger(doc, "mail", "smtp_port", path) ?? DefaultMailSmtpPort,
+            MailWebPort = ReadInteger(doc, "mail", "web_port", path) ?? DefaultMailWebPort,
         };
 
         if (config.PhpPool is < 1 or > 10)
@@ -149,7 +210,36 @@ public sealed record RoostConfig
             throw new RoostException($"{path}: [sites] resolver tiene que ser \"hosts\" o \"dns\" (vale \"{config.SitesResolver}\").");
         if (config.DbEngine is not (null or "mariadb" or "mysql" or NoDb))
             throw new RoostException($"{path}: [db] engine tiene que ser \"mariadb\", \"mysql\" o \"none\" (vale \"{config.DbEngine}\").");
+        if (config.ServicePortClash() is { } clash)
+            throw new RoostException($"{path}: {clash}");
         return config;
+    }
+
+    /// <summary>
+    /// Por qué no valen los puertos de Redis y del correo: fuera de rango, o el mismo que otro
+    /// puerto del stack (el de la web, el HTTPS, la base de datos o el otro de Mailpit). Solo se
+    /// miran los que van en el stack. null si valen.
+    /// </summary>
+    public string? ServicePortClash()
+    {
+        var taken = new List<(string Key, int Port)> { ("[web] port", HttpPort), ("[web] https_port", HttpsPort) };
+        if (DbEngine != NoDb) taken.Add(("[db] port", DbPort));
+        var wanted = new List<(string Key, int Port)>();
+        if (RedisEnabled) wanted.Add(("[redis] port", RedisPort));
+        if (MailEnabled)
+        {
+            wanted.Add(("[mail] smtp_port", MailSmtpPort));
+            wanted.Add(("[mail] web_port", MailWebPort));
+        }
+
+        foreach (var (key, port) in wanted)
+        {
+            if (port is < 1 or > 65535) return $"{key} tiene que estar entre 1 y 65535 (vale {port}).";
+            if (taken.FirstOrDefault(t => t.Port == port) is { Key: not null } other)
+                return $"{key} ({port}) es el mismo puerto que {other.Key}: tienen que ser distintos.";
+            taken.Add((key, port));
+        }
+        return null;
     }
 
     /// <summary>Fija <c>[php] version</c>, creando el fichero o la tabla si no existen.</summary>
@@ -208,6 +298,43 @@ public sealed record RoostConfig
     /// <summary>Fija <c>[git] exe</c>; null vuelve al git de Roost.</summary>
     public static void SetGitExe(string path, string? exe) =>
         Set(path, "git", [("exe", Text(string.IsNullOrWhiteSpace(exe) ? null : exe.Trim()))]);
+
+    /// <summary>
+    /// Fija <c>[redis] enabled</c> y, si se da, <c>[redis] port</c>. Valida el puerto contra los
+    /// demás del stack antes de escribir nada.
+    /// </summary>
+    public static void SetRedis(string path, bool? enabled = null, int? port = null)
+    {
+        var current = Load(path);
+        var next = current with { RedisEnabled = enabled ?? current.RedisEnabled, RedisPort = port ?? current.RedisPort };
+        // Un puerto nuevo se valida aunque Redis no vaya en el stack: valdrá el día que se active.
+        if ((port is null ? next : next with { RedisEnabled = true }).ServicePortClash() is { } clash) throw new RoostException(clash);
+        var values = new List<(string, ValueSyntax?)>();
+        if (enabled is { } e) values.Add(("enabled", Flag(e)));
+        if (port is { } value) values.Add(("port", Number(value)));
+        Set(path, "redis", [.. values]);
+    }
+
+    /// <summary>Fija <c>[mail] enabled</c> y, si se dan, <c>smtp_port</c> y <c>web_port</c>.</summary>
+    public static void SetMail(string path, bool? enabled = null, int? smtpPort = null, int? webPort = null)
+    {
+        var current = Load(path);
+        var next = current with
+        {
+            MailEnabled = enabled ?? current.MailEnabled,
+            MailSmtpPort = smtpPort ?? current.MailSmtpPort,
+            MailWebPort = webPort ?? current.MailWebPort,
+        };
+        if ((smtpPort is null && webPort is null ? next : next with { MailEnabled = true }).ServicePortClash() is { } clash)
+            throw new RoostException(clash);
+        var values = new List<(string, ValueSyntax?)>();
+        if (enabled is { } e) values.Add(("enabled", Flag(e)));
+        if (smtpPort is { } smtp) values.Add(("smtp_port", Number(smtp)));
+        if (webPort is { } web) values.Add(("web_port", Number(web)));
+        Set(path, "mail", [.. values]);
+    }
+
+    private static BooleanValueSyntax Flag(bool value) => new(value);
 
     private static StringValueSyntax? Text(string? value) => value is null ? null : new StringValueSyntax(value);
 
@@ -277,6 +404,14 @@ public sealed record RoostConfig
             null => null,
             StringValueSyntax s => s.Value,
             _ => throw new RoostException($"{path}: [{table}] {key} tiene que ser un texto entre comillas."),
+        };
+
+    private static bool? ReadBool(DocumentSyntax doc, string table, string key, string path) =>
+        ReadValue(doc, table, key) switch
+        {
+            null => null,
+            BooleanValueSyntax b => b.Value,
+            _ => throw new RoostException($"{path}: [{table}] {key} tiene que ser true o false."),
         };
 
     private static int? ReadInteger(DocumentSyntax doc, string table, string key, string path) =>
