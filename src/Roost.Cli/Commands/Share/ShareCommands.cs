@@ -147,9 +147,9 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
 {
     public sealed class Settings : CommandSettings
     {
-        [CommandArgument(0, "<SITIO>")]
+        [CommandArgument(0, "[SITIO]")]
         [Description("El sitio que compartir (su nombre, o nombre.test).")]
-        public string Site { get; init; } = "";
+        public string? Site { get; init; }
 
         [CommandOption("--lan")]
         [Description("En la red local (un movil en la misma wifi) en vez de por internet: HTTPS en la IP del equipo, con una regla del cortafuegos solo para tu red privada (Windows pide permiso).")]
@@ -180,6 +180,13 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
     {
         if (!WindowsOnly.Check("share")) return 1;
         var paths = RoostPaths.Default();
+        if (string.IsNullOrWhiteSpace(settings.Site))
+        {
+            var names = new SiteRegistry(paths).Load().Select(s => s.Name).ToList();
+            AnsiConsole.MarkupLine("Que sitio? [bold]roost share <sitio>[/] (por internet) o [bold]roost share <sitio> --lan[/] (en tu red local).");
+            AnsiConsole.MarkupLineInterpolated($"[grey]{(names.Count == 0 ? "Aun no hay sitios (roost site add <nombre>)." : "Sitios: " + string.Join(", ", names) + ".")} Lo que se comparte ahora: roost share status[/]");
+            return 1;
+        }
         try
         {
             var site = ShareSupport.FindSite(paths, settings.Site);
