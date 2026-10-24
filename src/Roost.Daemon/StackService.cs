@@ -24,8 +24,18 @@ internal sealed record StackEnvironment(
     Func<int, CancellationToken, Task<bool>> AcceptsConnections,
     TimeSpan HealthTimeout,
     bool Ipv6,
-    Func<ServiceDefinition, int?, Task<string?>>? ReloadWeb = null)
+    Func<ServiceDefinition, int?, Task<string?>>? ReloadWeb = null,
+    Func<int, IReadOnlyCollection<int>>? Connections = null)
 {
+    /// <summary>
+    /// Las conexiones establecidas a un puerto de 127.0.0.1, por su puerto de origen (<see cref="TcpConnections"/>;
+    /// en los tests, las que digan).
+    /// </summary>
+    public IReadOnlyCollection<int> ConnectionsTo(int port) => Connections is { } connections ? connections(port) : TcpConnections.To(port);
+
+    /// <summary>Lo que se espera, como mucho, a que un php-cgi acabe las peticiones que tiene antes de reiniciarlo.</summary>
+    public static readonly TimeSpan DrainTimeout = TimeSpan.FromSeconds(10);
+
     // Solo se espera lo necesario; el margen es para el primer arranque de MySQL 8 tras crear el datadir.
     public static StackEnvironment Real => new(
         new OsProcessLauncher(), ProcessRunner.Default, StackPlanner.BusyPorts, StackPlanner.AcceptsConnectionsAsync,
@@ -382,8 +392,10 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
     /// Reinicia los php-cgi de un pool uno a uno (con su definición nueva si la hay): cada uno tiene
     /// que estar otra vez en marcha y aceptando conexiones antes de tocar el siguiente, así siempre
     /// queda alguno atendiendo. La petición que pilla a uno reiniciándose pasa a otro (nginx con
-    /// <c>max_fails=0</c>, Apache con <c>retry=0</c>; probado en real con carga: ningún 502). Si uno
-    /// no vuelve, se para ahí, y los que faltan siguen con lo de antes. null si ha ido bien.
+    /// <c>max_fails=0</c>, Apache con <c>retry=0</c>), pero solo una vez: antes de parar cada uno se
+    /// espera a que acabe lo que tiene (<see cref="DrainAsync"/>), que incluye lo que le pasaron al
+    /// reiniciar el anterior. Probado en real con carga: ningún 502. Si uno no vuelve, se para ahí, y
+    /// los que faltan siguen con lo de antes. null si ha ido bien.
     /// </summary>
     private async Task<(string? Problem, IReadOnlyList<string> Untouched)> RestartOneByOneAsync(
         Supervisor supervisor, StackPlan plan, IReadOnlyList<(ServiceDefinition Service, bool Replace)> members)
@@ -391,6 +403,8 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
         for (var i = 0; i < members.Count; i++)
         {
             var (service, replace) = members[i];
+            if (members.Count > 1 && supervisor.Definitions().FirstOrDefault(d => d.Name == service.Name)?.Port is { } port)
+                await DrainAsync(service.Name, port);
             var oldPid = supervisor.Status().FirstOrDefault(s => s.Name == service.Name)?.ProcessId;
             if (replace) await supervisor.ReplaceAsync(service);
             else await supervisor.RestartAsync(name => name == service.Name);
@@ -401,6 +415,27 @@ internal sealed class StackService(RoostPaths paths, Action<string> log, Extensi
             }
         }
         return (null, []);
+    }
+
+    /// <summary>
+    /// Espera a que acaben las peticiones que tiene ahora un php-cgi (las conexiones establecidas a su
+    /// puerto, en curso o en su cola), como mucho <see cref="StackEnvironment.DrainTimeout"/>: las que le
+    /// llegan después son primeros intentos, y si lo pillan parándose el servidor web las pasa a otro.
+    /// </summary>
+    private async Task DrainAsync(string name, int port)
+    {
+        var pending = _env.ConnectionsTo(port).ToHashSet();
+        if (pending.Count == 0) return;
+        var started = DateTime.UtcNow;
+        while (_env.ConnectionsTo(port).Any(pending.Contains))
+        {
+            if (DateTime.UtcNow - started >= StackEnvironment.DrainTimeout)
+            {
+                log($"{name}: sigue con peticiones tras {StackEnvironment.DrainTimeout.TotalSeconds:0} s; se reinicia igual");
+                return;
+            }
+            await Task.Delay(20);
+        }
     }
 
     /// <summary>Espera a que <paramref name="name"/> esté en marcha con otro proceso que el de <paramref name="oldPid"/> y acepte conexiones.</summary>

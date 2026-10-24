@@ -77,7 +77,11 @@ public class StackServiceTests : IDisposable
             (_, _) => Task.FromResult(true),
             TimeSpan.FromSeconds(5),
             Ipv6: true,
-            ReloadWeb: (web, pid) => Task.FromResult(reloadWeb is not null ? reloadWeb(web, pid) : FakeReload(runner ?? _runner, web, pid))));
+            ReloadWeb: (web, pid) => Task.FromResult(reloadWeb is not null ? reloadWeb(web, pid) : FakeReload(runner ?? _runner, web, pid)),
+            Connections: port => _connections(port)));
+
+    /// <summary>Las conexiones establecidas a cada puerto (las peticiones de un php-cgi): ninguna, salvo que el test diga.</summary>
+    private Func<int, IReadOnlyCollection<int>> _connections = _ => [];
 
     /// <summary>
     /// nginx -s reload con el runner falso (que lo apunta), sin esperar a los procesos hijos (los pid
@@ -707,6 +711,29 @@ public class StackServiceTests : IDisposable
         // Y el siguiente up no lo vuelve a reiniciar: ya lee lo de ahora.
         var up = await stack.UpAsync();
         Assert.Empty(up.Applied);
+    }
+
+    [Fact]
+    public async Task Restart_DeUnPool_AntesDeParaCadaUno_EsperaAQueAcabeLoQueTiene()
+    {
+        var stack = Service();
+        Assert.True((await stack.UpAsync()).Ok);
+        // El segundo tiene dos peticiones (las que le pasó nginx al reiniciar el primero) que tardan un poco;
+        // las que le lleguen después (otro puerto de origen) no cuentan.
+        var calls = 0;
+        _connections = port =>
+        {
+            if (port != 9841) return [];
+            if (++calls < 5) return [50001, 50002];
+            if (calls == 5) _events.Add("acabadas:9841");
+            return [50003];
+        };
+        _events.Clear();
+
+        var response = await stack.RestartAsync("php-8.4");
+
+        Assert.True(response.Ok, response.Error);
+        Assert.Equal(["kill:php-8.4-0", "start:php-8.4-0", "acabadas:9841", "kill:php-8.4-1", "start:php-8.4-1"], _events.All());
     }
 
     [Fact]
