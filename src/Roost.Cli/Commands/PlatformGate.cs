@@ -15,7 +15,7 @@ internal static class PlatformGate
         if (OperatingSystem.IsWindows()) return true;
         AnsiConsole.MarkupLineInterpolated($"[yellow]roost {command} solo funciona en Windows por ahora.[/]");
         AnsiConsole.MarkupLine(OperatingSystem.IsLinux()
-            ? "[grey]En Linux ya van roost php, composer, up, down, status, site, park, cert, dns y www (con nginx); la base de datos, Apache, Redis, Mailpit, compartir, git, Node, los shims y la app llegan en la proxima version.[/]"
+            ? "[grey]En Linux va el resto de Roost: el stack (PHP, nginx o el Apache de la distro, MariaDB, MySQL, Redis, Mailpit), los sitios, compartir, las herramientas de la terminal, la app y el panel.[/]"
             : "[grey]En macOS, Roost hoy es roost scan y roost audit; el stack (PHP, servidor web, base de datos y sitios) llegara despues.[/]");
         return false;
     }

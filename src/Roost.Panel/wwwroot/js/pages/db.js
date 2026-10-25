@@ -66,8 +66,7 @@ export async function render(root, ctx) {
     const side = h('div.stack');
     side.appendChild(h('div.card', h('div.card-h', h('span.h2', 'Abrir con'), h('span.hint', 'Adminer y programas de este equipo')), h('div.card-b.stack', btn('Abrir Adminer', { disabled: true, title: 'Próximamente en el panel' }), h('div.hint', 'Adminer, HeidiSQL, TablePlus y DBeaver se abren desde la app de escritorio. Desde el panel, próximamente.'))));
     const avail = h('div');
-    if (d.platform !== 'windows') avail.appendChild(h('div.card-b.muted', 'En Linux, MariaDB y MySQL llegan en la próxima versión.'));
-    else if (!d.available) avail.appendChild(h('div.card-b', d.catalogProblem ? note('warn', 'No se pudo leer el catálogo: ' + d.catalogProblem) : h('div.muted', 'Cargando el catálogo…')));
+    if (!d.available) avail.appendChild(h('div.card-b', d.catalogProblem ? note('warn', 'No se pudo leer el catálogo: ' + d.catalogProblem) : h('div.muted', 'Cargando el catálogo…')));
     else {
       avail.appendChild(h('div.card-b', segmented([{ value: 'mariadb', label: 'MariaDB' }, { value: 'mysql', label: 'MySQL' }], engineTab, v => { engineTab = v; draw(); })));
       if (d.catalogProblem) avail.appendChild(h('div.card-b', note('warn', d.catalogProblem)));

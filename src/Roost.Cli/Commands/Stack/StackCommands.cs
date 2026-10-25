@@ -67,7 +67,7 @@ public sealed class UpCommand : AsyncCommand<EmptyCommandSettings>
             var phpProcesses = !OperatingSystem.IsWindows() && pool == 1 ? "php-fpm" : $"{pool} php-cgi";
             AnsiConsole.MarkupLineInterpolated($"  PHP {status.Php} ({phpProcesses}) · {status.WebLabel}");
             if (status.Db is null)
-                AnsiConsole.MarkupLine("  [grey]Sin base de datos" + PlatformGate.WindowsHint(" (instala una con: roost db install mariadb@11.4)") + "[/]");
+                AnsiConsole.MarkupLine("  [grey]Sin base de datos (instala una con: roost db install mariadb@11.4)[/]");
             else
             {
                 // Si root tiene contraseña, la guarda Roost (roost db password): no se enseña aquí.

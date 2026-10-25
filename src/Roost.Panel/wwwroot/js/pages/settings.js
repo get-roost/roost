@@ -29,7 +29,7 @@ export async function render(root, ctx) {
     const soon = (label, hint) => h('label.check', h('input', { type: 'checkbox', disabled: true }), h('div', label, h('div.hint', hint)));
     left.appendChild(h('div.card', h('div.card-h', h('span.h2', 'General')), h('div.card-b.stack',
       soon('Abrir Roost al iniciar sesión (en la bandeja)', 'Es de la app de escritorio.'),
-      soon('Iniciar todo al iniciar sesión, sin abrir la app', s.os === 'windows' ? 'Desde la terminal: roost autostart on (una tarea programada de tu usuario).' : 'En Linux llega en la próxima versión.'),
+      soon('Iniciar todo al iniciar sesión, sin abrir la app', s.os === 'windows' ? 'Desde la terminal: roost autostart on (una tarea programada de tu usuario).' : 'Desde la terminal: roost autostart on (una unidad de usuario de systemd, o un .desktop si no hay).'),
       soon('php en la terminal según la carpeta del proyecto', s.shims.note),
       h('div', h('div.lbl', 'Tema del panel'), segmented([{ value: 'system', label: 'Como el sistema' }, { value: 'light', label: 'Claro' }, { value: 'dark', label: 'Oscuro' }], currentTheme(), v => applyTheme(v)), h('div.hint', 'Solo en este navegador.')),
       h('div', h('div.lbl', s.os === 'windows' ? 'Procesos php-cgi por rama' : 'Tamaño del pool de php-fpm'), h('div.row', pool, btn('Guardar', { class: 'sm', onclick: () => act('/settings/pool', { pool: Number(pool.value) }, 'Pool guardado') }), h('span.hint', 'Cada rama de PHP en uso tiene su pool. Se aplica reiniciando los pools uno a uno.'))),

@@ -57,7 +57,9 @@ internal static class ComposerSetup
         var shims = new ShimInstaller(paths);
         if (!shims.IsInstalled)
         {
-            AnsiConsole.MarkupLine("[grey]Para usar composer en la terminal con el PHP de cada carpeta: roost shims install (pone php y composer delante en el PATH de tu usuario).[/]");
+            AnsiConsole.MarkupLine(OperatingSystem.IsWindows()
+                ? "[grey]Para usar composer en la terminal con el PHP de cada carpeta: roost shims install (pone php y composer delante en el PATH de tu usuario).[/]"
+                : "[grey]Para usar composer en la terminal con el PHP de cada carpeta: roost shims install (enlaces de php y composer en ~/.local/bin).[/]");
             return;
         }
         try

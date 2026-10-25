@@ -252,7 +252,7 @@ internal static class ShimSupport
         var who = owner is null ? shadow.Path : $"{shadow.Path} ({owner})";
         if (!shadow.ShimsInPath)
         {
-            AnsiConsole.MarkupLineInterpolated($"[grey]{linkDirectory} no esta en el PATH de esta terminal: ahora {shadow.Tool} es {who}. En una sesion nueva (o con roost shims install --profile) ganara el de Roost.[/]");
+            AnsiConsole.MarkupLineInterpolated($"[grey]{linkDirectory} no esta en el PATH de esta terminal: ahora {shadow.Tool} es {who}. En una sesion nueva ganara el de Roost (si tu shell no pone {linkDirectory} en el PATH: roost shims install --profile).[/]");
             return;
         }
         AnsiConsole.MarkupLineInterpolated($"[yellow]Ojo:[/] {who} va antes que {linkDirectory} en el PATH de esta terminal: ese {shadow.Tool} ganara al de Roost.");
