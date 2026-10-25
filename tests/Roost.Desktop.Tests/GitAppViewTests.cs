@@ -697,9 +697,11 @@ public class GitAppViewTests
         git.Runner.On("ls-remote --symref", stdout: GitFixture.LsRemote(), hold: hold);
         var first = sites.CheckGitUpdatesAsync(force: true);
         await UntilAsync(() => sites.GitChecking);
-        var calls = git.Runner.Calls.Count;
+        // Solo los ls-remote: el panel del sitio elegido puede refrescar su estado (status, log) a la vez.
+        int LsRemotes() => git.Runner.Commands.Count(c => c.StartsWith("ls-remote", StringComparison.Ordinal));
+        var calls = LsRemotes();
         Assert.Equal(0, await sites.CheckGitUpdatesAsync(force: true));
-        Assert.Equal(calls, git.Runner.Calls.Count);
+        Assert.Equal(calls, LsRemotes());
         hold.SetResult();
         await first;
         Assert.EndsWith(": 1 sitio, ninguno con novedades.", sites.GitChecksText);
