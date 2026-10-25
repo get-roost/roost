@@ -131,6 +131,7 @@ public static partial class LogsApi
         if (stem == "uninstall") return "Desinstalación";
         if (Regex.Match(stem, @"^php-(\d+\.\d+)-error$") is { Success: true } e) return $"PHP {e.Groups[1].Value}: errores";
         if (Regex.Match(stem, @"^php-(\d+\.\d+)-(\d+)$") is { Success: true } p) return $"PHP {p.Groups[1].Value}: {(OperatingSystem.IsWindows() ? "php-cgi" : "php-fpm")} {p.Groups[2].Value}";
+        if (Regex.Match(stem, @"^php-(\d+\.\d+)-fpm$") is { Success: true } f) return $"PHP {f.Groups[1].Value}: php-fpm (salida)";
         if (Regex.Match(stem, @"^mariadb-(.+)$") is { Success: true } m) return $"MariaDB {m.Groups[1].Value}";
         if (Regex.Match(stem, @"^mysql-(.+)$") is { Success: true } y) return $"MySQL {y.Groups[1].Value}";
         if (Regex.Match(stem, @"^tunel-(.+)$") is { Success: true } t) return $"Túnel de {t.Groups[1].Value}";
