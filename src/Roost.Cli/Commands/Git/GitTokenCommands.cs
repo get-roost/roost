@@ -46,8 +46,9 @@ internal static class GitTokenSupport
 }
 
 /// <summary>
-/// <c>roost git token set</c>: guarda un token HTTPS en el Administrador de credenciales de Windows
-/// (cifrado para tu usuario). Lo pide sin eco o lo lee de stdin: nunca va en la linea de ordenes.
+/// <c>roost git token set</c>: guarda un token HTTPS en el almacen de este sistema (el Administrador
+/// de credenciales de Windows, cifrado para tu usuario; en Linux, el llavero de la sesion o un
+/// fichero 0600 sin cifrar, avisando). Lo pide sin eco o lo lee de stdin: nunca va en la linea de ordenes.
 /// </summary>
 public sealed class GitTokenSetCommand : Command<GitTokenSetCommand.Settings>
 {
@@ -60,7 +61,6 @@ public sealed class GitTokenSetCommand : Command<GitTokenSetCommand.Settings>
 
     public override int Execute(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("git token")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -80,7 +80,9 @@ public sealed class GitTokenSetCommand : Command<GitTokenSetCommand.Settings>
                 return 0;
             }
             if (warning is not null) AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {warning}");
-            AnsiConsole.MarkupLineInterpolated($"[green]Guardado[/] el token de {location.Key} [grey]en el Administrador de credenciales de Windows, cifrado para tu usuario. Nunca va en la direccion del repositorio ni en los registros.[/]");
+            AnsiConsole.MarkupLineInterpolated($"[green]Guardado[/] el token de {location.Key} [grey]{CredentialStores.Describe(credentials.Store)}. Nunca va en la direccion del repositorio ni en los registros.[/]");
+            if (CredentialStores.IsUnencrypted(credentials.Store))
+                AnsiConsole.MarkupLine("[yellow]Ojo:[/] en esta sesion no hay un llavero (Secret Service): el token queda en un fichero que solo puede leer tu usuario, pero sin cifrar. Con un escritorio (GNOME, KDE) y libsecret-tools (secret-tool), Roost lo guarda en el llavero.");
             AnsiConsole.MarkupLineInterpolated($"[grey]Vale para {(location.Path is null ? "todo " + location.Host : location.Key + " y lo que cuelgue de esa ruta")}.{(sites.Count > 0 ? $" Lo usaran: {string.Join(", ", sites.Select(s => s.Host))}." : "")}[/]");
             return 0;
         }
@@ -96,7 +98,6 @@ public sealed class GitTokenRemoveCommand : Command<GitTokenSettings>
 {
     public override int Execute(CommandContext context, GitTokenSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("git token")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -165,7 +166,7 @@ public sealed class GitTokenListCommand : Command<GitTokenListCommand.Settings>
             foreach (var r in rows)
                 table.AddRow(Markup.Escape(r.location), Markup.Escape(r.user ?? ""), r.saved?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "", Markup.Escape(string.Join(", ", r.sites)));
             AnsiConsole.Write(table);
-            AnsiConsole.MarkupLine("[grey]Los tokens estan en el Administrador de credenciales de Windows; Roost nunca los ensena.[/]");
+            AnsiConsole.MarkupLineInterpolated($"[grey]Los tokens estan en {CredentialStores.Label(GitAccessSupport.Factory(paths).Credentials.Store)}; Roost nunca los ensena.[/]");
             return 0;
         }
         catch (RoostException ex)

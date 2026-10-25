@@ -49,17 +49,19 @@ internal static class GitSetup
         }
     }
 
-    public static string SourceLabel(GitLocation git) =>
-        git.Source == GitSource.Configured ? "el de roost.toml ([[git]] exe)" : $"el de Roost ({GitCatalog.Current.Label})";
+    public static string SourceLabel(GitLocation git) => git.Source switch
+    {
+        GitSource.Configured => "el de roost.toml ([[git]] exe)",
+        GitSource.System => "el del sistema, el primero del PATH",
+        _ => $"el de Roost ({GitCatalog.Current.Label})",
+    };
 }
 
-/// <summary><c>roost git install</c>: el MinGit de Roost, verificado, en bin/git.</summary>
+/// <summary><c>roost git install</c>: el MinGit de Roost, verificado, en bin/git. En Linux no instala nada: dice si esta el git del sistema y, si no, como ponerlo.</summary>
 public sealed class GitInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("git install")) return 1;
-
         var paths = RoostPaths.Default();
         try
         {
@@ -67,7 +69,9 @@ public sealed class GitInstallCommand : AsyncCommand<EmptyCommandSettings>
             if (GitTool.Locate(paths, config) is { } already)
             {
                 if (already.Source == GitSource.Configured)
-                    AnsiConsole.MarkupLineInterpolated($"roost.toml fija otro git ([[git]] exe = \"{config.GitExe}\"): Roost usa ese y no instala el suyo. Quita la clave si prefieres el MinGit de Roost.");
+                    AnsiConsole.MarkupLineInterpolated($"roost.toml fija otro git ([[git]] exe = \"{config.GitExe}\"): Roost usa ese y no instala el suyo. Quita la clave si prefieres el {(OperatingSystem.IsWindows() ? "MinGit de Roost" : "git del sistema")}.");
+                else if (already.Source == GitSource.System)
+                    AnsiConsole.MarkupLineInterpolated($"[green]git ya esta:[/] {already.Executable} [grey](el del sistema; en Linux Roost no instala el suyo)[/]");
                 else
                     AnsiConsole.MarkupLineInterpolated($"[green]git ya esta instalado:[/] {already.Executable}");
                 AnsiConsole.MarkupLineInterpolated($"[grey]{await GitSetup.VersionAsync(already, cancellation) ?? "git --version no contesta"}[/]");
@@ -138,22 +142,32 @@ public sealed class GitStatusCommand : AsyncCommand<GitStatusCommand.Settings>
 
             if (git is null)
             {
-                AnsiConsole.MarkupLine("[yellow]git no esta instalado.[/]" + PlatformGate.WindowsHint(" Roost lo instala solo la primera vez que clonas un sitio, o ahora con: roost git install"));
-                AnsiConsole.MarkupLineInterpolated($"[grey]Sera {GitCatalog.Current.Label} (SHA-256 {GitCatalog.Current.Sha256[..12]}...), en {paths.GitBin}. Para usar otro: [[git]] exe en {paths.ConfigFile}[/]");
+                if (OperatingSystem.IsWindows())
+                {
+                    AnsiConsole.MarkupLine("[yellow]git no esta instalado.[/] Roost lo instala solo la primera vez que clonas un sitio, o ahora con: roost git install");
+                    AnsiConsole.MarkupLineInterpolated($"[grey]Sera {GitCatalog.Current.Label} (SHA-256 {GitCatalog.Current.Sha256[..12]}...), en {paths.GitBin}. Para usar otro: [[git]] exe en {paths.ConfigFile}[/]");
+                }
+                else
+                {
+                    AnsiConsole.MarkupLineInterpolated($"[yellow]{GitTool.MissingSystemGitMessage()}[/]");
+                }
                 return 0;
             }
 
+            var windows = OperatingSystem.IsWindows();
             AnsiConsole.MarkupLineInterpolated($"[bold]git:[/] {version ?? "[red]no contesta a --version[/]"}");
             AnsiConsole.MarkupLineInterpolated($"[bold]Ejecutable:[/] {git.Executable} [grey]({GitSetup.SourceLabel(git)})[/]");
             if (git.Source == GitSource.Configured && roostGit is not null)
                 AnsiConsole.MarkupLineInterpolated($"[grey]El MinGit de Roost sigue en {roostGit.Directory}; quita [[git]] exe de roost.toml para volver a el.[/]");
-            AnsiConsole.MarkupLineInterpolated($"[bold]Configuracion aislada:[/] {env.ConfigFile} [grey](GIT_CONFIG_NOSYSTEM, sin prompts, Schannel; tu ~/.gitconfig no se toca ni se lee)[/]");
-            if (ssh is null)
+            AnsiConsole.MarkupLineInterpolated($"[bold]Configuracion aislada:[/] {env.ConfigFile} [grey](GIT_CONFIG_NOSYSTEM, sin prompts, {(windows ? "Schannel" : "la CA del sistema")}; tu ~/.gitconfig no se toca ni se lee)[/]");
+            if (ssh is null && windows)
                 AnsiConsole.MarkupLineInterpolated($"[yellow]SSH:[/] falta el cliente OpenSSH de Windows en {OpenSsh.DefaultDirectory()} [grey](caracteristica opcional de Windows: sin el, entra con un token HTTPS)[/]");
+            else if (ssh is null)
+                AnsiConsole.MarkupLine("[yellow]SSH:[/] falta el cliente OpenSSH (ssh, ssh-keygen y ssh-keyscan en el PATH) [grey](sudo apt install openssh-client; sin el, entra con un token HTTPS)[/]");
             else
-                AnsiConsole.MarkupLineInterpolated($"[bold]SSH:[/] OpenSSH de Windows ({ssh.Directory}) [grey]- servidores conocidos: GitHub, GitLab y Bitbucket de serie{(trusted > 0 ? $" y {trusted} aceptado(s)" : "")} (roost git hosts list)[/]");
+                AnsiConsole.MarkupLineInterpolated($"[bold]SSH:[/] {(windows ? "OpenSSH de Windows" : "OpenSSH del sistema")} ({ssh.Directory}) [grey]- servidores conocidos: GitHub, GitLab y Bitbucket de serie{(trusted > 0 ? $" y {trusted} aceptado(s)" : "")} (roost git hosts list)[/]");
             AnsiConsole.MarkupLineInterpolated($"[bold]Claves SSH de Roost:[/] {(keys.Count == 0 ? "ninguna" : string.Join(", ", keys.Select(k => k.Name)))} [grey](roost git key show <sitio>)[/]");
-            AnsiConsole.MarkupLineInterpolated($"[bold]Tokens HTTPS:[/] {tokens.Count} [grey](en el Administrador de credenciales de Windows: roost git token list)[/]");
+            AnsiConsole.MarkupLineInterpolated($"[bold]Tokens HTTPS:[/] {tokens.Count} [grey](en {CredentialStores.Label(access.Credentials.Store)}: roost git token list)[/]");
             return version is null ? 1 : 0;
         }
         catch (RoostException ex)

@@ -76,8 +76,6 @@ public sealed class NewCommand : AsyncCommand<NewCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("new")) return 1;
-
         var paths = RoostPaths.Default();
         var template = ProjectTemplates.Find(settings.Template)!;
         var json = settings.Json;

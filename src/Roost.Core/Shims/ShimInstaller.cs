@@ -4,6 +4,12 @@ using Roost.Core.Platform;
 
 namespace Roost.Core.Shims;
 
+/// <summary>Lo que hizo <see cref="ShimInstaller.Enable"/>.</summary>
+/// <param name="Tools">Los shims que llegan a la terminal (en Linux, los enlazados en <c>~/.local/bin</c>).</param>
+/// <param name="Skipped">En Linux y macOS: los que no se enlazaron porque en <c>~/.local/bin</c> ya había algo del usuario con ese nombre.</param>
+/// <param name="PathChanged">Windows: si el PATH del usuario cambió (false si ya lo tenía). Linux: si se puso algún enlace.</param>
+public sealed record ShimActivation(IReadOnlyList<string> Tools, IReadOnlyList<string> Skipped, bool PathChanged);
+
 /// <summary>
 /// Pone y quita los shims en <see cref="RoostPaths.Shims"/>. El shim es <c>roost-shim.exe</c>
 /// (va junto a <c>roost.exe</c>) copiado como <c>php.exe</c>, <c>composer.exe</c>, <c>node.exe</c>,
@@ -11,10 +17,19 @@ namespace Roost.Core.Shims;
 /// con NativeAOT es un solo fichero; en una compilación normal lleva al lado su dll y sus
 /// dependencias, y se copian también. Se cambia la carpeta entera de una vez: si un <c>php.exe</c>
 /// está en uso, falla sin tocar nada.
+/// <para>
+/// En Linux y macOS, <c>bin/shims</c> lleva una sola copia de <c>roost-shim</c> y cada herramienta es
+/// un enlace simbólico a ella (<c>php -&gt; roost-shim</c>): el shim sabe qué es por su <c>argv[0]</c>
+/// (<see cref="TerminalPhp.ToolName"/>) y dónde está la raíz por su ubicación real. Lo que llega a la
+/// terminal son otros enlaces en <c>~/.local/bin</c> (<see cref="UnixPath"/>), que hacen de PATH del usuario.
+/// </para>
 /// </summary>
 public sealed class ShimInstaller(RoostPaths paths)
 {
     public const string ShimName = "roost-shim";
+
+    /// <summary>Los enlaces de <c>~/.local/bin</c> (Linux y macOS). En Windows no se usa.</summary>
+    public UnixPath Links { get; init; } = UnixPath.Current;
 
     /// <summary>
     /// Los nombres con los que se instala el shim (decide qué ejecutar por su propio nombre):
@@ -44,13 +59,59 @@ public sealed class ShimInstaller(RoostPaths paths)
 
     public string Directory => paths.Shims;
 
+    /// <summary>
+    /// La carpeta que tiene que estar en el PATH para que la terminal encuentre los shims: en Windows,
+    /// <see cref="Directory"/> (va en el PATH del usuario); en Linux y macOS, <c>~/.local/bin</c>, con los
+    /// enlaces a <see cref="Directory"/>.
+    /// </summary>
+    public string PathDirectory => OperatingSystem.IsWindows() ? Directory : Links.LinkDirectory;
+
     public bool IsInstalled => File.Exists(Path.Combine(Directory, "php.exe")) || File.Exists(Path.Combine(Directory, "php"));
+
+    /// <summary>
+    /// true si, además de puestos, llegan a la terminal: en Windows, su carpeta en el PATH del usuario; en
+    /// Linux y macOS, el enlace <c>~/.local/bin/php</c> apunta a ellos. Lo que miran la casilla de Ajustes
+    /// y <c>roost shims status</c>.
+    /// </summary>
+    public bool IsEnabled => IsInstalled && (OperatingSystem.IsWindows() ? UserPath.Contains(UserPath.Read(), Directory) : Links.IsRoostLink("php", Directory));
+
+    /// <summary>
+    /// Pone los shims y los hace llegar a la terminal: <see cref="Install"/> y, en Windows, la carpeta
+    /// la primera en el PATH del usuario; en Linux y macOS, los enlaces de <c>~/.local/bin</c> (lo que
+    /// ya hubiera ahí del usuario se respeta y vuelve en <c>Skipped</c>). Lo que usa la casilla de Ajustes.
+    /// </summary>
+    public ShimActivation Enable(string sourceDirectory)
+    {
+        Install(sourceDirectory);
+        if (OperatingSystem.IsWindows())
+            return new ShimActivation(Wanted, [], UserPath.AddFirst(Directory));
+        var (linked, skipped) = Links.Link(Wanted, Directory);
+        return new ShimActivation(linked, skipped, linked.Count > 0);
+    }
+
+    /// <summary>Lo contrario de <see cref="Enable"/>: quita los enlaces (o la carpeta del PATH), el bloque del perfil y los shims.</summary>
+    public void Disable()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            UserPath.Remove(Directory);
+        }
+        else
+        {
+            Links.Unlink(Directory, Tools);
+            Links.RemoveProfile();
+        }
+        Remove();
+    }
 
     /// <summary>El fichero de un shim (<c>composer.exe</c> en Windows).</summary>
     public string ToolPath(string tool) => Path.Combine(Directory, OperatingSystem.IsWindows() ? tool + ".exe" : tool);
 
     /// <summary>true si el shim de <paramref name="tool"/> está puesto.</summary>
     public bool Has(string tool) => File.Exists(ToolPath(tool));
+
+    /// <summary>En Linux y macOS, la copia única de <c>roost-shim</c> a la que apuntan los enlaces de <see cref="Directory"/>.</summary>
+    public string UnixShim => Path.Combine(Directory, ShimName);
 
     /// <summary>
     /// Con los shims ya puestos, añade los que falten de <see cref="Wanted"/> (los de una versión de
@@ -68,12 +129,22 @@ public sealed class ShimInstaller(RoostPaths paths)
             throw new RoostException($"No se encuentra {exe}, que es el shim. Vuelve a instalar Roost.");
         try
         {
-            foreach (var tool in missing) File.Copy(exe, ToolPath(tool));
-            // En una compilación normal, el shim necesita su dll al lado (con NativeAOT no hay ninguna).
-            foreach (var file in Companions(sourceDirectory))
+            if (OperatingSystem.IsWindows())
             {
-                var target = Path.Combine(Directory, file);
-                if (!File.Exists(target)) File.Copy(Path.Combine(sourceDirectory, file), target);
+                foreach (var tool in missing) File.Copy(exe, ToolPath(tool));
+                // En una compilación normal, el shim necesita su dll al lado (con NativeAOT no hay ninguna).
+                foreach (var file in Companions(sourceDirectory))
+                {
+                    var target = Path.Combine(Directory, file);
+                    if (!File.Exists(target)) File.Copy(Path.Combine(sourceDirectory, file), target);
+                }
+            }
+            else
+            {
+                if (!File.Exists(UnixShim)) File.Copy(exe, UnixShim);
+                foreach (var tool in missing) File.CreateSymbolicLink(ToolPath(tool), ShimName);
+                // Si los enlaces de ~/.local/bin están puestos, los nuevos también llegan a la terminal.
+                if (Links.IsRoostLink("php", Directory)) Links.Link(missing, Directory);
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -97,6 +168,7 @@ public sealed class ShimInstaller(RoostPaths paths)
         {
             try
             {
+                if (!OperatingSystem.IsWindows()) Links.Unlink(Directory, [tool]);
                 File.Delete(ToolPath(tool));
                 removed.Add(tool);
             }
@@ -123,10 +195,24 @@ public sealed class ShimInstaller(RoostPaths paths)
         System.IO.Directory.CreateDirectory(temp);
         try
         {
-            foreach (var tool in Wanted)
-                File.Copy(exe, Path.Combine(temp, OperatingSystem.IsWindows() ? tool + ".exe" : tool));
-            foreach (var file in Companions(sourceDirectory))
-                File.Copy(Path.Combine(sourceDirectory, file), Path.Combine(temp, file));
+            if (OperatingSystem.IsWindows())
+            {
+                foreach (var tool in Wanted)
+                    File.Copy(exe, Path.Combine(temp, tool + ".exe"));
+                foreach (var file in Companions(sourceDirectory))
+                    File.Copy(Path.Combine(sourceDirectory, file), Path.Combine(temp, file));
+            }
+            else
+            {
+                // Una copia y un enlace por herramienta (relativo: la carpeta se puede mover con la raíz).
+                File.Copy(exe, Path.Combine(temp, ShimName));
+                InstallFiles.MarkExecutable(Path.Combine(temp, ShimName));
+                // En una compilación normal (sin NativeAOT), el apphost busca su dll junto a su ruta real.
+                foreach (var file in Companions(sourceDirectory))
+                    File.Copy(Path.Combine(sourceDirectory, file), Path.Combine(temp, file));
+                foreach (var tool in Wanted)
+                    File.CreateSymbolicLink(Path.Combine(temp, tool), ShimName);
+            }
 
             if (System.IO.Directory.Exists(Directory))
                 InstallFiles.RemoveAtomic(Directory, parent, "los shims");
@@ -159,7 +245,8 @@ public sealed class ShimInstaller(RoostPaths paths)
     {
         try
         {
-            var installed = Path.Combine(Directory, OperatingSystem.IsWindows() ? "php.exe" : "php");
+            // En Linux, php es un enlace: se compara la copia a la que apunta.
+            var installed = OperatingSystem.IsWindows() ? Path.Combine(Directory, "php.exe") : UnixShim;
             var source = Path.Combine(sourceDirectory, OperatingSystem.IsWindows() ? ShimName + ".exe" : ShimName);
             if (!File.Exists(installed) || !File.Exists(source)) return false;
             if (new FileInfo(installed).Length != new FileInfo(source).Length) return true;

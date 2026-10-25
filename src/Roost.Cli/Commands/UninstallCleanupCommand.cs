@@ -19,8 +19,10 @@ namespace Roost.Cli.Commands;
 /// de borrar los ficheros; en Linux lo lanza el usuario antes de quitar el paquete (el postrm del
 /// .deb no puede tocar las homes). Quita lo que Roost puso FUERA de su carpeta: la regla de DNS (la
 /// NRPT, o el drop-in de resolved; sin ella, los .test de otras herramientas dejarian de resolver),
-/// el bloque del hosts, los shims del PATH del usuario, las reglas «Roost LAN» del cortafuegos
-/// (roost share --lan), el arranque con Windows (la app y la tarea que arranca el stack) y, salvo
+/// el bloque del hosts, los shims del PATH del usuario (en Linux, los enlaces de ~/.local/bin y el
+/// bloque del perfil de la shell), las reglas «Roost LAN» del cortafuegos (roost share --lan), el
+/// arranque con Windows (la app y la tarea que arranca el stack; en Linux, la unidad de systemd
+/// --user o el .desktop del stack) y, salvo
 /// <c>--keep-ca</c>, la CA de los certificados de confianza (en Linux, de los NSS de Chrome y Firefox
 /// y de la del sistema si se puso) y lo de Firefox. Nunca toca los datos, los proyectos ni la
 /// configuracion (salvo volver a <c>[sites] resolver = "hosts"</c> si quita la regla). Cada paso va
@@ -61,8 +63,16 @@ public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Se
 
         Step(log, "shims", () =>
         {
-            if (!windows) return "en Linux los shims se quitan con roost shims remove";
             var shims = new ShimInstaller(paths);
+            if (!windows)
+            {
+                // Los enlaces de ~/.local/bin que apuntan a los shims de Roost y el bloque del perfil de la shell.
+                var unlinked = shims.Links.Unlink(shims.Directory, ShimInstaller.Tools);
+                var profiles = shims.Links.RemoveProfile();
+                shims.Remove();
+                return (unlinked.Count == 0 ? "sin enlaces en " + shims.Links.LinkDirectory : $"enlaces quitados de {shims.Links.LinkDirectory}: {string.Join(", ", unlinked)}")
+                       + (profiles.Count == 0 ? "; sin bloque en el perfil" : $"; bloque quitado de {string.Join(", ", profiles)}");
+            }
             var inPath = UserPath.Remove(shims.Directory);
             shims.Remove();
             return inPath ? $"{shims.Directory} quitado del PATH del usuario" : "no estaban en el PATH";
@@ -88,10 +98,19 @@ public sealed class UninstallCleanupCommand : Command<UninstallCleanupCommand.Se
             return $"quitada(s) {string.Join(", ", ports.Select(LanFirewall.RuleName))}";
         });
 
-        // E4: la tarea que arranca el stack al iniciar sesion lanzaria un roost.exe que ya no esta.
+        // E4: la tarea (o la unidad de systemd --user, o el .desktop) que arranca el stack al iniciar
+        // sesion lanzaria un roost que ya no esta.
         Step(log, "tarea al iniciar sesion", () =>
         {
-            if (!windows) return "no aplica";
+            if (!windows)
+            {
+                if (!OperatingSystem.IsLinux()) return "no aplica";
+                var unit = new UserUnit(Roost.Core.Scanning.CommandRunner.Default);
+                var status = unit.Status();
+                if (!status.Exists) return "no estaba";
+                unit.DisableAsync().GetAwaiter().GetResult();
+                return status.Kind == AutostartKind.SystemdUser ? $"quitada la unidad {UserUnit.UnitName} ({status.File})" : $"quitado el .desktop ({status.File})";
+            }
             var task = new LogonTask(Roost.Core.Scanning.CommandRunner.Default);
             if (!task.StatusAsync().GetAwaiter().GetResult().Exists) return "no estaba";
             task.DisableAsync().GetAwaiter().GetResult();

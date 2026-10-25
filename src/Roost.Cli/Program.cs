@@ -21,6 +21,13 @@ if (args is ["git-credential", var credentialAction]) return GitCredentialComman
 // Las extensiones de bin/extensions (ROOST.md §12.4): una que no carga no impide usar Roost.
 var extensions = CliExtensions.Load();
 
+// Los ejemplos de la ayuda, con rutas de este sistema (en Linux no se ensenan rutas de Windows).
+var windows = OperatingSystem.IsWindows();
+var exWww = windows ? @"C:\roost\www" : "/var/www/roost";
+var exProjects = windows ? @"C:\proyectos" : "~/proyectos";
+var exKey = windows ? @"C:\claves\deploy_tienda" : "~/.ssh/deploy_tienda";
+var exOtherDrive = windows ? @"D:\web\tienda" : "/srv/web/tienda";
+
 var app = new CommandApp();
 app.Configure(config =>
 {
@@ -80,7 +87,7 @@ app.Configure(config =>
         php.AddCommand<PhpWhichCommand>("which")
             .WithDescription("Que PHP usa la terminal en esta carpeta, y por que (.php-version, el sitio, el global).")
             .WithExample("php", "which")
-            .WithExample("php", "which", "--dir", @"C:\roost\www\legacy");
+            .WithExample("php", "which", "--dir", Path.Combine(exWww, "legacy"));
 
         php.AddCommand<PhpIniCommand>("ini")
             .WithDescription("Donde estan el php.ini generado y las conf.d de una instalacion, y sus ajustes rapidos (memory_limit, upload_max_filesize, post_max_size, max_execution_time), que --set cambia.")
@@ -109,7 +116,9 @@ app.Configure(config =>
 
         php.AddBranch("ext", ext =>
         {
-            ext.SetDescription("Las extensiones de una instalacion (las DLL de su ext\\): las mismas que activa la app.");
+            ext.SetDescription(windows
+                ? "Las extensiones de una instalacion (las DLL de su ext\\): las mismas que activa la app."
+                : "Las extensiones de una instalacion (las integradas en el PHP de roost-builds y las .so de su ext/): las mismas que activa la app.");
 
             ext.AddCommand<PhpExtListCommand>("list")
                 .WithDescription("Lista las extensiones de una instalacion, si se cargan y si van de serie.")
@@ -129,18 +138,23 @@ app.Configure(config =>
 
     config.AddBranch("shims", shims =>
     {
-        shims.SetDescription("php y composer en la terminal con el PHP de la carpeta del proyecto, y node, npm y npx con su Node (de momento, solo en Windows).");
+        shims.SetDescription("php y composer en la terminal con el PHP de la carpeta del proyecto, y node, npm y npx con su Node.");
 
         shims.AddCommand<ShimsInstallCommand>("install")
-            .WithDescription("Pone los shims de php y composer (y node, npm y npx si hay un Node de Roost) y su carpeta delante en el PATH de tu usuario (sin administrador).")
-            .WithExample("shims", "install");
+            .WithDescription(windows
+                ? "Pone los shims de php y composer (y node, npm y npx si hay un Node de Roost) y su carpeta delante en el PATH de tu usuario (sin administrador)."
+                : "Pone los shims de php y composer (y node, npm y npx si hay un Node de Roost) como enlaces en ~/.local/bin; con --profile, ademas el bloque que pone esa carpeta la primera en el PATH en el perfil de tu shell.")
+            .WithExample("shims", "install")
+            .WithExample("shims", "install", "--profile");
 
         shims.AddCommand<ShimsRemoveCommand>("remove")
-            .WithDescription("Quita los shims y su carpeta del PATH de tu usuario.")
+            .WithDescription(windows ? "Quita los shims y su carpeta del PATH de tu usuario." : "Quita los shims, sus enlaces de ~/.local/bin y el bloque del perfil de tu shell.")
             .WithExample("shims", "remove");
 
         shims.AddCommand<ShimsStatusCommand>("status")
-            .WithDescription("Si estan puestos y en el PATH, y si otro php, composer o node (el del PATH del sistema, nvm-windows, Volta, fnm) les gana.")
+            .WithDescription(windows
+                ? "Si estan puestos y en el PATH, y si otro php, composer o node (el del PATH del sistema, nvm-windows, Volta, fnm) les gana."
+                : "Si estan puestos y enlazados en ~/.local/bin, si esa carpeta esta en el PATH, y si otro php, composer o node (la distro, nvm, fnm, Volta) les gana.")
             .WithExample("shims", "status");
     });
 
@@ -219,7 +233,7 @@ app.Configure(config =>
         site.AddCommand<SiteAddCommand>("add")
             .WithDescription("Registra un sitio (o lo actualiza): vhost del servidor web, entrada en el hosts y certificado.")
             .WithExample("site", "add", "tienda")
-            .WithExample("site", "add", "legacy", "--path", "C:\\proyectos\\legacy", "--php", "7.4");
+            .WithExample("site", "add", "legacy", "--path", Path.Combine(exProjects, "legacy"), "--php", windows ? "7.4" : "8.1");
 
         site.AddCommand<SiteRemoveCommand>("remove")
             .WithDescription("Quita un sitio. La carpeta del proyecto no se toca. Ofrece quitar tambien su clave SSH de Roost y su token (--keep-access para dejarlos).")
@@ -242,7 +256,7 @@ app.Configure(config =>
             .WithExample("site", "clone", "https://github.com/acme/tienda.git", "--name", "tienda", "--branch", "develop", "--php", "8.3")
             .WithExample("site", "clone", "https://github.com/acme/privado", "--token")
             .WithExample("site", "clone", "git@github.com:acme/privado.git", "--ssh")
-            .WithExample("site", "clone", "git@git.acme.es:web/tienda.git", "--ssh-key", "C:\\claves\\deploy_tienda")
+            .WithExample("site", "clone", "git@git.acme.es:web/tienda.git", "--ssh-key", exKey)
             .WithExample("site", "clone", "git@github.com:acme/privado.git", "--own-ssh");
 
         site.AddCommand<SitePullCommand>("pull")
@@ -282,8 +296,8 @@ app.Configure(config =>
 
         site.AddCommand<SiteMoveCommand>("move")
             .WithDescription("El sitio pasa a servirse desde otra carpeta: solo apunta a una que ya existe o, con --move-files, mueve alli la del proyecto.")
-            .WithExample("site", "move", "tienda", "C:\\proyectos\\tienda")
-            .WithExample("site", "move", "tienda", "D:\\web\\tienda", "--move-files");
+            .WithExample("site", "move", "tienda", Path.Combine(exProjects, "tienda"))
+            .WithExample("site", "move", "tienda", exOtherDrive, "--move-files");
 
         site.AddCommand<SiteAliasCommand>("alias")
             .WithDescription("Los alias de un sitio (otros nombres .test) y sus subdominios con nombre: en el vhost, el certificado y el hosts. Sin accion, los lista.")
@@ -300,10 +314,10 @@ app.Configure(config =>
     // Sitios avanzados (oleada 6): carpetas aparcadas, como el valet park de Valet.
     config.AddCommand<ParkCommand>("park")
         .WithDescription("Aparca una carpeta: cada subcarpeta es un sitio <subcarpeta>.test (con su .roost.toml, si tiene). Con la app o el stack en marcha, las nuevas entran solas y las borradas se quitan.")
-        .WithExample("park", "C:\\proyectos");
+        .WithExample("park", exProjects);
     config.AddCommand<UnparkCommand>("unpark")
         .WithDescription("Deja de aparcar una carpeta y quita sus sitios. Las carpetas no se tocan.")
-        .WithExample("unpark", "C:\\proyectos");
+        .WithExample("unpark", exProjects);
     config.AddCommand<ParkedCommand>("parked")
         .WithDescription("Las carpetas aparcadas y sus sitios.")
         .WithExample("parked");
@@ -314,7 +328,7 @@ app.Configure(config =>
         .WithExample("new", "laravel", "tienda")
         .WithExample("new", "wordpress", "blog", "--php", "8.3")
         .WithExample("new", "symfony", "api", "--webapp")
-        .WithExample("new", "laravel", "tienda", "--path", "C:\\proyectos\\tienda", "--yes", "--json");
+        .WithExample("new", "laravel", "tienda", "--path", Path.Combine(exProjects, "tienda"), "--yes", "--json");
 
     config.AddBranch("dns", dns =>
     {
@@ -344,10 +358,14 @@ app.Configure(config =>
 
     config.AddBranch("git", git =>
     {
-        git.SetDescription("El git con el que Roost clona y actualiza los sitios: un MinGit verificado en bin/git, o el que diga [[git]] exe en roost.toml.");
+        git.SetDescription(windows
+            ? "El git con el que Roost clona y actualiza los sitios: un MinGit verificado en bin/git, o el que diga [[git]] exe en roost.toml."
+            : "El git con el que Roost clona y actualiza los sitios: el de tu sistema (el primero del PATH), o el que diga [[git]] exe en roost.toml.");
 
         git.AddCommand<GitInstallCommand>("install")
-            .WithDescription("Descarga MinGit, verifica su SHA-256 y lo instala en bin/git (roost site clone lo hace solo la primera vez).")
+            .WithDescription(windows
+                ? "Descarga MinGit, verifica su SHA-256 y lo instala en bin/git (roost site clone lo hace solo la primera vez)."
+                : "En Linux no instala nada: dice si esta el git del sistema y, si falta, como ponerlo (sudo apt install git).")
             .WithExample("git", "install");
 
         git.AddCommand<GitStatusCommand>("status")
@@ -393,7 +411,9 @@ app.Configure(config =>
 
         git.AddBranch("token", token =>
         {
-            token.SetDescription("Los tokens HTTPS de los repositorios privados, en el Administrador de credenciales de Windows (nunca en la direccion, los argumentos ni los registros).");
+            token.SetDescription(windows
+                ? "Los tokens HTTPS de los repositorios privados, en el Administrador de credenciales de Windows (nunca en la direccion, los argumentos ni los registros)."
+                : "Los tokens HTTPS de los repositorios privados, en el llavero de tu sesion (Secret Service) o, sin el, en un fichero 0600 de state/git (nunca en la direccion, los argumentos ni los registros).");
 
             token.AddCommand<GitTokenSetCommand>("set")
                 .WithDescription("Guarda el token de un repositorio (lo pide sin eco o lo lee de stdin).")
@@ -455,7 +475,7 @@ app.Configure(config =>
         node.AddCommand<NodeWhichCommand>("which")
             .WithDescription("Que Node usa la terminal en esta carpeta, y por que (.nvmrc, .node-version, engines.node, el global).")
             .WithExample("node", "which")
-            .WithExample("node", "which", "--dir", @"C:\roost\www\tienda");
+            .WithExample("node", "which", "--dir", Path.Combine(exWww, "tienda"));
 
         node.AddCommand<NodeStatusCommand>("status")
             .WithDescription("Que Node toca aqui y por que, el global, los shims node, npm y npx y si otro node les gana (nvm-windows, Volta, fnm, el instalador de Node).")
@@ -633,18 +653,22 @@ app.Configure(config =>
     // Ajustes y sistema (E4): arrancar el stack al iniciar sesion, sin la app.
     config.AddBranch("autostart", autostart =>
     {
-        autostart.SetDescription("Arrancar el stack al iniciar sesion sin abrir la app: una tarea programada de tu usuario, sin permisos de administrador (solo en Windows).");
+        autostart.SetDescription(windows
+            ? "Arrancar el stack al iniciar sesion sin abrir la app: una tarea programada de tu usuario, sin permisos de administrador."
+            : "Arrancar el stack al iniciar sesion sin abrir la app: una unidad de systemd --user o, sin ella, un .desktop de autostart de tu usuario.");
 
         autostart.AddCommand<AutostartOnCommand>("on")
-            .WithDescription("Crea la tarea: al iniciar sesion lanza roost up (el daemon y el stack), sin ventanas.")
+            .WithDescription(windows
+                ? "Crea la tarea: al iniciar sesion lanza roost up (el daemon y el stack), sin ventanas."
+                : "Pone la unidad (o el .desktop): al iniciar sesion lanza roost up (el daemon y el stack); al cerrarla, systemd lo para con roost down.")
             .WithExample("autostart", "on");
 
         autostart.AddCommand<AutostartOffCommand>("off")
-            .WithDescription("Quita la tarea.")
+            .WithDescription(windows ? "Quita la tarea." : "Quita la unidad o el .desktop (el stack en marcha no se toca).")
             .WithExample("autostart", "off");
 
         autostart.AddCommand<AutostartStatusCommand>("status")
-            .WithDescription("Si la tarea esta puesta y que lanza (solo lee).")
+            .WithDescription(windows ? "Si la tarea esta puesta y que lanza (solo lee)." : "Si esta puesto, como (unidad o .desktop), que lanza y si systemd --user contesta (solo lee).")
             .WithExample("autostart", "status")
             .WithExample("autostart", "status", "--json");
     });

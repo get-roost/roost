@@ -147,7 +147,7 @@ public class GitClientTests : IDisposable
         Assert.Equal(GitFailureKind.Diverged, ex.Failure.Kind);
     }
 
-    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
+    [Fact]
     public async Task Checkout_RamaInexistente_DiceLasQueHay()
     {
         _runner.On("status --porcelain=v2", stdout: Clean)
@@ -155,7 +155,9 @@ public class GitClientTests : IDisposable
             .On("checkout nope", exitCode: 1, stderr: "error: pathspec 'nope' did not match any file(s) known to git\n")
             .On("branch -r", stdout: "origin\norigin/feature/checkout\norigin/main\n");
 
-        var ex = await Assert.ThrowsAsync<GitException>(() => Client.CheckoutAsync(@"C:\roost\www\tienda", "nope", null, CancellationToken.None));
+        // El nombre del sitio sale de la carpeta: una ruta de este sistema.
+        var folder = OperatingSystem.IsWindows() ? @"C:\roost\www\tienda" : "/var/www/roost/tienda";
+        var ex = await Assert.ThrowsAsync<GitException>(() => Client.CheckoutAsync(folder, "nope", null, CancellationToken.None));
 
         Assert.Equal(GitFailureKind.BranchNotFound, ex.Failure.Kind);
         Assert.Equal("En tienda no hay ninguna rama 'nope'. Las que hay: feature/checkout, main.", ex.Message);

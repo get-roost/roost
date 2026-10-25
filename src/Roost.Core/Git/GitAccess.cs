@@ -79,11 +79,12 @@ public sealed class GitAccessFactory
     }
 
     /// <summary>
-    /// La de la CLI y la app: el Administrador de credenciales de Windows (en otro sistema, ninguno),
-    /// el <c>roost.exe</c> que va junto a quien llama como helper y el OpenSSH del sistema.
+    /// La de la CLI y la app: el almacén de tokens de este sistema (<see cref="CredentialStores.Default"/>:
+    /// el Administrador de credenciales de Windows; en Linux, el Secret Service de la sesión o un fichero
+    /// 0600), el <c>roost.exe</c> que va junto a quien llama como helper y el OpenSSH del sistema.
     /// </summary>
     public static GitAccessFactory CreateDefault(RoostPaths paths, ICommandRunner runner) =>
-        new(paths, OperatingSystem.IsWindows() ? new WindowsCredentialStore() : NoCredentialStore.Instance, runner, DefaultHelperExe());
+        new(paths, CredentialStores.Default(paths, runner), runner, DefaultHelperExe());
 
     /// <summary><c>roost.exe</c> junto al ensamblado que corre (la CLI, o la app, que lo lleva a su lado).</summary>
     public static string DefaultHelperExe() =>
