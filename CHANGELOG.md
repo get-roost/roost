@@ -2,7 +2,7 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
-## 0.1.10 — en preparación
+## 0.1.10 — 25-oct-2026
 
 - **Roost en Linux, primera parte:** en Linux ya funcionan `roost php`, `roost composer`, `roost up`, `down`, `status`, `restart`, `stop` y `start` con nginx, `roost site`, `roost park`, `roost cert`, `roost dns` y el nuevo `roost www init`, probados en Ubuntu 24.04. La base de datos, Apache, Redis, Mailpit, compartir, git, Node, los shims de la terminal y la app llegan en la próxima versión. El `tar.gz` de Linux trae ahora, además de la CLI, `roost-helper` y su política de polkit (cómo instalarlos, en el README).
 - **PHP en Linux:** `roost php install 8.1` a `8.5` instala los PHP de [get-roost/roost-builds](https://github.com/get-roost/roost-builds), compilados con static-php-cli contra glibc 2.17 (valen en cualquier distro x86_64 de 2014 en adelante) y verificados con el SHA-256 fijado en Roost. Traen `php`, `php-fpm`, el `xdebug.so` de su rama y las extensiones que necesitan Laravel, WordPress y Symfony integradas en el binario: `roost php ext list` las enseña como «integrada en el binario» y no se pueden quitar. `roost php xdebug on` funciona sin bajar nada, y el php.ini lleva `openssl.cafile` para que `file_get_contents("https://…")` se fíe de la CA de Roost. PHP 7.4 y 8.0 solo están en Windows, y se dice.
