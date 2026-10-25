@@ -38,6 +38,18 @@ public partial class MainWindow : Window
             ToolTip.SetTip(MaximizeButton, maximized ? "Restaurar" : "Maximizar");
         };
 
+        // La app en Linux (L2): en X11 el rol TitleBar arrastra (y el gestor de ventanas no pinta su marco:
+        // _MOTIF_WM_HINTS sin decoraciones), pero el doble clic no maximiza como en Windows: se hace aquí.
+        if (!OperatingSystem.IsWindows())
+        {
+            DoubleTapped += (_, e) =>
+            {
+                var p = e.GetPosition(this);
+                if (p.Y > 40 || p.X > Bounds.Width - 140) return;   // fuera de la barra, o sobre los tres botones
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            };
+        }
+
         // Ajustes y sistema (J2): el diálogo de cambiar la raíz, aquí para no tocar las DataTemplates del XAML.
         DataTemplates.Add(new Avalonia.Controls.Templates.FuncDataTemplate<ChangeRootDialogViewModel>((_, _) => new ChangeRootDialogView(), supportsRecycling: true));
 

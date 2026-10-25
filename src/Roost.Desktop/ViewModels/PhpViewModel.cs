@@ -73,7 +73,7 @@ public sealed partial class PhpViewModel : PageViewModel
 
     public PhpViewModel(MainViewModel main) : base(main)
     {
-        Subtitle = "Builds oficiales de windows.php.net, cada versión en su carpeta. Actualizar nunca pisa la anterior.";
+        Subtitle = OsTexts.PhpSubtitle;
         main.Audit.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(AuditState.Findings)) BuildExternal();
@@ -91,7 +91,7 @@ public sealed partial class PhpViewModel : PageViewModel
     [ObservableProperty] public partial string PoolText { get; private set; } = "";
     [ObservableProperty] public partial IReadOnlyList<PhpCatalogRow> Catalog { get; private set; } = [];
     [ObservableProperty] public partial IReadOnlyList<ExternalPhpRow> External { get; private set; } = [];
-    [ObservableProperty] public partial string CatalogHint { get; private set; } = "windows.php.net";
+    [ObservableProperty] public partial string CatalogHint { get; private set; } = OsTexts.PhpCatalogSource;
     [ObservableProperty] public partial string? CatalogError { get; private set; }
     [ObservableProperty] public partial bool LoadingCatalog { get; private set; }
     [ObservableProperty] public partial string? Installing { get; private set; }
@@ -149,7 +149,7 @@ public sealed partial class PhpViewModel : PageViewModel
 
     public string VariantHint => ThreadSafe
         ? "TS (thread-safe): solo para un mod_php tuyo. Roost sirve siempre con la NTS, con nginx y con Apache."
-        : "NTS: la que usa Roost (php-cgi, con nginx o Apache). Recomendada.";
+        : OsTexts.PhpNtsHint;
 
     public bool HasInstalled => Installed.Count > 0;
     public bool HasSelection => Selected is not null;
@@ -194,11 +194,11 @@ public sealed partial class PhpViewModel : PageViewModel
         try
         {
             _catalog = await PhpCatalog.FetchAsync(Main.App.Http);
-            CatalogHint = $"windows.php.net · hoy {DateTime.Now:HH:mm}";
+            CatalogHint = $"{OsTexts.PhpCatalogSource} · hoy {DateTime.Now:HH:mm}";
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or RoostException or System.Text.Json.JsonException)
         {
-            CatalogError = $"No se pudo leer el catálogo de windows.php.net: {ex.Message}";
+            CatalogError = $"No se pudo leer el catálogo de {OsTexts.PhpCatalogSource}: {ex.Message}";
         }
         finally
         {
@@ -650,7 +650,7 @@ public sealed partial class PhpViewModel : PageViewModel
         var build = _catalog?.FirstOrDefault(b => b.Branch == branch && !b.ThreadSafe && b.Architecture == "x64");
         if (build is null)
         {
-            await Main.InfoAsync($"La rama {branch} no está en el catálogo", "windows.php.net ya no la publica: elige otra versión de la lista.", Tone.Warn);
+            await Main.InfoAsync($"La rama {branch} no está en el catálogo", $"{OsTexts.PhpCatalogSource} ya no la publica: elige otra versión de la lista.", Tone.Warn);
             return;
         }
         if (Installed.Any(c => c.Php.Name == build.InstallName))

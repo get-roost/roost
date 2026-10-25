@@ -109,7 +109,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     partial void OnStartWithWindowsChanged(bool value)
     {
         if (_loading) return;
-        _ = ToggleAsync("No se pudo cambiar el inicio con Windows", () => Autostart.Set(value),
+        _ = ToggleAsync($"No se pudo cambiar el inicio con {OsTexts.System}", () => Autostart.Set(value),
             () => StartWithWindows = Autostart.IsEnabled());
     }
 

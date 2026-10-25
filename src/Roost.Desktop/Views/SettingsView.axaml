@@ -235,7 +235,7 @@
                   </StackPanel>
                   <TextBlock Grid.Row="1" Classes="muted" Text="Clave" />
                   <TextBlock Grid.Row="1" Grid.Column="1" Classes="small" TextWrapping="Wrap">
-                    <Run Text="certs\ca\roost-ca.key" FontFamily="{StaticResource MonoFont}" />
+                    <Run Text="{x:Static svc:OsTexts.CaKeyRelative}" FontFamily="{StaticResource MonoFont}" />
                     <Run Text=" · solo la lee tu usuario" Foreground="{DynamicResource FaintBrush}" />
                   </TextBlock>
                   <TextBlock Grid.Row="2" Classes="muted" Text="Sitios" />
@@ -266,7 +266,7 @@
                   <StackPanel>
                     <TextBlock Classes="strong" Text="Fichero hosts del sistema" />
                     <TextBlock Classes="faint" TextWrapping="Wrap"
-                               Text="Pide permiso de administrador (UAC) al añadir o quitar un sitio. Lo hace roost-helper, que solo toca su bloque." />
+                               Text="{x:Static svc:OsTexts.HostsFileHint}" />
                     <TextBlock Classes="faint mono" FontSize="11" Text="{Binding HostsFileText}" TextWrapping="Wrap" />
                   </StackPanel>
                 </RadioButton>

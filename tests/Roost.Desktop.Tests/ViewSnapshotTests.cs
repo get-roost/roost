@@ -191,9 +191,9 @@ public class ViewSnapshotTests
 
         await main.OpenLogAsync("nginx-error.log");
         var logs = main.Logs;
-        // El de roost-helper es de la máquina (%ProgramData%): sale si existe.
+        // El de roost-helper es de la máquina (%ProgramData%\Roost o /var/log/roost): sale si existe.
         Assert.Equal(["roostd.log", "nginx-error.log", "nginx-access.log", "php-8.4-error.log"],
-            logs.Files.Select(f => f.Display).Where(d => !d.StartsWith('%')));
+            logs.Files.Select(f => f.Display).Where(d => d != LogsViewModel.HelperLogKey));
         Assert.Equal("nginx-error.log", logs.Selected?.Display);
         Assert.Equal("1 error", logs.Files[1].Badge);
         Assert.Equal("1 aviso", logs.Files[0].Badge);

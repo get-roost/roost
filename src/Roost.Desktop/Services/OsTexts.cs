@@ -73,8 +73,43 @@ public static class OsTexts
 
     // Textos de las vistas (x:Static desde el XAML)
 
-    /// <summary>Nuevo sitio: «… al hosts: Windows pedirá permiso de administrador».</summary>
-    public static string AddToHostsSuffix => $" al hosts: {WillAskAdmin}";
+    /// <summary>Nuevo sitio: «… al hosts: Windows pedirá permiso de administrador» (en medio de la frase).</summary>
+    public static string AddToHostsSuffix => Windows ? " al hosts: Windows pedirá permiso de administrador" : " al hosts: se pedirá permiso de administrador (polkit, o sudo)";
+
+    /// <summary>true en Windows (para esconder desde el XAML lo que solo tiene sentido allí: TS/x86 de windows.php.net, Servicios de Windows).</summary>
+    public static bool IsWindows => Windows;
+
+    /// <summary>PHP: de dónde salen los builds («windows.php.net» / «roost-builds»).</summary>
+    public static string PhpCatalogSource => Windows ? "windows.php.net" : "roost-builds";
+
+    /// <summary>PHP: el subtítulo de la pantalla.</summary>
+    public static string PhpSubtitle => Windows
+        ? "Builds oficiales de windows.php.net, cada versión en su carpeta. Actualizar nunca pisa la anterior."
+        : "Builds de get-roost/roost-builds (PHP compilado estático, con php-fpm y Xdebug dentro), cada versión en su carpeta. Actualizar nunca pisa la anterior.";
+
+    /// <summary>PHP: la etiqueta del pool («Pool php-cgi» / «Pool php-fpm»).</summary>
+    public static string PhpPoolLabel => Windows ? "Pool php-cgi" : "Pool php-fpm";
+
+    /// <summary>PHP: por qué la NTS.</summary>
+    public static string PhpNtsHint => Windows
+        ? "NTS: la que usa Roost (php-cgi, con nginx o Apache). Recomendada."
+        : "NTS: la que usa Roost (php-fpm, con nginx o Apache). En Linux solo hay NTS x64.";
+
+    /// <summary>Ajustes: la clave de la CA, con los separadores del sistema.</summary>
+    public static string CaKeyRelative => global::System.IO.Path.Combine("certs", "ca", "roost-ca.key");
+
+    /// <summary>Ajustes › Nombres .test: qué pide el fichero hosts.</summary>
+    public static string HostsFileHint => Windows
+        ? "Pide permiso de administrador (UAC) al añadir o quitar un sitio. Lo hace roost-helper, que solo toca su bloque."
+        : "Pide permiso de administrador (polkit, o sudo) al añadir o quitar un sitio. Lo hace roost-helper, que solo toca su bloque de /etc/hosts.";
+
+    /// <summary>La bienvenida: los permisos que va a pedir.</summary>
+    public static string WelcomePermissionsNote => Windows
+        ? "Windows pedirá dos permisos: uno para el fichero hosts (los nombres .test) y otro para confiar en la CA local (el candado de https)."
+        : "Se pedirá permiso de administrador (polkit, o sudo) para el fichero hosts (los nombres .test); la CA local entra en los almacenes NSS de tu usuario (Chrome y Firefox) sin pedir nada.";
+
+    /// <summary>La bienvenida: el título del aviso de servicios.</summary>
+    public static string WelcomeServicesTitle => Windows ? "Servicios de Windows que le quitarían un puerto a Roost" : "Servicios de systemd que le quitarían un puerto a Roost";
 
     /// <summary>Sitios: el botón «Añadir al hosts» de todos los que faltan.</summary>
     public static string AddAllToHostsTip => $"Todos de una vez: {AsksPermission} una sola vez";

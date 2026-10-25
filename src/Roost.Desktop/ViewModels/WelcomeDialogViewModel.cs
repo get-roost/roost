@@ -270,11 +270,15 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
         try
         {
             var mariadb = await MariaDbCatalog.FetchAsync(_main.App.Http);
-            _db = mariadb.Where(b => b.Lts).OrderByDescending(b => b.Branch == "11.4").ThenByDescending(b => b.Version).FirstOrDefault();
+            // Fuera de Windows solo vale un paquete de Linux (el bintar .tar.gz): un .zip de Windows no se propone.
+            _db = mariadb.Where(b => b.Lts && (OperatingSystem.IsWindows() || !b.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(b => b.Branch == "11.4").ThenByDescending(b => b.Version).FirstOrDefault();
             var hasDb = new DbInstaller(_main.App.Paths).ListInstalled().Count > 0;
             if (_db is null || hasDb)
             {
-                DbText = hasDb ? "Ya hay una base de datos en Roost" : "No hay ninguna MariaDB LTS en el catálogo";
+                DbText = hasDb ? "Ya hay una base de datos en Roost"
+                    : OperatingSystem.IsWindows() ? "No hay ninguna MariaDB LTS en el catálogo"
+                    : "Todavía no hay ninguna MariaDB para Linux en el catálogo: se instala desde Bases de datos cuando la haya";
                 InstallDb = false;
                 _db = null;
             }
