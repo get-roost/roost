@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    El panel web local (ROOST.md, decisión 42): `roost panel up` sirve en 127.0.0.1 la misma interfaz que
+    la app de escritorio, para usar Roost desde el navegador donde la app no sirve (Linux sin escritorio,
+    servidores, WSL, un equipo remoto por un túnel ssh). Por detrás, lo mismo que la CLI y la app:
+    DaemonClient para el stack y Core para lo demás. El HTML, el CSS y el JS van embebidos: sin red.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Roost.WebPanel</RootNamespace>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Roost.Core\Roost.Core.csproj" />
+    <ProjectReference Include="..\Roost.Daemon\Roost.Daemon.csproj" />
+  </ItemGroup>
+
+  <!-- La interfaz, embebida con su ruta relativa como nombre (wwwroot/index.html, wwwroot/js/app.js…). -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\**\*" LogicalName="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Roost.Panel.Tests" />
+  </ItemGroup>
+
+</Project>

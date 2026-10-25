@@ -651,6 +651,27 @@ app.Configure(config =>
 
     config.AddCommand<UninstallCleanupCommand>("uninstall-cleanup").IsHidden();
 
+    // El panel web (decision 42 de ROOST.md): la misma interfaz que la app, en el navegador, donde la app no sirve.
+    config.AddBranch("panel", panel =>
+    {
+        panel.SetDescription("El panel web local: la misma interfaz que la app, en el navegador de este equipo (127.0.0.1), para Linux sin escritorio, servidores, WSL o un equipo remoto por un tunel ssh.");
+        panel.AddCommand<Roost.Cli.Commands.WebPanel.PanelUpCommand>("up")
+            .WithDescription("Arranca el panel en 127.0.0.1:<puerto> (5556 por defecto) y da la direccion con su codigo de acceso, nuevo en cada arranque. Nunca escucha fuera del equipo.")
+            .WithExample("panel", "up")
+            .WithExample("cp", "up", "5556");
+        panel.AddCommand<Roost.Cli.Commands.WebPanel.PanelDownCommand>("down")
+            .WithDescription("Para el panel (el stack sigue como estaba).")
+            .WithExample("panel", "down");
+        panel.AddCommand<Roost.Cli.Commands.WebPanel.PanelStatusCommand>("status")
+            .WithDescription("Si el panel esta en marcha, su pid y su puerto.")
+            .WithExample("panel", "status")
+            .WithExample("panel", "status", "--json");
+        panel.AddCommand<Roost.Cli.Commands.WebPanel.PanelUrlCommand>("url")
+            .WithDescription("La direccion del panel con su codigo de acceso (para abrirla o copiarla).")
+            .WithExample("panel", "url");
+        panel.AddCommand<Roost.Cli.Commands.WebPanel.PanelServeCommand>("serve").IsHidden();
+    }).WithAlias("cp");
+
     // Lo ultimo: los comandos de las extensiones no pueden pisar los de Roost.
     extensions.AddCommands(config);
 });
