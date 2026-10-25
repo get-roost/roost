@@ -2,7 +2,7 @@
 
 Lo que cambia en cada versión. Es lo mismo que enseña la app en **Novedades** y lo que llevan las notas de cada release en GitHub.
 
-## 0.1.11 — en preparación
+## 0.1.11 — 25-oct-2026
 
 - **Roost en Linux, segunda parte: ya va todo.** Lo que en la 0.1.10 era solo PHP, nginx y los sitios es ya el stack entero, las herramientas de la terminal y la app de escritorio. Probado en Ubuntu 24.04.
 - **Panel web:** `roost panel up [puerto]` (alias `roost cp`) sirve en el navegador de este equipo (`http://127.0.0.1:5556/`) la misma interfaz que la app, con sus pantallas: Inicio, Sitios y Nuevo sitio, PHP, Servidor web, Bases de datos, Auditoría, Registros, Ajustes, la CA local, la bienvenida y Novedades. Es para donde la app no sirve: Linux sin escritorio, servidores, WSL o un equipo remoto por un túnel ssh (`ssh -L 5556:127.0.0.1:5556`). Solo escucha en este equipo, la dirección lleva un código de acceso nuevo en cada arranque (`roost panel url` lo da) y rechaza cualquier petición que no venga de su propia página. `roost panel down`, `status` y `url`. Redis, Correo, las plantillas, git y compartir salen de momento como «próximamente» en el panel (van desde la terminal). En Linux, el panel instala y elige MariaDB y MySQL y sirve con el Apache de la distro, como la CLI.
