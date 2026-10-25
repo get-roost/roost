@@ -33,5 +33,9 @@ internal static class FakeDistroApache
         Environment.SetEnvironmentVariable(LinuxApache.ExecutableVariable, Path.Combine(bin, "apache2"));
         Environment.SetEnvironmentVariable(LinuxApache.ModulesVariable, modules);
         Directory = root;
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            try { System.IO.Directory.Delete(root, recursive: true); } catch { /* temporal */ }
+        };
     }
 }
