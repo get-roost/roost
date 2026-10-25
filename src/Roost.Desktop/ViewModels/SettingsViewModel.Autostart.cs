@@ -50,7 +50,7 @@ public sealed partial class SettingsViewModel
             CanStackAtLogon = why is null && status.Error is null;
             StackAtLogon = status.Exists && status.Enabled;
             StackAtLogonHint = why is not null
-                ? OperatingSystem.IsWindows() ? $"Con {RoostPaths.HomeVariable} no se crea: una tarea no lleva esa variable y arrancaría la Roost de siempre." : "Solo en Windows."
+                ? OperatingSystem.IsWindows() ? $"Con {RoostPaths.HomeVariable} no se crea: una tarea no lleva esa variable y arrancaría la Roost de siempre." : why
                 : status.Error is { } error ? $"No se ha podido preguntar al Programador de tareas: {error}"
                 : status.IsStale(File.Exists) ? "La tarea lanza un roost.exe que ya no está: vuelve a marcarla."
                 : status.Exists && !status.Enabled ? "La tarea está, pero desactivada en el Programador de tareas."

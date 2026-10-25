@@ -68,6 +68,8 @@ public partial class App : Application
             var args = StartupArgs.Parse(desktop.Args);
             if (!args.Minimized) _window.Show();
             Instance?.Listen(() => Dispatcher.UIThread.Post(ShowWindow));
+            // Linux: si no hay anfitrión StatusNotifier, la X cierra la app (y Ajustes lo cuenta).
+            _ = TrayHost.DetectAsync().ContinueWith(_ => Dispatcher.UIThread.Post(() => _main?.NotifyPrefsChanged()), TaskScheduler.Default);
             desktop.Exit += (_, _) =>
             {
                 _tray?.Dispose();
@@ -188,7 +190,7 @@ public partial class App : Application
     {
         if (_main is null || _main.ExitRequested) return;
         e.Cancel = true;
-        if (!_main.App.Prefs.CloseToTray)
+        if (!TrayHost.CanCloseToTray(_main.App.Prefs))
             _ = ExitAsync();
         else if (_main.App.Prefs.TrayHintShown)
             _window?.Hide();
@@ -207,9 +209,12 @@ public partial class App : Application
         {
             Title = "Roost sigue en la bandeja",
             Subtitle = "Cerrar la ventana no cierra Roost: tus sitios se siguen sirviendo.",
-            Text = "Está en la bandeja del sistema, junto al reloj. Si no ves el icono, está tras la flecha ^: "
-                   + "arrástralo a la barra de tareas para tenerlo siempre a la vista. Para salir del todo, clic derecho "
-                   + "en el icono → «Salir de Roost». En Ajustes puedes hacer que la X cierre la app.",
+            Text = OperatingSystem.IsWindows()
+                ? "Está en la bandeja del sistema, junto al reloj. Si no ves el icono, está tras la flecha ^: "
+                  + "arrástralo a la barra de tareas para tenerlo siempre a la vista. Para salir del todo, clic derecho "
+                  + "en el icono → «Salir de Roost». En Ajustes puedes hacer que la X cierre la app."
+                : "Está en el área de iconos del panel (la bandeja StatusNotifier de tu escritorio). Para salir del todo, "
+                  + "clic en el icono → «Salir de Roost». En Ajustes puedes hacer que la X cierre la app.",
             Buttons =
             [
                 new DialogButton("Salir de Roost", "exit", Left: true),
@@ -259,7 +264,8 @@ public partial class App : Application
     // Bandeja
 
     private readonly TrayAlerts _alerts = new();
-    private readonly ITrayNotifier _notifier = new TrayBalloon();
+    // Windows: un globo de Shell_NotifyIcon; Linux: org.freedesktop.Notifications por el bus de sesión.
+    private readonly ITrayNotifier _notifier = OperatingSystem.IsWindows() ? new TrayBalloon() : new FreedesktopNotifier();
     private bool _trayReading;
     private bool _trayDirty;
 

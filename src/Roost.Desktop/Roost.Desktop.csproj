@@ -14,6 +14,14 @@
     <RootNamespace>Roost.Desktop</RootNamespace>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!--
+      Como la CLI: sin ICU. En Linux la app no exige así el libicu de cada distro (libicu74, 70, 72…), y en
+      todos los sistemas los números y las fechas en castellano salen de Services/Es, no del sistema.
+      PredefinedCulturesOnly a false: una extensión que pida una cultura por nombre recibe la invariante
+      en vez de un error.
+    -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <PredefinedCulturesOnly>false</PredefinedCulturesOnly>
   </PropertyGroup>
 
   <ItemGroup>

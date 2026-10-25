@@ -492,12 +492,16 @@ public sealed partial class SitesViewModel
         string? dbError = null;
         var keyName = request.Access?.Kind == SiteGit.AccessKey ? request.Access.KeyName : null;
         var own = request.Access?.Kind == SiteGit.AccessOwn;
-        var es = CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
 
         var dialog = new GitTaskDialogViewModel($"Clonando {url.Label}", $"{branch} → {folder}", steps, async (d, cancel) =>
         {
             d.Step(0, "Preparando git");
-            steps[0].Hint = git.Source == GitSource.Roost ? $"{GitCatalog.Current.Label}, SHA-256 verificado" : $"el tuyo: {git.Executable}";
+            // El de Roost (MinGit), el de Ajustes › Git ([git] exe) o, en Linux, el del sistema (GitSource.System llega con
+            // Terminal L2: se compara por nombre para no depender de que exista ya).
+            steps[0].Hint = git.Source == GitSource.Roost ? $"{GitCatalog.Current.Label}, SHA-256 verificado"
+                : git.Source.ToString() == "System" ? $"el de tu sistema: {git.Executable}"
+                : $"el tuyo: {git.Executable}";
             d.Step(1, "Comprobando el servidor");
             steps[1].Hint = ServerHint(url, request.Access);
             d.Step(2, "Clonando");
@@ -563,7 +567,7 @@ public sealed partial class SitesViewModel
         if (!hostsOk)
             await Main.InfoAsync($"{created.Host} está clonado, pero falta en el hosts",
                 $"{Main.HostsError}\n\nEl sitio queda registrado y se sirve, pero {created.Host} no resolverá en el navegador hasta que esté en el hosts. "
-                + $"Para añadirlo: Sitios › {created.Host} › «Añadir al hosts» (Windows volverá a pedir permiso), o pasa al DNS local en Ajustes › Nombres .test.",
+                + $"Para añadirlo: Sitios › {created.Host} › «Añadir al hosts» ({Services.OsTexts.WillAskAgain}), o pasa al DNS local en Ajustes › Nombres .test.",
                 Tone.Warn);
         if (dbError is not null)
             await Main.InfoAsync($"No se creó la base de datos de {created.Host}", $"{dbError}\n\nEl sitio está clonado y registrado: créala desde su panel (Base de datos › Crear).", Tone.Warn);
@@ -847,7 +851,7 @@ public sealed partial class SitesViewModel
         {
             var where = GitTexts.Where(Git.Access.Credentials.Describe(token));
             if (plan.TokenShared) kept.Add($"Su token ({where}) se queda: también vale para otro sitio.");
-            else removing.Add($"Su token de {where}, del Administrador de credenciales.");
+            else removing.Add($"Su token de {where}, de {Services.OsTexts.CredentialStoreShort}.");
         }
         var dialog = new RemoveSiteDialogViewModel(row.Host, text, removing, kept);
         return await Main.ShowDialogAsync(dialog) as bool?;

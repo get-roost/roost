@@ -11,13 +11,14 @@ public enum DbClientKind
     HeidiSql,
     TablePlus,
     DBeaver,
+    Beekeeper,
 }
 
 /// <summary>Un cliente gráfico instalado en el equipo.</summary>
 public sealed record DbClient(DbClientKind Kind, string Name, string Exe)
 {
     /// <summary>true si se le puede pasar la conexión por argumentos; si no, se abre y Roost copia la URL.</summary>
-    public bool AcceptsConnection => Kind is DbClientKind.HeidiSql or DbClientKind.DBeaver;
+    public bool AcceptsConnection => Kind is DbClientKind.HeidiSql or DbClientKind.DBeaver or DbClientKind.Beekeeper;
 
     public string ButtonLabel => $"Abrir en {Name}";
 
@@ -29,20 +30,24 @@ public sealed record DbClient(DbClientKind Kind, string Name, string Exe)
 /// <summary>Los datos de una conexión a la base de datos de Roost.</summary>
 public sealed record DbConnection(DbEngine Engine, string Host, int Port, string User, string Password, string? Database, string Label)
 {
-    /// <summary>La URL <c>mysql://usuario:contraseña@host:puerto/bd</c> que entienden TablePlus y compañía.</summary>
+    /// <summary>La URL <c>mysql://usuario:contraseña@host:puerto/bd</c> que entienden TablePlus, Beekeeper y compañía.</summary>
     public string Url =>
         $"mysql://{Uri.EscapeDataString(User)}{(Password.Length == 0 ? "" : ":" + Uri.EscapeDataString(Password))}@{Host}:{Port}/{Database ?? ""}";
 }
 
 /// <summary>
-/// Detecta HeidiSQL, TablePlus y DBeaver (rutas típicas y el registro de Windows, solo lectura)
-/// y los abre con la conexión de Roost. Si no hay ninguno, la pantalla no enseña nada.
+/// Detecta los clientes gráficos y los abre con la conexión de Roost. En Windows, HeidiSQL, TablePlus y
+/// DBeaver (rutas típicas y el registro, solo lectura); en Linux, DBeaver, Beekeeper Studio y TablePlus
+/// (el PATH, <c>/opt</c>, snap y flatpak). Si no hay ninguno, la pantalla no enseña nada.
 /// </summary>
 public static class DbClients
 {
     /// <summary>Los clientes instalados, en orden de preferencia (HeidiSQL es el que trae Laragon).</summary>
-    public static IReadOnlyList<DbClient> Detect()
+    /// <param name="probe">Para los tests de Linux: un equipo de pega (ficheros y PATH).</param>
+    public static IReadOnlyList<DbClient> Detect(AppProbe? probe = null)
     {
+        var p = probe ?? AppProbe.Machine;
+        if (p.Posix) return DetectLinux(p);
         if (!OperatingSystem.IsWindows()) return [];
         var found = new List<DbClient>();
         if (Find(DbClientKind.HeidiSql, "heidisql.exe",
@@ -60,13 +65,40 @@ public static class DbClients
         return found;
     }
 
+    /// <summary>Linux: el PATH (<c>dbeaver</c>, <c>dbeaver-ce</c>, <c>beekeeper-studio</c>, <c>tableplus</c>) y las carpetas de los paquetes.</summary>
+    private static IReadOnlyList<DbClient> DetectLinux(AppProbe p)
+    {
+        var found = new List<DbClient>();
+        var home = p.Env("HOME") ?? "";
+        if ((OnPath(p, "dbeaver") ?? OnPath(p, "dbeaver-ce") ?? First(p, ["/usr/bin/dbeaver", "/usr/lib/dbeaver/dbeaver", "/opt/dbeaver/dbeaver", "/snap/bin/dbeaver-ce"])) is { } dbeaver)
+            found.Add(new DbClient(DbClientKind.DBeaver, "DBeaver", dbeaver));
+        if ((OnPath(p, "beekeeper-studio") ?? First(p, ["/opt/Beekeeper Studio/beekeeper-studio", "/snap/bin/beekeeper-studio", $"{home}/.local/bin/beekeeper-studio"])) is { } beekeeper)
+            found.Add(new DbClient(DbClientKind.Beekeeper, "Beekeeper Studio", beekeeper));
+        if ((OnPath(p, "tableplus") ?? First(p, ["/opt/tableplus/tableplus", "/usr/bin/tableplus"])) is { } tablePlus)
+            found.Add(new DbClient(DbClientKind.TablePlus, "TablePlus", tablePlus));
+        return found;
+    }
+
     /// <summary>
     /// Abre el cliente con la conexión. HeidiSQL acepta <c>-h -u -p -P</c> (con espacio: vale en la
-    /// 12 y en la 13); DBeaver, <c>-con "driver=…|host=…"</c>. TablePlus en Windows no documenta
-    /// argumentos: se abre y la URL queda en el portapapeles (lo hace quien llama, con
-    /// <see cref="DbConnection.Url"/>).
+    /// 12 y en la 13); DBeaver, <c>-con "driver=…|host=…"</c>; Beekeeper Studio, la URL
+    /// <c>mysql://…</c> como argumento. TablePlus no documenta argumentos: se abre y la URL queda en el
+    /// portapapeles (lo hace quien llama, con <see cref="DbConnection.Url"/>).
     /// </summary>
     public static void Open(DbClient client, DbConnection connection)
+    {
+        try
+        {
+            Process.Start(StartInfo(client, connection))?.Dispose();
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or FileNotFoundException)
+        {
+            throw new RoostException($"No se pudo abrir {client.Name} ({client.Exe}): {ex.Message}");
+        }
+    }
+
+    /// <summary>PURO: lo que se lanza para abrir <paramref name="client"/> con <paramref name="connection"/>.</summary>
+    internal static ProcessStartInfo StartInfo(DbClient client, DbConnection connection)
     {
         var start = new ProcessStartInfo(client.Exe)
         {
@@ -96,19 +128,22 @@ public static class DbClients
                 start.ArgumentList.Add("-con");
                 start.ArgumentList.Add(string.Join("|", parts));
                 break;
+            case DbClientKind.Beekeeper:
+                start.ArgumentList.Add(connection.Url);
+                break;
         }
-
-        try
-        {
-            Process.Start(start)?.Dispose();
-        }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or FileNotFoundException)
-        {
-            throw new RoostException($"No se pudo abrir {client.Name} ({client.Exe}): {ex.Message}");
-        }
+        return start;
     }
 
-    /// <summary>El ejecutable: primero las rutas típicas, luego el registro (desinstalación y App Paths).</summary>
+    private static string? OnPath(AppProbe p, string command) =>
+        (p.Env("PATH") ?? "").Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(dir => dir.StartsWith('/'))
+            .Select(dir => dir.TrimEnd('/') + "/" + command)
+            .FirstOrDefault(p.FileExists);
+
+    private static string? First(AppProbe p, IEnumerable<string> candidates) => candidates.FirstOrDefault(p.FileExists);
+
+    /// <summary>Windows: el ejecutable: primero las rutas típicas, luego el registro (desinstalación y App Paths).</summary>
     private static string? Find(DbClientKind kind, string exe, string[] uninstallKeys, string[] folders)
     {
         foreach (var folder in folders)

@@ -128,7 +128,7 @@ public class AuditoriaBandejaTests
         Assert.NotEqual(AuditHistory.IgnoreIdOf(F(Laragon)), AuditHistory.IgnoreIdOf(F(LaragonFixed)));
     }
 
-    [WindowsFact("Pendiente en Linux: la app (L2).")]
+    [Fact]
     public void Historial_AlMoverLaRaiz_LoDeRoostSigueSiendoLoMismo()
     {
         var root = Path.Combine(Path.GetTempPath(), "roost-historial-" + Guid.NewGuid().ToString("N"));
@@ -137,8 +137,8 @@ public class AuditoriaBandejaTests
         try
         {
             var eval = new AuditState();
-            var before = C(ComponentKind.Php, "7.4.33", "Roost", Path.Combine(from, @"bin\php\7.4.33-nts-x64\php.exe"));
-            var after = before with { ExecutablePath = Path.Combine(to, @"bin\php\7.4.33-nts-x64\php.exe") };
+            var before = C(ComponentKind.Php, "7.4.33", "Roost", Path.Combine(from, "bin", "php", "7.4.33-nts-x64", OsNames.Exe("php")));
+            var after = before with { ExecutablePath = Path.Combine(to, "bin", "php", "7.4.33-nts-x64", OsNames.Exe("php")) };
             var moved = new Roost.Core.Platform.RoostPaths(to, Path.Combine(root, "cache"));
             var finding = eval.Evaluate(before.Kind, before.Version, before.ExecutablePath, before.Source);
             AuditHistory.SaveLast(moved, new AuditRecord(DateTime.Now, [AuditHistory.MarkOf(finding)]));

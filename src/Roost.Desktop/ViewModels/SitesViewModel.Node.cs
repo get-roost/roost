@@ -314,7 +314,7 @@ public sealed partial class SitesViewModel
             new(build.Pinned ? "LTS fijada en Roost" : "Versión de nodejs.org", build.Pinned
                 ? $"· {build.Version}, con su SHA-256 en Roost"
                 : $"· {build.Version}, con el SHA-256 de su SHASUMS256.txt"),
-            new("Descargando el zip de Windows x64", $"· de {build.Url.Host}"),
+            new(OperatingSystem.IsWindows() ? "Descargando el zip de Windows x64" : "Descargando el tar.gz de Linux x64", $"· de {build.Url.Host}"),
             new("Verificar el SHA-256", "· antes de instalar nada"),
             new($"Instalar en {installer.InstallDirectory(build)}", null),
         };

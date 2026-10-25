@@ -50,9 +50,12 @@ public sealed partial class StartErrorDialogViewModel : DialogViewModel
 
     private BusyPortView Describe(BusyPort port)
     {
-        var owner = port.Owner is { } o
+        // En Linux, sin root, solo se ven los procesos propios: un «PID 0» no es nadie, es «otro usuario».
+        var owner = port.Owner is { IsForeign: true }
+            ? "Lo tiene un proceso de otro usuario (sin root solo se ven los tuyos): míralo con sudo ss -ltnp."
+            : port.Owner is { } o
             ? $"Lo tiene {o.ProcessName ?? "otro proceso"} (PID {o.Pid}){Hint(o.ProcessName)}."
-            : "Lo tiene otro proceso, que Windows no deja identificar.";
+            : OperatingSystem.IsWindows() ? "Lo tiene otro proceso, que Windows no deja identificar." : "Lo tiene otro proceso, que no se ha podido identificar.";
         string? useLabel = null, useHint = null;
         if (port.Suggestion is { } free)
         {
@@ -70,9 +73,10 @@ public sealed partial class StartErrorDialogViewModel : DialogViewModel
     private static string Hint(string? process) => process?.ToLowerInvariant() switch
     {
         "system" => ": suele ser http.sys, de IIS o de otro servicio de Windows",
-        "mysqld" or "mariadbd" => ": otro MySQL o MariaDB, quizá un servicio de Windows",
+        "mysqld" or "mariadbd" => OperatingSystem.IsWindows() ? ": otro MySQL o MariaDB, quizá un servicio de Windows" : ": otro MySQL o MariaDB, quizá el de la distro (mariadb.service, mysql.service)",
         "httpd" => ": un Apache, quizá de XAMPP o Laragon",
-        "nginx" => ": otro nginx, quizá de Laragon",
+        "apache2" => ": el Apache de la distro (apache2.service)",
+        "nginx" => OperatingSystem.IsWindows() ? ": otro nginx, quizá de Laragon" : ": otro nginx, quizá el de la distro (nginx.service)",
         "php" => ": un servidor de PHP (php -S)",
         "putty" => ": un túnel de PuTTY",
         "skype" or "teams" => ": Skype o Teams",

@@ -14,7 +14,8 @@ namespace Roost.Desktop.Services;
 /// Abrir cosas fuera de la app: el navegador, el explorador, el editor, una terminal. Todo lo que
 /// abre un fichero o una terminal pasa por aquí, así que usa los programas elegidos en Ajustes
 /// (<see cref="DesktopPrefs.Editor"/>, <see cref="DesktopPrefs.Terminal"/>,
-/// <see cref="DesktopPrefs.Browser"/>; J3 + C4).
+/// <see cref="DesktopPrefs.Browser"/>; J3 + C4). En Linux, «el programa asociado» y «el navegador
+/// predeterminado» son <c>xdg-open</c> (lo que hace .NET con <c>UseShellExecute</c> fuera de Windows).
 /// </summary>
 public static class Shell
 {
@@ -29,7 +30,7 @@ public static class Shell
 
     /// <summary>
     /// Abre la URL en el navegador elegido o, si no hay ninguno, en el predeterminado. Lo que no es
-    /// una URL web (<c>services.msc</c>) va siempre por Windows.
+    /// una URL web (<c>services.msc</c>) va siempre por el sistema.
     /// </summary>
     public static void OpenUrl(string url)
     {
@@ -72,7 +73,7 @@ public static class Shell
         }
     }
 
-    /// <summary>Selecciona el fichero en el explorador.</summary>
+    /// <summary>Selecciona el fichero en el explorador (en Linux, abre su carpeta).</summary>
     public static void RevealFile(string path)
     {
         if (OperatingSystem.IsWindows())
@@ -100,13 +101,13 @@ public static class Shell
         }
         else if (phpDirectory is not null)
         {
-            extra.Add(phpDirectory);
+            extra.Add(BinOf(phpDirectory));
         }
         try
         {
             var config = RoostConfig.Load(paths.ConfigFile);
             var planner = new StackPlanner(paths, ProcessRunner.Default);
-            if (extra.Count == 0) extra.Add(planner.ResolvePhp(config, new PhpInstaller(paths).ListInstalled()).Directory);
+            if (extra.Count == 0) extra.Add(BinOf(planner.ResolvePhp(config, new PhpInstaller(paths).ListInstalled()).Directory));
             if (planner.ResolveDb(config, new DbInstaller(paths).ListInstalled()) is { } db)
                 extra.Add(Path.Combine(db.Directory, "bin"));
         }
@@ -117,21 +118,41 @@ public static class Shell
 
         var folder = workingDirectory ?? paths.Www;
         Directory.CreateDirectory(folder);
+        var terminals = ShellApps.Terminals(Probe);
+        var terminal = TerminalFor(Preferences(), terminals);
         if (!OperatingSystem.IsWindows())
         {
-            Start(new ProcessStartInfo("x-terminal-emulator") { UseShellExecute = false, WorkingDirectory = folder });
+            if (terminal is null) throw new RoostException("No se ha encontrado ninguna terminal (gnome-terminal, konsole, xfce4-terminal, kitty, alacritty, wezterm, tilix, xterm…): instala una o elige otra en Ajustes › Programas.");
+            Start(PosixTerminalStart(terminal, folder, extra, environment, Environment.GetEnvironmentVariable("PATH") ?? "", Environment.GetEnvironmentVariable("SHELL")));
             return;
         }
-        var terminals = ShellApps.Terminals(Probe);
-        Start(TerminalStart(TerminalFor(Preferences(), terminals), terminals, folder, extra, environment, Environment.GetEnvironmentVariable("PATH") ?? ""));
+        Start(TerminalStart(terminal, terminals, folder, extra, environment, Environment.GetEnvironmentVariable("PATH") ?? ""));
     }
 
-    /// <summary>Un programa de consola en su propia ventana (la consola SQL de la base de datos).</summary>
+    /// <summary>La carpeta con el ejecutable de un PHP: la propia en Windows (<c>php.exe</c> en la raíz) y <c>bin/</c> en los de roost-builds.</summary>
+    private static string BinOf(string phpDirectory)
+    {
+        var bin = Path.Combine(phpDirectory, "bin");
+        return Directory.Exists(bin) && File.Exists(Path.Combine(bin, OsNames.Exe("php"))) ? bin : phpDirectory;
+    }
+
+    /// <summary>
+    /// Un programa de consola en su propia ventana (la consola SQL de la base de datos, redis-cli). En
+    /// Windows, desde una app sin consola el hijo recibe una ventana de consola propia; en Linux hay
+    /// que abrirle una terminal (la elegida en Ajustes) y lanzarlo dentro.
+    /// </summary>
     public static void OpenConsole(string exe, string arguments, string workingDirectory)
     {
         Directory.CreateDirectory(workingDirectory);
-        // Desde una app sin consola, Windows le da al hijo una ventana de consola propia.
-        Start(new ProcessStartInfo(exe, arguments) { UseShellExecute = false, WorkingDirectory = workingDirectory });
+        if (OperatingSystem.IsWindows())
+        {
+            Start(new ProcessStartInfo(exe, arguments) { UseShellExecute = false, WorkingDirectory = workingDirectory });
+            return;
+        }
+        var terminals = ShellApps.Terminals(Probe);
+        var terminal = TerminalFor(Preferences(), terminals)
+            ?? throw new RoostException("No se ha encontrado ninguna terminal en la que abrir la consola: instala una (gnome-terminal, konsole, xterm…) o elige otra en Ajustes › Programas.");
+        Start(PosixCommandStart(terminal, workingDirectory, [exe, .. SplitArguments(arguments)]));
     }
 
     // Qué programa toca
@@ -144,14 +165,14 @@ public static class Shell
         return editors.FirstOrDefault(e => e.Id == prefs.Editor) ?? editors.FirstOrDefault();
     }
 
-    /// <summary>La terminal de las preferencias, o la automática (PowerShell 7 o Windows PowerShell) si no está la elegida.</summary>
+    /// <summary>La terminal de las preferencias, o la automática (PowerShell 7 o Windows PowerShell; en Linux, la primera que haya) si no está la elegida.</summary>
     public static ShellApp? TerminalFor(DesktopPrefs prefs, IReadOnlyList<ShellApp>? terminals = null)
     {
         terminals ??= ShellApps.Terminals(Probe);
         return terminals.FirstOrDefault(t => t.Id == prefs.Terminal) ?? ShellApps.AutoTerminal(terminals);
     }
 
-    /// <summary>El navegador elegido si sigue instalado; null = el predeterminado de Windows.</summary>
+    /// <summary>El navegador elegido si sigue instalado; null = el predeterminado del sistema.</summary>
     public static ShellApp? BrowserFor(DesktopPrefs prefs) =>
         prefs.Browser == ShellApps.Auto ? null : ShellApps.Browsers(Probe).FirstOrDefault(b => b.Id == prefs.Browser);
 
@@ -215,6 +236,75 @@ public static class Shell
         start.Environment["PATH"] = path;
         foreach (var (name, value) in environment) start.Environment[name] = value;
         return start;
+    }
+
+    /// <summary>
+    /// PURO: la terminal de Linux en <paramref name="folder"/> con el shell del usuario dentro y
+    /// <paramref name="extra"/> delante del PATH. Las variables van por <c>env</c>, no solo por el entorno
+    /// del proceso: gnome-terminal (y tilix, mate-terminal) es un cliente de un servidor que ya estaba en
+    /// marcha, y la pestaña nueva nace con el entorno de ese servidor, no con el nuestro.
+    /// </summary>
+    internal static ProcessStartInfo PosixTerminalStart(ShellApp terminal, string folder, IReadOnlyList<string> extra,
+        IReadOnlyDictionary<string, string> environment, string inheritedPath, string? shell)
+    {
+        var path = string.Join(':', extra.Append(inheritedPath));
+        var command = new List<string> { "env", $"PATH={path}" };
+        foreach (var (name, value) in environment) command.Add($"{name}={value}");
+        command.Add(string.IsNullOrWhiteSpace(shell) ? "/bin/bash" : shell);
+        var start = PosixCommandStart(terminal, folder, command);
+        start.Environment["PATH"] = path;
+        foreach (var (name, value) in environment) start.Environment[name] = value;
+        return start;
+    }
+
+    /// <summary>
+    /// PURO: la terminal de Linux abierta en <paramref name="folder"/> ejecutando <paramref name="command"/>,
+    /// con los argumentos de cada una: gnome-terminal <c>--working-directory= -- cmd</c>; konsole
+    /// <c>--workdir -e cmd</c>; xfce4-terminal <c>--working-directory= -x cmd</c>; kitty <c>--directory cmd</c>;
+    /// alacritty <c>--working-directory -e cmd</c>; wezterm <c>start --cwd -- cmd</c>; tilix y mate-terminal
+    /// <c>--working-directory= -e "cmd"</c> (una sola cadena); x-terminal-emulator y xterm <c>-e cmd</c>
+    /// desde la carpeta.
+    /// </summary>
+    internal static ProcessStartInfo PosixCommandStart(ShellApp terminal, string folder, IReadOnlyList<string> command)
+    {
+        var start = new ProcessStartInfo(terminal.Exe) { UseShellExecute = false, WorkingDirectory = folder };
+        IEnumerable<string> args = terminal.Id switch
+        {
+            "gnome-terminal" => [$"--working-directory={folder}", "--", .. command],
+            "konsole" => ["--workdir", folder, "-e", .. command],
+            "xfce4-terminal" => [$"--working-directory={folder}", "-x", .. command],
+            "kitty" => ["--directory", folder, .. command],
+            "alacritty" => ["--working-directory", folder, "-e", .. command],
+            "wezterm" => ["start", "--cwd", folder, "--", .. command],
+            "tilix" or "mate-terminal" => [$"--working-directory={folder}", "-e", string.Join(' ', command.Select(Elevation.ShellQuote))],
+            _ => ["-e", .. command],   // x-terminal-emulator, xterm y cualquier otra: desde la carpeta
+        };
+        foreach (var arg in args) start.ArgumentList.Add(arg);
+        return start;
+    }
+
+    /// <summary>PURO: una línea de argumentos (<c>--defaults-file="C:\a b\my.ini" tienda</c>) en argumentos sueltos, sin las comillas.</summary>
+    internal static IReadOnlyList<string> SplitArguments(string arguments)
+    {
+        var result = new List<string>();
+        var current = new StringBuilder();
+        var quoted = false;
+        var any = false;
+        foreach (var c in arguments)
+        {
+            if (c == '"') { quoted = !quoted; any = true; continue; }
+            if (char.IsWhiteSpace(c) && !quoted)
+            {
+                if (any) result.Add(current.ToString());
+                current.Clear();
+                any = false;
+                continue;
+            }
+            current.Append(c);
+            any = true;
+        }
+        if (any) result.Add(current.ToString());
+        return result;
     }
 
     /// <summary>

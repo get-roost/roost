@@ -18,7 +18,8 @@ public sealed partial class TrustCaDialogViewModel : DialogViewModel
         Subject = info?.Subject ?? "Roost Local CA";
         Thumbprint = info is { } i ? $"SHA-1 {i.Thumbprint}" : "";
         KeyFile = ca.CaKeyFile;
-        HasFirefox = firefoxProfiles > 0;
+        // En Linux la CA entra en cada perfil de Firefox con certutil al confiar: no hay nada que configurar.
+        HasFirefox = firefoxProfiles > 0 && OperatingSystem.IsWindows();
         ConfigureFirefox = HasFirefox;
         FirefoxText = firefoxProfiles == 1
             ? "Configurar también Firefox (usa su propio almacén; tienes 1 perfil)"

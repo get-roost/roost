@@ -152,7 +152,7 @@ public sealed partial class CommandOutputDialogViewModel : DialogViewModel
 
     private static string Took(TimeSpan elapsed) =>
         elapsed.TotalSeconds < 60
-            ? string.Format(CultureInfo.GetCultureInfo("es-ES"), "{0:0.0} s", elapsed.TotalSeconds)
+            ? string.Format(Roost.Desktop.Services.Es.Culture, "{0:0.0} s", elapsed.TotalSeconds)
             : $"{(int)elapsed.TotalMinutes} min {elapsed.Seconds} s";
 
     [RelayCommand]

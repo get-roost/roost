@@ -15,7 +15,7 @@ namespace Roost.Desktop.Services;
 /// </summary>
 public sealed partial class AuditState : ObservableObject
 {
-    private static readonly System.Globalization.CultureInfo Es = System.Globalization.CultureInfo.GetCultureInfo("es-ES");
+    private static readonly System.Globalization.CultureInfo Es = Roost.Desktop.Services.Es.Culture;
 
     private AuditEvaluator _evaluator;
 

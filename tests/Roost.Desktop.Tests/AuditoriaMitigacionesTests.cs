@@ -124,7 +124,7 @@ public class AuditoriaMitigacionesTests
             """;
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact]
     public async Task Auditoria_Mitigaciones_SeComparanSeAplicanYSeDeshacen_SoloEnLosDeRoost()
     {
         var (main, window, fake) = await AjustesSistemaTests.OpenAsync();   // en marcha: el pool php-8.4 también
@@ -151,8 +151,8 @@ public class AuditoriaMitigacionesTests
         Assert.All(audit.Mitigations, l => Assert.True(l.CanApply && !l.CanUndo));
         Assert.Equal("PHP aplica «On»", audit.Mitigations[0].Detail);
         Assert.True(audit.CanApplyAll);
-        Assert.Contains("conf.d\\8.4\\50-roost-mitigaciones.ini", audit.MitigationNote);
-        Assert.StartsWith("PHP lee, en este orden: 8.4.27-nts-x64\\php.ini → conf.d\\99-usuario.ini → conf.d\\8.4\\99-usuario.ini", audit.IniFilesText);
+        Assert.Contains(Path.Combine("conf.d", "8.4", "50-roost-mitigaciones.ini"), audit.MitigationNote);
+        Assert.StartsWith($"PHP lee, en este orden: {Path.Combine("8.4.27-nts-x64", "php.ini")} → {Path.Combine("conf.d", "99-usuario.ini")} → {Path.Combine("conf.d", "8.4", "99-usuario.ini")}", audit.IniFilesText);
         var red = audit.Red;
         AjustesSistemaTests.ScrollTo(window, 380);
         AjustesSistemaTests.Snapshot(window, "auditoria-mitigaciones");

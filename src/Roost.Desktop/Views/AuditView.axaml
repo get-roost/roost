@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              xmlns:sys="using:System"
@@ -266,18 +267,17 @@
               <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
                   <Button Classes="sm ghost" Content="Volver a mirar" Command="{Binding RecheckServicesCommand}" />
-                  <Button Classes="sm" Content="Abrir Servicios de Windows" Command="{Binding OpenServicesPanelCommand}"
+                  <Button Classes="sm" Content="Abrir Servicios de Windows" Command="{Binding OpenServicesPanelCommand}" IsVisible="{x:Static svc:OsTexts.HasServicesPanel}"
                           ToolTip.Tip="services.msc: ahí se deja un servicio en Manual (Tipo de inicio) y se detiene" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="10">
-                  <TextBlock Classes="h2" Text="Servicios de Windows" />
+                  <TextBlock Classes="h2" Text="{x:Static svc:OsTexts.ServicesTitle}" />
                   <ctl:Chip Text="{Binding ServicesSummary}" Tone="{Binding ServicesTone}" ShowDot="True" />
                 </StackPanel>
               </DockPanel>
             </Border>
             <StackPanel Margin="16,14" Spacing="12">
-              <TextBlock Classes="muted" TextWrapping="Wrap"
-                         Text="Un MySQL o una MariaDB instalados con su instalador, Apache, IIS u otro Redis arrancan con Windows y se quedan el puerto antes que Roost. Roost no cambia servicios de Windows: te dice cuáles son y cómo dejarlos en Manual." />
+              <TextBlock Classes="muted" TextWrapping="Wrap" Text="{x:Static svc:OsTexts.ServicesIntro}" />
               <ItemsControl ItemsSource="{Binding ServiceRows}" IsVisible="{Binding HasServiceRows}">
                 <ItemsControl.ItemsPanel>
                   <ItemsPanelTemplate><StackPanel Spacing="8" /></ItemsPanelTemplate>
@@ -294,11 +294,11 @@
                         <ctl:Chip Grid.Column="2" Text="{Binding State}" Tone="{Binding Tone}" />
                         <TextBlock Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Classes="small" Text="{Binding Detail}" TextWrapping="Wrap" />
                         <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                          <TextBlock Classes="faint" Text="En Manual:" VerticalAlignment="Center" />
+                          <TextBlock Classes="faint" Text="{x:Static svc:OsTexts.ServiceCommandLabel}" VerticalAlignment="Center" />
                           <SelectableTextBlock Grid.Column="1" Classes="mono" FontSize="12" Text="{Binding Command}" VerticalAlignment="Center" />
                           <Button Grid.Column="2" Classes="sm ghost" Content="Copiar"
                                   Command="{Binding $parent[ItemsControl].((vm:AuditViewModel)DataContext).CopyServiceCommandCommand}" CommandParameter="{Binding}"
-                                  ToolTip.Tip="Para una consola de administrador; o hazlo en Servicios de Windows (Tipo de inicio: Manual)" />
+                                  ToolTip.Tip="{x:Static svc:OsTexts.ServiceCommandTip}" />
                         </Grid>
                       </Grid>
                     </Border>

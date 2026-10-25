@@ -481,7 +481,7 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
 
     public string TokenPermissionText => $"Permiso que necesita: {TokenUrl?.TokenPermission ?? "leer el repositorio"}.";
 
-    public string TokenStorageText => $"Se guarda en el Administrador de credenciales de Windows, cifrado para tu usuario, y solo vale para {TokenUrl?.Label ?? "este repositorio"}. Nunca va en la dirección del repositorio ni en los registros.";
+    public string TokenStorageText => $"Se guarda en {Services.OsTexts.CredentialStore}, cifrado para tu usuario, y solo vale para {TokenUrl?.Label ?? "este repositorio"}. Nunca va en la dirección del repositorio ni en los registros.";
 
     public string? PasswordNote => KnownProvider ? $"Tu contraseña de {TokenUrl!.ProviderName} no sirve: {TokenUrl.ProviderName} solo acepta tokens." : null;
 
@@ -616,7 +616,7 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
     {
         var own = _git.OwnSsh();
         var names = own.Keys.Count == 0 ? "id_ed25519, id_rsa…" : string.Join(", ", own.Keys.Take(3)) + (own.Keys.Count > 3 ? "…" : "");
-        OwnText = $"Usa las claves de {own.Folder} ({names}) y el ssh-agent de Windows, como en tu terminal. Roost no guarda nada.";
+        OwnText = $"Usa las claves de {own.Folder} ({names}) y {Services.OsTexts.SshAgent}, como en tu terminal. Roost no guarda nada.";
         OwnFound = own.Keys.Count == 0
             ? $"No hay ninguna clave id_* en {own.Folder} · servicio ssh-agent: {own.AgentState}"
             : $"Encontrada {own.Keys[0]} · servicio ssh-agent: {own.AgentState}";
@@ -654,7 +654,9 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
         _ => Tone.Accent,
     };
 
-    private const string MissingSsh = "Falta el cliente OpenSSH de Windows, que es una característica opcional: Configuración › Sistema › Características opcionales › Agregar una característica › Cliente OpenSSH. Sin él, entra con un token HTTPS.";
+    private static readonly string MissingSsh = OperatingSystem.IsWindows()
+        ? "Falta el cliente OpenSSH de Windows, que es una característica opcional: Configuración › Sistema › Características opcionales › Agregar una característica › Cliente OpenSSH. Sin él, entra con un token HTTPS."
+        : "Falta el cliente OpenSSH (el paquete openssh-client de la distro). Sin él, entra con un token HTTPS.";
 
     private async Task CheckHostAsync()
     {
@@ -692,7 +694,7 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
 
         if (_git.Ssh is null)
         {
-            HostTitle = "Falta el OpenSSH de Windows";
+            HostTitle = OperatingSystem.IsWindows() ? "Falta el OpenSSH de Windows" : "Falta OpenSSH";
             HostFingerprint = "";
             HostText = MissingSsh;
             HostState = HostCheck.Failed;
@@ -894,7 +896,7 @@ public sealed partial class CloneWizardViewModel : DialogViewModel
 
     public string StepVhost => $"Escribe el vhost y emite el certificado de {Host}";
 
-    public string StepHosts => UsesLocalDns ? $"{Host} ya resuelve: lo responde el DNS local de Roost, sin permisos" : $"Añade {Host} al hosts: Windows pedirá permiso";
+    public string StepHosts => UsesLocalDns ? $"{Host} ya resuelve: lo responde el DNS local de Roost, sin permisos" : $"Añade {Host} al hosts: {Services.OsTexts.AsksPermission}";
 
     public string StepDb => $"Crea la base de datos {DbName} (utf8mb4)";
 

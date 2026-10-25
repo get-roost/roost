@@ -108,7 +108,7 @@ public sealed partial class MailViewModel : PageViewModel
         (PhpText, PhpTone) = File.Exists(PhpIniPath)
             ? ($"mail() de PHP va a Mailpit (SMTP 127.0.0.1:{_config.MailSmtpPort}), en todas las versiones y también en la terminal.", Tone.Ok)
             : _config.MailEnabled ? ("mail() de PHP irá a Mailpit en cuanto arranque el stack.", Tone.Accent)
-            : ("Con Mailpit fuera del stack, mail() de PHP vuelve a como venía (en Windows, sin servidor de correo, falla).", Tone.Neutral);
+            : (OperatingSystem.IsWindows() ? "Con Mailpit fuera del stack, mail() de PHP vuelve a como venía (en Windows, sin servidor de correo, falla)." : "Con Mailpit fuera del stack, mail() de PHP vuelve a como venía (al sendmail del sistema, si lo hay).", Tone.Neutral);
         // Lo tecleado se respeta; si no se ha tocado, sigue a roost.toml (cambiado desde la CLI, por ejemplo).
         var smtp = _config.MailSmtpPort.ToString(CultureInfo.InvariantCulture);
         var web = _config.MailWebPort.ToString(CultureInfo.InvariantCulture);

@@ -137,7 +137,9 @@ public class GitAppViewTests
         Assert.Equal(["Preparar git", "Comprobar el servidor", "Clonar", "Registrar el sitio", "Detectar el proyecto"], cloning.Steps.Select(s => s.Label));
         Assert.Equal(StepState.Done, cloning.Steps[1].State);
         Assert.Equal("github.com, público", cloning.Steps[1].Hint);
-        Assert.Equal($"{GitCatalog.Windows.Label}, SHA-256 verificado", cloning.Steps[0].Hint);
+        // En Linux, con el git del sistema (GitSource.System, de Terminal L2), el paso dice «el de tu sistema: /usr/bin/git»; con el MinGit de pega, lo de Windows.
+        if (OperatingSystem.IsWindows()) Assert.Equal($"{GitCatalog.Windows.Label}, SHA-256 verificado", cloning.Steps[0].Hint);
+        else Assert.True(cloning.Steps[0].Hint == $"{GitCatalog.Windows.Label}, SHA-256 verificado" || cloning.Steps[0].Hint.StartsWith("el de tu sistema: ", StringComparison.Ordinal), cloning.Steps[0].Hint);
         Assert.True(cloning.Steps[2].IsActive);
         Assert.Equal("1.284 objetos", cloning.Steps[2].Hint);
         Assert.Equal("Recibiendo objetos", cloning.Phase);
@@ -246,7 +248,7 @@ public class GitAppViewTests
         Assert.Equal("En GitHub el usuario da igual: vale el token.", wizard.TokenUserHint);
         Assert.Equal("Permiso que necesita: Contents: Read.", wizard.TokenPermissionText);
         Assert.Equal("Tu contraseña de GitHub no sirve: GitHub solo acepta tokens.", wizard.PasswordNote);
-        Assert.Equal("Se guarda en el Administrador de credenciales de Windows, cifrado para tu usuario, y solo vale para acme/tienda. Nunca va en la dirección del repositorio ni en los registros.", wizard.TokenStorageText);
+        Assert.Equal($"Se guarda en {OsTexts.CredentialStore}, cifrado para tu usuario, y solo vale para acme/tienda. Nunca va en la dirección del repositorio ni en los registros.", wizard.TokenStorageText);
         wizard.TokenText = "mi-contrasena";
         Assert.True(wizard.HasTokenWarning);   // no tiene pinta de token de GitHub
         Snapshot(window, "git-asistente-paso2-token");
@@ -695,10 +697,12 @@ public class GitAppViewTests
         // Una sola a la vez: la segunda, mientras va la primera, no hace nada.
         var hold = new TaskCompletionSource();
         git.Runner.On("ls-remote --symref", stdout: GitFixture.LsRemote(), hold: hold);
-        var first = sites.CheckGitUpdatesAsync(force: true);
-        await UntilAsync(() => sites.GitChecking);
         // Solo los ls-remote: el panel del sitio elegido puede refrescar su estado (status, log) a la vez.
         int LsRemotes() => git.Runner.Commands.Count(c => c.StartsWith("ls-remote", StringComparison.Ordinal));
+        var before = LsRemotes();
+        var first = sites.CheckGitUpdatesAsync(force: true);
+        // Hasta que el ls-remote retenido esté lanzado (va en un hilo aparte: «en marcha» se pone un instante antes).
+        await UntilAsync(() => sites.GitChecking && LsRemotes() == before + 1);
         var calls = LsRemotes();
         Assert.Equal(0, await sites.CheckGitUpdatesAsync(force: true));
         Assert.Equal(calls, LsRemotes());
@@ -711,7 +715,7 @@ public class GitAppViewTests
         await sites.CheckGitUpdatesAsync(force: true);
         Assert.Null(main.Dialog);
         await UntilAsync(() => sites.GitChipText == "no se pudo comprobar");
-        Assert.Equal("No se encuentra github.com. Comprueba el nombre y tu conexión. Si usas un proxy, Roost toma el de Windows.", sites.GitNote);
+        Assert.Equal($"No se encuentra github.com. Comprueba el nombre y tu conexión. Si usas un proxy, Roost toma {(OperatingSystem.IsWindows() ? "el de Windows" : "el del sistema")}.", sites.GitNote);
     }
 
     // ---- 15: quitar un sitio con su clave y su token ----
@@ -767,7 +771,7 @@ public class GitAppViewTests
     {
         var url = GitUrl.Parse("https://github.com/acme/tienda");
         var ssh = GitUrl.Parse("git@git.acme.es:web/tienda.git");
-        Assert.Equal("No se encuentra github.com. Comprueba el nombre y tu conexión. Si usas un proxy, Roost toma el de Windows.",
+        Assert.Equal($"No se encuentra github.com. Comprueba el nombre y tu conexión. Si usas un proxy, Roost toma {(OperatingSystem.IsWindows() ? "el de Windows" : "el del sistema")}.",
             GitTexts.Explain(new GitFailure(GitFailureKind.HostUnreachable, "", ""), url));
         Assert.Equal("acme/tienda pide acceso, o no existe: GitHub no distingue entre las dos cosas.",
             GitTexts.Explain(new GitFailure(GitFailureKind.AuthRequired, "", ""), url));
@@ -777,7 +781,7 @@ public class GitAppViewTests
             GitTexts.Explain(new GitFailure(GitFailureKind.PasswordNotAccepted, "", ""), url));
         Assert.Equal("git.acme.es acepta la clave de tienda, pero con ella no se ve web/tienda: seguramente está en las deploy keys de otro repositorio. Ponla en las de web/tienda.",
             GitTexts.Explain(new GitFailure(GitFailureKind.KeyRejected, "", "ERROR: Repository not found."), ssh, "tienda"));
-        Assert.Equal("git.acme.es no acepta ninguna de tus claves SSH (las de ~/.ssh y las del ssh-agent de Windows). Pruébalo en tu terminal: ssh -T git@git.acme.es",
+        Assert.Equal($"git.acme.es no acepta ninguna de tus claves SSH (las de ~/.ssh y {OsTexts.SshAgentKeys}). Pruébalo en tu terminal: ssh -T git@git.acme.es",
             GitTexts.Explain(new GitFailure(GitFailureKind.KeyRejected, "", "Permission denied (publickey)."), ssh, ownKey: true));
         Assert.Equal("Hay cambios sin guardar en 2 ficheros de tienda.test (app/Http/Kernel.php, .env). Roost no actualiza ni cambia de rama por encima de tu trabajo. Guárdalos (commit o stash) y vuelve a intentarlo.",
             GitTexts.LocalChanges("tienda.test", ["app/Http/Kernel.php", ".env"]));

@@ -103,7 +103,7 @@ public sealed partial class AuditViewModel : PageViewModel
         if (!machine.Loaded)
         {
             ServiceRows = [];
-            (ServicesSummary, ServicesTone) = ("Mirando los servicios de Windows…", Tone.Neutral);
+            (ServicesSummary, ServicesTone) = ($"Mirando {OsTexts.SystemServices}…", Tone.Neutral);
             return;
         }
 
@@ -119,7 +119,7 @@ public sealed partial class AuditViewModel : PageViewModel
                     ? $"Suele usar el {string.Join(" y el ", conflict.Ports)}, {(conflict.Ports.Count == 1 ? "que es" : "que son")} {string.Join(" y ", conflict.Ports.Select(p => RoleOf(p, config)))} de Roost: si se lo queda, Roost no arranca."
                     : $"Suele usar el {string.Join(" y el ", s.UsualPorts)}; Roost usa otros, así que no choca.";
                 var tone = conflict is not null ? Tone.Bad : s.StartsWithWindows || s.Running ? Tone.Warn : Tone.Neutral;
-                return new WindowsServiceRow(s.DisplayName, s.Name, s.Kind, MachineServices.StateText(s), tone, detail, WindowsServices.ManualCommand(s));
+                return new WindowsServiceRow(s.DisplayName, s.Name, s.Kind, MachineServices.StateText(s), tone, detail, MachineServices.ManualCommand(s));
             })
             .ToList();
         (ServicesSummary, ServicesTone) = conflicts.Count > 0
@@ -155,7 +155,7 @@ public sealed partial class AuditViewModel : PageViewModel
 
     [RelayCommand]
     private Task CopyServiceCommandAsync(WindowsServiceRow row) =>
-        Main.CopyAsync(row.Command, $"Copiado: pégalo en una consola de administrador para dejar {row.Name} en Manual");
+        Main.CopyAsync(row.Command, OperatingSystem.IsWindows() ? $"Copiado: pégalo en una consola de administrador para dejar {row.Name} en Manual" : $"Copiado: pégalo en una terminal para desactivar {row.Name}");
 
     [RelayCommand]
     private Task RecheckServicesAsync() => Main.MachineServices.LoadAsync(force: true);
@@ -499,7 +499,7 @@ public sealed partial class AuditViewModel : PageViewModel
         Main.Flash($"{row.Name} {row.Version} ({row.Source}) vuelve a contar");
     }
 
-    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-ES");
+    private static readonly CultureInfo Es = Roost.Desktop.Services.Es.Culture;
 
     /// <summary>«Desde la auditoría anterior (23-oct, 09:30): 1 nuevo o peor · 2 resueltos», con sus líneas.</summary>
     private void BuildChanges(AuditChanges? changes)
@@ -563,7 +563,7 @@ public sealed partial class AuditViewModel : PageViewModel
         var branch = $"{f.Component.Version.Major}.{f.Component.Version.Minor}";
         MitigationNote = Mitigations.Count == 0 ? null
             : f.MitigationStates.Count == 0 ? "Sin comprobar todavía: se comprueban con php -i al escanear el equipo."
-            : roost is not null ? $"«Aplicar» las escribe en conf.d\\{branch}\\{PhpMitigations.FileName} (nunca en tus 99-usuario.ini) y reinicia solo el pool de la {branch}. Son un tapón: el arreglo es actualizar."
+            : roost is not null ? $"«Aplicar» las escribe en {Path.Combine("conf.d", branch, PhpMitigations.FileName)} (nunca en tus 99-usuario.ini) y reinicia solo el pool de la {branch}. Son un tapón: el arreglo es actualizar."
             : $"Este PHP es de {f.Component.Source}: Roost solo lo lee. Cambia su php.ini ({Path.GetDirectoryName(f.Component.ExecutablePath)}); y su servidor web puede leer otro.";
     }
 

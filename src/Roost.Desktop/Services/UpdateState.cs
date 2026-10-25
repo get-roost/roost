@@ -15,7 +15,7 @@ namespace Roost.Desktop.Services;
 /// </summary>
 public sealed partial class UpdateState : ObservableObject
 {
-    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-ES");
+    private static readonly CultureInfo Es = Roost.Desktop.Services.Es.Culture;
 
     private readonly AppServices _app;
     private readonly UpdateChecker _checker;

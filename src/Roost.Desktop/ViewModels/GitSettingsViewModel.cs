@@ -94,7 +94,7 @@ public sealed partial class GitSettingsViewModel : PageViewModel
 
     public string TokensNote => Git.Access.Credentials.Prefix == GitCredentials.TestPrefix
         ? "Con ROOST_TEST_CREDENTIALS=1: solo los de prueba (Roost-test:git:…)."
-        : "En el Administrador de credenciales de Windows (Roost:git:…), cifrados para tu usuario.";
+        : OperatingSystem.IsWindows() ? "En el Administrador de credenciales de Windows (Roost:git:…), cifrados para tu usuario." : "En el almacén de Roost (state/git), que solo puede leer tu usuario.";
 
     // Novedades
 
@@ -220,12 +220,14 @@ public sealed partial class GitSettingsViewModel : PageViewModel
         var tools = Git.Ssh;
         if (tools is null)
         {
-            SshText = "Falta el cliente OpenSSH de Windows (una característica opcional: Configuración › Sistema › Características opcionales). Sin él, entra con un token HTTPS.";
+            SshText = OperatingSystem.IsWindows()
+                ? "Falta el cliente OpenSSH de Windows (una característica opcional: Configuración › Sistema › Características opcionales). Sin él, entra con un token HTTPS."
+                : "Falta el cliente OpenSSH (el paquete openssh-client de la distro). Sin él, entra con un token HTTPS.";
             SshTone = Tone.Warn;
         }
         else
         {
-            SshText = $"OpenSSH de Windows · {tools.Directory}";
+            SshText = $"{(OperatingSystem.IsWindows() ? "OpenSSH de Windows" : "OpenSSH")} · {tools.Directory}";
             SshTone = Tone.Ok;
             try
             {
@@ -343,7 +345,7 @@ public sealed partial class GitSettingsViewModel : PageViewModel
     private async Task RemoveTokenAsync(GitTokenRow row)
     {
         if (!await Main.ConfirmAsync($"Quitar el token de {row.Where}",
-                $"Borra el token de {row.Where} del Administrador de credenciales. Los sitios que entraban con él irán como públicos (si el repositorio es privado, no podrán actualizarse). Si ya no lo usas, revócalo también en el proveedor.",
+                $"Borra el token de {row.Where} de {Services.OsTexts.CredentialStoreShort}. Los sitios que entraban con él irán como públicos (si el repositorio es privado, no podrán actualizarse). Si ya no lo usas, revócalo también en el proveedor.",
                 "Quitar token", danger: true))
             return;
         Git.Access.Credentials.Remove(row.Target);

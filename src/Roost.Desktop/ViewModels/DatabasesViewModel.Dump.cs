@@ -33,7 +33,7 @@ public sealed partial class DatabasesViewModel
     /// <summary>Lo que hace Laragon (los tests ponen uno con sondas de pega).</summary>
     internal Func<LaragonDumper>? LaragonDumperFactory { get; set; }
 
-    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-ES");
+    private static readonly CultureInfo Es = Roost.Desktop.Services.Es.Culture;
 
     private string ToolName => _global is null ? "el volcador" : Path.GetFileName(_global.Dump);
 

@@ -28,7 +28,7 @@ public sealed record NotesLine(string Text, NotesBlockKind Kind, int Level)
 /// </summary>
 public sealed partial class UpdateDialogViewModel : DialogViewModel
 {
-    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-ES");
+    private static readonly CultureInfo Es = Roost.Desktop.Services.Es.Culture;
 
     private readonly ReleaseInfo _latest;
 

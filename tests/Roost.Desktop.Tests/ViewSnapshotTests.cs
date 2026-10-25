@@ -71,7 +71,7 @@ public class ViewSnapshotTests
         Snapshot(window, "inicio-parado");
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact]
     public async Task Php_ConCatalogoYExtensiones()
     {
         var (main, window, fake) = await OpenAsync(running: true);
@@ -86,7 +86,9 @@ public class ViewSnapshotTests
         Assert.Equal(php.Installed[0], php.Selected);
         Assert.Contains(php.Extensions, e => e.Name == "curl" && e.IsOn);
         Assert.Contains(php.Extensions, e => e.Name == "soap" && !e.IsOn);
-        Assert.Equal(["8.5.12", "8.4.27", "8.3.36", "8.2.35", "8.1.34", "7.4.33"], php.Catalog.Select(r => r.Version));
+        Assert.All(php.Extensions, e => Assert.False(e.BuiltIn));   // en la raíz de pega no hay BUILD.json: ninguna va integrada
+        // En Linux el catálogo es el de roost-builds (de la 8.1 a la 8.5: la 7.4 y la 8.0 son solo de Windows).
+        Assert.Equal(OperatingSystem.IsWindows() ? ["8.5.12", "8.4.27", "8.3.36", "8.2.35", "8.1.34", "7.4.33"] : ["8.5.12", "8.4.27", "8.3.36", "8.2.35", "8.1.34"], php.Catalog.Select(r => r.Version));
         Assert.False(php.Catalog[0].Installed);
         Assert.True(php.Catalog[1].Installed);
         Snapshot(window, "php");
@@ -189,9 +191,9 @@ public class ViewSnapshotTests
 
         await main.OpenLogAsync("nginx-error.log");
         var logs = main.Logs;
-        // El de roost-helper es de la máquina (%ProgramData%): sale si existe.
+        // El de roost-helper es de la máquina (%ProgramData%\Roost o /var/log/roost): sale si existe.
         Assert.Equal(["roostd.log", "nginx-error.log", "nginx-access.log", "php-8.4-error.log"],
-            logs.Files.Select(f => f.Display).Where(d => !d.StartsWith('%')));
+            logs.Files.Select(f => f.Display).Where(d => d != LogsViewModel.HelperLogKey));
         Assert.Equal("nginx-error.log", logs.Selected?.Display);
         Assert.Equal("1 error", logs.Files[1].Badge);
         Assert.Equal("1 aviso", logs.Files[0].Badge);
@@ -1431,7 +1433,7 @@ public class ViewSnapshotTests
         return dll;
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact]
     public async Task Php_DetalleConXdebugConfDDeLaRamaYAjustesRapidos()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -1445,8 +1447,9 @@ public class ViewSnapshotTests
         Assert.DoesNotContain(php.Extensions, e => e.Name == "xdebug");
         Assert.True(php.XdebugAvailable);
         Assert.False(php.XdebugOn);
-        Assert.StartsWith("Apagado. La primera vez se baja Xdebug 3.5.3 de xdebug.org", php.XdebugText);
-        Assert.Equal(@"conf.d\8.4\99-usuario.ini", php.BranchIniText);
+        // En Windows se baja la DLL la primera vez; en Linux el xdebug.so viene dentro de cada PHP (la raíz de pega lo trae).
+        Assert.StartsWith(OperatingSystem.IsWindows() ? "Apagado. La primera vez se baja Xdebug 3.5.3 de xdebug.org" : "Apagado (Xdebug viene dentro de este PHP, en ext/)", php.XdebugText);
+        Assert.Equal(Path.Combine("conf.d", "8.4", "99-usuario.ini"), php.BranchIniText);
         Assert.Equal(["512M", "128M", "128M", "120"], new[] { php.MemoryLimit, php.UploadMaxFilesize, php.PostMaxSize, php.MaxExecutionTime });
         Assert.False(php.CanSaveSettings);
         ScrollPhpTo(window, 250);
@@ -1474,9 +1477,9 @@ public class ViewSnapshotTests
 
         // Otra versión enseña los suyos (de serie) y su conf.d; al volver, siguen los guardados.
         php.PickCommand.Execute(php.Installed.Single(c => c.Version == "7.4.33"));
-        Assert.Equal(@"conf.d\7.4\99-usuario.ini", php.BranchIniText);
+        Assert.Equal(Path.Combine("conf.d", "7.4", "99-usuario.ini"), php.BranchIniText);
         Assert.Equal("128M", php.UploadMaxFilesize);
-        Assert.Contains("3.1.6", php.XdebugText);
+        Assert.Contains(OperatingSystem.IsWindows() ? "3.1.6" : "viene dentro de este PHP", php.XdebugText);   // en Linux la raíz de pega no trae BUILD.json: sin versión
         php.PickCommand.Execute(php.Installed.Single(c => c.Version == "8.4.27"));
         Assert.Equal("300M", php.UploadMaxFilesize);
 
@@ -1519,7 +1522,7 @@ public class ViewSnapshotTests
         Assert.Null(main.Dialog);
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact(Skip = "Solo en Windows: en Linux no se baja nada, el xdebug.so viene dentro de cada PHP de roost-builds.", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Php_XdebugLaPrimeraVez_LoBajaConElDialogoInstalando()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -1576,7 +1579,7 @@ public class ViewSnapshotTests
         Assert.Null(main.Dialog);
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact]
     public async Task Php_PhpinfoYModulos_ConElPhpIniDeRoost_YBusqueda()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -1602,7 +1605,7 @@ public class ViewSnapshotTests
         Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")), spec.Exe);
         Assert.Equal(["-i"], spec.Arguments);
         Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64"), spec.Environment!["PHPRC"]);
-        Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "conf.d") + ";" + Path.Combine(fake.Paths.Etc, "php", "conf.d", "8.4"), spec.Environment["PHP_INI_SCAN_DIR"]);
+        Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "conf.d") + Path.PathSeparator + Path.Combine(fake.Paths.Etc, "php", "conf.d", "8.4"), spec.Environment["PHP_INI_SCAN_DIR"]);
         Snapshot(window, "php-phpinfo");
         dialog.FinishCommand.Execute(null);
         await info;
@@ -1853,9 +1856,9 @@ public class ViewSnapshotTests
         Assert.Equal(Roost.Desktop.Controls.Tone.Bad, audit.ServicesTone);
         var maria = audit.ServiceRows[0];
         Assert.Equal("MariaDB 10.6 (MariaDB)", maria.Title);
-        Assert.Equal("Arranca con Windows y está en marcha", maria.State);
+        Assert.Equal($"{OsTexts.StartsWithSystem} y está en marcha", maria.State);
         Assert.Contains("el de la base de datos de Roost", maria.Detail);
-        Assert.Equal("sc config \"MariaDB\" start= demand", maria.Command);
+        Assert.Equal(OperatingSystem.IsWindows() ? "sc config \"MariaDB\" start= demand" : "sudo systemctl disable --now MariaDB", maria.Command);
         var apache = audit.ServiceRows[1];
         Assert.Equal(Roost.Desktop.Controls.Tone.Neutral, apache.Tone);   // manual y parado: no molesta
         Assert.Equal("Manual y parado", apache.State);
@@ -1897,7 +1900,7 @@ public class ViewSnapshotTests
 
         Assert.True(welcome.HasServiceWarnings);
         Assert.Equal(2, welcome.ServiceWarnings.Count);
-        Assert.Contains(welcome.ServiceWarnings, w => w.StartsWith("MariaDB 10.6 (MariaDB): arranca con Windows (ahora está parado)", StringComparison.Ordinal) && w.Contains("el de la base de datos"));
+        Assert.Contains(welcome.ServiceWarnings, w => w.StartsWith($"MariaDB 10.6 (MariaDB): {char.ToLowerInvariant(OsTexts.StartsWithSystem[0])}{OsTexts.StartsWithSystem[1..]} (ahora está parado)", StringComparison.Ordinal) && w.Contains("el de la base de datos"));
         Assert.Contains(welcome.ServiceWarnings, w => w.StartsWith("World Wide Web Publishing Service (W3SVC)", StringComparison.Ordinal) && w.Contains("el de la web"));
         Snapshot(window, "bienvenida-servicios-de-windows");
 

@@ -663,4 +663,12 @@
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="CornerRadius" Value="8" />
   </Style>
+
+  <!-- La app en Linux (L2): una extensión integrada en el binario (los PHP de roost-builds) va fija, sin clic -->
+  <Style Selector="Button.ext.builtin">
+    <Setter Property="Background" Value="{DynamicResource OkBgBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource OkLineBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource OkBrush}" />
+    <Setter Property="Opacity" Value="0.8" />
+  </Style>
 </Styles>

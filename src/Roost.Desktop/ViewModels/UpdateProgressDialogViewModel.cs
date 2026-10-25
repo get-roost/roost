@@ -128,7 +128,7 @@ public sealed partial class UpdateProgressDialogViewModel : DialogViewModel
     /// <summary>Bytes descargados hasta ahora.</summary>
     public void Downloaded(long bytes)
     {
-        var es = CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
         if (TotalBytes is > 0 and var total)
         {
             Indeterminate = false;

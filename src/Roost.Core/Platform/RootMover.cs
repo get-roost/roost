@@ -35,6 +35,13 @@ public sealed record RootSize(long Bytes, int Files, IReadOnlyList<string> Links
 /// recrean como enlaces, no se copia lo que hay detrás; si apuntan dentro de la raíz, al sitio nuevo.
 /// Las ACL protegidas (las claves privadas de la CA y de git, <see cref="PrivateFile"/>) se copian
 /// tal cual: con las heredadas del destino, otros usuarios podrían leerlas (y OpenSSH las rechaza).
+/// <para>
+/// En Linux y macOS no hay uniones ni SDDL: los enlaces son simbólicos (un destino relativo se deja
+/// relativo) y lo «protegido» son los modos 0600/0700, que se copian tal cual (lo demás nace con el
+/// umask). La www de <c>/var/www/roost</c> está fuera de la raíz y no se mueve con ella. Como la copia
+/// se renombra al final, el destino tiene que estar en el mismo sistema de ficheros que su carpeta de
+/// trabajo (la de al lado), que es lo normal: la raíz vieja puede estar en otro disco.
+/// </para>
 /// </summary>
 public static class RootMover
 {
@@ -239,7 +246,9 @@ public static class RootMover
             {
                 var made = entry is DirectoryInfo ? (FileSystemInfo)new DirectoryInfo(copy) : new FileInfo(copy);
                 var want = TargetFor(entry, from, to);
-                if (!made.Exists || !IsLink(made) || !SameTarget(made.LinkTarget!, want))
+                // Solo que el enlace esté y apunte a donde toca: lo de detrás puede no existir aún (apunta a la raíz
+                // nueva, que todavía es la carpeta de trabajo) y en Linux Exists seguiría el enlace y diría que no.
+                if (!IsLink(made) || !SameTarget(made.LinkTarget!, want))
                     throw new RoostException($"La copia no cuadra: el enlace {relative} no apunta a {want}.");
             }
             else if (entry is DirectoryInfo)
@@ -279,7 +288,8 @@ public static class RootMover
 
     /// <summary>
     /// A dónde apunta la copia de un enlace: lo de dentro de la raíz vieja, a la nueva. Una carpeta
-    /// va como unión, que lleva siempre la ruta completa (en Windows; en Linux y macOS, como estaba).
+    /// va como unión, que lleva siempre la ruta completa (en Windows; en Linux y macOS, un enlace
+    /// simbólico relativo sigue relativo, que vale igual en la copia porque está en el mismo sitio).
     /// </summary>
     private static string TargetFor(FileSystemInfo link, string from, string to)
     {
@@ -350,13 +360,17 @@ public static class RootMover
     [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
     private static extern bool DeviceIoControl(SafeFileHandle handle, uint code, byte[] input, int inputSize, IntPtr output, int outputSize, out int returned, IntPtr overlapped);
 
-    // ACL
+    // ACL (Windows) y modos (Linux y macOS)
 
+    private const UnixFileMode OthersMask = UnixFileMode.GroupRead | UnixFileMode.GroupWrite | UnixFileMode.GroupExecute
+                                            | UnixFileMode.OtherRead | UnixFileMode.OtherWrite | UnixFileMode.OtherExecute;
+
+    /// <summary>Windows: una ACL protegida (sin herencia); Linux y macOS: sin ningún permiso para el grupo ni para otros (0600, 0700).</summary>
     private static bool IsProtected(FileSystemInfo entry)
     {
-        if (!OperatingSystem.IsWindows()) return false;
         try
         {
+            if (!OperatingSystem.IsWindows()) return (entry.UnixFileMode & OthersMask) == 0;
             return entry is FileInfo file ? file.GetAccessControl().AreAccessRulesProtected : ((DirectoryInfo)entry).GetAccessControl().AreAccessRulesProtected;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException or InvalidOperationException)
@@ -365,10 +379,27 @@ public static class RootMover
         }
     }
 
-    /// <summary>Si el original tiene una ACL protegida (sin herencia: la de <see cref="PrivateFile"/>), la copia la lleva igual.</summary>
+    /// <summary>
+    /// Si el original tiene una ACL protegida (sin herencia: la de <see cref="PrivateFile"/>), la copia la
+    /// lleva igual. En Linux y macOS, la copia lleva el mismo modo que el original (<c>File.Copy</c> ya lo
+    /// conserva; las carpetas nacen con el umask y se igualan aquí).
+    /// </summary>
     private static void CopySecurity(FileSystemInfo original, FileSystemInfo copy)
     {
-        if (!OperatingSystem.IsWindows() || !IsProtected(original)) return;
+        if (!OperatingSystem.IsWindows())
+        {
+            try
+            {
+                var mode = original.UnixFileMode;
+                if (copy.UnixFileMode != mode) File.SetUnixFileMode(copy.FullName, mode);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
+            {
+                // Un sistema de ficheros sin modos (una /mnt/c de WSL): se queda como nazca.
+            }
+            return;
+        }
+        if (!IsProtected(original)) return;
         // Por SDDL en un objeto nuevo: el de GetAccessControl, puesto tal cual, no se escribe (no está «modificado»).
         const System.Security.AccessControl.AccessControlSections access = System.Security.AccessControl.AccessControlSections.Access;
         if (original is FileInfo file)

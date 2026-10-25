@@ -25,7 +25,7 @@ public sealed partial class DbImportDialogViewModel : DialogViewModel
         _existing = existing;
         File = file;
         FileName = Path.GetFileName(file);
-        var es = CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
         var parts = new List<string> { DbTransferDialogViewModel.Size(bytes, es) };
         if (FileName.EndsWith(".gz", StringComparison.OrdinalIgnoreCase)) parts.Add("comprimido (.gz)");
         else if (FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) parts.Add("el .sql de un .zip");

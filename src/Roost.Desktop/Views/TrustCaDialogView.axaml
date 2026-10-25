@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              x:Class="Roost.Desktop.Views.TrustCaDialogView"
@@ -41,10 +42,10 @@
         </Grid>
         <ctl:Note Tone="Warn">
           <TextBlock TextWrapping="Wrap">
-            <Run Text="Windows te enseñará a continuación un «Aviso de seguridad» preguntando si instalas este certificado. Comprueba que el nombre es " />
+            <Run Text="{x:Static svc:OsTexts.TrustCaNotice}" />
             <Run Text="Roost Local CA" FontWeight="SemiBold" />
-            <Run Text=" y pulsa " />
-            <Run Text="Sí" FontWeight="SemiBold" />
+            <Run Text="{x:Static svc:OsTexts.TrustCaNoticeEnd}" />
+            <Run Text="{x:Static svc:OsTexts.TrustCaNoticeButton}" FontWeight="SemiBold" />
             <Run Text="." />
           </TextBlock>
         </ctl:Note>

@@ -37,7 +37,7 @@ public sealed partial class LaragonDbChoice(LaragonDatabase database) : Observab
 
     /// <summary>Lo que ocupa en Laragon, o por qué no se puede traer.</summary>
     public string Detail => Importable
-        ? Database.Bytes == 0 ? "vacía" : DbTransferDialogViewModel.Size(Database.Bytes, System.Globalization.CultureInfo.GetCultureInfo("es-ES"))
+        ? Database.Bytes == 0 ? "vacía" : DbTransferDialogViewModel.Size(Database.Bytes, Roost.Desktop.Services.Es.Culture)
         : "no se puede traer: en Roost el nombre solo admite letras, números y _";
 
     [ObservableProperty] public partial bool Checked { get; set; } = database.Importable;
@@ -145,7 +145,9 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
 
     public string Subtitle => HasLaragon
         ? "Ya tienes Laragon. Roost se instala al lado: no mueve ni cambia nada suyo."
-        : "Roost se instala al lado de lo que ya tengas: no mueve ni cambia nada de fuera.";
+        : OperatingSystem.IsWindows()
+            ? "Roost se instala al lado de lo que ya tengas: no mueve ni cambia nada de fuera."
+            : "Roost se instala en tu carpeta personal, al lado de lo que ya tengas (el PHP de la distro, un Docker…): no mueve ni cambia nada de fuera.";
 
     public string RootPath => _main.App.Paths.Root;
 
@@ -268,11 +270,15 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
         try
         {
             var mariadb = await MariaDbCatalog.FetchAsync(_main.App.Http);
-            _db = mariadb.Where(b => b.Lts).OrderByDescending(b => b.Branch == "11.4").ThenByDescending(b => b.Version).FirstOrDefault();
+            // Fuera de Windows solo vale un paquete de Linux (el bintar .tar.gz): un .zip de Windows no se propone.
+            _db = mariadb.Where(b => b.Lts && (OperatingSystem.IsWindows() || !b.FileName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(b => b.Branch == "11.4").ThenByDescending(b => b.Version).FirstOrDefault();
             var hasDb = new DbInstaller(_main.App.Paths).ListInstalled().Count > 0;
             if (_db is null || hasDb)
             {
-                DbText = hasDb ? "Ya hay una base de datos en Roost" : "No hay ninguna MariaDB LTS en el catálogo";
+                DbText = hasDb ? "Ya hay una base de datos en Roost"
+                    : OperatingSystem.IsWindows() ? "No hay ninguna MariaDB LTS en el catálogo"
+                    : "Todavía no hay ninguna MariaDB para Linux en el catálogo: se instala desde Bases de datos cuando la haya";
                 InstallDb = false;
                 _db = null;
             }
@@ -284,7 +290,9 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
                 {
                     _dbPort = new[] { 3307, 3308, 3309, 3310 }.FirstOrDefault(p => StackPlanner.BusyPorts([p]).Count == 0) is var p and > 0 ? p : null;
                     DbHint = dbService is not null
-                        ? $"El 3306 es del servicio de Windows {dbService.DisplayName}, que arranca con Windows: usaría el {_dbPort}."
+                        ? OperatingSystem.IsWindows()
+                            ? $"El 3306 es del servicio de Windows {dbService.DisplayName}, que arranca con Windows: usaría el {_dbPort}."
+                            : $"El 3306 es del servicio {dbService.Name} de la distro, que arranca con el sistema: usaría el {_dbPort}."
                         : $"El 3306 está ocupado: usaría el {_dbPort}.{(HasLaragon ? " Tus bases de datos de Laragon no se tocan." : "")}";
                 }
                 else
@@ -304,7 +312,7 @@ public sealed partial class WelcomeDialogViewModel : DialogViewModel
         var dbPort = _dbPort ?? config.DbPort;
         ServiceWarnings = _main.MachineServices.ConflictsWith(config with { DbPort = dbPort }, withSites: true, withDb: InstallDb || new DbInstaller(_main.App.Paths).ListInstalled().Count > 0)
             .Select(c => $"{c.Service.DisplayName} ({c.Service.Name}): {Services.MachineServices.StateInSentence(c.Service)} y suele usar el {string.Join(" y el ", c.Ports)}, "
-                         + $"{(c.Ports.Count == 1 ? "que es" : "que son")} {string.Join(" y ", c.Ports.Select(p => AuditViewModel.RoleOf(p, config with { DbPort = dbPort })))} de Roost. Déjalo en Manual en Servicios de Windows para que no se lo quede.")
+                         + $"{(c.Ports.Count == 1 ? "que es" : "que son")} {string.Join(" y ", c.Ports.Select(p => AuditViewModel.RoleOf(p, config with { DbPort = dbPort })))} de Roost. {Services.OsTexts.LeaveServiceManual(c.Service.Name)}")
             .ToList();
         Ready = true;
     }

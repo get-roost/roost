@@ -60,7 +60,7 @@ public sealed record RootChangeMarker(string From, string To, bool Moved, bool S
 /// </summary>
 public sealed partial class ChangeRootDialogViewModel : DialogViewModel
 {
-    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-ES");
+    private static readonly CultureInfo Es = Roost.Desktop.Services.Es.Culture;
     private readonly MainViewModel _main;
     private CancellationTokenSource? _measure;
 
@@ -106,8 +106,14 @@ public sealed partial class ChangeRootDialogViewModel : DialogViewModel
 
     /// <summary>Lo que se mueve con la raíz, para el aviso.</summary>
     public string WhatMovesText =>
-        $"En la raíz van los PHP y las bases de datos instalados y sus datos (data\\), la CA local y los certificados de los sitios (certs\\), la configuración generada (etc\\), los registros y la carpeta de proyectos (www\\). "
-        + "Los proyectos que estén fuera de la www no se mueven.";
+        $"En la raíz van los PHP y las bases de datos instalados y sus datos (data{S}), la CA local y los certificados de los sitios (certs{S}), la configuración generada (etc{S}), los registros y "
+        + (WwwInside ? $"la carpeta de proyectos (www{S}). Los proyectos que estén fuera de la www no se mueven."
+            : $"el estado. La carpeta de proyectos ({_main.App.Paths.Www}) está fuera de la raíz y se queda donde está.");
+
+    private static readonly char S = Path.DirectorySeparatorChar;
+
+    /// <summary>true si la www cuelga de la raíz (siempre en Windows; en Linux, no cuando es /var/www/roost).</summary>
+    private bool WwwInside => RoostPaths.SameFolder(Path.GetDirectoryName(Path.GetFullPath(_main.App.Paths.Www).TrimEnd(S)) ?? "", From);
 
     partial void OnTargetChanged(string value) => Validate();
 
@@ -162,23 +168,50 @@ public sealed partial class ChangeRootDialogViewModel : DialogViewModel
     /// o null; y una nota si vale pero conviene saber algo (ya hay una Roost ahí).
     /// </summary>
     public static (string? Problem, string? Info) Check(string from, string target, bool move,
-        Func<string, bool> exists, Func<string, bool> hasEntries, Func<string, bool> looksLikeRoost)
+        Func<string, bool> exists, Func<string, bool> hasEntries, Func<string, bool> looksLikeRoost) =>
+        Check(from, target, move, exists, hasEntries, looksLikeRoost, OperatingSystem.IsWindows() ? SystemFolders.Windows() : SystemFolders.Posix());
+
+    /// <summary>Las carpetas del sistema en las que no se puede poner la raíz (los tests ponen las suyas).</summary>
+    public sealed record SystemFolders(bool IsWindows, IReadOnlyList<string> Forbidden, string? Home)
+    {
+        public static SystemFolders Windows() => new(true,
+            [Environment.GetFolderPath(Environment.SpecialFolder.Windows), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86)],
+            null);
+
+        /// <summary>Linux y macOS: lo del sistema (<c>/usr</c>, <c>/etc</c>, <c>/bin</c>, <c>/var/lib</c>…), salvo lo que cuelgue de la carpeta personal.</summary>
+        public static SystemFolders Posix() => new(false,
+            ["/usr", "/etc", "/bin", "/sbin", "/lib", "/lib64", "/boot", "/dev", "/proc", "/sys", "/run", "/root", "/var/lib", "/var/log", "/var/cache", "/var/run", "/snap"],
+            Environment.GetEnvironmentVariable("HOME"));
+    }
+
+    /// <summary><see cref="Check(string, string, bool, Func{string, bool}, Func{string, bool}, Func{string, bool})"/> con las carpetas del sistema de otro sitio (los tests).</summary>
+    public static (string? Problem, string? Info) Check(string from, string target, bool move,
+        Func<string, bool> exists, Func<string, bool> hasEntries, Func<string, bool> looksLikeRoost, SystemFolders system)
     {
         target = target.Trim();
+        var windows = system.IsWindows;
+        var sep = windows ? '\\' : '/';
+        var comparison = windows ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var example = windows ? @"D:\roost" : "/srv/roost";
         if (target.Length == 0) return ("Elige una carpeta.", null);
-        if (target.StartsWith(@"\\", StringComparison.Ordinal)) return ("Tiene que estar en un disco de este equipo, no en una carpeta de red.", null);
-        if (!Path.IsPathFullyQualified(target)) return (@"Tiene que ser una ruta completa, como D:\roost.", null);
-        if (target.Any(c => c > 127 || char.IsWhiteSpace(c) || !(char.IsAsciiLetterOrDigit(c) || c is '\\' or ':' or '-' or '_' or '.')))
-            return (@"Sin espacios, tildes ni símbolos: nginx, PHP y MySQL se llevan mal con ellos (por ejemplo, D:\roost o D:\dev\roost).", null);
-        var full = Path.GetFullPath(target).TrimEnd('\\');
-        if (Path.GetPathRoot(full)?.TrimEnd('\\') == full) return (@"Un disco entero no: una carpeta dentro (D:\roost).", null);
-        var source = Path.GetFullPath(from).TrimEnd('\\');
-        if (string.Equals(full, source, StringComparison.OrdinalIgnoreCase)) return ("Es la que ya usa Roost.", null);
-        if (full.StartsWith(source + "\\", StringComparison.OrdinalIgnoreCase) || source.StartsWith(full + "\\", StringComparison.OrdinalIgnoreCase))
+        if (windows && target.StartsWith(@"\\", StringComparison.Ordinal)) return ("Tiene que estar en un disco de este equipo, no en una carpeta de red.", null);
+        if (windows ? !Path.IsPathFullyQualified(target) : !target.StartsWith('/')) return ($"Tiene que ser una ruta completa, como {example}.", null);
+        if (target.Any(c => c > 127 || char.IsWhiteSpace(c) || !(char.IsAsciiLetterOrDigit(c) || c == sep || c is '-' or '_' or '.' || (windows && c == ':'))))
+            return ($"Sin espacios, tildes ni símbolos: nginx, PHP y MySQL se llevan mal con ellos (por ejemplo, {example} o {(windows ? @"D:\dev\roost" : "~/dev/roost, escrito entero")}).", null);
+        var full = (windows ? Path.GetFullPath(target) : NormalizePosix(target)).TrimEnd(sep);
+        if (windows ? Path.GetPathRoot(full)?.TrimEnd(sep) == full : full.Length == 0)
+            return (windows ? @"Un disco entero no: una carpeta dentro (D:\roost)." : "La raíz del disco no: una carpeta dentro (/srv/roost, o una de tu carpeta personal).", null);
+        var source = (windows ? Path.GetFullPath(from) : NormalizePosix(from)).TrimEnd(sep);
+        if (string.Equals(full, source, comparison)) return ("Es la que ya usa Roost.", null);
+        if (full.StartsWith(source + sep, comparison) || source.StartsWith(full + sep, comparison))
             return ("No puede estar dentro de la de ahora, ni al revés.", null);
-        foreach (var system in new[] { Environment.GetFolderPath(Environment.SpecialFolder.Windows), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) })
-            if (system.Length > 0 && (string.Equals(full, system, StringComparison.OrdinalIgnoreCase) || full.StartsWith(system.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)))
-                return ("Ni en Windows ni en Archivos de programa: Roost escribe en su raíz, y ahí haría falta ser administrador.", null);
+        var underHome = system.Home is { Length: > 0 } home && (string.Equals(full, home.TrimEnd(sep), comparison) || full.StartsWith(home.TrimEnd(sep) + sep, comparison));
+        if (!underHome)
+            foreach (var folder in system.Forbidden)
+                if (folder.Length > 0 && (string.Equals(full, folder.TrimEnd(sep), comparison) || full.StartsWith(folder.TrimEnd(sep) + sep, comparison)))
+                    return (windows
+                        ? "Ni en Windows ni en Archivos de programa: Roost escribe en su raíz, y ahí haría falta ser administrador."
+                        : $"Ahí no ({folder} es del sistema): Roost escribe en su raíz y haría falta ser root. Vale tu carpeta personal, /srv o /opt.", null);
 
         if (exists(full) && hasEntries(full))
         {
@@ -187,6 +220,19 @@ public sealed partial class ChangeRootDialogViewModel : DialogViewModel
             return (null, "Ahí ya hay una Roost: se usará la que hay (sus PHP, sus datos y su CA).");
         }
         return (null, move ? null : "Roost empezará de cero ahí: habrá que instalar PHP y la base de datos, y confiar en una CA nueva. La raíz de ahora se queda como está y puedes volver a ella.");
+    }
+
+    /// <summary>PURO: una ruta POSIX sin <c>.</c>, <c>..</c> ni barras repetidas (sin tocar el disco, para que valga en los tests de Windows).</summary>
+    public static string NormalizePosix(string path)
+    {
+        var parts = new List<string>();
+        foreach (var part in path.Split('/', StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (part == ".") continue;
+            if (part == "..") { if (parts.Count > 0) parts.RemoveAt(parts.Count - 1); continue; }
+            parts.Add(part);
+        }
+        return "/" + string.Join('/', parts);
     }
 
     private async Task MeasureAsync()
@@ -212,8 +258,8 @@ public sealed partial class ChangeRootDialogViewModel : DialogViewModel
         var skip = new List<string>();
         foreach (var path in new[] { paths.ConfigFile, paths.Cache })
         {
-            var parent = Path.GetDirectoryName(Path.GetFullPath(path).TrimEnd('\\'));
-            if (parent is not null && RoostPaths.SameFolder(parent, paths.Root)) skip.Add(Path.GetFileName(path.TrimEnd('\\')));
+            var parent = Path.GetDirectoryName(Path.GetFullPath(path).TrimEnd(S));
+            if (parent is not null && RoostPaths.SameFolder(parent, paths.Root)) skip.Add(Path.GetFileName(path.TrimEnd(S)));
         }
         return skip;
     }
@@ -240,7 +286,7 @@ public sealed partial class ChangeRootDialogViewModel : DialogViewModel
     {
         if (!CanStart) return;
         var paths = _main.App.Paths;
-        var target = Path.GetFullPath(Target.Trim()).TrimEnd('\\');
+        var target = Path.GetFullPath(Target.Trim()).TrimEnd(S);
         var move = Move;
         var wasRunning = _main.Stack.IsRunning;
         Working = true;

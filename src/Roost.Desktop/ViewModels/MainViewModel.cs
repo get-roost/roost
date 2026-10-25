@@ -347,8 +347,16 @@ public sealed partial class MainViewModel : ObservableObject
     {
         try
         {
-            var changed = await Task.Run(() => new SiteManager(App.Paths).SyncHosts(AppServices.HelperExe));
+            // Lo mismo que SiteManager.SyncHosts, con la Elevation de la app (sin terminal: pkexec sin agente de texto).
+            var changed = await Task.Run(() =>
+            {
+                if (Roost.Core.Config.RoostConfig.Load(App.Paths.ConfigFile).UsesLocalDns) return false;
+                var sites = new SiteManager(App.Paths);
+                return new HostsUpdater { Elevation = AppServices.Elevation }
+                    .Sync(SiteManager.HostNames(new SiteRegistry(App.Paths).Load()), AppServices.HelperExe, sites.HostsRequestFile);
+            });
             HostsError = null;
+            HostsCommand = null;
             RefreshMachineState();
             if (changed) Flash("hosts actualizado");
             return true;
@@ -356,14 +364,45 @@ public sealed partial class MainViewModel : ObservableObject
         catch (Exception ex) when (ex is RoostException or IOException or UnauthorizedAccessException)
         {
             HostsError = ex.Message;
+            HostsCommand = (ex as ElevationNeededException)?.Command;
             RefreshMachineState();
-            if (showError) await InfoAsync("No se pudo actualizar el hosts", ex.Message, Tone.Bad);
+            if (showError) await ShowElevationErrorAsync("No se pudo actualizar el hosts", ex);
             return false;
         }
     }
 
     /// <summary>Por qué falló el último <see cref="SyncHostsAsync"/>; null si fue bien.</summary>
     public string? HostsError { get; private set; }
+
+    /// <summary>Si el último fallo fue que no hay forma de pedir permiso, la orden exacta para hacerlo a mano («Copiar»).</summary>
+    public string? HostsCommand { get; private set; }
+
+    /// <summary>
+    /// El diálogo de un error que pide permiso: si Core no ha tenido forma de pedirlo
+    /// (<see cref="ElevationNeededException"/>: sin agente de polkit ni sudo sin contraseña, lo normal en
+    /// un WSL o en una sesión sin escritorio), además de contarlo ofrece «Copiar la orden» para ejecutarla
+    /// en una terminal. Lo demás, como <see cref="InfoAsync"/>.
+    /// </summary>
+    public async Task ShowElevationErrorAsync(string title, Exception error)
+    {
+        if (error is not ElevationNeededException needed)
+        {
+            await InfoAsync(title, error.Message, Tone.Bad);
+            return;
+        }
+        var message = needed.Message;
+        var cut = message.IndexOf("Ejecuta esto", StringComparison.Ordinal);
+        var choice = await ShowDialogAsync(new MessageDialogViewModel
+        {
+            Title = title,
+            Subtitle = "Roost no ha podido pedir permiso de administrador desde aquí.",
+            Text = (cut > 0 ? message[..cut].TrimEnd() : message) + "\n\nEjecuta esto en una terminal y repite la operación:",
+            Detail = needed.Command,
+            Tone = Tone.Bad,
+            Buttons = [new DialogButton("Cerrar", null, Left: true), new DialogButton("Copiar la orden", "copy", "primary")],
+        });
+        if (choice is "copy") await CopyAsync(needed.Command, "Copiada: pégala en una terminal");
+    }
 
     /// <summary>
     /// Cambia cómo se resuelven los .test. Al DNS local: pone la regla NRPT (un UAC) y deja de usar
@@ -378,13 +417,13 @@ public sealed partial class MainViewModel : ObservableObject
             if (Roost.Core.Dns.LocalDns.ForeignRule(Roost.Core.Dns.LocalDns.ReadRules()) is { } foreign && !Roost.Core.Dns.LocalDns.IsRuleInstalled())
                 throw new RoostException($"Ya hay una regla de DNS para .test que no es de Roost (apunta a {foreign.Servers}). Quítala o sigue con el fichero hosts.");
             if (!Roost.Core.Dns.LocalDns.IsRuleInstalled())
-                await Task.Run(() => Roost.Core.Dns.LocalDns.InstallRule(AppServices.HelperExe));
+                await Task.Run(() => Roost.Core.Dns.LocalDns.InstallRule(AppServices.HelperExe, AppServices.Elevation));
             Roost.Core.Config.RoostConfig.SetResolver(file, Roost.Core.Config.RoostConfig.ResolverDns);
         }
         else
         {
             if (Roost.Core.Dns.LocalDns.IsRuleInstalled())
-                await Task.Run(() => Roost.Core.Dns.LocalDns.RemoveRule(AppServices.HelperExe));
+                await Task.Run(() => Roost.Core.Dns.LocalDns.RemoveRule(AppServices.HelperExe, AppServices.Elevation));
             Roost.Core.Config.RoostConfig.SetResolver(file, Roost.Core.Config.RoostConfig.ResolverHosts);
             await SyncHostsAsync();
         }
@@ -405,19 +444,34 @@ public sealed partial class MainViewModel : ObservableObject
         if (!force && (_trustOffered || !File.Exists(ca.CaCertFile))) return;
         if (ca.IsTrusted()) return;
         _trustOffered = true;
-        var dialog = new TrustCaDialogViewModel(ca, FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot()).Count);
+        var dialog = new TrustCaDialogViewModel(ca, OperatingSystem.IsWindows() ? FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot()).Count : 0);
         if (await ShowDialogAsync(dialog) is not true) return;
         await RunAsync("No se ha añadido la CA", async () =>
         {
-            await Task.Run(() =>
+            var report = await Task.Run(() =>
             {
                 ca.LoadOrCreate();
-                ca.Trust();
+                return ca.Trust();
             });
             RefreshMachineState();
             Flash("El navegador ya confía en tus sitios .test");
+            await ReportSkippedStoresAsync(report);
         });
         if (dialog.ConfigureFirefox && ca.IsTrusted()) await ConfigureFirefoxAsync();
+    }
+
+    /// <summary>
+    /// Linux: la CA entra almacén por almacén (Chrome, Chromium y cada perfil de Firefox, con certutil).
+    /// Lo que no ha entrado (un Firefox abierto tiene su cert9.db cogido) se cuenta con qué hacer.
+    /// </summary>
+    public async Task ReportSkippedStoresAsync(TrustReport report)
+    {
+        if (report.Skipped.Count == 0) return;
+        var firefox = report.Skipped.Any(s => s.StartsWith("Firefox", StringComparison.Ordinal));
+        await InfoAsync("La CA ha entrado en unos almacenes y en otros no",
+            $"Ha entrado en: {report.Summary}.\n\n"
+            + (firefox ? "Firefox tiene su almacén abierto mientras corre: ciérralo del todo y vuelve a pulsar «Confiar» (o roost cert trust) para que entre también ahí." : "Lo que falta, con su motivo, abajo."),
+            Tone.Warn, string.Join("\n", report.Skipped));
     }
 
     /// <summary>
@@ -427,6 +481,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public Task ConfigureFirefoxAsync() => RunAsync("No se pudo configurar Firefox", async () =>
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            // En Linux enterprise_roots lee el almacén del sistema (p11-kit), no el del usuario: la CA entra en cada perfil con certutil.
+            await InfoAsync("No hace falta en Linux", "Al confiar en la CA, Roost la añade a cada perfil de Firefox directamente (certutil). Si Firefox estaba abierto, ciérralo y vuelve a confiar.", Tone.Accent);
+            return;
+        }
         var profiles = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot());
         if (profiles.Count == 0)
         {

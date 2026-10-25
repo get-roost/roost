@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              xmlns:sys="using:System"
@@ -56,7 +57,7 @@
             <!-- Servicios (oleada 3): servicios de Windows que se quedarían un puerto de Roost (E7) -->
             <ctl:Note Tone="Warn" IsVisible="{Binding HasServiceWarnings}">
               <StackPanel Spacing="8">
-                <TextBlock Classes="strong" Text="Servicios de Windows que le quitarían un puerto a Roost" />
+                <TextBlock Classes="strong" Text="{x:Static svc:OsTexts.WelcomeServicesTitle}" />
                 <ItemsControl ItemsSource="{Binding ServiceWarnings}">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate><StackPanel Spacing="4" /></ItemsPanelTemplate>
@@ -68,7 +69,7 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                  <Button Classes="sm" Content="Abrir Servicios de Windows" Command="{Binding OpenServicesPanelCommand}" />
+                  <Button Classes="sm" Content="Abrir Servicios de Windows" Command="{Binding OpenServicesPanelCommand}" IsVisible="{x:Static svc:OsTexts.HasServicesPanel}" />
                   <TextBlock Classes="faint" VerticalAlignment="Center" TextWrapping="Wrap"
                              Text="Roost no los toca: Tipo de inicio › Manual, y Detener." />
                 </StackPanel>
@@ -179,8 +180,7 @@
             </StackPanel>
           </StackPanel>
 
-          <ctl:Note Tone="Accent"
-                    Content="Windows pedirá dos permisos: uno para el fichero hosts (los nombres .test) y otro para confiar en la CA local (el candado de https)." />
+          <ctl:Note Tone="Accent" Content="{x:Static svc:OsTexts.WelcomePermissionsNote}" />
         </StackPanel>
       </ScrollViewer>
     </DockPanel>

@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              x:Class="Roost.Desktop.Views.PhpView"
@@ -100,7 +101,7 @@
                     <Button Classes="sm ghost" Content="Editar" Command="{Binding EditBranchIniCommand}" AutomationProperties.Name="Editar los ajustes de esta rama" />
                     <TextBlock Classes="faint" Text="{Binding BranchHint}" VerticalAlignment="Center" />
                   </StackPanel>
-                  <TextBlock Grid.Row="4" Classes="muted" Text="Pool php-cgi" />
+                  <TextBlock Grid.Row="4" Classes="muted" Text="{x:Static svc:OsTexts.PhpPoolLabel}" />
                   <TextBlock Grid.Row="4" Grid.Column="1" Classes="mono" Text="{Binding PoolText}" />
                   <TextBlock Grid.Row="5" Classes="muted" Text="Diagnóstico" VerticalAlignment="Center" />
                   <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Spacing="8">
@@ -163,7 +164,8 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="vm:ExtensionToggle">
-                        <Button Classes="ext" Classes.on="{Binding IsOn}" Content="{Binding Name}"
+                        <Button Classes="ext" Classes.on="{Binding IsOn}" Classes.builtin="{Binding BuiltIn}" Content="{Binding Name}"
+                                IsHitTestVisible="{Binding CanToggle}" ToolTip.Tip="{Binding Tip}"
                                 Command="{Binding $parent[ItemsControl].((vm:PhpViewModel)DataContext).ToggleExtensionCommand}" CommandParameter="{Binding}" />
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -186,10 +188,11 @@
                 <Border Classes="seg">
                   <StackPanel Orientation="Horizontal" Spacing="2">
                     <RadioButton Theme="{StaticResource SegButton}" GroupName="php-ts" Content="NTS" IsChecked="{Binding Nts}" />
-                    <RadioButton Theme="{StaticResource SegButton}" GroupName="php-ts" Content="TS" IsChecked="{Binding ThreadSafe}" />
+                    <!-- La app en Linux (L2): roost-builds solo tiene NTS x64; TS y x86 son de windows.php.net -->
+                    <RadioButton Theme="{StaticResource SegButton}" GroupName="php-ts" Content="TS" IsChecked="{Binding ThreadSafe}" IsVisible="{x:Static svc:OsTexts.IsWindows}" />
                   </StackPanel>
                 </Border>
-                <Border Classes="seg">
+                <Border Classes="seg" IsVisible="{x:Static svc:OsTexts.IsWindows}">
                   <StackPanel Orientation="Horizontal" Spacing="2">
                     <RadioButton Theme="{StaticResource SegButton}" GroupName="php-arch" Content="x64" IsChecked="{Binding X64}" />
                     <RadioButton Theme="{StaticResource SegButton}" GroupName="php-arch" Content="x86" IsChecked="{Binding X86}" />

@@ -45,6 +45,9 @@ public sealed record FindingLine(string Name, string Source, string Chip, Tone T
 /// <summary>Inicio: los accesos de siempre, los servicios y un resumen de sitios y auditoría.</summary>
 public sealed partial class HomeViewModel : PageViewModel
 {
+    /// <summary>Lo que sirve PHP en el pool: php-cgi en Windows y php-fpm en Linux (una fila por rama en los dos casos).</summary>
+    private static string PhpWorker => OperatingSystem.IsWindows() ? "php-cgi" : "php-fpm";
+
     public HomeViewModel(MainViewModel main) : base(main)
     {
         main.Audit.PropertyChanged += (_, e) =>
@@ -174,7 +177,7 @@ public sealed partial class HomeViewModel : PageViewModel
                 var (tag, tagTone) = Branch(status.Php) == branch ? ("global", Tone.Accent) : EolTag(install);
                 rows.Add(new ServiceRow(
                     $"PHP {branch}", tag, tagTone,
-                    $"{Count(list.Count, "proceso php-cgi", "procesos php-cgi")} · lo usa{(users.Count == 1 ? "" : "n")} {Join(users)}",
+                    $"{Count(list.Count, $"proceso {PhpWorker}", $"procesos {PhpWorker}")} · lo usa{(users.Count == 1 ? "" : "n")} {Join(users)}",
                     PhpLabel(install), ports.Count == 0 ? "-" : ports.Count == 1 ? $"{ports[0]}" : $"{ports[0]}–{ports[^1]}",
                     state, tone, restarts, group.Key, alive));
             }
@@ -274,7 +277,7 @@ public sealed partial class HomeViewModel : PageViewModel
             {
                 var (tag, tagTone) = pool.Php == php ? ("global", Tone.Accent) : EolTag(pool.Php.Name);
                 rows.Add(new ServiceRow($"PHP {branch}", tag, tagTone,
-                    $"{Count(config.PhpPool, "proceso php-cgi", "procesos php-cgi")} · lo usa{(pool.Users.Count == 1 ? "" : "n")} {Join(pool.Users)}",
+                    $"{Count(config.PhpPool, $"proceso {PhpWorker}", $"procesos {PhpWorker}")} · lo usa{(pool.Users.Count == 1 ? "" : "n")} {Join(pool.Users)}",
                     PhpLabel(pool.Php.Name), "-", "Parado", Tone.Off, 0, null));
             }
         }
