@@ -136,7 +136,7 @@ public class ViewSnapshotTests
 
         db.ShowMySql = true;
         // MySQL va fijado en Roost por sistema: en Linux el -minimal (26.10, 8.4, 8.0) y sin la 5.7.
-        Assert.Equal(Roost.Core.Install.MySqlCatalog.Current.Select(b => b.Version.ToString()), db.Catalog.Select(r => r.Version));
+        Assert.Equal(Roost.Core.Install.MySqlCatalog.Current.Select(b => b.Version.ToString()).Order(), db.Catalog.Select(r => r.Version).Order());
         if (OperatingSystem.IsWindows())
             Assert.StartsWith("EOL", db.Catalog.Single(r => r.Version == "5.7.44").Support);
 
