@@ -74,6 +74,10 @@ internal static partial class HostsBlock
         {
             lines.RemoveRange(begin, end - begin + 1);
             lines.InsertRange(begin, block);
+            // Al quitar el bloque del final, se va también la línea en blanco que lo separaba (la puso Roost):
+            // poner y quitar deja el hosts como estaba, byte a byte.
+            if (block.Count == 0 && begin == lines.Count && begin > 0 && lines[begin - 1].Trim().Length == 0)
+                lines.RemoveAt(begin - 1);
         }
         else if (block.Count > 0)
         {

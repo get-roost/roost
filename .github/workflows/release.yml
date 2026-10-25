@@ -8,7 +8,7 @@
 # Assets: roost-<versión>-win-x64-setup.exe (el instalador de Windows: Program Files, accesos
 # directos y, si se elige, el PATH; build/roost.iss), roost-<versión>-win-x64.zip (lo mismo sin
 # instalar: CLI, helper, shim y app, autocontenidos y en la raíz del zip),
-# roost-<versión>-linux-x64.tar.gz (solo la CLI, un ejecutable) y SHA256SUMS.txt.
+# roost-<versión>-linux-x64.tar.gz (la CLI, roost-helper y su política de polkit) y SHA256SUMS.txt.
 #
 # Firma (opcional; sin configurar, la release sale sin firmar y las notas lo dicen):
 #   - Azure Artifact Signing (antes Trusted Signing), con OIDC: variables AZURE_SIGNING_ENDPOINT,
@@ -116,12 +116,11 @@ jobs:
           dotnet test Roost.slnx -c Release --no-build
           exit $LASTEXITCODE
 
-  # Los mismos tests en Linux. Informativo mientras se lleva Roost a Linux (oleada L1 del plan): no está
-  # en los needs de release y un fallo no para la publicación. Al cerrar L1 pasa a ser obligatorio.
+  # Los mismos tests en Linux: obligatorios desde que Roost funciona en Linux (0.1.10). Un fallo para la
+  # publicación, como en Windows.
   test-linux:
     name: Build y tests (Linux)
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -551,10 +550,17 @@ jobs:
           [ "$count" -ge 50 ] || { echo "::error::solo $count comandos con ayuda: el recorrido no ha bajado a las ramas"; exit 1; }
           echo "La ayuda sale bien en $count comandos."
           # Lo que en Linux aún no va dice lo mismo en todos los comandos, y tampoco cita ROOST.md.
-          for cmd in "up" "php install 8.4" "db install mariadb@11.4" "site add tienda" "web use nginx" "cert trust"; do
+          for cmd in "db install mariadb@11.4" "web use apache" "redis install" "node install 22" "share tienda" "shims install"; do
             out="$("$roost" $cmd < /dev/null 2>&1 || true)"
             if grep -q "ROOST.md" <<< "$out"; then echo "::error::roost $cmd cita ROOST.md"; exit 1; fi
+            grep -q "Linux" <<< "$out" || { echo "::error::roost $cmd no dice que aun no va en Linux: $out"; exit 1; }
           done
+          # El helper arranca (sin argumentos da el uso, 64) y, sin ser root, no hace nada (77).
+          helper=artifacts/linux-x64/roost-helper
+          code=0; "$helper" > /dev/null 2>&1 || code=$?
+          [ "$code" = 64 ] || { echo "::error::roost-helper sin argumentos sale con $code (se esperaba 64)"; exit 1; }
+          code=0; "$helper" hosts-sync < /dev/null > /dev/null 2>&1 || code=$?
+          [ "$code" = 77 ] || { echo "::error::roost-helper sin ser root sale con $code (se esperaba 77)"; exit 1; }
 
       - name: Empaquetar
         run: |
@@ -562,13 +568,14 @@ jobs:
           tarball="artifacts/dist/roost-$VERSION-linux-x64.tar"
           # Los permisos, explícitos: roost ejecutable aunque se empaquete desde otro sistema de ficheros.
           common=(-C artifacts/linux-x64 --owner=0 --group=0 --numeric-owner)
-          tar "${common[@]}" --mode=0755 -cf "$tarball" roost
-          tar "${common[@]}" --mode=0644 -rf "$tarball" LICENSE.txt
+          tar "${common[@]}" --mode=0755 -cf "$tarball" roost roost-helper
+          tar "${common[@]}" --mode=0644 -rf "$tarball" dev.roost.helper.policy LICENSE.txt
           gzip -9n "$tarball"
           # A una variable: con pipefail, un grep -q en tubería corta a tar (SIGPIPE) y falla.
           listing="$(tar -tvzf "$tarball.gz")"
           echo "$listing"
           grep -qE '^-rwxr-xr-x .* roost$' <<< "$listing" || { echo "::error::roost no es ejecutable en el tar.gz"; exit 1; }
+          grep -qE '^-rwxr-xr-x .* roost-helper$' <<< "$listing" || { echo "::error::roost-helper no es ejecutable en el tar.gz"; exit 1; }
 
       - uses: actions/upload-artifact@v7
         with:
@@ -578,7 +585,7 @@ jobs:
 
   release:
     name: Release
-    needs: [version, test, windows, linux]
+    needs: [version, test, test-linux, windows, linux]
     runs-on: ubuntu-latest
     permissions:
       contents: write       # crear la release
@@ -630,7 +637,7 @@ jobs:
             echo "|---|---|"
             echo "| **roost-$VERSION-win-x64-setup.exe** | **Windows 10/11 x64, el instalador (recomendado).** Instala Roost en Program Files con su acceso directo, el Visual C++ Redistributable si falta y, si lo eliges, añade roost a la línea de comandos. Para actualizar, la app lo hace sola (el aviso de versión nueva → «Actualizar ahora», o \`roost update --install\`); también puedes ejecutar el nuevo a mano. Tus datos y tus sitios no se tocan. |"
             echo "| roost-$VERSION-win-x64.zip | Windows 10/11 x64, sin instalar: la app (roost-desktop.exe), la CLI (roost.exe), roost-helper.exe y el shim de php. No necesita .NET: descomprime y abre roost-desktop.exe. Es lo que usa Scoop (\`scoop bucket add roost https://github.com/$GITHUB_REPOSITORY\` y \`scoop install roost\`). |"
-            echo "| roost-$VERSION-linux-x64.tar.gz | Linux x64: la CLI (roost), un solo ejecutable. De momento, roost scan y roost audit. |"
+            echo "| roost-$VERSION-linux-x64.tar.gz | Linux x64: la CLI (roost, con el daemon), roost-helper y su política de polkit. No necesita .NET. Para lo que pide permisos (el hosts, /var/www/roost, los puertos 80 y 443), instala el helper como dice el README (\`sudo install … /usr/libexec/roost/roost-helper\`). Sin base de datos ni app todavía. |"
             echo "| SHA256SUMS.txt | Las sumas SHA-256 de lo anterior (\`sha256sum -c SHA256SUMS.txt\`). |"
             echo
             echo "## Firma y procedencia"

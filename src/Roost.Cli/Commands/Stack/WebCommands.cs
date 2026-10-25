@@ -25,7 +25,7 @@ internal static class WebServerSetup
             if (installer.Find(build) is not null) return;
             // Apache de Apache Lounge no arranca sin el VC++ 14.50 o posterior: avisar antes, con el enlace.
             WarnVcRedist(forApache: true);
-            await InstallAsync($"Apache {build.Version}", build.Url.Host, (progress, ct) => installer.InstallAsync(build, progress, ct), cancellation);
+            await InstallAsync($"Apache {build.Version}", Source(paths, build.FileName, build.Url), (progress, ct) => installer.InstallAsync(build, progress, ct), cancellation);
         }
         else
         {
@@ -35,7 +35,7 @@ internal static class WebServerSetup
             // nginx no lo necesita, pero el PHP que va a servir si (en Windows el VC++; en Linux, la glibc).
             WarnVcRedist(forApache: false);
             WarnLinuxDeps(LinuxNeed.Php);
-            await InstallAsync($"nginx {build.Version}", build.Url.Host, (progress, ct) => installer.InstallAsync(build, progress, ct), cancellation);
+            await InstallAsync($"nginx {build.Version}", Source(paths, build.FileName, build.Url), (progress, ct) => installer.InstallAsync(build, progress, ct), cancellation);
         }
     }
 
@@ -51,6 +51,10 @@ internal static class WebServerSetup
         if (LinuxDeps.Warning(LinuxDeps.Detect(), need) is { } warning)
             AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {warning}");
     }
+
+    /// <summary>De donde sale: la cache de descargas si ya esta ahi (se comprueba su SHA-256 igual) o el servidor de la URL.</summary>
+    private static string Source(RoostPaths paths, string fileName, Uri url) =>
+        File.Exists(Path.Combine(paths.Downloads, fileName)) ? "la cache de descargas" : url.Host;
 
     private static async Task InstallAsync(string what, string host, Func<IProgress<long>, CancellationToken, Task> install, CancellationToken cancellation)
     {

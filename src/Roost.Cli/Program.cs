@@ -318,7 +318,7 @@ app.Configure(config =>
 
     config.AddBranch("dns", dns =>
     {
-        dns.SetDescription("El DNS local para los .test: crear un sitio deja de pedir permiso de administrador (de momento, solo en Windows).");
+        dns.SetDescription("El DNS local para los .test: crear un sitio deja de pedir permiso de administrador (en Windows con una regla NRPT; en Linux, con systemd-resolved).");
 
         dns.AddCommand<DnsInstallCommand>("install")
             .WithDescription("Pone la regla de DNS de .test (un solo permiso de administrador) y deja de usar el hosts.")
@@ -558,11 +558,11 @@ app.Configure(config =>
         cert.SetDescription("La CA local que firma los certificados de los sitios .test.");
 
         cert.AddCommand<CertTrustCommand>("trust")
-            .WithDescription("Anade la CA de Roost a los certificados de confianza de tu usuario (Windows pide confirmacion).")
+            .WithDescription("Anade la CA de Roost a los certificados de confianza de tu usuario (Windows pide confirmacion; en Linux, Chrome y Firefox con certutil, y --system la del sistema).")
             .WithExample("cert", "trust");
 
         cert.AddCommand<CertUntrustCommand>("untrust")
-            .WithDescription("Quita la CA de Roost de los certificados de confianza de tu usuario, y lo de Firefox (Windows pide confirmacion).")
+            .WithDescription("Quita la CA de Roost de los certificados de confianza de tu usuario, y lo de Firefox (Windows pide confirmacion; en Linux, tambien la del sistema si estaba).")
             .WithExample("cert", "untrust");
 
         cert.AddCommand<CertRenewCommand>("renew")
@@ -585,7 +585,7 @@ app.Configure(config =>
 
     config.AddBranch("web", web =>
     {
-        web.SetDescription("El servidor web que arranca roost up: nginx o Apache (de momento, solo en Windows).");
+        web.SetDescription("El servidor web que arranca roost up: nginx o Apache (en Linux, de momento solo nginx).");
 
         web.AddCommand<WebUseCommand>("use")
             .WithDescription("Elige nginx o Apache (lee los .htaccess). Lo instala si falta y, si el stack esta en marcha, cambia solo el servidor web.")

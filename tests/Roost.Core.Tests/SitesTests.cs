@@ -46,6 +46,16 @@ public class SitesTests : IDisposable
     }
 
     [Theory]
+    [InlineData(SystemHosts)]
+    [InlineData("127.0.0.1\tlocalhost\n::1     ip6-localhost ip6-loopback\nff02::2 ip6-allrouters\n")]   // el de WSL/Linux, con \n
+    public void HostsBlock_Apply_PonerYQuitar_DejaElHostsComoEstaba(string hosts)
+    {
+        var with = HostsBlock.Apply(hosts, ["tienda.test", "otro.test"]);
+
+        Assert.Equal(hosts, HostsBlock.Apply(with, []));   // byte a byte: sin la línea en blanco que separaba el bloque
+    }
+
+    [Theory]
     [InlineData("google.com")]                     // nada de dominios reales
     [InlineData("tienda.test 1.2.3.4")]            // ni inyectar otra columna
     [InlineData("tienda.test\r\n127.0.0.1 x.com")] // ni lineas de mas
