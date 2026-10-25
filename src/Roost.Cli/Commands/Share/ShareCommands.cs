@@ -102,6 +102,7 @@ internal static class ShareSupport
     /// <summary>Quita la regla del cortafuegos de un puerto (UAC), contando lo que pasa; nunca lanza.</summary>
     public static void RemoveFirewallRule(int port)
     {
+        if (!LanFirewall.MayHaveRule(port)) return;
         AnsiConsole.MarkupLineInterpolated($"Quitando la regla del cortafuegos [grey]«{LanFirewall.RuleName(port)}»[/] ({AdminPrompt})...");
         try
         {

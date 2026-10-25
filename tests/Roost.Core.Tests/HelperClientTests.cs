@@ -94,6 +94,11 @@ public class HelperClientTests : IDisposable
         LanFirewall.Remove(Helper, 8444, Paths, AsRoot(runner));
         Assert.Empty(LanFirewall.Remembered(Paths));
         Assert.False(File.Exists(LanFirewall.RecordFile(Paths)));
+
+        // Una regla que Roost no apuntó (no había cortafuegos activo al compartir) no se quita: ni se pide permiso.
+        Assert.False(LanFirewall.MayHaveRule(8445, Paths));
+        LanFirewall.Remove(Helper, 8445, Paths, AsRoot(runner));
+        Assert.Equal(["firewall-allow 8443", "firewall-allow 8444", "firewall-allow 8443", "firewall-remove 8443", "firewall-remove 8444"], runner.Commands);
     }
 
     [Fact]

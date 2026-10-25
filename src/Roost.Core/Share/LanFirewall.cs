@@ -34,17 +34,24 @@ public static class LanFirewall
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
-    /// <summary>Pone la regla con <paramref name="helperExe"/> con privilegios (si hace falta: <see cref="Needed"/>). Lanza <see cref="RoostException"/> si se cancela o falla.</summary>
+    /// <summary>Pone la regla con <paramref name="helperExe"/> con privilegios (quien la pide mira antes <see cref="Needed"/>). Lanza <see cref="RoostException"/> si se cancela o falla.</summary>
     public static void Allow(string helperExe, int port, RoostPaths? paths = null, Elevation? elevation = null)
     {
-        if (!Needed) return;
         RunHelper(helperExe, "firewall-allow", port, elevation);
         if (!OperatingSystem.IsWindows()) Remember(paths ?? RoostPaths.Default(), port, opened: true);
     }
 
-    /// <summary>Quita la regla con <paramref name="helperExe"/> con privilegios. Lanza <see cref="RoostException"/> si se cancela o falla.</summary>
+    /// <summary>
+    /// Si al dejar de compartir puede haber una regla que quitar: en Windows se intenta siempre; en Linux, solo
+    /// si Roost la apuntó al ponerla (sin cortafuegos activo no se pone ninguna, y no se pide permiso para nada).
+    /// </summary>
+    public static bool MayHaveRule(int port, RoostPaths? paths = null) =>
+        OperatingSystem.IsWindows() || Remembered(paths ?? RoostPaths.Default()).Contains(port);
+
+    /// <summary>Quita la regla con <paramref name="helperExe"/> con privilegios (si puede haberla: <see cref="MayHaveRule"/>). Lanza <see cref="RoostException"/> si se cancela o falla.</summary>
     public static void Remove(string helperExe, int port, RoostPaths? paths = null, Elevation? elevation = null)
     {
+        if (!MayHaveRule(port, paths)) return;
         RunHelper(helperExe, "firewall-remove", port, elevation);
         if (!OperatingSystem.IsWindows()) Remember(paths ?? RoostPaths.Default(), port, opened: false);
     }
