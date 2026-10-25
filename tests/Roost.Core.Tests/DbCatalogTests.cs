@@ -127,8 +127,9 @@ public class DbCatalogTests
         Assert.True(build.Lts);
         Assert.Equal("https://downloads.mariadb.org/rest-api/mariadb/11.4.13/mariadb-11.4.13-winx64.zip", build.Urls[0].ToString());
         Assert.Equal("https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip", build.Urls[1].ToString());
-        // Sin decir cual, el de este sistema.
-        Assert.Equal(OperatingSystem.IsWindows() ? "mariadb-11.4.13-winx64.zip" : "mariadb-11.4.13-linux-systemd-x86_64.tar.gz", MariaDbCatalog.ParseLatest(LatestJson, major)!.FileName);
+        // Sin decir cual, el zip de Windows, como siempre (el de este sistema lo elige FetchAsync con FileSuffix).
+        Assert.Equal("mariadb-11.4.13-winx64.zip", MariaDbCatalog.ParseLatest(LatestJson, major)!.FileName);
+        Assert.Equal(OperatingSystem.IsWindows() ? MariaDbCatalog.WindowsSuffix : MariaDbCatalog.LinuxSuffix, MariaDbCatalog.FileSuffix);
     }
 
     [Fact]

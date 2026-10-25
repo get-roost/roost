@@ -90,9 +90,35 @@ public static partial class LinuxApache
     /// <summary>Cómo se instala, sin tildes (lo enseña la CLI).</summary>
     public const string InstallHint = "sudo apt install apache2 en Debian y Ubuntu; sudo dnf install httpd en Fedora y RHEL";
 
-    /// <summary>PURO: el Apache de la distro según qué ficheros existen, o null si no está. <paramref name="version"/> da la versión del ejecutable.</summary>
-    public static InstalledApache? Locate(Func<string, bool> fileExists, Func<string, bool> directoryExists, Func<string, string> version)
+    /// <summary>
+    /// La variable que manda sobre la búsqueda: <c>none</c> = no usar el Apache de la distro aunque esté (los
+    /// tests y el CI, que corren en máquinas con apache2); una ruta = ese ejecutable (un httpd compilado a
+    /// mano en <c>/usr/local/apache2/bin/httpd</c>), con sus módulos en <see cref="ModulesVariable"/> o en
+    /// <c>../modules</c>.
+    /// </summary>
+    public const string ExecutableVariable = "ROOST_APACHE";
+
+    /// <summary>Con <see cref="ExecutableVariable"/> a una ruta: la carpeta de sus módulos, si no es <c>../modules</c>.</summary>
+    public const string ModulesVariable = "ROOST_APACHE_MODULES";
+
+    /// <summary>El Apache de la distro, o null si no está (o <c>ROOST_APACHE=none</c>).</summary>
+    public static InstalledApache? Locate(IProcessRunner runner) =>
+        Locate(File.Exists, Directory.Exists, exe => Version(exe, runner), Environment.GetEnvironmentVariable);
+
+    /// <summary>PURO: el Apache de la distro según qué ficheros existen y las variables, o null si no está. <paramref name="version"/> da la versión del ejecutable.</summary>
+    public static InstalledApache? Locate(Func<string, bool> fileExists, Func<string, bool> directoryExists, Func<string, string> version, Func<string, string?>? env = null)
     {
+        var chosen = env?.Invoke(ExecutableVariable)?.Trim();
+        if (chosen is { Length: > 0 })
+        {
+            if (chosen.Equals("none", StringComparison.OrdinalIgnoreCase) || !fileExists(chosen)) return null;
+            // /usr/local/apache2/bin/httpd -> /usr/local/apache2 (modules/ al lado de bin/), salvo que se diga otra.
+            var parent = env!(ModulesVariable)?.Trim() is { Length: > 0 } modules
+                ? modules.TrimEnd('/').EndsWith("/modules", StringComparison.Ordinal) ? modules.TrimEnd('/')[..^"/modules".Length] : modules.TrimEnd('/')
+                : chosen[..Math.Max(0, chosen.LastIndexOf("/bin/", StringComparison.Ordinal))];
+            if (parent.Length == 0 || !directoryExists(parent + "/modules")) return null;
+            return new InstalledApache(version(chosen), parent) { DistroExecutable = chosen };
+        }
         foreach (var (executable, parent) in Layouts)
         {
             if (fileExists(executable) && directoryExists(parent + "/modules"))
@@ -187,7 +213,7 @@ public sealed class ApacheInstaller
     public InstalledApache? Find(ApacheBuild build)
     {
         if (build.IsDistro)
-            return LinuxApache.Locate(File.Exists, Directory.Exists, exe => LinuxApache.Version(exe, _runner));
+            return LinuxApache.Locate(_runner);
         var dir = Path.Combine(_paths.ApacheBin, build.Version);
         return File.Exists(Path.Combine(dir, "bin", ExecutableName)) ? new InstalledApache(build.Version, dir) : null;
     }

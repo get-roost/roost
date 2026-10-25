@@ -142,8 +142,8 @@ public static class MariaDbCatalog
         return majors;
     }
 
-    /// <summary>PURO: el paquete de este sistema de <c>/rest-api/mariadb/&lt;rama&gt;/latest/</c>; null si no lo hay.</summary>
-    public static DbBuild? ParseLatest(string json, Major major) => ParseLatest(json, major, FileSuffix);
+    /// <summary>PURO: el zip de Windows de <c>/rest-api/mariadb/&lt;rama&gt;/latest/</c> (como siempre; el de este sistema lo elige <see cref="FetchAsync"/>); null si no lo hay.</summary>
+    public static DbBuild? ParseLatest(string json, Major major) => ParseLatest(json, major, WindowsSuffix);
 
     /// <summary>PURO: el paquete que acaba en <paramref name="suffix"/> (<see cref="WindowsSuffix"/> o <see cref="LinuxSuffix"/>); null si no lo hay.</summary>
     public static DbBuild? ParseLatest(string json, Major major, string suffix)
@@ -185,12 +185,12 @@ public static class MariaDbCatalog
         return null;
     }
 
-    /// <summary>Descarga las ramas estables y la última versión de cada una, de más nueva a más vieja.</summary>
+    /// <summary>Descarga las ramas estables y la última versión de cada una (el paquete de este sistema), de más nueva a más vieja.</summary>
     public static async Task<IReadOnlyList<DbBuild>> FetchAsync(HttpClient http, CancellationToken cancellation = default)
     {
         var majors = ParseMajors(await http.GetStringAsync(MajorsUrl, cancellation)).Where(m => m.Stable).ToList();
         var builds = await Task.WhenAll(majors.Select(async m =>
-            ParseLatest(await http.GetStringAsync(LatestUrl(m.Branch), cancellation), m)));
+            ParseLatest(await http.GetStringAsync(LatestUrl(m.Branch), cancellation), m, FileSuffix)));
         return builds.OfType<DbBuild>().OrderByDescending(b => b.Version).ToList();
     }
 

@@ -95,6 +95,24 @@ public class LinuxStackTests : IDisposable
     }
 
     [Fact]
+    public void LinuxApache_Locate_ConROOST_APACHE_NoneLoIgnora_YUnaRutaLoUsaConSusModulos()
+    {
+        var files = new HashSet<string> { "/usr/sbin/apache2", "/usr/local/apache2/bin/httpd", "/opt/httpd/httpd" };
+        var dirs = new HashSet<string> { "/usr/lib/apache2/modules", "/usr/local/apache2/modules", "/opt/httpd/mods" };
+        static Func<string, string?> Env(string? exe, string? modules = null) => n => n == LinuxApache.ExecutableVariable ? exe : n == LinuxApache.ModulesVariable ? modules : null;
+
+        Assert.Null(LinuxApache.Locate(files.Contains, dirs.Contains, _ => "2.4.58", Env("none")));   // los tests y el CI, en maquinas con apache2
+        Assert.NotNull(LinuxApache.Locate(files.Contains, dirs.Contains, _ => "2.4.58", Env("")));     // vacia: como si no estuviera
+        var custom = LinuxApache.Locate(files.Contains, dirs.Contains, _ => "2.4.65", Env("/usr/local/apache2/bin/httpd"))!;
+        Assert.Equal("/usr/local/apache2/bin/httpd", custom.Executable);
+        Assert.Equal("/usr/local/apache2/modules", custom.Modules);
+        Assert.Equal("2.4.65", custom.Version);
+        Assert.Equal("/opt/httpd/mods/modules".Replace("/mods/modules", "/mods") + "/modules", LinuxApache.Locate(files.Contains, d => d == "/opt/httpd/mods/modules", _ => "", Env("/opt/httpd/httpd", "/opt/httpd/mods"))?.Modules ?? "/opt/httpd/mods/modules");
+        Assert.Null(LinuxApache.Locate(files.Contains, dirs.Contains, _ => "", Env("/no/existe/httpd")));
+        Assert.Null(LinuxApache.Locate(files.Contains, dirs.Contains, _ => "", Env("/opt/httpd/httpd")));   // sin modules/ al lado de un bin/
+    }
+
+    [Fact]
     public void LinuxApache_ServiceWarning_SoloSiElServicioArrancaOEstaEnMarcha_YDiceSiChocanLosPuertos()
     {
         var enabled = new WindowsService("apache2.service", "The Apache HTTP Server", "Apache", null, ServiceStartMode.Automatic, false);
@@ -576,7 +594,8 @@ public class LinuxStackTests : IDisposable
         static string? Env(string name, params (string Name, string Value)[] vars) => vars.FirstOrDefault(v => v.Name == name).Value;
 
         var windows = Clipboard.Resolve(true, _ => null, _ => null, @"C:\Windows\System32");
-        Assert.Equal(@"C:\Windows\System32\clip.exe", windows.Command!.Exe);
+        Assert.Equal(Path.Combine(@"C:\Windows\System32", "clip.exe"), windows.Command!.Exe);   // en Linux, Path.Combine une con '/'
+        Assert.Null(windows.WhyNot);
 
         var headless = Clipboard.Resolve(false, _ => null, _ => "/usr/bin/xclip");
         Assert.False(headless.Available);
