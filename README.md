@@ -2,7 +2,7 @@
 
 Roost te dice qué versiones de PHP, MySQL y MariaDB tienes instaladas, cuáles están fuera de soporte (EOL) y cuáles tienen CVE abiertos.
 
-Es un CLI y, en Windows, también una app de escritorio con bandeja. La **fase 0** (inventario y auditoría) y la **fase 1** (instalar PHP, MariaDB y MySQL, servirlos con nginx, sitios `https://*.test` y la app de escritorio) están hechas en Windows, y la fase 2 va avanzando. En Linux funciona ya el stack desde la CLI (PHP de la 8.1 a la 8.5 con php-fpm, nginx, sitios `https://*.test`, la CA y el DNS local); la base de datos, Apache, las herramientas y la app llegan en las próximas versiones. El objetivo es un entorno de desarrollo PHP tipo Laragon que funcione igual en Windows y en Linux y que sepa cuándo caduca lo que instala.
+Es un CLI, una app de escritorio con bandeja y un panel web. La **fase 0** (inventario y auditoría) y la **fase 1** (instalar PHP, MariaDB y MySQL, servirlos con nginx, sitios `https://*.test` y la app de escritorio) están hechas en Windows, y la fase 2 va avanzando. Desde la 0.1.11 funciona también en Linux: el stack entero (PHP 8.1 a 8.5 con php-fpm, nginx o el Apache de la distro, MariaDB y MySQL, Redis, Mailpit), los sitios, las herramientas de la terminal y la app; el paquete `.deb` llega en la 0.2.0. El objetivo es un entorno de desarrollo PHP tipo Laragon que funcione igual en Windows y en Linux y que sepa cuándo caduca lo que instala.
 
 ## Por qué
 
@@ -180,7 +180,7 @@ Roost lo deja en `xdebug.mode = debug,develop` y `xdebug.start_with_request = tr
 
 **PhpStorm:** Settings › PHP › Debug con el puerto 9003, «Start Listening for PHP Debug Connections» y la extensión del navegador; la primera conexión pregunta por el servidor («Accept», sin path mappings). Para la CLI, el intérprete `C:\roost\bin\shims\php.exe` (con los shims) o el `php.exe` de la versión con su `C:\roost\etc\php\<versión>\php.ini`.
 
-### `roost db` (solo Windows, por ahora)
+### `roost db`
 
 Instala y elige la base de datos: **MariaDB** (cualquier rama estable) o **MySQL** (8.4 LTS, 8.0 y 5.7), cada versión en su carpeta:
 
@@ -212,6 +212,7 @@ roost db remove mysql@5.7        # quita los binarios; los datos se quedan
 - **Solo local.** Escucha en `127.0.0.1` (puerto 3306 por defecto), en utf8mb4. Con MySQL 8 se desactiva el protocolo X (puerto 33060).
 - **Parada limpia.** Arranca la primera y se para la última. Al pararla, Roost le pide `shutdown` (`mariadb-admin` / `mysqladmin`) y espera a que cierre sus ficheros; solo si no responde en 30 s, la mata.
 - **Si el puerto 3306 está ocupado** (por ejemplo, por el MySQL de Laragon o un servicio de Windows), `roost up` lo dice y no arranca nada. Cámbialo en Bases de datos (junto a la conexión) o en `[db] port` de `roost.toml`.
+- **En Linux,** MariaDB es el bintar oficial (`-linux-systemd-x86_64.tar.gz`) y MySQL el `-minimal` (8.4 LTS, 26.10 y 8.0, verificados con la firma de Oracle), cada uno con su socket en `run/`. MySQL necesita `libaio` y `libnuma` (`sudo apt install libaio1t64 libnuma1` en Ubuntu 24.04); si faltan, Roost lo dice.
 
 ### `roost up / down / status`
 
@@ -234,13 +235,14 @@ Un daemon de usuario (`roost daemon`, que la CLI lanza sola) hace de padre de ng
 - Habla con la CLI por una named pipe a la que solo puede conectarse tu usuario, nunca por TCP.
 - Si el daemon muere, Windows mata con él a nginx y los php-cgi, así que nunca quedan servidores huérfanos.
 
-**En Linux** (de momento sin base de datos ni Apache, que llegan en la 0.1.11):
+**En Linux:**
 - **PHP por php-fpm:** cada rama es un php-fpm (`php-8.4-0`) en el primer puerto de su pool, con la conf que genera Roost desde `[php] pool`, y se para limpio (SIGQUIT).
 - **nginx** es un binario estático que compila [get-roost/roost-builds](https://github.com/get-roost/roost-builds) desde la fuente de nginx.org, con su firma PGP verificada; Roost lleva su SHA-256 fijado y lo comprueba antes de extraer.
 - **Puertos:** como usuario normal no se puede abrir el 80 ni el 443, así que los de por defecto son el 8080 y el 8443. Si pones un puerto por debajo del 1024 en `[web]`, `roost up` le da a nginx el permiso para abrirlo (`setcap cap_net_bind_service`, con `roost-helper`); al instalar otro nginx se vuelve a pedir.
 - **Proyectos:** en `/var/www/roost` si existe y es tuya (la crea `roost www init`), y si no en `~/.local/share/roost/www`; `[paths] www` en `~/.config/roost/roost.toml` elige otra carpeta.
 - **El daemon** se desliga de la terminal (cerrarla no lo para), habla por un socket que solo puede abrir tu usuario (`$XDG_RUNTIME_DIR/roost.sock`) y apunta a sus hijos: si muere sin poder limpiar (`kill -9`), el siguiente `roost up` para lo que dejó vivo, sin tocar nunca un proceso que no sea suyo.
 - **Servicios de la distro:** `roost up` avisa si un apache2, nginx, mysql, mariadb o redis del sistema suele usar un puerto del stack, y los avisos dicen qué paquete `apt` falta (libaio, setcap, certutil…).
+- **Apache** es el de la distro (`sudo apt install apache2`; Roost no instala paquetes del sistema), con su propia configuración y tus permisos: `.htaccess`, HTTPS, PHP por php-fpm y recarga en caliente. Como es un binario del sistema, Roost no le da el permiso de los puertos bajos: con Apache, puertos a partir del 1024 (8080/8443), o nginx. `ROOST_APACHE=/ruta/a/httpd` usa otro Apache (sus módulos en `ROOST_APACHE_MODULES`) y `ROOST_APACHE=none` lo deja fuera.
 
 ```sh
 roost up          # arranca, o re-arranca con la configuración actual
@@ -275,7 +277,7 @@ Cuando un comando cambia una clave, Roost toca solo esa clave y respeta el resto
 
 **`php.ini`:** Roost genera uno por instalación en cada `roost up`, con ajustes de desarrollo y las extensiones habituales que traiga ese build (curl, mbstring, openssl, pdo_mysql, intl, zip, OPcache…). Ese no se edita. Tus ajustes van en `C:\roost\etc\php\conf.d\99-usuario.ini`, que se carga en todas las versiones y sobrevive a las actualizaciones.
 
-### La app de escritorio (solo Windows, por ahora)
+### La app de escritorio
 
 `roost-desktop` es una ventana al estilo de Laragon sobre lo mismo que la CLI, con el stack en el daemon:
 
@@ -296,7 +298,22 @@ dotnet run --project src/Roost.Desktop
 
 Cerrar la ventana la deja en la bandeja. El stack lo lleva el daemon, así que sigue en marcha aunque salgas de la app (al salir, pregunta).
 
-### `roost shims`: el `php` de la terminal según la carpeta (solo Windows, por ahora)
+**En Linux** la app va en X11 y XWayland. La bandeja sale en los escritorios con StatusNotifier (KDE, XFCE, Cinnamon, MATE; GNOME con la extensión AppIndicator); sin ella, la X cierra la app (el stack sigue con roostd) y Ajustes lo dice. Los avisos son avisos de escritorio. Para el permiso de administrador usa polkit y, si no puede pedirlo, enseña la orden con «Copiar la orden».
+
+### El panel web
+
+Donde la app de escritorio no sirve (un servidor Linux, WSL, un equipo remoto), `roost panel up` arranca la misma interfaz en el navegador:
+
+```sh
+roost panel up        # o roost cp up 5556: da http://127.0.0.1:5556/?t=<código>
+roost panel url       # la dirección con el código otra vez
+roost panel status
+roost panel down      # para el panel (el stack sigue)
+```
+
+Abre esa dirección en el navegador de este equipo; el código es nuevo en cada arranque. Desde otro equipo, un túnel: `ssh -L 5556:127.0.0.1:5556 usuario@servidor` y la misma dirección. El panel nunca escucha fuera de `127.0.0.1` y rechaza cualquier petición que no venga de su propia página. Redis, Correo, las plantillas, git y compartir salen de momento como «próximamente» en el panel: van desde la terminal.
+
+### `roost shims`: el `php` de la terminal según la carpeta
 
 ```sh
 roost shims install        # pone C:\roost\bin\shims (php.exe; composer.exe si tienes el Composer de Roost; node.exe, npm.exe y npx.exe si tienes un Node de Roost) delante en el PATH de tu usuario
@@ -305,7 +322,9 @@ roost php which            # que php toca aqui y por que
 roost shims remove         # lo deja como estaba
 ```
 
-En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION`, el `.php-version` o el `php` del `.roost.toml` más cercanos (en la carpeta o en una superior; en una misma carpeta, el `.php-version` primero), el PHP del sitio cuya carpeta es esta, o el PHP global. Carga el mismo `php.ini` que el servidor, así que Composer y PHPUnit tienen las mismas extensiones; `composer` va igual (ver [Composer](#composer-solo-windows-por-ahora)), y `node`, `npm` y `npx` con el Node de cada carpeta (ver [Node](#node-solo-windows-por-ahora)). Si hay otro `php.exe` o `composer` en el PATH del sistema (Laragon, XAMPP, Composer-Setup), Windows lo mira antes y gana: `roost shims status` lo avisa. En la app, es una casilla de Ajustes.
+En una terminal nueva, `php` usa, por este orden: la variable `ROOST_PHP_VERSION`, el `.php-version` o el `php` del `.roost.toml` más cercanos (en la carpeta o en una superior; en una misma carpeta, el `.php-version` primero), el PHP del sitio cuya carpeta es esta, o el PHP global. Carga el mismo `php.ini` que el servidor, así que Composer y PHPUnit tienen las mismas extensiones; `composer` va igual (ver [Composer](#composer)), y `node`, `npm` y `npx` con el Node de cada carpeta (ver [Node](#node)). Si hay otro `php.exe` o `composer` en el PATH del sistema (Laragon, XAMPP, Composer-Setup), Windows lo mira antes y gana: `roost shims status` lo avisa. En la app, es una casilla de Ajustes.
+
+**En Linux** los shims son enlaces en `~/.local/bin` (Debian y Ubuntu la ponen la primera en el PATH al iniciar sesión); con `roost shims install --profile` se añade además un bloque al perfil de tu shell (bash, zsh o fish) que lo garantiza, y `roost shims remove` lo deja como estaba. Lo que ya tuvieras en `~/.local/bin` se respeta. Si un `nvm` o un `fnm` ponen su node delante en cada terminal, `roost shims status` lo dice. git es el de tu sistema, y los tokens van al llavero de la sesión (`secret-tool`) o, sin él, a un fichero solo tuyo y sin cifrar, avisando.
 
 ### `roost site` y `roost cert`
 
@@ -355,7 +374,7 @@ roost cert renew                                         # vuelve a emitir los c
 
 `roost cert trust` en Linux no pide permisos: mete la CA en los almacenes de tu usuario con `certutil` (`sudo apt install libnss3-tools`): Chrome, Chromium, Edge, Brave y cada perfil de Firefox, también los de snap y flatpak (con Firefox cerrado). `--system` la añade además a la del sistema, para curl, wget y el PHP de la distro. En WSL el hosts y la CA que valen son los de Windows: Roost edita el hosts con el `roost-helper.exe` de un Roost de Windows instalado o te da las líneas para copiar, y la CA va al almacén de tu usuario de Windows (`ROOST_WSL=0` hace que se porte como en un Linux cualquiera).
 
-### Sitios desde git (solo Windows, por ahora)
+### Sitios desde git
 
 Un sitio puede nacer de un repositorio, como en Plesk, pero en local: Roost prepara el proyecto para trabajar, no despliega.
 
@@ -394,7 +413,7 @@ roost git install | status                                     # el git que usa 
 - **Huellas.** El ssh de Roost solo se fía de su propio `known_hosts` (`C:\roost\state\git\known_hosts`), siempre con `StrictHostKeyChecking=yes`. Trae de serie las claves de GitHub, GitLab y Bitbucket, comprobadas con las que publica cada uno; cualquier otro servidor se acepta solo tras ver su huella (`roost git hosts add`, o `--fingerprint SHA256:…` para scripts). Si un servidor conocido presenta otra huella, no conecta. Con `--own-ssh` se leen también tus `known_hosts`, pero Roost nunca escribe en ellos.
 - **Quitar un sitio** quita también su clave y su token, salvo los que use otro sitio (`--keep-access` para dejarlos).
 
-### Plantillas y pasos de instalación (solo Windows, por ahora)
+### Plantillas y pasos de instalación
 
 ```sh
 roost new laravel tienda [--php 8.4] [--path C:\proyectos\tienda] [--db tienda|--no-db] [--yes] [--json]
@@ -424,7 +443,7 @@ roost site composer tienda require monolog/monolog:^3
 
 Composer ejecuta los scripts del `composer.json` del proyecto: úsalo con proyectos en los que confíes.
 
-### Node (solo Windows, por ahora)
+### Node
 
 Roost trae Node de nodejs.org, gratis: las LTS que fija (hoy, la 24 y la 22), comprobadas con su SHA-256 antes de instalar nada, en `C:\roost\bin\node\<versión>`.
 
@@ -490,7 +509,7 @@ export default defineConfig({
 
 Sin Laravel es lo mismo: las opciones de `server` valen para cualquier proyecto con Vite.
 
-### Compartir un sitio (solo Windows, por ahora)
+### Compartir un sitio
 
 ```sh
 roost share tienda                         # un enlace https://….trycloudflare.com mientras el comando espera; Ctrl+C lo cierra
@@ -506,7 +525,7 @@ roost share install                        # cloudflared, verificado (lo hace so
 - **Nada queda compartido por olvido.** Lo lleva el daemon y no se guarda en disco: se para con Ctrl+C (o al cerrar la terminal), con «Dejar de compartir» en la app, al salir de Roost o con `roost down`. En la app, es el bloque Compartir del panel del sitio, con los avisos antes de nada.
 - **Lo que no funciona fuera de tu equipo:** las URLs guardadas (`APP_URL`, las de WordPress en su base de datos) siguen en `.test`. No compartas con `APP_DEBUG=true`: Roost lo avisa si lo ve.
 
-### Redis, correo de pruebas y Adminer (solo Windows, por ahora)
+### Redis, correo de pruebas y Adminer
 
 ```sh
 roost redis install              # Redis 8.10 en el stack (127.0.0.1:6379); en tu .env, REDIS_CLIENT=predis
@@ -536,7 +555,7 @@ Es opcional (`[sites] resolver` en `roost.toml`): por defecto se usa el `hosts`,
 
 En Linux el DNS local escucha en `127.53.0.1:5353` y `roost dns install` lo enruta con un drop-in de systemd-resolved (`/etc/systemd/resolved.conf.d/roost.conf`, solo `~test`). Donde no hay resolved (Debian 12 de serie) o en WSL, lo dice y sigue con el hosts.
 
-### `roost autostart`: el stack al iniciar sesión, sin la app (solo Windows)
+### `roost autostart`: el stack al iniciar sesión, sin la app
 
 `roost autostart on` crea una tarea programada de tu usuario (`\Roost\Iniciar Roost al iniciar sesion`) que, al entrar en Windows, lanza `roost up` sin ventanas y sin permisos de administrador; `status` dice si está y qué lanza, y `off` la quita. Es lo mismo que la casilla «Iniciar todo al iniciar sesión, sin abrir la app» de Ajustes. Con `ROOST_HOME` no se crea (la tarea no lleva variables de entorno). Al desinstalar Roost, se quita.
 
@@ -620,7 +639,7 @@ roost audit --dataset ruta/a/advisories.json           # con un fichero propio (
 - Los paquetes de distro no se contrastan con los trackers de seguridad de Debian ni de Ubuntu: salen siempre en ámbar.
 - El feed aún no trae CVE de MySQL ni de MariaDB (NVD y los boletines de Oracle y MariaDB vendrán después).
 - PHP no tiene un registro de errores por sitio: php-cgi no admite ajustes por vhost como php-fpm, así que sus avisos siguen en `php-<rama>-error.log`.
-- En Linux funcionan `roost php`, `roost composer`, `roost up` (con nginx y sin base de datos), `roost site`, `roost park`, `roost cert`, `roost dns` y `roost www init`. `roost db`, Apache, Redis, Mailpit, Adminer, compartir, git, Node, los shims de la terminal, el inicio con la sesión y la app llegan en la 0.1.11, y el paquete `.deb` en la 0.2.0. PHP en Linux va de la 8.1 a la 8.5: static-php-cli no compila la 7.4 ni la 8.0.
+- En Linux, PHP va de la 8.1 a la 8.5 (static-php-cli no compila la 7.4 ni la 8.0); Apache es el de la distro y, como va con tu usuario, solo en puertos a partir del 1024 (para el 80 y el 443, nginx); y el paquete `.deb` llega en la 0.2.0 (hasta entonces, el tar.gz y las dos órdenes del helper).
 - En WSL, los caminos que usan el hosts y la CA de Windows aún no se han probado en una máquina de verdad (sí con dobles): se probarán para la 0.2.0.
 - `roost up` arranca una sola base de datos a la vez (la global): no hay base de datos por sitio.
 - Con nginx, recargar la configuración con muchas peticiones a la vez puede cortar alguna (nginx para Windows cierra la cola de su proceso viejo); con Apache, no. Con `[php] pool = 1`, reiniciar PHP deja un momento sin atender.
@@ -693,7 +712,7 @@ La configuración de artefacto que hay que dar de alta en SignPath está en [.gi
 Por fases:
 
 - **Fase 0:** hecha: `scan` y `audit` por CLI y el feed firmado `roost-catalog`.
-- **Fase 1, MVP:** hecha en Windows: instalar PHP, MariaDB y MySQL, servirlos con nginx o Apache desde un daemon de usuario con supervisor, sitios `https://*.test` con certificados de una CA local, y la app de escritorio. Las releases salen de un workflow, con instalador, Scoop y actualizar desde la app. En Linux va por partes: la 0.1.10 trae el stack con PHP y nginx, los sitios y los permisos; la 0.1.11, la base de datos, Apache, las herramientas y la app; la 0.2.0, el `.deb`. Falta la firma de los binarios.
+- **Fase 1, MVP:** hecha en Windows: instalar PHP, MariaDB y MySQL, servirlos con nginx o Apache desde un daemon de usuario con supervisor, sitios `https://*.test` con certificados de una CA local, y la app de escritorio. Las releases salen de un workflow, con instalador, Scoop y actualizar desde la app. En Linux: la 0.1.10 trajo el stack con PHP y nginx, los sitios y los permisos; la 0.1.11, la base de datos, Apache, las herramientas, la app y el panel web; la 0.2.0 traerá el `.deb`. Falta la firma de los binarios.
 - **Fase 2 (en curso):** hechos en Windows los shims de terminal (`php`, `composer`, `node`, `npm` y `npx` según el proyecto), los puntos de enganche para extensiones, el DNS local, Xdebug con un clic, Composer, Node, Redis, Mailpit, Adminer, sitios desde git (también privados), las plantillas y los pasos de instalación, los sitios avanzados (renombrar y mover, alias, aparcar carpetas, registros por sitio, `.roost.toml`), compartir un sitio (túnel y red local) y la auditoría de nginx y Apache con mitigaciones comprobadas. Quedan los CVE de MySQL y MariaDB en el feed, varios usuarios en la misma máquina, otro TLD que `.test` y PHP anterior a la 7.4.
 - **Fase 3:** macOS y ARM.
 
