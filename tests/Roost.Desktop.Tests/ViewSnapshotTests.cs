@@ -135,8 +135,10 @@ public class ViewSnapshotTests
         Snapshot(window, "bases-de-datos");
 
         db.ShowMySql = true;
-        Assert.Equal(["8.4.11", "8.0.46", "5.7.44"], db.Catalog.Select(r => r.Version));
-        Assert.StartsWith("EOL", db.Catalog.Single(r => r.Version == "5.7.44").Support);
+        // MySQL va fijado en Roost por sistema: en Linux el -minimal (26.10, 8.4, 8.0) y sin la 5.7.
+        Assert.Equal(Roost.Core.Install.MySqlCatalog.Current.Select(b => b.Version.ToString()), db.Catalog.Select(r => r.Version));
+        if (OperatingSystem.IsWindows())
+            Assert.StartsWith("EOL", db.Catalog.Single(r => r.Version == "5.7.44").Support);
 
         db.PortText = "abc";
         Assert.False(db.CanApplyPort);
@@ -169,9 +171,11 @@ public class ViewSnapshotTests
         web.ShowApache = true;
         Assert.True(web.UseNginx);                         // el activo sigue siendo nginx
         Assert.False(web.ApacheInstalled);
-        Assert.Equal("se instala al elegirlo", web.ApacheState);
-        Assert.Equal(Roost.Core.Install.ApacheCatalog.Windows.Version, web.ApacheVersion);
+        // En Linux es el Apache de la distro (aquí, ROOST_APACHE=none: como si no estuviera): no se instala.
+        Assert.Equal(OperatingSystem.IsWindows() ? "se instala al elegirlo" : "no está en el sistema", web.ApacheState);
+        Assert.Equal(Roost.Core.Install.ApacheCatalog.Current.Version, web.ApacheVersion);
         Snapshot(window, "servidor-web-apache");
+        if (!OperatingSystem.IsWindows()) return;   // instalado = el apache2 de la distro, que este test no fabrica
 
         // Ya instalado (pero sin elegir), la pestaña enseña el detalle.
         var httpd = Path.Combine(fake.Paths.ApacheBin, Roost.Core.Install.ApacheCatalog.Windows.Version, "bin", "httpd.exe");

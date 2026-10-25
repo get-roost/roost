@@ -319,7 +319,7 @@ public class NodeViewTests
         }
         await installing;
 
-        Assert.True(File.Exists(Path.Combine(fake.Paths.NodeBin, "20.20.2", OsNames.Exe("node"))));
+        Assert.True(File.Exists(Path.Combine(fake.Paths.NodeBin, "20.20.2", InstalledNode.ExecutableRelative)));   // node.exe o bin/node
         Assert.True(sites.NodeReady);
         Assert.Equal("Node 20.20.2 · el que pide .nvmrc (20)", sites.NodeText);
         Assert.Equal("Node 20.20.2 instalado", main.FlashText);

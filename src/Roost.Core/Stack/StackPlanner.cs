@@ -104,7 +104,9 @@ public sealed partial class StackPlanner(RoostPaths paths, IProcessRunner runner
             throw new ArgumentException("Con sitios hace falta la CA local para sus certificados.", nameof(ca));
 
         if (config.UsesApache && apache is null)
-            throw new RoostException($"Apache {ApacheCatalog.Current.Version} no esta instalado; roost up lo instala antes de arrancar.");
+            throw new RoostException(ApacheCatalog.Current.IsDistro
+                ? $"No hay Apache en el sistema, y en Linux Roost usa el de la distro (no instala paquetes del sistema): {LinuxApache.InstallHint}."
+                : $"Apache {ApacheCatalog.Current.Version} no esta instalado; roost up lo instala antes de arrancar.");
         if (!config.UsesApache && nginx is null)
             throw new RoostException($"nginx {NginxCatalog.Current.Version} no esta instalado; roost up lo instala antes de arrancar.");
 

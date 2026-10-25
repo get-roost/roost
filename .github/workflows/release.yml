@@ -549,12 +549,6 @@ jobs:
           # Hoy son más de cien: con menos de 50, el recorrido no ha bajado a las ramas y no ha comprobado nada.
           [ "$count" -ge 50 ] || { echo "::error::solo $count comandos con ayuda: el recorrido no ha bajado a las ramas"; exit 1; }
           echo "La ayuda sale bien en $count comandos."
-          # Lo que en Linux aún no va dice lo mismo en todos los comandos, y tampoco cita ROOST.md.
-          for cmd in "db install mariadb@11.4" "web use apache" "redis install" "node install 22" "share tienda" "shims install"; do
-            out="$("$roost" $cmd < /dev/null 2>&1 || true)"
-            if grep -q "ROOST.md" <<< "$out"; then echo "::error::roost $cmd cita ROOST.md"; exit 1; fi
-            grep -q "Linux" <<< "$out" || { echo "::error::roost $cmd no dice que aun no va en Linux: $out"; exit 1; }
-          done
           # El helper arranca (sin argumentos da el uso, 64) y, sin ser root, no hace nada (77).
           helper=artifacts/linux-x64/roost-helper
           code=0; "$helper" > /dev/null 2>&1 || code=$?

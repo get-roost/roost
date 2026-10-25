@@ -64,7 +64,8 @@ public sealed partial class WebServerViewModel : PageViewModel
     [ObservableProperty] public partial bool UseNginx { get; set; } = true;
     [ObservableProperty] public partial bool UseApache { get; set; }
 
-    public string ApacheVersion => ApacheCatalog.Current.Version;
+    /// <summary>La del Apache que hay (en Linux, el de la distro dice la suya) o, sin él, la del catálogo.</summary>
+    public string ApacheVersion => _apache?.Version ?? ApacheCatalog.Current.Version;
     public string ApacheRedistributable => ApacheCatalog.Current.Redistributable;
     public string ApacheModules => string.Join(", ", ApacheConf.Modules.Where(m => m is "rewrite" or "ssl" or "http2" or "proxy_fcgi" or "headers" or "expires" or "deflate"))
                                    + $" y {ApacheConf.Modules.Count - 7} más";
@@ -120,9 +121,11 @@ public sealed partial class WebServerViewModel : PageViewModel
 
         ApacheInstalled = _apache is not null;
         ApacheRunning = status?.Running == true && status.Services.Any(s => s.Name == "apache" && s.State == "Running");
+        // En Linux es el Apache de la distro: Roost no lo instala, se pone con el gestor de paquetes.
         (ApacheState, ApacheStateTone) = ApacheRunning ? ("en marcha", Tone.Ok)
-            : !ApacheInstalled ? ("se instala al elegirlo", Tone.Neutral)
+            : !ApacheInstalled ? (ApacheCatalog.Current.IsDistro ? ("no está en el sistema", Tone.Neutral) : ("se instala al elegirlo", Tone.Neutral))
             : _config.UsesApache ? ("parado", Tone.Neutral) : ("instalado", Tone.Neutral);
+        OnPropertyChanged(nameof(ApacheVersion));
         ApacheFolder = _apache?.Directory ?? Path.Combine(paths.ApacheBin, ApacheCatalog.Current.Version);
         if (!_tabChosen && ShowNginx == _config.UsesApache)
         {
@@ -358,6 +361,13 @@ public sealed partial class WebServerViewModel : PageViewModel
     private async Task InstallApacheAsync()
     {
         var build = ApacheCatalog.Current;
+        if (build.IsDistro)
+        {
+            // Linux: el Apache es el de la distro, y Roost no instala paquetes del sistema.
+            await Main.InfoAsync("Apache es el de tu sistema",
+                $"Roost usa el Apache de tu distribución con su propia configuración y tus permisos (solo en puertos a partir del 1024). Instálalo con: {LinuxApache.InstallHint}. Después vuelve a elegirlo.", Tone.Neutral);
+            return;
+        }
         // Apache de Apache Lounge no arranca sin el VC++ 14.50 o posterior: avisar antes, con el enlace.
         if (!await VcRedistGuard.ConfirmAsync(Main, $"Apache {build.Version}", forApache: true)) return;
         var installer = new ApacheInstaller(Main.App.Paths, Main.App.Http);

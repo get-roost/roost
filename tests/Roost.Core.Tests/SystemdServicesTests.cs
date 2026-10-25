@@ -130,13 +130,16 @@ public class SystemdServicesTests
     [Fact]
     public void OwnerOf_PorElNombreDelProceso_OPorElPuertoSiNoSeVe()
     {
-        var systemd = new SystemdServices(enabled: true);
+        var systemd = new SystemdServices(enabled: true) { IsOwnProcess = pid => pid == 77 || pid == 4242 };
         WindowsService[] services =
         [
             new("apache2.service", "Apache", "Apache", null, ServiceStartMode.Automatic, Running: true),
             new("mysql.service", "MySQL", "MySQL", null, ServiceStartMode.Automatic, Running: true),
             new("mariadb.service", "MariaDB", "MariaDB", null, ServiceStartMode.Manual, Running: false),
+            new("nginx.service", "nginx", "nginx", null, ServiceStartMode.Automatic, Running: true),
         ];
+        // Un nginx de este usuario (el de Roost que se quedó vivo) no es nginx.service aunque se llame igual.
+        Assert.Null(systemd.OwnerOf(new PortOwner(8767, 4242, "nginx"), services));
 
         Assert.Equal("mysql.service", systemd.OwnerOf(new PortOwner(3306, 500, "mysqld"), services)?.Name);
         Assert.Equal("apache2.service", systemd.OwnerOf(new PortOwner(80, 0, null), services)?.Name);     // no se ve: el que suele usar el 80

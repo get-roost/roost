@@ -33,6 +33,28 @@ public sealed class SystemdServices : ISystemServices
         _enabled = enabled;
     }
 
+    /// <summary>
+    /// Si un proceso es de este mismo usuario (el uid de <c>/proc/&lt;pid&gt;/status</c>). Un proceso así nunca es
+    /// un servicio del sistema, que corren como root o con su usuario de servicio, aunque se llame igual: un nginx
+    /// o un mysqld de Roost que se quedó vivo no es «nginx.service». Los tests ponen el suyo.
+    /// </summary>
+    internal Func<int, bool> IsOwnProcess { get; init; } = DefaultIsOwnProcess;
+
+    private static bool DefaultIsOwnProcess(int pid)
+    {
+        if (pid <= 0 || OperatingSystem.IsWindows()) return false;
+        try
+        {
+            var uid = File.ReadLines($"/proc/{pid}/status").FirstOrDefault(l => l.StartsWith("Uid:", StringComparison.Ordinal));
+            var real = uid?.Split((char[])['\t', ' '], StringSplitOptions.RemoveEmptyEntries).ElementAtOrDefault(1);
+            return real is not null && int.TryParse(real, out var value) && value == Posix.Uid;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     public IReadOnlyList<WindowsService> Find(IProcessRunner runner)
     {
         if (!_enabled) return [];
@@ -127,6 +149,7 @@ public sealed class SystemdServices : ISystemServices
         var running = services.Where(s => s.Running).ToList();
         if (owner.IsForeign || owner.ProcessName is null)
             return running.FirstOrDefault(s => s.UsualPorts.Contains(owner.Port));
+        if (IsOwnProcess(owner.Pid)) return null;   // de este usuario: no es un servicio del sistema
         return running.FirstOrDefault(s => ProcessNames(s.Kind).Any(n => owner.ProcessName.StartsWith(n, StringComparison.Ordinal)));
     }
 

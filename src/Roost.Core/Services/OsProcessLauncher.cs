@@ -74,8 +74,31 @@ public sealed class OsProcessLauncher : IProcessLauncher
 
         public void Kill()
         {
+            // Fuera de Windows se apuntan antes todos los descendientes (por /proc) y, tras el Kill del árbol de
+            // .NET, se rematan los que sigan vivos: se ha visto sobrevivir un worker de nginx que se estaba cerrando
+            // tras el SIGQUIT, con el puerto cogido. Recién apuntados, no da tiempo a que otro proceso reuse el pid.
+            var descendants = OperatingSystem.IsWindows() ? [] : Descendants(process.Id);
             try { process.Kill(entireProcessTree: true); }
             catch { /* ya había muerto */ }
+            foreach (var pid in descendants)
+                Platform.Posix.Kill(pid, Platform.Posix.SignalNumber(StopSignal.Kill));
+        }
+
+        /// <summary>Los descendientes de un proceso ahora mismo (hijos, nietos…), por el ppid de <c>/proc</c>.</summary>
+        private static List<int> Descendants(int root)
+        {
+            var found = new List<int>();
+            var pending = new Queue<int>([root]);
+            while (pending.Count > 0 && found.Count < 1024)
+            {
+                foreach (var child in Platform.ProcFs.ChildrenOf(pending.Dequeue()))
+                {
+                    if (found.Contains(child)) continue;
+                    found.Add(child);
+                    pending.Enqueue(child);
+                }
+            }
+            return found;
         }
 
         public void Terminate(StopSignal signal)
