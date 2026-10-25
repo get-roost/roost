@@ -95,6 +95,9 @@ public static class OsTexts
         ? "NTS: la que usa Roost (php-cgi, con nginx o Apache). Recomendada."
         : "NTS: la que usa Roost (php-fpm, con nginx o Apache). En Linux solo hay NTS x64.";
 
+    /// <summary>Cambiar la raíz: el ejemplo de ruta («D:oost» / «/srv/roost»).</summary>
+    public static string RootExample => Windows ? @"D:oost" : "/srv/roost";
+
     /// <summary>Ajustes: la clave de la CA, con los separadores del sistema.</summary>
     public static string CaKeyRelative => global::System.IO.Path.Combine("certs", "ca", "roost-ca.key");
 
