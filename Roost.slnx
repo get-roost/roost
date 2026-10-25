@@ -7,6 +7,7 @@
     <Project Path="src/Roost.Desktop/Roost.Desktop.csproj" />
     <Project Path="src/Roost.Extensibility/Roost.Extensibility.csproj" />
     <Project Path="src/Roost.Helper/Roost.Helper.csproj" />
+    <Project Path="src/Roost.Panel/Roost.Panel.csproj" />
     <Project Path="src/Roost.Shim/Roost.Shim.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -16,5 +17,6 @@
     <Project Path="tests/Roost.Desktop.Tests/Roost.Desktop.Tests.csproj" />
     <Project Path="tests/Roost.Extensibility.Sample/Roost.Extensibility.Sample.csproj" />
     <Project Path="tests/Roost.Extensibility.Tests/Roost.Extensibility.Tests.csproj" />
+    <Project Path="tests/Roost.Panel.Tests/Roost.Panel.Tests.csproj" />
   </Folder>
 </Solution>
