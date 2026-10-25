@@ -215,7 +215,7 @@ public sealed partial class HomeViewModel : PageViewModel
                 var branch = group.Key[(group.Key.IndexOf('-') + 1)..];
                 var engine = group.Key[..group.Key.IndexOf('-')];
                 rows.Add(new ServiceRow(engine == "mysql" ? "MySQL" : "MariaDB", null, Tone.Neutral,
-                    $"Base de datos global · datos en data\\{engine}\\{branch}",
+                    $"Base de datos global · datos en {Path.Combine("data", engine, branch)}",
                     status.Db?.Split(' ').LastOrDefault() ?? branch, $"127.0.0.1:{status.DbPort}", state, tone, restarts, group.Key, alive));
             }
         }
@@ -236,7 +236,7 @@ public sealed partial class HomeViewModel : PageViewModel
     // Servicios (oleada 3): las filas de Redis y Mailpit, en marcha o paradas.
 
     private ServiceRow RedisRow(RoostConfig config, string state, Tone tone, int restarts, string? key, bool alive) =>
-        new("Redis", null, Tone.Neutral, "Caché y colas · datos en data\\redis",
+        new("Redis", null, Tone.Neutral, $"Caché y colas · datos en {Path.Combine("data", "redis")}",
             new RedisInstaller(Main.App.Paths).Locate()?.Version ?? RedisCatalog.Current.Version,
             $"127.0.0.1:{config.RedisPort}", state, tone, restarts, key, alive);
 
@@ -253,7 +253,7 @@ public sealed partial class HomeViewModel : PageViewModel
         if (db is not null)
         {
             rows.Add(new ServiceRow(db.Engine.DisplayName(), null, Tone.Neutral,
-                $"Base de datos global · datos en data\\{db.Engine.Key()}\\{db.Branch}",
+                $"Base de datos global · datos en {Path.Combine("data", db.Engine.Key(), db.Branch ?? "")}",
                 db.Name, $"127.0.0.1:{config.DbPort}", "Parado", Tone.Off, 0, null));
         }
         if (config.RedisEnabled) rows.Add(RedisRow(config, "Parado", Tone.Off, 0, null, alive: false));

@@ -24,6 +24,18 @@ public static class OsTexts
     /// <summary>«Windows pide permiso» (entre paréntesis en las frases).</summary>
     public static string AsksPermission => Windows ? "Windows pide permiso" : "pide permiso de administrador";
 
+    /// <summary>
+    /// Quién tiene un puerto, para meterlo en una frase: «nginx (PID 1234)», «otro proceso» si no se sabe o,
+    /// en Linux, «un proceso de otro usuario»: sin root solo se ven los procesos propios, y un servicio del
+    /// sistema (el MariaDB o el apache2 de la distro) sale así, no como «PID 0».
+    /// </summary>
+    public static string OwnerOf(Roost.Core.Platform.PortOwner? owner) => owner switch
+    {
+        null => "otro proceso",
+        { IsForeign: true } => "un proceso de otro usuario (sin root solo se ven los tuyos)",
+        _ => $"{owner.ProcessName ?? "otro proceso"} (PID {owner.Pid})",
+    };
+
     /// <summary>Quién corta un permiso: «el permiso de Windows» / «el permiso».</summary>
     public static string ThePermission => Windows ? "el permiso de Windows" : "el permiso";
 

@@ -236,7 +236,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
             // Con dos versiones de la misma rama, «Usar» tiene que fijar la exacta; si no, la rama,
             // para que las versiones nuevas de esa rama entren solas.
             var twins = installed.Count(other => other.Engine == db.Engine && other.Branch == db.Branch);
-            return new DbRow(db, support, tone, $"data\\{db.Engine.Key()}\\{db.Branch}", db.Directory == _global?.Directory,
+            return new DbRow(db, support, tone, Path.Combine("data", db.Engine.Key(), db.Branch ?? ""), db.Directory == _global?.Directory,
                 twins > 1 ? db.Name : db.Branch ?? db.Name);
         }).ToList();
 
@@ -274,7 +274,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
         {
             var owner = PortOwners.Find(port);
             (PortTitle, PortDetail, PortTone) = ($"El {port} está ocupado",
-                owner is null ? "Lo tiene otro proceso." : $"Lo tiene {owner.ProcessName ?? "otro proceso"} (PID {owner.Pid}).", Tone.Bad);
+                $"Lo tiene {OsTexts.OwnerOf(owner)}.", Tone.Bad);
             Suggestions = new[] { 3307, 3308, 3309, 3310, 3311, 33061, 3406 }
                 .Where(p => p != _config.HttpPort && p != _config.HttpsPort && StackPlanner.BusyPorts([p]).Count == 0)
                 .Take(3)
@@ -294,9 +294,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
             .Select(p =>
             {
                 var owner = PortOwners.Find(p);
-                var text = owner is null ? "otro proceso"
-                    : owner.Pid == ownPid ? $"Roost ({_global?.Label})"
-                    : $"{owner.ProcessName ?? "otro proceso"} (PID {owner.Pid})";
+                var text = owner is { IsForeign: false } && owner.Pid == ownPid ? $"Roost ({_global?.Label})" : OsTexts.OwnerOf(owner);
                 return new BusyPortLine(p, text);
             })
             .ToList();

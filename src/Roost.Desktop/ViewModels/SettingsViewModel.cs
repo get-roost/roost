@@ -378,7 +378,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             if (port == now || StackPlanner.BusyPorts([port]).Count == 0) continue;
             var owner = PortOwners.Find(port);
-            PortsError = $"El puerto {role} {port} está ocupado por {owner?.ProcessName ?? "otro proceso"}{(owner is null ? "" : $" (PID {owner.Pid})")}. Elige otro o para ese programa.";
+            PortsError = $"El puerto {role} {port} está ocupado por {OsTexts.OwnerOf(owner)}. Elige otro o para ese programa.";
             return;
         }
 
@@ -413,7 +413,7 @@ public sealed partial class SettingsViewModel : PageViewModel
             {
                 if (StackPlanner.BusyPorts([p.Item1]).Count == 0) return $"{p.Item1} ({p.Item2}): libre";
                 var owner = PortOwners.Find(p.Item1);
-                return $"{p.Item1} ({p.Item2}): {owner?.ProcessName ?? "otro proceso"}{(owner is null ? "" : $" (PID {owner.Pid})")}";
+                return $"{p.Item1} ({p.Item2}): {OsTexts.OwnerOf(owner)}";
             });
         return Main.InfoAsync("Quién ocupa cada puerto", "Los puertos que tiene configurados Roost, en 127.0.0.1:", detail: string.Join(Environment.NewLine, lines));
     }
