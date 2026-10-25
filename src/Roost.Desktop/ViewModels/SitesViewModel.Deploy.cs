@@ -212,7 +212,7 @@ public sealed partial class SitesViewModel
         if (!hostsOk)
             await Main.InfoAsync($"{host} está creado, pero falta en el hosts",
                 $"{Main.HostsError}\n\nEl sitio queda registrado y se sirve, pero {host} no resolverá en el navegador hasta que esté en el hosts. "
-                + $"Para añadirlo: Sitios › {host} › «Añadir al hosts» (Windows volverá a pedir permiso), o pasa al DNS local en Ajustes › Nombres .test.",
+                + $"Para añadirlo: Sitios › {host} › «Añadir al hosts» ({Services.OsTexts.WillAskAgain}), o pasa al DNS local en Ajustes › Nombres .test.",
                 Tone.Warn);
 
         if (Main.Stack.IsRunning)

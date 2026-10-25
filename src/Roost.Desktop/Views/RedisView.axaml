@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              xmlns:sys="using:System"
@@ -155,7 +156,7 @@
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
-                  <Button Classes="sm" HorizontalAlignment="Left" Content="Abrir Servicios de Windows" Command="{Binding OpenServicesPanelCommand}" />
+                  <Button Classes="sm" HorizontalAlignment="Left" Content="Abrir Servicios de Windows" Command="{Binding OpenServicesPanelCommand}" IsVisible="{x:Static svc:OsTexts.HasServicesPanel}" />
                 </StackPanel>
               </StackPanel>
             </Border>

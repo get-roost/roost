@@ -288,12 +288,16 @@ public class NodeViewTests
     [AvaloniaFact]
     public async Task SitiosNode_ElNvmrcPideUnoQueNoEsta_LoInstalaDesdeElPanel_Verificado()
     {
+        // nodejs.org de pega con los dos paquetes: el zip de Windows y el tar.gz de Linux (NodeCatalog elige por sistema).
         var zip = NodeZip("20.20.2");
+        var tar = NodeTar("20.20.2");
         var dist = new NodeDist(new FakeUpstream())
         {
-            ["https://nodejs.org/dist/index.json"] = Encoding.UTF8.GetBytes("""[{"version":"v20.20.2","files":["win-x64-zip"],"npm":"10.8.2","lts":"Iron","security":true}]"""),
-            ["https://nodejs.org/dist/v20.20.2/SHASUMS256.txt"] = Encoding.UTF8.GetBytes($"{Convert.ToHexStringLower(SHA256.HashData(zip))}  node-v20.20.2-win-x64.zip\n"),
+            ["https://nodejs.org/dist/index.json"] = Encoding.UTF8.GetBytes("""[{"version":"v20.20.2","files":["win-x64-zip","linux-x64"],"npm":"10.8.2","lts":"Iron","security":true}]"""),
+            ["https://nodejs.org/dist/v20.20.2/SHASUMS256.txt"] = Encoding.UTF8.GetBytes(
+                $"{Convert.ToHexStringLower(SHA256.HashData(zip))}  node-v20.20.2-win-x64.zip\n{Convert.ToHexStringLower(SHA256.HashData(tar))}  node-v20.20.2-linux-x64.tar.gz\n"),
             ["https://nodejs.org/dist/v20.20.2/node-v20.20.2-win-x64.zip"] = zip,
+            ["https://nodejs.org/dist/v20.20.2/node-v20.20.2-linux-x64.tar.gz"] = tar,
         };
         var (main, window, fake) = await OpenAsync(dist);
         using var _ = fake;
@@ -411,6 +415,28 @@ public class NodeViewTests
             {
                 using var writer = new StreamWriter(zip.CreateEntry($"node-v{version}-win-x64/{name}").Open());
                 writer.Write("// de pega");
+            }
+        }
+        return buffer.ToArray();
+    }
+
+    /// <summary>Un tar.gz como el de nodejs.org para Linux (todo dentro de node-v&lt;versión&gt;-linux-x64/: bin/node y lib/node_modules), con npm.</summary>
+    private static byte[] NodeTar(string version)
+    {
+        using var buffer = new MemoryStream();
+        using (var gzip = new System.IO.Compression.GZipStream(buffer, System.IO.Compression.CompressionLevel.Fastest, leaveOpen: true))
+        using (var tar = new System.Formats.Tar.TarWriter(gzip, System.Formats.Tar.TarEntryFormat.Pax, leaveOpen: true))
+        {
+            foreach (var name in new[] { "bin/node", "lib/node_modules/npm/bin/npm-cli.js", "lib/node_modules/npm/bin/npx-cli.js", "lib/node_modules/corepack/dist/corepack.js" })
+            {
+                var entry = new System.Formats.Tar.PaxTarEntry(System.Formats.Tar.TarEntryType.RegularFile, $"node-v{version}-linux-x64/{name}")
+                {
+                    DataStream = new MemoryStream(Encoding.UTF8.GetBytes("// de pega")),
+                    Mode = name == "bin/node"
+                        ? UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute
+                        : UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead,
+                };
+                tar.WriteEntry(entry);
             }
         }
         return buffer.ToArray();

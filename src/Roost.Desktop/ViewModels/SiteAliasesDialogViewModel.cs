@@ -59,7 +59,7 @@ public sealed partial class SiteAliasesDialogViewModel : DialogViewModel
 
     public string ResolveText => ByDns
         ? "Con el DNS local, todos los .test resuelven solos: no hace falta tocar el hosts."
-        : $"Con el hosts, cada nombre necesita su línea: al guardar, Roost añade {(Aliases.Count == 1 ? "la de este" : "las de estos")} de una vez (Windows pide permiso una sola vez).";
+        : $"Con el hosts, cada nombre necesita su línea: al guardar, Roost añade {(Aliases.Count == 1 ? "la de este" : "las de estos")} de una vez ({Services.OsTexts.AsksPermission} una sola vez).";
 
     public string PlaceholderText => $"{_site.Name}-alias.test o api.{_site.Host}";
 

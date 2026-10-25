@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              x:Class="Roost.Desktop.Views.SitesView"
@@ -43,7 +44,7 @@
         <ctl:Note Tone="Warn" IsVisible="{Binding HasHostsPending}">
           <DockPanel>
             <Button DockPanel.Dock="Right" Classes="sm" Content="Añadir al hosts" Command="{Binding SyncHostsCommand}" VerticalAlignment="Center" Margin="12,0,0,0"
-                    ToolTip.Tip="Todos de una vez: Windows pide permiso de administrador una sola vez" />
+                    ToolTip.Tip="{x:Static svc:OsTexts.AddAllToHostsTip}" />
             <TextBlock TextWrapping="Wrap" Text="{Binding HostsPending}" VerticalAlignment="Center" />
           </DockPanel>
         </ctl:Note>
@@ -148,7 +149,7 @@
             <StackPanel Margin="16,14" Spacing="14">
               <ctl:Note Tone="Warn" IsVisible="{Binding MissingFromHosts}">
                 <StackPanel Spacing="6">
-                  <TextBlock TextWrapping="Wrap" Text="Falta en el hosts: no resolverá hasta que se añada (Windows pide permiso de administrador)." />
+                  <TextBlock TextWrapping="Wrap" Text="{x:Static svc:OsTexts.MissingFromHostsText}" />
                   <Button Classes="sm" Content="Añadir al hosts" HorizontalAlignment="Left" Command="{Binding SyncHostsCommand}" />
                 </StackPanel>
               </ctl:Note>

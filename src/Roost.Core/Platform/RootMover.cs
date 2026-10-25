@@ -246,7 +246,9 @@ public static class RootMover
             {
                 var made = entry is DirectoryInfo ? (FileSystemInfo)new DirectoryInfo(copy) : new FileInfo(copy);
                 var want = TargetFor(entry, from, to);
-                if (!made.Exists || !IsLink(made) || !SameTarget(made.LinkTarget!, want))
+                // Solo que el enlace esté y apunte a donde toca: lo de detrás puede no existir aún (apunta a la raíz
+                // nueva, que todavía es la carpeta de trabajo) y en Linux Exists seguiría el enlace y diría que no.
+                if (!IsLink(made) || !SameTarget(made.LinkTarget!, want))
                     throw new RoostException($"La copia no cuadra: el enlace {relative} no apunta a {want}.");
             }
             else if (entry is DirectoryInfo)

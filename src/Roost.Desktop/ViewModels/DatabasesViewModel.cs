@@ -587,7 +587,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
         var result = await Main.ShowDialogAsync(new MessageDialogViewModel
         {
             Title = $"{db.Label} está instalada, pero no arranca",
-            Subtitle = "Falta una biblioteca de Windows",
+            Subtitle = OperatingSystem.IsWindows() ? "Falta una biblioteca de Windows" : "Falta una biblioteca del sistema",
             Text = $"{Path.GetFileName(db.Server)} no responde a --version. Casi siempre es que falta el Visual C++ Redistributable {smoke.MissingRedistributable}: "
                    + "instálalo (un minuto, de Microsoft) y vuelve a pulsar Iniciar todo. La instalación de la base de datos es correcta.",
             Detail = smoke.RedistributableUrl,

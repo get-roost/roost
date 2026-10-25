@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              xmlns:sys="using:System"
@@ -273,7 +274,7 @@
                   <StackPanel>
                     <TextBlock Classes="strong" Text="DNS local, sin permisos al añadir sitios" />
                     <TextBlock Classes="faint" TextWrapping="Wrap"
-                               Text="Un solo permiso, al ponerlo: una regla de Windows manda los .test al DNS de Roost, que los responde mientras el stack está en marcha." />
+                               Text="{x:Static svc:OsTexts.DnsRuleHint}" />
                   </StackPanel>
                 </RadioButton>
                 <TextBlock Classes="faint" Text="{Binding DnsStateText}" TextWrapping="Wrap" />

@@ -1477,7 +1477,7 @@ public class ViewSnapshotTests
 
         // Otra versión enseña los suyos (de serie) y su conf.d; al volver, siguen los guardados.
         php.PickCommand.Execute(php.Installed.Single(c => c.Version == "7.4.33"));
-        Assert.Equal(@"conf.d\7.4\99-usuario.ini", php.BranchIniText);
+        Assert.Equal(Path.Combine("conf.d", "7.4", "99-usuario.ini"), php.BranchIniText);
         Assert.Equal("128M", php.UploadMaxFilesize);
         Assert.Contains("3.1.6", php.XdebugText);
         php.PickCommand.Execute(php.Installed.Single(c => c.Version == "8.4.27"));
@@ -1856,9 +1856,9 @@ public class ViewSnapshotTests
         Assert.Equal(Roost.Desktop.Controls.Tone.Bad, audit.ServicesTone);
         var maria = audit.ServiceRows[0];
         Assert.Equal("MariaDB 10.6 (MariaDB)", maria.Title);
-        Assert.Equal("Arranca con Windows y está en marcha", maria.State);
+        Assert.Equal($"{OsTexts.StartsWithSystem} y está en marcha", maria.State);
         Assert.Contains("el de la base de datos de Roost", maria.Detail);
-        Assert.Equal("sc config \"MariaDB\" start= demand", maria.Command);
+        Assert.Equal(OperatingSystem.IsWindows() ? "sc config \"MariaDB\" start= demand" : "sudo systemctl disable --now MariaDB", maria.Command);
         var apache = audit.ServiceRows[1];
         Assert.Equal(Roost.Desktop.Controls.Tone.Neutral, apache.Tone);   // manual y parado: no molesta
         Assert.Equal("Manual y parado", apache.State);
@@ -1900,7 +1900,7 @@ public class ViewSnapshotTests
 
         Assert.True(welcome.HasServiceWarnings);
         Assert.Equal(2, welcome.ServiceWarnings.Count);
-        Assert.Contains(welcome.ServiceWarnings, w => w.StartsWith("MariaDB 10.6 (MariaDB): arranca con Windows (ahora está parado)", StringComparison.Ordinal) && w.Contains("el de la base de datos"));
+        Assert.Contains(welcome.ServiceWarnings, w => w.StartsWith($"MariaDB 10.6 (MariaDB): {char.ToLowerInvariant(OsTexts.StartsWithSystem[0])}{OsTexts.StartsWithSystem[1..]} (ahora está parado)", StringComparison.Ordinal) && w.Contains("el de la base de datos"));
         Assert.Contains(welcome.ServiceWarnings, w => w.StartsWith("World Wide Web Publishing Service (W3SVC)", StringComparison.Ordinal) && w.Contains("el de la web"));
         Snapshot(window, "bienvenida-servicios-de-windows");
 

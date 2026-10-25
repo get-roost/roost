@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              x:Class="Roost.Desktop.Views.GitAccessDialogView"
@@ -55,7 +56,7 @@
 
           <TextBlock Classes="muted" Text="Acceso" IsVisible="{Binding IsOwn}" Margin="0,2,0,0" />
           <TextBlock Grid.Column="1" Classes="small" IsVisible="{Binding IsOwn}" TextWrapping="Wrap"
-                     Text="Tus claves SSH (las de ~/.ssh y el ssh-agent de Windows), como en tu terminal. Roost no guarda nada." />
+                     Text="{x:Static svc:OsTexts.OwnSshAccessText}" />
 
           <TextBlock Grid.Row="1" Classes="muted" Text="Servidor" Margin="0,2,0,0" />
           <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Spacing="8">

@@ -260,7 +260,8 @@ public sealed class RootMoverTests : IDisposable
     public void Copy_Linux_LosModos0600Y0700SeConservan()
     {
         var from = P("a");
-        PrivateFile.Write(Path.Combine(from, "certs", "ca", "roost-ca.key"), "clave");   // crea la carpeta? no: PrivateFile.Write exige la carpeta
+        Directory.CreateDirectory(Path.Combine(from, "certs", "ca"));
+        PrivateFile.Write(Path.Combine(from, "certs", "ca", "roost-ca.key"), "clave");
         PrivateFile.EnsureDirectory(Path.Combine(from, "state", "git", "keys", "tienda"));
         PrivateFile.Write(Path.Combine(from, "state", "git", "keys", "tienda", "id_ed25519"), "ssh");
         Write(Path.Combine(from, "www", "index.php"), "normal");

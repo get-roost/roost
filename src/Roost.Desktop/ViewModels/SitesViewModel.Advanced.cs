@@ -228,7 +228,7 @@ public sealed partial class SitesViewModel
         var applied = await Main.ApplyAsync();
         if (!hostsOk)
             await Main.InfoAsync($"Los alias de {row.Host} están guardados, pero faltan en el hosts",
-                $"{Main.HostsError}\n\nSe sirven, pero no resolverán hasta que estén en el hosts: «Añadir al hosts» (Windows volverá a pedir permiso), o pasa al DNS local en Ajustes › Nombres .test.",
+                $"{Main.HostsError}\n\nSe sirven, pero no resolverán hasta que estén en el hosts: «Añadir al hosts» ({Services.OsTexts.WillAskAgain}), o pasa al DNS local en Ajustes › Nombres .test.",
                 Tone.Warn);
         else if (applied)
             Main.Flash(aliases.Count == 0 ? $"{row.Host} ya no tiene alias" : $"{row.Host} responde también por {string.Join(", ", aliases)}");

@@ -41,9 +41,9 @@ public static partial class GitTexts
         switch (failure.Kind)
         {
             case GitFailureKind.HostUnreachable:
-                return $"No se encuentra {host}. Comprueba el nombre y tu conexión. Si usas un proxy, Roost toma el de Windows.";
+                return $"No se encuentra {host}. Comprueba el nombre y tu conexión. Si usas un proxy, Roost toma el del sistema.";
             case GitFailureKind.TlsError:
-                return $"No se pudo comprobar el certificado de {host}. Si tu red tiene un proxy con certificado propio, instálalo en Windows: Roost usa el almacén de certificados del sistema.";
+                return $"No se pudo comprobar el certificado de {host}. Si tu red tiene un proxy con certificado propio, instálalo en {Services.OsTexts.System}: Roost usa el almacén de certificados del sistema.";
             case GitFailureKind.NetworkInterrupted:
                 return $"Se cortó la conexión con {host} a medias. Prueba de nuevo.";
             case GitFailureKind.AuthRequired:
@@ -52,7 +52,7 @@ public static partial class GitTexts
                 return $"No hay ningún repositorio git en {url?.Path ?? place}.";
             case GitFailureKind.KeyRejected:
                 if (ownKey)
-                    return $"{host} no acepta ninguna de tus claves SSH (las de ~/.ssh y las del ssh-agent de Windows). Pruébalo en tu terminal: ssh -T git@{host}";
+                    return $"{host} no acepta ninguna de tus claves SSH (las de ~/.ssh y las de {Services.OsTexts.SshAgent}). Pruébalo en tu terminal: ssh -T git@{host}";
                 if (keyName is not null && !detail.Contains("Permission denied", StringComparison.OrdinalIgnoreCase) && detail.Length > 0)
                     return $"{host} acepta la clave de {keyName}, pero con ella no se ve {label}: seguramente está en las deploy keys de otro repositorio. Ponla en las de {label}.";
                 if (keyName is not null)
@@ -99,7 +99,7 @@ public static partial class GitTexts
             case GitFailureKind.NotARepository:
                 return $"{place} no es un repositorio git (no tiene .git).";
             case GitFailureKind.DubiousOwnership:
-                return $"git rechaza {place} porque la carpeta pertenece a otro usuario de Windows (dubious ownership). Cambia el propietario de la carpeta a tu usuario.";
+                return $"git rechaza {place} porque la carpeta pertenece a otro usuario (dubious ownership). Cambia el propietario de la carpeta a tu usuario.";
             case GitFailureKind.TimedOut:
                 return $"{url?.Host ?? "git"} no ha contestado a tiempo y se ha cortado. Comprueba tu conexión y prueba de nuevo.";
             default:

@@ -41,7 +41,7 @@ internal static class ServiceInstall
         var target = Path.Combine(main.App.Paths.MailpitBin, build.Version);
         return RunAsync(main, build.Label, target, new InstallDialogViewModel(
             $"Instalando {build.Label}",
-            $"Windows amd64 · desde {build.Url.Host}",
+            $"{(OperatingSystem.IsWindows() ? "Windows amd64" : "Linux x64")} · desde {build.Url.Host}",
             10_632_291,
             [
                 new("Versión fijada en Roost", "· SHA-256 comprobado con la release"),

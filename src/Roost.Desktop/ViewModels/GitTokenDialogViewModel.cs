@@ -39,7 +39,7 @@ public sealed partial class GitTokenDialogViewModel : DialogViewModel
 
     public string Permission { get; }
 
-    public string StorageText => $"Se guarda en el Administrador de credenciales de Windows, cifrado para tu usuario, y solo vale para {Where}. Nunca va en la dirección del repositorio ni en los registros.";
+    public string StorageText => $"Se guarda en {Services.OsTexts.CredentialStore}, cifrado para tu usuario, y solo vale para {Where}. Nunca va en la dirección del repositorio ni en los registros.";
 
     [ObservableProperty] public partial string User { get; set; }
 

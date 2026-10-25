@@ -67,4 +67,54 @@ public static class OsTexts
 
     /// <summary>Dónde está la carpeta de proyectos por defecto.</summary>
     public static string ProjectsRoot(string www) => www;
+
+    // Textos de las vistas (x:Static desde el XAML)
+
+    /// <summary>Nuevo sitio: «… al hosts: Windows pedirá permiso de administrador».</summary>
+    public static string AddToHostsSuffix => $" al hosts: {WillAskAdmin}";
+
+    /// <summary>Sitios: el botón «Añadir al hosts» de todos los que faltan.</summary>
+    public static string AddAllToHostsTip => $"Todos de una vez: {AsksPermission} una sola vez";
+
+    /// <summary>El panel del sitio: falta en el hosts.</summary>
+    public static string MissingFromHostsText => $"Falta en el hosts: no resolverá hasta que se añada ({AsksPermission}).";
+
+    /// <summary>Compartir: dejar de escuchar en la red local.</summary>
+    public static string StopLanTip => $"Deja de escuchar en la red local y quita la regla del cortafuegos ({AsksPermission})";
+
+    /// <summary>Acceso «Mi clave SSH».</summary>
+    public static string OwnSshAccessText => $"Tus claves SSH (las de ~/.ssh y {SshAgent}), como en tu terminal. Roost no guarda nada.";
+
+    /// <summary>Ajustes › Nombres .test: qué pone el DNS local.</summary>
+    public static string DnsRuleHint => Windows
+        ? "Un solo permiso, al ponerlo: una regla de Windows manda los .test al DNS de Roost, que los responde mientras el stack está en marcha."
+        : "Un solo permiso, al ponerlo: un drop-in de systemd-resolved manda los .test al DNS de Roost (127.53.0.1:5353), que los responde mientras el stack está en marcha.";
+
+    /// <summary>El diálogo de la CA: lo que pasa al pulsar «Confiar» (termina en «el nombre es », que sigue con «Roost Local CA»).</summary>
+    public static string TrustCaNotice => Windows
+        ? "Windows te enseñará a continuación un «Aviso de seguridad» preguntando si instalas este certificado. Comprueba que el nombre es "
+        : "La CA entra con certutil en los almacenes NSS de tu usuario (Chrome, Chromium y cada perfil de Firefox), sin pedir permiso; si Firefox está abierto, ciérralo antes. El nombre es ";
+
+    /// <summary>Lo que viene detrás del nombre en ese aviso.</summary>
+    public static string TrustCaNoticeEnd => Windows ? " y pulsa " : ", y en el navegador se verá como una CA de confianza. Si cambias de idea: Ajustes › ";
+
+    /// <summary>La palabra resaltada al final («Sí» / «Dejar de confiar»).</summary>
+    public static string TrustCaNoticeButton => Windows ? "Sí" : "Dejar de confiar";
+
+    /// <summary>Auditoría: la tarjeta de los servicios del sistema.</summary>
+    public static string ServicesTitle => Windows ? "Servicios de Windows" : "Servicios de systemd";
+
+    public static string ServicesIntro => Windows
+        ? "Un MySQL o una MariaDB instalados con su instalador, Apache, IIS u otro Redis arrancan con Windows y se quedan el puerto antes que Roost. Roost no cambia servicios de Windows: te dice cuáles son y cómo dejarlos en Manual."
+        : "Un MariaDB, MySQL, Apache, nginx o Redis instalados con apt arrancan con el sistema y se quedan el puerto antes que Roost. Roost no cambia unidades de systemd: te dice cuáles son y cómo desactivarlas.";
+
+    /// <summary>La etiqueta de la orden de cada servicio («En Manual:» / «Desactivar:»).</summary>
+    public static string ServiceCommandLabel => Windows ? "En Manual:" : "Desactivar:";
+
+    public static string ServiceCommandTip => Windows
+        ? "Para una consola de administrador; o hazlo en Servicios de Windows (Tipo de inicio: Manual)"
+        : "Para una terminal: systemctl pedirá tu contraseña con sudo";
+
+    /// <summary>true si hay un panel de servicios que abrir (services.msc); en Linux no lo hay.</summary>
+    public static bool HasServicesPanel => Windows;
 }

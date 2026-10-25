@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:svc="using:Roost.Desktop.Services"
              xmlns:vm="using:Roost.Desktop.ViewModels"
              xmlns:ctl="using:Roost.Desktop.Controls"
              x:Class="Roost.Desktop.Views.NewSiteDialogView"
@@ -151,7 +152,7 @@
                 <TextBlock Grid.Column="1" Classes="small" TextWrapping="Wrap">
                   <Run Text="Añade " />
                   <Run Text="{Binding Host, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" />
-                  <Run Text=" al hosts: Windows pedirá permiso de administrador" />
+                  <Run Text="{x:Static svc:OsTexts.AddToHostsSuffix}" />
                 </TextBlock>
               </Grid>
               <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10" IsVisible="{Binding DbIsCreate}">

@@ -563,7 +563,7 @@ public sealed partial class SitesViewModel
         if (!hostsOk)
             await Main.InfoAsync($"{created.Host} está clonado, pero falta en el hosts",
                 $"{Main.HostsError}\n\nEl sitio queda registrado y se sirve, pero {created.Host} no resolverá en el navegador hasta que esté en el hosts. "
-                + $"Para añadirlo: Sitios › {created.Host} › «Añadir al hosts» (Windows volverá a pedir permiso), o pasa al DNS local en Ajustes › Nombres .test.",
+                + $"Para añadirlo: Sitios › {created.Host} › «Añadir al hosts» ({Services.OsTexts.WillAskAgain}), o pasa al DNS local en Ajustes › Nombres .test.",
                 Tone.Warn);
         if (dbError is not null)
             await Main.InfoAsync($"No se creó la base de datos de {created.Host}", $"{dbError}\n\nEl sitio está clonado y registrado: créala desde su panel (Base de datos › Crear).", Tone.Warn);
@@ -847,7 +847,7 @@ public sealed partial class SitesViewModel
         {
             var where = GitTexts.Where(Git.Access.Credentials.Describe(token));
             if (plan.TokenShared) kept.Add($"Su token ({where}) se queda: también vale para otro sitio.");
-            else removing.Add($"Su token de {where}, del Administrador de credenciales.");
+            else removing.Add($"Su token de {where}, de {Services.OsTexts.CredentialStoreShort}.");
         }
         var dialog = new RemoveSiteDialogViewModel(row.Host, text, removing, kept);
         return await Main.ShowDialogAsync(dialog) as bool?;

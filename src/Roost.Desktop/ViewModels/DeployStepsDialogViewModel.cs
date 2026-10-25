@@ -488,7 +488,7 @@ internal static class DeployTexts
                 DbState.HasTables => $"{db?.Name} ya tiene {step.Tables} {(step.Tables == 1 ? "tabla" : "tablas")}: márcalo solo si de verdad quieres migrar.",
                 _ => $"No se ha podido mirar si {db?.Name} está vacía: márcalo si quieres migrar.",
             },
-            DeployStepKind.StorageLink => "Enlaza public/storage con storage/app/public (una unión de Windows: no pide permisos).",
+            DeployStepKind.StorageLink => $"Enlaza public/storage con storage/app/public ({Services.OsTexts.StorageLink}).",
             DeployStepKind.WpConfig => db is null
                 ? "No hay base de datos en Roost: el instalador de WordPress te la pedirá."
                 : $"{db.Name} en {WpConfig.Host(db.Port)}, {root}; las 8 claves y salts, nuevas.",
