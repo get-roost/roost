@@ -497,7 +497,11 @@ public sealed partial class SitesViewModel
         var dialog = new GitTaskDialogViewModel($"Clonando {url.Label}", $"{branch} → {folder}", steps, async (d, cancel) =>
         {
             d.Step(0, "Preparando git");
-            steps[0].Hint = git.Source == GitSource.Roost ? $"{GitCatalog.Current.Label}, SHA-256 verificado" : $"el tuyo: {git.Executable}";
+            // El de Roost (MinGit), el de Ajustes › Git ([git] exe) o, en Linux, el del sistema (GitSource.System llega con
+            // Terminal L2: se compara por nombre para no depender de que exista ya).
+            steps[0].Hint = git.Source == GitSource.Roost ? $"{GitCatalog.Current.Label}, SHA-256 verificado"
+                : git.Source.ToString() == "System" ? $"el de tu sistema: {git.Executable}"
+                : $"el tuyo: {git.Executable}";
             d.Step(1, "Comprobando el servidor");
             steps[1].Hint = ServerHint(url, request.Access);
             d.Step(2, "Clonando");

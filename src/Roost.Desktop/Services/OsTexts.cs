@@ -39,6 +39,9 @@ public static class OsTexts
     /// <summary>El ssh-agent del usuario.</summary>
     public static string SshAgent => Windows ? "el ssh-agent de Windows" : "tu ssh-agent (SSH_AUTH_SOCK)";
 
+    /// <summary>«las del ssh-agent de Windows» / «las de tu ssh-agent» (las claves que ofrece).</summary>
+    public static string SshAgentKeys => Windows ? "las del ssh-agent de Windows" : "las de tu ssh-agent (SSH_AUTH_SOCK)";
+
     /// <summary>«El programa asociado de Windows» / «El programa asociado (xdg-open)».</summary>
     public static string AssociatedProgram => Windows ? "El programa asociado de Windows" : "El programa asociado (xdg-open)";
 

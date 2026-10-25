@@ -1479,7 +1479,7 @@ public class ViewSnapshotTests
         php.PickCommand.Execute(php.Installed.Single(c => c.Version == "7.4.33"));
         Assert.Equal(Path.Combine("conf.d", "7.4", "99-usuario.ini"), php.BranchIniText);
         Assert.Equal("128M", php.UploadMaxFilesize);
-        Assert.Contains("3.1.6", php.XdebugText);
+        Assert.Contains(OperatingSystem.IsWindows() ? "3.1.6" : "viene dentro de este PHP", php.XdebugText);   // en Linux la raíz de pega no trae BUILD.json: sin versión
         php.PickCommand.Execute(php.Installed.Single(c => c.Version == "8.4.27"));
         Assert.Equal("300M", php.UploadMaxFilesize);
 
