@@ -100,7 +100,12 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     public bool HasPortsError => PortsError is not null;
     public bool HasShimsWarning => ShimsWarning is not null;
-    public string ShimsText => $"php en la terminal según la carpeta del proyecto (pone {Paths.Shims} en tu PATH)";
+    public string ShimsText => OperatingSystem.IsWindows()
+        ? $"php en la terminal según la carpeta del proyecto (pone {Paths.Shims} en tu PATH)"
+        : "php en la terminal según la carpeta del proyecto: en Linux, de momento, desde la CLI (roost shims install)";
+
+    /// <summary>La casilla de los shims toca el PATH del usuario, que en Linux lleva la CLI (Terminal, L2): aquí se enseña sin tocarla.</summary>
+    public bool CanToggleShims => OperatingSystem.IsWindows();
     public bool CaNotTrusted => !CaTrusted;
 
     partial void OnPortsErrorChanged(string? value) => OnPropertyChanged(nameof(HasPortsError));

@@ -89,7 +89,7 @@
                 <CheckBox IsChecked="{Binding CloseToTray}" Content="Cerrar la ventana deja Roost en la bandeja" IsEnabled="{Binding !TrayUnavailable}" />
                 <!-- La app en Linux (L2): sin anfitrión StatusNotifier (GNOME sin AppIndicator, WSLg) no hay bandeja -->
                 <ctl:Note Tone="Warn" IsVisible="{Binding TrayUnavailable}" Content="{Binding TrayHint}" />
-                <CheckBox IsChecked="{Binding ShimsEnabled}">
+                <CheckBox IsChecked="{Binding ShimsEnabled}" IsEnabled="{Binding CanToggleShims}">
                   <StackPanel>
                     <TextBlock Text="{Binding ShimsText}" TextWrapping="Wrap" />
                     <TextBlock Classes="faint" TextWrapping="Wrap"
