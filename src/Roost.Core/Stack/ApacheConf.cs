@@ -28,6 +28,25 @@ public sealed record ApacheConfInput(
     /// (<c>etc/apache/share</c>, <c>Share/ShareConf</c>), que se incluye después de los sitios; null = sin ella.
     /// </summary>
     public string? SharesDirectory { get; init; }
+
+    /// <summary>
+    /// Linux: la carpeta de los módulos de la distro (<c>/usr/lib/apache2/modules</c>), con la que cada
+    /// <c>LoadModule</c> va con su ruta absoluta; null = Windows (<c>modules/</c> bajo el ServerRoot).
+    /// </summary>
+    public string? ModulesDirectory { get; init; }
+
+    /// <summary>Linux: el fichero de tipos MIME (<c>/etc/mime.types</c>); null = <c>conf/mime.types</c> del ServerRoot.</summary>
+    public string? MimeTypesFile { get; init; }
+
+    /// <summary>
+    /// Linux: los módulos que se cargan (<see cref="ApacheConf.ModulesPresent"/>: los de <see cref="ApacheConf.LinuxModules"/>
+    /// cuyo <c>.so</c> existe; los que la distro compila dentro, como <c>unixd</c> y <c>log_config</c> en Debian, no
+    /// tienen <c>.so</c> y no se cargan). null = la lista de Windows (<see cref="ApacheConf.Modules"/>).
+    /// </summary>
+    public IReadOnlyList<string>? ModulesToLoad { get; init; }
+
+    /// <summary>true si es el Apache de la distro en Linux (<c>mpm_event</c>, rutas absolutas, sin <c>User</c>/<c>Group</c>).</summary>
+    public bool IsUnix => ModulesDirectory is not null;
 }
 
 /// <summary>
@@ -59,6 +78,28 @@ public static class ApacheConf
         "proxy_fcgi", "rewrite", "setenvif", "slotmem_shm", "socache_shmcb", "ssl",
     ];
 
+    /// <summary>
+    /// Linux: los mismos más el MPM (<c>mpm_event</c>, explícito: en Unix no va compilado dentro como el
+    /// <c>mpm_winnt</c> de Windows) y <c>unixd</c> (obligatorio en Unix; sin <c>User</c>/<c>Group</c> no cambia
+    /// de usuario). El orden importa: el MPM y unixd, los primeros.
+    /// </summary>
+    public static readonly IReadOnlyList<string> LinuxModules = ["mpm_event", "unixd", .. Modules];
+
+    /// <summary>Linux: sin estos no hay PHP, ni .htaccess, ni HTTPS: si falta su <c>.so</c>, no se arranca.</summary>
+    public static readonly IReadOnlyList<string> RequiredModules = ["mpm_event", "proxy", "proxy_fcgi", "proxy_balancer", "rewrite", "ssl"];
+
+    /// <summary>
+    /// PURO: de <see cref="LinuxModules"/>, los que tienen su <c>mod_&lt;nombre&gt;.so</c> en <paramref name="modulesDirectory"/>.
+    /// Los que la distro compila dentro del binario (Debian: <c>unixd</c>, <c>log_config</c>) no tienen <c>.so</c>
+    /// y no hay que cargarlos; cargar uno que no existe es un error al arrancar.
+    /// </summary>
+    public static IReadOnlyList<string> ModulesPresent(string modulesDirectory, Func<string, bool> fileExists) =>
+        LinuxModules.Where(m => fileExists(System.IO.Path.Combine(modulesDirectory, $"mod_{m}.so"))).ToList();
+
+    /// <summary>PURO: los de <see cref="RequiredModules"/> que no están en <paramref name="present"/> (vacío = se puede arrancar).</summary>
+    public static IReadOnlyList<string> MissingRequired(IReadOnlyList<string> present) =>
+        RequiredModules.Where(m => !present.Contains(m)).ToList();
+
     /// <summary>PURO: genera el texto del httpd.conf.</summary>
     public static string Render(ApacheConfInput input)
     {
@@ -67,8 +108,37 @@ public static class ApacheConf
         var www = Path(input.Www);
 
         var modules = new StringBuilder();
-        foreach (var module in Modules)
-            modules.Append($"LoadModule {module}_module modules/mod_{module}.so\n");
+        if (input.IsUnix)
+        {
+            var dir = Path(input.ModulesDirectory!);
+            foreach (var module in input.ModulesToLoad ?? LinuxModules)
+                modules.Append($"LoadModule {module}_module \"{dir}/mod_{module}.so\"\n");
+        }
+        else
+        {
+            foreach (var module in input.ModulesToLoad ?? Modules)
+                modules.Append($"LoadModule {module}_module modules/mod_{module}.so\n");
+        }
+
+        // El MPM: en Windows, mpm_winnt (un hijo con sus hilos); en Linux, mpm_event con lo de serie de
+        // Apache, que para un equipo de desarrollo sobra. Los AcceptFilter a none son por el AcceptEx de Windows.
+        var mpm = input.IsUnix
+            ? """
+              StartServers 2
+              MinSpareThreads 25
+              MaxSpareThreads 75
+              ThreadsPerChild 25
+              MaxRequestWorkers 150
+              MaxConnectionsPerChild 0
+              Mutex default
+              """
+            : """
+              ThreadsPerChild 64
+              MaxConnectionsPerChild 0
+              AcceptFilter http none
+              AcceptFilter https none
+              """;
+        var mimeTypes = input.MimeTypesFile is { } mime ? $"\"{Path(mime)}\"" : "conf/mime.types";
 
         // retry=0: un php-cgi que se reinicia no deja su miembro «en error» 60 s (lo de serie). Con
         // eso, al reiniciar el pool uno a uno Apache acababa con todos en error y daba 503; así la
@@ -91,10 +161,7 @@ public static class ApacheConf
             {{Listen(input.HttpPort, input.Ipv6)}}{{https}}ServerName localhost:{{input.HttpPort}}
 
             {{modules}}
-            ThreadsPerChild 64
-            MaxConnectionsPerChild 0
-            AcceptFilter http none
-            AcceptFilter https none
+            {{mpm}}
             Timeout 600
             ProxyTimeout 600
             PidFile "{{run}}/apache.pid"
@@ -103,7 +170,7 @@ public static class ApacheConf
             LogLevel warn
             LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
             CustomLog "{{logs}}/apache-access.log" combined
-            TypesConfig conf/mime.types
+            TypesConfig {{mimeTypes}}
             AddDefaultCharset UTF-8
             DirectoryIndex index.php index.html index.htm
             Protocols h2 http/1.1

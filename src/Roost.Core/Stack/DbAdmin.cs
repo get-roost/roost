@@ -24,6 +24,12 @@ public sealed record DbSchemaInfo(bool Exists, int Tables)
 public sealed record DbSmokeResult(string? VersionLine, string? MissingRedistributable, string? RedistributableUrl)
 {
     public bool Ok => VersionLine is not null;
+
+    /// <summary>
+    /// Linux: qué falta en la distro si el servidor no arranca («Falta la libreria libaio.so.1. Instalala:
+    /// sudo apt install libaio1t64»), sin tildes. null en Windows (ahí es <see cref="MissingRedistributable"/>) y si arranca.
+    /// </summary>
+    public string? Hint { get; init; }
 }
 
 /// <summary>
@@ -321,14 +327,27 @@ public static partial class DbAdmin
     // --- Tras instalar ---
 
     /// <summary>
-    /// Pregunta al servidor recién instalado su versión. Si no responde, casi siempre falta un
-    /// Visual C++ Redistributable (MySQL 5.7 se compiló con Visual Studio 2013; el resto, con 2015-2022).
+    /// Pregunta al servidor recién instalado su versión. Si no responde, en Windows casi siempre falta un
+    /// Visual C++ Redistributable (MySQL 5.7 se compiló con Visual Studio 2013; el resto, con 2015-2022);
+    /// en Linux, una librería de la distro (MySQL pide libaio y libnuma), que se nombra con su paquete apt.
     /// </summary>
-    public static DbSmokeResult SmokeTest(InstalledDb db, IProcessRunner runner)
+    public static DbSmokeResult SmokeTest(InstalledDb db, IProcessRunner runner) => SmokeTest(db, runner, OperatingSystem.IsWindows(), LinuxDeps.OsRelease());
+
+    /// <summary>PURO (salvo el runner): lo mismo, diciendo si es Windows y con el <c>/etc/os-release</c> de la distro.</summary>
+    public static DbSmokeResult SmokeTest(InstalledDb db, IProcessRunner runner, bool windows, string? osRelease)
     {
         var output = runner.Run(db.Server, "--version", TimeSpan.FromSeconds(15));
         var line = output?.Split('\n').Select(l => l.Trim()).FirstOrDefault(l => l.Contains("Ver", StringComparison.Ordinal));
         if (line is not null) return new DbSmokeResult(line, null, null);
+
+        if (!windows)
+        {
+            var hint = LinuxDeps.MissingLibraryHint(output, osRelease)
+                ?? (db.Engine == DbEngine.MySql
+                    ? $"MySQL necesita libaio y libnuma de la distro: {LinuxDeps.AptInstall([LinuxDeps.LibaioPackage(osRelease), "libnuma1"])}"
+                    : $"Mira que dice a mano: {db.Server} --version");
+            return new DbSmokeResult(null, null, null) { Hint = hint };
+        }
 
         return db.Engine == DbEngine.MySql && db.Version is { Major: 5 }
             ? new DbSmokeResult(null, "Visual C++ 2013 (x64)", "https://aka.ms/highdpimfc2013x64enu")

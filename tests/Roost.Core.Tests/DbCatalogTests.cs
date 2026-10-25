@@ -21,6 +21,9 @@ public class DbCatalogTests
         {"releases": {"11.4.13": {"release_id": "11.4.13", "files": [
           {"file_name": "mariadb-11.4.13-winx64.msi", "checksum": {"sha256sum": "aaaa"},
            "file_download_url": "http://downloads.mariadb.org/rest-api/mariadb/11.4.13/mariadb-11.4.13-winx64.msi"},
+          {"file_name": "mariadb-11.4.13-linux-systemd-x86_64.tar.gz", "package_type": "gzipped tar file", "os": "Linux", "cpu": "x86_64",
+           "checksum": {"md5sum": "afcd0c92d1ee88d379702dec63d6f3e6", "sha256sum": "3cebf63914df3154b7cb6d548337eb2be42c773aeb641110446b72e2746cfed7"},
+           "file_download_url": "http://downloads.mariadb.org/rest-api/mariadb/11.4.13/mariadb-11.4.13-linux-systemd-x86_64.tar.gz"},
           {"file_name": "mariadb-11.4.13-winx64.zip", "package_type": "ZIP file",
            "checksum": {"md5sum": "922fc670c1a538dcf2d7b3a6fa7b47ac", "sha256sum": "D62986D433EEEBFDE218560B276103831604A61E929E87F1A17F5AEBD80257E2"},
            "file_download_url": "http://downloads.mariadb.org/rest-api/mariadb/11.4.13/mariadb-11.4.13-winx64.zip"}
@@ -116,14 +119,30 @@ public class DbCatalogTests
     {
         var major = new MariaDbCatalog.Major("11.4", "Stable", "Long Term Support", new DateOnly(2029, 5, 29));
 
-        var build = MariaDbCatalog.ParseLatest(LatestJson, major)!;
+        var build = MariaDbCatalog.ParseLatest(LatestJson, major, MariaDbCatalog.WindowsSuffix)!;
 
         Assert.Equal("11.4.13", build.Version.ToString());
-        Assert.Equal("mariadb-11.4.13-winx64.zip", build.FileName);   // el zip, no el msi
+        Assert.Equal("mariadb-11.4.13-winx64.zip", build.FileName);   // el zip, no el msi ni el bintar de Linux
         Assert.Equal("d62986d433eeebfde218560b276103831604a61e929e87f1a17f5aebd80257e2", build.Sha256);
         Assert.True(build.Lts);
         Assert.Equal("https://downloads.mariadb.org/rest-api/mariadb/11.4.13/mariadb-11.4.13-winx64.zip", build.Urls[0].ToString());
         Assert.Equal("https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip", build.Urls[1].ToString());
+        // Sin decir cual, el de este sistema.
+        Assert.Equal(OperatingSystem.IsWindows() ? "mariadb-11.4.13-winx64.zip" : "mariadb-11.4.13-linux-systemd-x86_64.tar.gz", MariaDbCatalog.ParseLatest(LatestJson, major)!.FileName);
+    }
+
+    [Fact]
+    public void MariaDb_ParseLatest_Linux_DaElBintarConSuSha_YElArchiveDeBintar()
+    {
+        var major = new MariaDbCatalog.Major("11.4", "Stable", "Long Term Support", new DateOnly(2029, 5, 29));
+
+        var build = MariaDbCatalog.ParseLatest(LatestJson, major, MariaDbCatalog.LinuxSuffix)!;
+
+        Assert.Equal("mariadb-11.4.13-linux-systemd-x86_64.tar.gz", build.FileName);
+        Assert.Equal("3cebf63914df3154b7cb6d548337eb2be42c773aeb641110446b72e2746cfed7", build.Sha256);
+        Assert.Equal("https://downloads.mariadb.org/rest-api/mariadb/11.4.13/mariadb-11.4.13-linux-systemd-x86_64.tar.gz", build.Urls[0].ToString());
+        Assert.Equal("https://archive.mariadb.org/mariadb-11.4.13/bintar-linux-systemd-x86_64/mariadb-11.4.13-linux-systemd-x86_64.tar.gz", build.Urls[1].ToString());
+        Assert.Equal("mariadb@11.4", build.Spec);
     }
 
     [Fact]

@@ -48,11 +48,14 @@ public class ApacheTests : IDisposable
         Assert.Contains("Listen 127.0.0.1:8443\nListen [::1]:8443\n", ApacheConf.Render(Input(https: 8443)));
     }
 
+    // Una carpeta con raíz en cada sistema: DocumentRoot pasa por GetFullPath, y en Linux «C:\www» no es absoluta.
+    private static readonly string SiteFolder = OperatingSystem.IsWindows() ? @"C:\www\tienda" : "/www/tienda";
+
     private static ApacheSiteConf.Input SiteInput() => new(
-        new Site { Name = "tienda", Folder = @"C:\www\tienda", Root = "public" }, "php-7.4", 8765, 8443,
+        new Site { Name = "tienda", Folder = SiteFolder, Root = "public" }, "php-7.4", 8765, 8443,
         @"C:\roost\certs\sites\tienda.crt", @"C:\roost\certs\sites\tienda.key");
 
-    [WindowsFact("Pendiente en Linux: Web, BD y servicios (L2).")]
+    [Fact]
     public void ConfDeUnSitio_HttpYHttps_ConSuPool_YLoDeFueraSeRespeta()
     {
         var fresh = ApacheSiteConf.RenderNew(SiteInput());
@@ -61,7 +64,7 @@ public class ApacheTests : IDisposable
         Assert.Contains("<VirtualHost 127.0.0.1:8443 [::1]:8443>", fresh);
         Assert.Contains("<VirtualHost 127.0.0.1:8443>", ApacheSiteConf.RenderNew(SiteInput() with { Ipv6 = false }));   // máquina sin IPv6
         Assert.Contains("ServerAlias *.tienda.test", fresh);
-        Assert.Contains("DocumentRoot \"C:/www/tienda/public\"", fresh);
+        Assert.Contains($"DocumentRoot \"{ApacheConf.Path(SiteFolder)}/public\"", fresh);
         Assert.Contains("SetHandler \"proxy:balancer://php-7.4/\"", fresh);
         Assert.Contains("SSLCertificateFile \"C:/roost/certs/sites/tienda.crt\"", fresh);
 

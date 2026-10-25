@@ -33,7 +33,7 @@ public class DbAdminTests
         }
     }
 
-    [WindowsFact("Pendiente en Linux: Web, BD y servicios (L2).")]
+    [Fact]
     public void Create_UsaElClienteDeLaInstalacionConSuMyIni_EnUtf8mb4()
     {
         var client = new FakeClient("roost-ok\n");
@@ -41,7 +41,7 @@ public class DbAdminTests
         DbAdmin.Create(MariaDb, @"C:\roost\etc\mariadb\11.4\my.ini", "tienda", client);
 
         var call = Assert.Single(client.Calls);
-        Assert.StartsWith(@"mariadb.exe --defaults-file=""C:\roost\etc\mariadb\11.4\my.ini""", call);
+        Assert.StartsWith(OsNames.Exe("mariadb") + @" --defaults-file=""C:\roost\etc\mariadb\11.4\my.ini""", call);
         Assert.Contains("CREATE DATABASE IF NOT EXISTS `tienda` CHARACTER SET utf8mb4", call);
     }
 
@@ -326,7 +326,7 @@ public class DbAdminTests
 
     // --- Tras instalar ---
 
-    [WindowsFact("Pendiente en Linux: Web, BD y servicios (L2).")]
+    [Fact]
     public void SmokeTest_SiElServidorContesta_DaSuVersion()
     {
         var client = new FakeClient("C:\\roost\\bin\\mariadb\\11.4.13\\bin\\mariadbd.exe  Ver 11.4.13-MariaDB for Win64 on AMD64\n");
@@ -335,14 +335,15 @@ public class DbAdminTests
 
         Assert.True(smoke.Ok);
         Assert.Contains("Ver 11.4.13", smoke.VersionLine);
-        Assert.EndsWith("mariadbd.exe --version", Assert.Single(client.Calls));
+        Assert.EndsWith(OsNames.Exe("mariadbd") + " --version", Assert.Single(client.Calls));
     }
 
     [Fact]
     public void SmokeTest_SiNoContesta_NombraElRedistributableQueToca()
     {
-        var modern = DbAdmin.SmokeTest(MariaDb, new FakeClient(null));
-        var old = DbAdmin.SmokeTest(new InstalledDb(DbEngine.MySql, "5.7.44", @"C:\roost\bin\mysql\5.7.44"), new FakeClient(""));
+        // Lo de Windows, se ejecute donde se ejecute (en Linux lo que toca es el paquete apt: LinuxStackTests).
+        var modern = DbAdmin.SmokeTest(MariaDb, new FakeClient(null), windows: true, osRelease: null);
+        var old = DbAdmin.SmokeTest(new InstalledDb(DbEngine.MySql, "5.7.44", @"C:\roost\bin\mysql\5.7.44"), new FakeClient(""), windows: true, osRelease: null);
 
         Assert.False(modern.Ok);
         Assert.Equal("Visual C++ v14 (x64)", modern.MissingRedistributable);

@@ -73,6 +73,42 @@ public class WebReloadTests : IDisposable
     [Fact]
     public void ApacheRestartEvent_EsElDeMpmWinnt() => Assert.Equal("ap31432_restart", WebReload.ApacheRestartEvent(31432));
 
+    [Fact]
+    public void ApacheResumed_BuscaElAH00489_SoloDesdeElOffsetDeLaRecarga()
+    {
+        var log = Path.Combine(_dir, "apache-error.log");
+        File.WriteAllText(log, "[notice] AH00489: Apache/2.4.58 (Ubuntu) configured -- resuming normal operations\n");
+        var offset = new FileInfo(log).Length;
+
+        Assert.True(WebReload.ApacheResumed(log, 0));
+        Assert.False(WebReload.ApacheResumed(log, offset));   // lo del arranque, antes de la recarga, no cuenta
+        File.AppendAllText(log, "[notice] AH00493: SIGUSR1 received.  Doing graceful restart\n");
+        Assert.False(WebReload.ApacheResumed(log, offset));
+        File.AppendAllText(log, "[notice] AH00489: Apache/2.4.58 (Ubuntu) configured -- resuming normal operations\n");
+        Assert.True(WebReload.ApacheResumed(log, offset));
+        Assert.False(WebReload.ApacheResumed(Path.Combine(_dir, "no-existe.log"), 0));
+    }
+
+    [LinuxFact]
+    public void Apache_EnLinux_SeLeMandaSIGUSR1_YSiNoSePuedeSeDice()
+    {
+        var calls = new List<(int Pid, int Signal)>();
+        var before = WebReload.KillSignal;
+        try
+        {
+            WebReload.KillSignal = (pid, signal) => { calls.Add((pid, signal)); return pid == 4321; };
+            var apache = new ServiceDefinition { Name = "apache", Executable = "/usr/sbin/apache2" };
+
+            Assert.Null(WebReload.Signal(new Runner(""), apache, 4321));
+            Assert.Equal((4321, 10), Assert.Single(calls));
+            Assert.Contains("SIGUSR1", WebReload.Signal(new Runner(""), apache, 1));
+        }
+        finally
+        {
+            WebReload.KillSignal = before;
+        }
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, recursive: true); } catch { /* best effort */ }

@@ -146,7 +146,7 @@ app.Configure(config =>
 
     config.AddBranch("db", db =>
     {
-        db.SetDescription("Instala y elige MariaDB o MySQL (de momento, solo en Windows).");
+        db.SetDescription("Instala y elige MariaDB o MySQL.");
 
         db.AddCommand<DbListCommand>("list")
             .WithDescription("Lista las bases de datos instaladas por Roost y las disponibles (MariaDB y MySQL), con su estado de seguridad.")
@@ -466,7 +466,7 @@ app.Configure(config =>
     // Servicios (oleada 3): Redis y el correo de pruebas (Mailpit).
     config.AddBranch("redis", redis =>
     {
-        redis.SetDescription("Redis en el stack (cache, colas, sesiones): la build MSYS2 de redis-windows, verificada, solo en 127.0.0.1 (de momento, solo en Windows).");
+        redis.SetDescription("Redis en el stack (cache, colas, sesiones), verificado y solo en 127.0.0.1: en Windows la build MSYS2 de redis-windows; en Linux el estatico de get-roost/roost-builds.");
 
         redis.AddCommand<Roost.Cli.Commands.Services.RedisInstallCommand>("install")
             .WithDescription("Descarga Redis, verifica su SHA-256, lo instala en bin/redis y lo pone en el stack. Si esta en marcha, lo aplica ya.")
@@ -496,7 +496,7 @@ app.Configure(config =>
 
     config.AddBranch("mail", mail =>
     {
-        mail.SetDescription("Mailpit en el stack: el correo de PHP (mail(), Laravel, WordPress) se queda en una bandeja local en vez de salir del equipo (de momento, solo en Windows).");
+        mail.SetDescription("Mailpit en el stack: el correo de PHP (mail(), Laravel, WordPress) se queda en una bandeja local en vez de salir del equipo.");
 
         mail.AddCommand<Roost.Cli.Commands.Services.MailInstallCommand>("install")
             .WithDescription("Descarga Mailpit, verifica su SHA-256, lo instala en bin/mailpit, lo pone en el stack y lleva a el el mail() de PHP.")
@@ -531,7 +531,7 @@ app.Configure(config =>
     // Compartir (oleada 6): un sitio por internet con un tunel rapido de Cloudflare, o en la red local.
     config.AddBranch("share", share =>
     {
-        share.SetDescription("Ensena un sitio fuera de tu equipo mientras dura: por internet con un tunel rapido de Cloudflare (sin cuenta) o, con --lan, en tu red local (solo en Windows). Nada se comparte solo, y Ctrl+C o roost down lo paran.");
+        share.SetDescription("Ensena un sitio fuera de tu equipo mientras dura: por internet con un tunel rapido de Cloudflare (sin cuenta) o, con --lan, en tu red local. Nada se comparte solo, y Ctrl+C o roost down lo paran.");
         share.SetDefaultCommand<Roost.Cli.Commands.Share.ShareCommand>();
         share.AddExample("share", "tienda");
         share.AddExample("share", "tienda", "--lan");
@@ -585,7 +585,7 @@ app.Configure(config =>
 
     config.AddBranch("web", web =>
     {
-        web.SetDescription("El servidor web que arranca roost up: nginx o Apache (en Linux, de momento solo nginx).");
+        web.SetDescription("El servidor web que arranca roost up: nginx o Apache (en Linux, el apache2 de la distro).");
 
         web.AddCommand<WebUseCommand>("use")
             .WithDescription("Elige nginx o Apache (lee los .htaccess). Lo instala si falta y, si el stack esta en marcha, cambia solo el servidor web.")

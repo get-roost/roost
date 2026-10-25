@@ -92,13 +92,38 @@ public sealed partial class StackPlanner
 
     /// <summary>
     /// httpd.conf, un .conf por sitio, <c>httpd -t</c> y su servicio. El PHP va por los mismos
-    /// pools de php-cgi que nginx (<see cref="ApacheConf"/>).
+    /// pools de php-cgi que nginx (<see cref="ApacheConf"/>). En Linux es el Apache de la distro, lanzado
+    /// con el usuario (<c>-DFOREGROUND</c>, parada con SIGTERM) y con sus módulos; como usuario no puede
+    /// abrir puertos bajos y a un binario del sistema no se le da el permiso con setcap: se dice antes de
+    /// arrancar nada (<c>apache2 -t</c>, al contrario que <c>nginx -t</c>, no abre los puertos).
     /// </summary>
     private ServiceDefinition PrepareApache(RoostConfig config, InstalledApache apache, List<NginxUpstream> pools, List<SitePlan> sitePlans, LocalCa? ca)
     {
         foreach (var dir in new[] { Path.Combine(paths.Etc, "apache"), paths.ApacheSites, SiteLogs.Directory(paths) })
             Directory.CreateDirectory(dir);
         RetireOrphanConfs(paths.ApacheSites, sitePlans);
+
+        IReadOnlyList<string>? modulesToLoad = null;
+        if (apache.IsDistro)
+        {
+            var present = ApacheConf.ModulesPresent(apache.Modules, File.Exists);
+            if (ApacheConf.MissingRequired(present) is { Count: > 0 } missing)
+            {
+                throw new RoostException(
+                    $"Al Apache de la distro le falta{(missing.Count == 1 ? "" : "n")} {string.Join(", ", missing.Select(m => $"mod_{m}.so"))} en {apache.Modules}: "
+                    + "sin eso no sirve PHP, los .htaccess o HTTPS. Instala el paquete completo de Apache (apache2 en Debian y Ubuntu, httpd y mod_ssl en Fedora y RHEL).");
+            }
+            modulesToLoad = present;
+
+            foreach (var port in (sitePlans.Count > 0 ? new[] { config.HttpPort, config.HttpsPort } : [config.HttpPort]).Distinct())
+            {
+                if (port < 1024 && Probe(port) == PortState.Denied)
+                {
+                    var (key, suggested) = SuggestionFor(port, config);
+                    throw new RoostException(LinuxApache.DeniedPortMessage(port, key, suggested, paths.ConfigFile));
+                }
+            }
+        }
 
         foreach (var plan in sitePlans)
         {
@@ -124,7 +149,14 @@ public sealed partial class StackPlanner
             pools,
             pools[0].Name,
             paths.ApacheSites,
-            Loopback.HasIpv6) { AdminerDirectory = AdminerAlias(), SharesDirectory = paths.ApacheShares }));
+            Loopback.HasIpv6)
+        {
+            AdminerDirectory = AdminerAlias(),
+            SharesDirectory = paths.ApacheShares,
+            ModulesDirectory = apache.IsDistro ? apache.Modules : null,
+            MimeTypesFile = apache.IsDistro ? apache.MimeTypes : null,
+            ModulesToLoad = modulesToLoad,
+        }));
 
         var test = TestApache(apache);
         if (test is null || !test.Contains("Syntax OK", StringComparison.OrdinalIgnoreCase))
@@ -143,6 +175,8 @@ public sealed partial class StackPlanner
             WorkingDirectory = apache.Directory,
             LogFile = Path.Combine(paths.Logs, "apache-stdout.log"),
             Port = config.HttpPort,
+            // En Linux, SIGTERM: el padre para a sus hijos, borra el pidfile y sale; en Windows se mata, como siempre.
+            StopSignal = OperatingSystem.IsWindows() ? StopSignal.Kill : StopSignal.Term,
         };
     }
 
@@ -186,8 +220,11 @@ public sealed partial class StackPlanner
     /// <summary>El httpd.conf que genera cada <c>up</c> con Apache.</summary>
     public string ApacheConfPath => Path.Combine(paths.Etc, "apache", "httpd.conf");
 
-    /// <summary>Los argumentos con los que se arranca (y se valida) Apache.</summary>
-    public string ApacheArguments => $"-f \"{ApacheConf.Path(ApacheConfPath)}\"";
+    /// <summary>
+    /// Los argumentos con los que se arranca (y se valida) Apache. Fuera de Windows, <c>-DFOREGROUND</c>:
+    /// si no, el padre se desliga (fork) y el supervisor lo tomaría por una caída.
+    /// </summary>
+    public string ApacheArguments => $"-f \"{ApacheConf.Path(ApacheConfPath)}\"" + (OperatingSystem.IsWindows() ? "" : " -DFOREGROUND");
 
     /// <summary><c>httpd -t</c> sobre la configuración generada: su salida, o null si no responde.</summary>
     public string? TestApache(InstalledApache apache) => runner.Run(apache.Executable, "-t " + ApacheArguments, TimeSpan.FromSeconds(15));

@@ -112,8 +112,8 @@ public sealed partial class StackPlanner(RoostPaths paths, IProcessRunner runner
         foreach (var dir in new[] { confD, paths.Logs, paths.Run })
             Directory.CreateDirectory(dir);
         EnsureUserIni();
-        // El mail() de PHP a Mailpit si va en el stack; si no, se quita (lo leen php-cgi y la terminal).
-        MailConf.SyncPhpIni(confD, config);
+        // El mail() de PHP a Mailpit si va en el stack; si no, se quita (lo leen php-cgi y la terminal). En Linux lleva el sendmail_path.
+        MailConf.SyncPhpIni(paths, confD, config);
 
         // Un pool por rama: primero la del PHP global, luego la de cada sitio que fije otra.
         // Si dos piden la misma rama, comparten el pool del primero.

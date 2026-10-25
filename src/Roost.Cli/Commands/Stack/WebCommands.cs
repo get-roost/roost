@@ -5,6 +5,7 @@ using Roost.Core;
 using Roost.Core.Config;
 using Roost.Core.Install;
 using Roost.Core.Platform;
+using Roost.Core.Scanning;
 using Spectre.Console;
 using Spectre.Console.Cli;
 
@@ -22,7 +23,17 @@ internal static class WebServerSetup
         {
             var installer = new ApacheInstaller(paths, RoostHttp.Client);
             var build = ApacheCatalog.Current;
-            if (installer.Find(build) is not null) return;
+            if (installer.Find(build) is { } found)
+            {
+                if (found.IsDistro) WarnAboutDistroApache(paths, found);
+                return;
+            }
+            if (build.IsDistro)
+            {
+                // Linux: es el de la distro y Roost no instala paquetes del sistema; InstallAsync lo dice (y como ponerlo).
+                await installer.InstallAsync(build, null, cancellation);
+                return;
+            }
             // Apache de Apache Lounge no arranca sin el VC++ 14.50 o posterior: avisar antes, con el enlace.
             WarnVcRedist(forApache: true);
             await InstallAsync($"Apache {build.Version}", Source(paths, build.FileName, build.Url), (progress, ct) => installer.InstallAsync(build, progress, ct), cancellation);
@@ -43,6 +54,26 @@ internal static class WebServerSetup
     {
         if (VcRedist.Warning(VcRedist.Detect(), forApache) is { } warning)
             AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {warning}");
+    }
+
+    /// <summary>
+    /// Linux: lo que hay que saber del Apache de la distro antes de elegirlo: cual es, que el servicio del
+    /// sistema (apache2.service, que apt deja habilitado) es otro Apache en el 80 y el 443, y que a este no se
+    /// le dan los puertos bajos con setcap (como usuario, solo de 1024 en adelante).
+    /// </summary>
+    private static void WarnAboutDistroApache(RoostPaths paths, InstalledApache apache)
+    {
+        var config = RoostConfig.Load(paths.ConfigFile);
+        AnsiConsole.MarkupLineInterpolated($"[grey]Apache {apache.Version} de la distro ({apache.Executable}), con tus permisos y la configuracion de Roost.[/]");
+        if (LinuxApache.ServiceWarning(SystemServices.Current.Find(ProcessRunner.Default), config.HttpPort, config.HttpsPort) is { } service)
+            AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {service}");
+        var low = new[] { config.HttpPort, config.HttpsPort }.Where(p => p < 1024).Distinct().ToList();
+        if (low.Count > 0)
+        {
+            var text = "con Apache, como usuario, solo valen puertos de 1024 en adelante (a un binario del sistema no se le da el permiso con setcap), "
+                + $"y roost.toml pide el {string.Join(" y el ", low)}: roost up se negara. Pon [web] port = 8080 y https_port = 8443 en {paths.ConfigFile}, o usa nginx para los puertos bajos.";
+            AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {text}");
+        }
     }
 
     /// <summary>Linux: lo que falta en la distro para <paramref name="need"/> (fuera de Linux no se comprueba nada).</summary>
@@ -90,16 +121,13 @@ public sealed class WebUseCommand : AsyncCommand<WebUseCommand.Settings>
             AnsiConsole.MarkupLineInterpolated($"[red]El servidor web tiene que ser nginx o apache[/] (no {settings.Server}).");
             return 1;
         }
-        // nginx ya va en Linux (el estatico de roost-builds); Apache, el de la distro, llega en la siguiente oleada.
-        if (server == RoostConfig.WebApache && !PlatformGate.Require("web use apache")) return 1;
-
         var paths = RoostPaths.Default();
         try
         {
             await WebServerSetup.EnsureAsync(paths, server, cancellation);
             RoostConfig.SetWebServer(paths.ConfigFile, server);
             AnsiConsole.MarkupLine($"[green]Servidor web:[/] {WebServerSetup.Label(server)}"
-                + (server == RoostConfig.WebApache ? " [grey](lee los .htaccess; PHP por los mismos pools de php-cgi)[/]" : ""));
+                + (server == RoostConfig.WebApache ? $" [grey](lee los .htaccess; PHP por los mismos pools de {(OperatingSystem.IsWindows() ? "php-cgi" : "php-fpm")})[/]" : ""));
             return await StackApply.IfRunningAsync(paths, _ => $"sirve {WebServerSetup.Label(server)}.", cancellation);
         }
         catch (RoostException ex)

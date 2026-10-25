@@ -85,26 +85,24 @@ internal static class ShareSupport
         foreach (var warning in warnings) AnsiConsole.MarkupLineInterpolated($"  [yellow]-[/] {warning}");
     }
 
-    /// <summary>Copia al portapapeles de Windows con clip.exe; false si no se ha podido (no pasa nada).</summary>
-    public static async Task<bool> CopyAsync(string text, CancellationToken cancellation)
-    {
-        if (!OperatingSystem.IsWindows()) return false;
-        try
-        {
-            var clip = Path.Combine(Environment.SystemDirectory, "clip.exe");
-            var result = await CommandRunner.Default.RunAsync(new CommandSpec(clip, [], Timeout: TimeSpan.FromSeconds(5), Stdin: text), null, cancellation);
-            return result.Succeeded;
-        }
-        catch (RoostException)
-        {
-            return false;
-        }
-    }
+    /// <summary>
+    /// Copia al portapapeles (clip.exe en Windows; wl-copy o xclip en Linux: <see cref="Clipboard"/>); si no se ha
+    /// podido, false y por que, para decirlo en gris (no pasa nada: la URL sale igual). Con <paramref name="skip"/> (--no-copy), nada.
+    /// </summary>
+    public static async Task<(bool Copied, string? WhyNot)> CopyAsync(string text, bool skip, CancellationToken cancellation) =>
+        skip ? (false, null) : await Clipboard.CopyAsync(text, CommandRunner.Default, cancellation);
+
+    /// <summary>Lo que va tras la URL: «(copiada al portapapeles)» o, si no se ha podido, por que.</summary>
+    public static string CopiedNote((bool Copied, string? WhyNot) copy) =>
+        copy.Copied ? " [grey](copiada al portapapeles)[/]" : copy.WhyNot is { } why ? $" [grey](sin copiar al portapapeles: {Markup.Escape(why)})[/]" : "";
+
+    /// <summary>Como se pide el permiso de administrador en este sistema, para los avisos.</summary>
+    public static string AdminPrompt => OperatingSystem.IsWindows() ? "Windows pedira permiso de administrador" : "pedira permiso de administrador (pkexec o sudo)";
 
     /// <summary>Quita la regla del cortafuegos de un puerto (UAC), contando lo que pasa; nunca lanza.</summary>
     public static void RemoveFirewallRule(int port)
     {
-        AnsiConsole.MarkupLineInterpolated($"Quitando la regla del cortafuegos [grey]«{LanFirewall.RuleName(port)}»[/] (Windows pedira permiso de administrador)...");
+        AnsiConsole.MarkupLineInterpolated($"Quitando la regla del cortafuegos [grey]«{LanFirewall.RuleName(port)}»[/] ({AdminPrompt})...");
         try
         {
             LanFirewall.Remove(SiteSupport.HelperExe, port);
@@ -152,7 +150,7 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
         public string? Site { get; init; }
 
         [CommandOption("--lan")]
-        [Description("En la red local (un movil en la misma wifi) en vez de por internet: HTTPS en la IP del equipo, con una regla del cortafuegos solo para tu red privada (Windows pide permiso).")]
+        [Description("En la red local (un movil en la misma wifi) en vez de por internet: HTTPS en la IP del equipo, con una regla del cortafuegos solo para tu red privada (pide permiso de administrador; en Linux, solo si hay ufw o firewalld).")]
         public bool Lan { get; init; }
 
         [CommandOption("--ip <IP>")]
@@ -178,7 +176,6 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("share")) return 1;
         var paths = RoostPaths.Default();
         if (string.IsNullOrWhiteSpace(settings.Site))
         {
@@ -228,10 +225,10 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
         else await AnsiConsole.Status().StartAsync("Abriendo el tunel (puede tardar unos segundos)...", async _ => response = await client.ShareTunnelAsync(site.Name, cancellation));
         if (!response.Ok || response.Share is not { } share) return Fail(settings, response.Error ?? "El daemon no ha dicho por que.");
 
-        var copied = !settings.NoCopy && await ShareSupport.CopyAsync(share.Url, cancellation);
-        if (settings.Json) return Json(share, copied, warnings);
+        var copy = await ShareSupport.CopyAsync(share.Url, settings.NoCopy, cancellation);
+        if (settings.Json) return Json(share, copy.Copied, warnings);
 
-        AnsiConsole.MarkupLineInterpolated($"[green]{site.Host} esta en internet:[/] [bold]{share.Url}[/]{(copied ? " [grey](copiada al portapapeles)[/]" : "")}");
+        AnsiConsole.MarkupLine($"[green]{Markup.Escape(site.Host)} esta en internet:[/] [bold]{Markup.Escape(share.Url)}[/]{ShareSupport.CopiedNote(copy)}");
         if (!share.Connected) AnsiConsole.MarkupLine("[grey]Cloudflare aun esta preparando la conexion: si da error, prueba en unos segundos.[/]");
         AnsiConsole.MarkupLineInterpolated($"[grey]Log del tunel: {QuickTunnel.LogFile(paths, site.Name)}[/]");
         ShareSupport.PrintApplied(response.Applied);
@@ -245,7 +242,7 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
         var nic = LanNetwork.Choose(candidates, settings.Ip);
         var probe = await LanProbe.ReadAsync(CommandRunner.Default, cancellation);
         var category = probe.CategoryOf(nic.InterfaceIndex);
-        if (category == NetworkCategory.Public)
+        if (category == NetworkCategory.Public && OperatingSystem.IsWindows())
         {
             throw new RoostException(
                 $"La red de {nic.Name} ({nic.Address}) esta marcada como publica, y Windows no deja entrar a nada desde una red publica (la regla de Roost es solo para redes privadas). "
@@ -275,11 +272,13 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
         }
 
         // Primero la regla del cortafuegos (UAC): sin ella, Windows no deja entrar y avisaria del servidor web.
+        // En Linux la pone el helper en ufw o firewalld si estan activos (y apunta el puerto); sin cortafuegos, nada.
         var addedRule = false;
-        if (!probe.RulePorts.Contains(port))
+        var rulePorts = OperatingSystem.IsWindows() ? probe.RulePorts : await LanFirewall.RulePortsAsync(CommandRunner.Default, cancellation);
+        if (!rulePorts.Contains(port))
         {
             if (!settings.Json)
-                AnsiConsole.MarkupLineInterpolated($"Poniendo la regla del cortafuegos [grey]«{LanFirewall.RuleName(port)}»[/] (TCP {port}, solo red privada y tu subred; Windows pedira permiso de administrador)...");
+                AnsiConsole.MarkupLineInterpolated($"Poniendo la regla del cortafuegos [grey]«{LanFirewall.RuleName(port)}»[/] (TCP {port}, solo red privada y tu subred; {ShareSupport.AdminPrompt})...");
             LanFirewall.Allow(SiteSupport.HelperExe, port);
             addedRule = true;
         }
@@ -294,10 +293,10 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
             return Fail(settings, response.Error ?? "El daemon no ha dicho por que.");
         }
 
-        var copied = !settings.NoCopy && await ShareSupport.CopyAsync(share.Url, cancellation);
-        if (settings.Json) return Json(share, copied, warnings);
+        var copy = await ShareSupport.CopyAsync(share.Url, settings.NoCopy, cancellation);
+        if (settings.Json) return Json(share, copy.Copied, warnings);
 
-        AnsiConsole.MarkupLineInterpolated($"[green]{site.Host} esta en tu red local:[/] [bold]{share.Url}[/]{(copied ? " [grey](copiada al portapapeles)[/]" : "")}");
+        AnsiConsole.MarkupLine($"[green]{Markup.Escape(site.Host)} esta en tu red local:[/] [bold]{Markup.Escape(share.Url)}[/]{ShareSupport.CopiedNote(copy)}");
         AnsiConsole.MarkupLine("[grey]Abrela en el movil (conectado a la misma wifi); el navegador avisara del certificado la primera vez.[/]");
         ShareSupport.PrintApplied(response.Applied);
         return await HoldAsync(client, site, ShareKind.Lan, settings, firewallPort: port);
@@ -306,7 +305,8 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
     private static IReadOnlyList<string> LanWarnings(Site site, ShareCheck check, string url, NetworkCategory category)
     {
         var warnings = ShareSupport.LanWarnings(site, check, url).ToList();
-        if (category == NetworkCategory.Unknown)
+        // En Linux no hay «tipo de red» (es cosa del cortafuegos de Windows): el tipo es desconocido y no se avisa de eso.
+        if (category == NetworkCategory.Unknown && OperatingSystem.IsWindows())
             warnings.Add("No se sabe si esta red es privada o publica: si Windows la tiene como publica, el movil no llegara (la regla de Roost es solo para redes privadas).");
         return warnings;
     }
@@ -429,7 +429,6 @@ public sealed class ShareStopCommand : AsyncCommand<ShareStopCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("share stop")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -485,7 +484,7 @@ public sealed class ShareStatusCommand : AsyncCommand<ShareStatusCommand.Setting
     {
         var paths = RoostPaths.Default();
         using var client = new DaemonClient(paths);
-        var shares = OperatingSystem.IsWindows() ? await ShareSupport.CurrentAsync(client, cancellation) : [];
+        var shares = await ShareSupport.CurrentAsync(client, cancellation);
         var cloudflared = new CloudflaredInstaller(paths).Locate();
         var rules = await LanFirewall.RulePortsAsync(CommandRunner.Default, cancellation);
 
@@ -514,7 +513,7 @@ public sealed class ShareStatusCommand : AsyncCommand<ShareStatusCommand.Setting
             AnsiConsole.MarkupLineInterpolated($"[yellow]{share.Site}[/] {where}: [bold]{share.Url}[/] [grey](desde {share.Since:HH:mm}{connecting})[/]");
         }
         if (cloudflared is null)
-            AnsiConsole.MarkupLineInterpolated($"[grey]cloudflared: sin instalar{PlatformGate.WindowsHint($" (roost share lo instala la primera vez: {CloudflaredCatalog.Current.Label})")}.[/]");
+            AnsiConsole.MarkupLineInterpolated($"[grey]cloudflared: sin instalar (roost share lo instala la primera vez: {CloudflaredCatalog.Current.Label}).[/]");
         else
             AnsiConsole.MarkupLineInterpolated($"[grey]cloudflared: {cloudflared.Label} ({cloudflared.Executable}).[/]");
         if (rules.Count > 0)
@@ -532,7 +531,6 @@ public sealed class ShareInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("share install")) return 1;
         var paths = RoostPaths.Default();
         try
         {

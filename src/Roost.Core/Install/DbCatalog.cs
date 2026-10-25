@@ -94,14 +94,27 @@ public static class DbCatalog
 }
 
 /// <summary>
-/// MariaDB para Windows leído de la API REST oficial de descargas (ROOST.md §5.4): las ramas
-/// estables y, de cada una, el zip de su última versión con su SHA-256.
+/// MariaDB leído de la API REST oficial de descargas (ROOST.md §5.4): las ramas estables y, de cada
+/// una, el paquete de su última versión con su SHA-256: el zip de Windows, o en Linux el bintar
+/// (<c>-linux-systemd-x86_64.tar.gz</c>, glibc; para x86_64 no hay otro) que se instala como el zip.
 /// </summary>
 public static class MariaDbCatalog
 {
     public static readonly Uri MajorsUrl = new("https://downloads.mariadb.org/rest-api/mariadb/");
 
     public static Uri LatestUrl(string branch) => new($"https://downloads.mariadb.org/rest-api/mariadb/{branch}/latest/");
+
+    /// <summary>Con lo que acaba el nombre del paquete de Windows en la API.</summary>
+    public const string WindowsSuffix = "-winx64.zip";
+
+    /// <summary>Con lo que acaba el nombre del bintar de Linux en la API (glibc ≥ 2.19, con systemd: el único de x86_64).</summary>
+    public const string LinuxSuffix = "-linux-systemd-x86_64.tar.gz";
+
+    /// <summary>El paquete de este sistema.</summary>
+    public static string FileSuffix => OperatingSystem.IsWindows() ? WindowsSuffix : LinuxSuffix;
+
+    /// <summary>PURO: la carpeta de archive.mariadb.org donde está cada paquete.</summary>
+    public static string ArchiveFolder(string suffix) => suffix == WindowsSuffix ? "winx64-packages" : "bintar-linux-systemd-x86_64";
 
     /// <summary>Una rama tal como la describe la API.</summary>
     public sealed record Major(string Branch, string Status, string? SupportType, DateOnly? Eol)
@@ -129,8 +142,11 @@ public static class MariaDbCatalog
         return majors;
     }
 
-    /// <summary>PURO: el zip de Windows de <c>/rest-api/mariadb/&lt;rama&gt;/latest/</c>; null si no lo hay.</summary>
-    public static DbBuild? ParseLatest(string json, Major major)
+    /// <summary>PURO: el paquete de este sistema de <c>/rest-api/mariadb/&lt;rama&gt;/latest/</c>; null si no lo hay.</summary>
+    public static DbBuild? ParseLatest(string json, Major major) => ParseLatest(json, major, FileSuffix);
+
+    /// <summary>PURO: el paquete que acaba en <paramref name="suffix"/> (<see cref="WindowsSuffix"/> o <see cref="LinuxSuffix"/>); null si no lo hay.</summary>
+    public static DbBuild? ParseLatest(string json, Major major, string suffix)
     {
         using var doc = JsonDocument.Parse(json);
         if (!doc.RootElement.TryGetProperty("releases", out var releases) || releases.ValueKind != JsonValueKind.Object)
@@ -144,7 +160,7 @@ public static class MariaDbCatalog
             foreach (var file in files.EnumerateArray())
             {
                 var name = GetString(file, "file_name");
-                if (name is null || !name.EndsWith("-winx64.zip", StringComparison.OrdinalIgnoreCase)) continue;
+                if (name is null || !name.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)) continue;
                 if (!file.TryGetProperty("checksum", out var checksum)) continue;
                 var sha = GetString(checksum, "sha256sum");
                 if (string.IsNullOrWhiteSpace(sha)) continue;
@@ -152,7 +168,7 @@ public static class MariaDbCatalog
                 var urls = new List<Uri>();
                 if (Uri.TryCreate(GetString(file, "file_download_url"), UriKind.Absolute, out var api))
                     urls.Add(new UriBuilder(api) { Scheme = Uri.UriSchemeHttps, Port = -1 }.Uri); // la API da http://
-                urls.Add(new Uri($"https://archive.mariadb.org/mariadb-{version}/winx64-packages/{name}"));
+                urls.Add(new Uri($"https://archive.mariadb.org/mariadb-{version}/{ArchiveFolder(suffix)}/{name}"));
 
                 return new DbBuild
                 {
@@ -183,14 +199,51 @@ public static class MariaDbCatalog
 }
 
 /// <summary>
-/// MySQL para Windows fijado a mano: Oracle no tiene API de descargas (ROOST.md §5.4). Cada
-/// SHA-256 es el de un zip cuya firma PGP (el <c>.asc</c> del CDN) se verificó con las claves
-/// de MySQL Release Engineering publicadas en repo.mysql.com; el MD5 publicado también cuadró.
+/// MySQL fijado a mano: Oracle no tiene API de descargas (ROOST.md §5.4). Cada SHA-256 es el de un
+/// paquete cuya firma PGP (el <c>.asc</c> del CDN) se verificó con las claves de MySQL Release
+/// Engineering publicadas en repo.mysql.com; el MD5 publicado también cuadró. En Linux, el tar.xz
+/// <c>-minimal</c> (sin el servidor de depuración ni los tests: 80 MB en vez de 500), que necesita
+/// <c>libaio</c> y <c>libnuma</c> de la distro (<see cref="Platform.LinuxDeps"/>) y el <c>tar</c> con xz del sistema.
 /// </summary>
 public static class MySqlCatalog
 {
-    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
-    public static IReadOnlyList<DbBuild> Current => Windows;
+    /// <summary>El de este sistema: los zips de Windows, o los tar.xz de Linux.</summary>
+    public static IReadOnlyList<DbBuild> Current => OperatingSystem.IsWindows() ? Windows : Linux;
+
+    // Linux, verificado el 25-oct-2026 (en Ubuntu 24.04): el .asc de cada tar.xz con la clave BCA4 3417 C3B4 85DD
+    // 128E C6D4 B7B3 B788 A8D3 785C (RPM-GPG-KEY-mysql-2023, VALIDSIG), el MD5 publicado en su .md5 y el SHA-256 del
+    // fichero bajado. Las ramas: la LTS (8.4), la innovacion de ahora (versiones de calendario desde 2026: 26.10)
+    // y la 8.0 (su -minimal es de glibc 2.17). La 5.7 (EOL, glibc 2.12, sin -minimal) solo esta en Windows.
+    // Para cambiar de version: el tar.xz, su .asc y su .md5 de cdn.mysql.com/Downloads/MySQL-<rama>/, gpg --verify
+    // con la clave de repo.mysql.com, md5sum, y fijar aqui el SHA-256 del fichero verificado.
+    public static readonly IReadOnlyList<DbBuild> Linux =
+    [
+        LinuxBuild("8.4.11", lts: true, "glibc2.28", "383f54e124d5f325d67f0c6912a8f96814eedc761a17ea30112e52fa4cc6b143"),
+        LinuxBuild("26.10.0", lts: false, "glibc2.28", "292e196560614eb5966e5034aaa949dbd4dd69870d67f090186023e35d0e835d"),
+        LinuxBuild("8.0.46", lts: false, "glibc2.17", "e2777d490fcaadc5a4be06db89b6935c78909bd9c3382af859ab284af0c950b0"),
+    ];
+
+    /// <summary>Linux: <c>mysql-&lt;versión&gt;-linux-&lt;glibc&gt;-x86_64-minimal.tar.xz</c>, con las mismas dos URLs que en Windows.</summary>
+    private static DbBuild LinuxBuild(string version, bool lts, string glibc, string sha256)
+    {
+        ComponentVersion.TryParse(version, out var v);
+        var branch = $"{v.Major}.{v.Minor}";
+        var file = $"mysql-{version}-linux-{glibc}-x86_64-minimal.tar.xz";
+        return new DbBuild
+        {
+            Engine = DbEngine.MySql,
+            Version = v,
+            Branch = branch,
+            Lts = lts,
+            FileName = file,
+            Urls =
+            [
+                new Uri($"https://cdn.mysql.com/Downloads/MySQL-{branch}/{file}"),
+                new Uri($"https://cdn.mysql.com/archives/mysql-{branch}/{file}"),
+            ],
+            Sha256 = sha256,
+        };
+    }
 
     // Verificado el 22-oct-2026. 8.4.11 y 8.0.46: clave BCA4 3417 C3B4 85DD 128E C6D4 B7B3 B788 A8D3 785C
     // (RPM-GPG-KEY-mysql-2023). 5.7.44: clave 859B E8D7 C586 F538 430B 19C2 467B 942D 3A79 BD29 (RPM-GPG-KEY-mysql-2022).
