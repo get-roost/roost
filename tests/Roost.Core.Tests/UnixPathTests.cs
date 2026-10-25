@@ -204,7 +204,7 @@ public class UnixPathTests : IDisposable
         Assert.Equal("/usr/bin/php", distro?.Path);
         Assert.True(distro!.InSystemPath);
         Assert.False(distro.ShimsInPath);
-        Assert.Equal("la distro (su paquete)", ShimShadowing.UnixOwner(distro.Path));
+        Assert.Equal("el paquete de la distro", ShimShadowing.UnixOwner(distro.Path));
 
         Assert.Equal("snap", ShimShadowing.UnixOwner("/snap/bin/node"));
         Assert.Equal("fnm", ShimShadowing.UnixOwner("/home/ana/.local/share/fnm/node-versions/v22/installation/bin/node"));

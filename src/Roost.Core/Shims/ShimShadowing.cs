@@ -145,7 +145,7 @@ public static class ShimShadowing
         if (Starts("/snap/") || Has("/snap/bin/")) return "snap";
         if (Starts("/mnt/c/") || Starts("/mnt/d/")) return "un programa de Windows, por el interop de WSL";
         if (Starts("/usr/local/")) return "algo instalado a mano en /usr/local";
-        if (Starts("/usr/bin/") || Starts("/bin/") || Starts("/usr/sbin/") || Starts("/sbin/")) return "la distro (su paquete)";
+        if (Starts("/usr/bin/") || Starts("/bin/") || Starts("/usr/sbin/") || Starts("/sbin/")) return "el paquete de la distro";
         if (Starts("/opt/")) return "algo instalado en /opt";
         return null;
     }
