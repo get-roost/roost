@@ -110,6 +110,23 @@ internal static class FirewallRule
     /// <summary>firewall-cmd (firewalld), por su ruta.</summary>
     public const string FirewalldPath = "/usr/bin/firewall-cmd";
 
+    /// <summary>La configuración de ufw, que lee cualquiera (<c>ufw status</c> pide root): <c>ENABLED=yes</c> si está encendido.</summary>
+    public const string UfwConf = "/etc/ufw/ufw.conf";
+
+    /// <summary>
+    /// PURO: si en Linux puede haber un cortafuegos que abrir, sin privilegios y antes de pedirlos: ufw
+    /// encendido en su <see cref="UfwConf"/> (Ubuntu de escritorio lo trae instalado pero apagado) o
+    /// firewalld instalado (donde está, suele ir activo). Si el <c>ufw.conf</c> no se puede leer, se
+    /// supone que sí: el helper, ya con root, es el que mira de verdad y no abre nada si no hace falta.
+    /// </summary>
+    public static bool LinuxMayNeedRule(Func<string, bool> fileExists, Func<string, string?> readFile)
+    {
+        if (fileExists(FirewalldPath)) return true;
+        if (!fileExists(UfwPath)) return false;
+        if (readFile(UfwConf) is not { } conf) return true;
+        return conf.Split('\n').Any(line => line.Trim().Replace(" ", "").Equals("ENABLED=yes", StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
     /// Los argumentos de <c>ufw</c> para una red: dejar entrar TCP a ese puerto desde ella (con el
     /// comentario «Roost LAN &lt;puerto&gt;», que es como se ve en <c>ufw status</c>), o quitar justo esa

@@ -57,7 +57,13 @@ public class ShareSystem
 
     public virtual IReadOnlyList<LanCandidate> Candidates() => LanNetwork.Candidates();
 
-    public virtual Task<LanProbeResult> ProbeAsync() => LanProbe.ReadAsync(CommandRunner.Default);
+    /// <summary>Windows: el tipo de cada red y las reglas de Roost puestas. Linux: no hay tipo de red, y las reglas son las que Roost apuntó al ponerlas.</summary>
+    public virtual async Task<LanProbeResult> ProbeAsync() => OperatingSystem.IsWindows()
+        ? await LanProbe.ReadAsync(CommandRunner.Default)
+        : LanProbeResult.Empty with { RulePorts = await LanFirewall.RulePortsAsync(CommandRunner.Default) };
+
+    /// <summary>Si hay que poner una regla en el cortafuegos (en Linux, solo con ufw encendido o firewalld).</summary>
+    public virtual bool FirewallNeeded => LanFirewall.Needed;
 
     public virtual bool CanBind(IPAddress address, int port) => LanNetwork.CanBind(address, port);
 
@@ -269,15 +275,16 @@ public sealed partial class SitesViewModel
         var port = LanNetwork.ChoosePort(config.HttpsPort, p => _shares.Any(s => s.Address == address && s.Port == p) || !Sharing.CanBind(nic.Address, p));
         var url = LanNetwork.Url(address, port);
         var ruleExists = probe.RulePorts.Contains(port);
+        var needsRule = !ruleExists && Sharing.FirewallNeeded;
 
-        var dialog = ShareDialogViewModel.ForLan(row.Site, ShareCheck.Inspect(row.Site), nic, port, url, category, ruleExists);
+        var dialog = ShareDialogViewModel.ForLan(row.Site, ShareCheck.Inspect(row.Site), nic, port, url, category, ruleExists, needsRule);
         if (await Main.ShowDialogAsync(dialog) is not true) return;
 
         ShareBusy = true;
         var addedRule = false;
         try
         {
-            if (!ruleExists)
+            if (needsRule)
             {
                 // Antes de escuchar: sin la regla, Windows no deja entrar (y avisaría del servidor web).
                 ShareBusyText = $"Poniendo la regla «{LanFirewall.RuleName(port)}» del cortafuegos ({OsTexts.AsksPermission})…";
@@ -478,18 +485,21 @@ public sealed partial class ShareDialogViewModel : DialogViewModel
         };
     }
 
-    public static ShareDialogViewModel ForLan(Site site, ShareCheck check, LanCandidate nic, int port, string url, NetworkCategory category, bool ruleExists)
+    public static ShareDialogViewModel ForLan(Site site, ShareCheck check, LanCandidate nic, int port, string url, NetworkCategory category, bool ruleExists, bool needsRule)
     {
+        // En Linux la regla va en ufw o firewalld, desde las redes privadas; sin cortafuegos activo no hay regla que poner.
+        var scope = OperatingSystem.IsWindows() ? $"solo TCP {port}, solo en redes privadas y solo desde tu subred." : $"solo TCP {port} y solo desde redes privadas (ufw o firewalld).";
         var warnings = new List<ShareWarning>
         {
             new($"Cualquier equipo de tu red local (la misma wifi) podrá ver {site.Host} en {url} mientras lo compartas. Se para con «Dejar de compartir», al salir de Roost o al pararlo todo.", Tone.Warn),
         };
         if (ShareTexts.Debug(check) is { } debug) warnings.Add(new(debug, Tone.Bad));
-        if (category == NetworkCategory.Unknown)
+        if (category == NetworkCategory.Unknown && OperatingSystem.IsWindows())
             warnings.Add(new("Windows no dice si esta red es privada o pública: si la tiene como pública, el móvil no llegará (la regla de Roost es solo para redes privadas).", Tone.Warn));
-        warnings.Add(new(ruleExists
-            ? $"La regla «{LanFirewall.RuleName(port)}» del cortafuegos ya está puesta: solo TCP {port}, solo en redes privadas y solo desde tu subred."
-            : $"{OsTexts.WillAskPermission} para poner la regla «{LanFirewall.RuleName(port)}» del cortafuegos: solo TCP {port}, solo en redes privadas y solo desde tu subred. Roost la quita al dejar de compartir.", Tone.Neutral));
+        if (ruleExists)
+            warnings.Add(new($"La regla «{LanFirewall.RuleName(port)}» del cortafuegos ya está puesta: {scope}", Tone.Neutral));
+        else if (needsRule)
+            warnings.Add(new($"{OsTexts.WillAskPermission} para poner la regla «{LanFirewall.RuleName(port)}» del cortafuegos: {scope} Roost la quita al dejar de compartir.", Tone.Neutral));
         warnings.Add(new($"El móvil no conoce la CA de Roost: el navegador avisará de que la conexión no es privada («Avanzado» › «Continuar»). Para que no avise, instala la CA desde {url.TrimEnd('/')}{ShareConf.CaPath} y quítala al acabar.", Tone.Neutral));
         warnings.Add(new(ShareTexts.Urls(site, check), Tone.Warn));
         return new ShareDialogViewModel

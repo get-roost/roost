@@ -254,7 +254,7 @@ internal static class MailHints
         // El mail() de PHP ya, aunque el stack este parado: la terminal lo lee igual.
         MailConf.SyncPhpIni(Path.Combine(paths.Etc, "php", "conf.d"), config);
         AnsiConsole.MarkupLineInterpolated($"[green]Mailpit va en el stack:[/] SMTP en 127.0.0.1:{config.MailSmtpPort}, bandeja en {config.MailWebUrl}");
-        AnsiConsole.MarkupLine("[grey]El mail() de PHP va a Mailpit (etc\\php\\conf.d\\20-roost-mail.ini): el correo se queda en la bandeja, no sale del equipo.[/]");
+        AnsiConsole.MarkupLineInterpolated($"[grey]El mail() de PHP va a Mailpit ({Path.Combine("etc", "php", "conf.d", "20-roost-mail.ini")}): el correo se queda en la bandeja, no sale del equipo.[/]");
         Env(config.MailSmtpPort);
         return await StackApply.IfRunningAsync(paths, _ => $"Mailpit en {config.MailWebUrl}", cancellation);
     }

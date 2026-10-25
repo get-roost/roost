@@ -272,6 +272,18 @@ public class HelperRulesTests : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => FirewallRule.FirewalldRichRule(6379, "10.0.0.0/8"));
     }
 
+    [Theory]
+    [InlineData(false, false, null, false)]                       // ni ufw ni firewalld: nada que abrir, sin pedir permiso
+    [InlineData(true, false, "ENABLED=no\nLOGLEVEL=low\n", false)] // ufw instalado pero apagado (Ubuntu de escritorio)
+    [InlineData(true, false, "# comentario\nENABLED=yes\n", true)]
+    [InlineData(true, false, null, true)]                         // ufw.conf ilegible: lo mira el helper con root
+    [InlineData(false, true, null, true)]                         // firewalld
+    public void FirewallRule_LinuxMayNeedRule_SoloConUfwEncendidoOFirewalld(bool ufw, bool firewalld, string? conf, bool expected)
+    {
+        bool Exists(string path) => path == FirewallRule.UfwPath ? ufw : path == FirewallRule.FirewalldPath && firewalld;
+        Assert.Equal(expected, FirewallRule.LinuxMayNeedRule(Exists, path => path == FirewallRule.UfwConf ? conf : null));
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_root, recursive: true); } catch { /* best effort */ }

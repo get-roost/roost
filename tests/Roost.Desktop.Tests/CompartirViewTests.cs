@@ -411,6 +411,8 @@ public class CompartirViewTests
 
         public override bool CanBind(IPAddress address, int port) => true;
 
+        public override bool FirewallNeeded => true;
+
         public override void AllowFirewall(int port) => FirewallAllowed.Add(port);
 
         public override void RemoveFirewall(int port) => FirewallRemoved.Add(port);

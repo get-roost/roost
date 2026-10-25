@@ -21,9 +21,23 @@ public static class LanFirewall
     /// <summary>Si el helper acepta ese puerto (el 80, el 443 o de 1024 a 65535, sin los de administración remota ni los de bases de datos).</summary>
     public static bool IsAllowedPort(int port) => FirewallRule.IsAllowedPort(port);
 
-    /// <summary>Pone la regla con <paramref name="helperExe"/> con privilegios. Lanza <see cref="RoostException"/> si se cancela o falla.</summary>
+    /// <summary>
+    /// Si hay que tocar el cortafuegos para dejar entrar desde la red local: en Windows siempre; en Linux,
+    /// solo con ufw encendido o firewalld (<see cref="FirewallRule.LinuxMayNeedRule"/>). Sin ellos no hay
+    /// nada que abrir, y no se pide permiso de administrador para nada.
+    /// </summary>
+    public static bool Needed => OperatingSystem.IsWindows() || FirewallRule.LinuxMayNeedRule(File.Exists, ReadOrNull);
+
+    private static string? ReadOrNull(string file)
+    {
+        try { return File.ReadAllText(file); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    /// <summary>Pone la regla con <paramref name="helperExe"/> con privilegios (si hace falta: <see cref="Needed"/>). Lanza <see cref="RoostException"/> si se cancela o falla.</summary>
     public static void Allow(string helperExe, int port, RoostPaths? paths = null, Elevation? elevation = null)
     {
+        if (!Needed) return;
         RunHelper(helperExe, "firewall-allow", port, elevation);
         if (!OperatingSystem.IsWindows()) Remember(paths ?? RoostPaths.Default(), port, opened: true);
     }

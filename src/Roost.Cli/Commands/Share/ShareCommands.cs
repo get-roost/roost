@@ -275,10 +275,10 @@ public sealed class ShareCommand : AsyncCommand<ShareCommand.Settings>
         // En Linux la pone el helper en ufw o firewalld si estan activos (y apunta el puerto); sin cortafuegos, nada.
         var addedRule = false;
         var rulePorts = OperatingSystem.IsWindows() ? probe.RulePorts : await LanFirewall.RulePortsAsync(CommandRunner.Default, cancellation);
-        if (!rulePorts.Contains(port))
+        if (!rulePorts.Contains(port) && LanFirewall.Needed)
         {
             if (!settings.Json)
-                AnsiConsole.MarkupLineInterpolated($"Poniendo la regla del cortafuegos [grey]«{LanFirewall.RuleName(port)}»[/] (TCP {port}, solo red privada y tu subred; {ShareSupport.AdminPrompt})...");
+                AnsiConsole.MarkupLineInterpolated($"Poniendo la regla del cortafuegos [grey]«{LanFirewall.RuleName(port)}»[/] (TCP {port}, {(OperatingSystem.IsWindows() ? "solo red privada y tu subred" : "solo desde redes privadas")}; {ShareSupport.AdminPrompt})...");
             LanFirewall.Allow(SiteSupport.HelperExe, port);
             addedRule = true;
         }
