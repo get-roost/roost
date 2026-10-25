@@ -66,7 +66,34 @@ public sealed partial class WebServerViewModel : PageViewModel
 
     /// <summary>La del Apache que hay (en Linux, el de la distro dice la suya) o, sin él, la del catálogo.</summary>
     public string ApacheVersion => _apache?.Version ?? ApacheCatalog.Current.Version;
-    public string ApacheRedistributable => ApacheCatalog.Current.Redistributable;
+    // Lo que cambia con el sistema: en Windows, nginx de nginx.org, Apache de Apache Lounge y PHP por php-cgi;
+    // en Linux, nginx de get-roost/roost-builds, el apache2 de la distro (no se descarga) y PHP por php-fpm.
+    private static bool DistroApache => ApacheCatalog.Current.IsDistro;
+    public string NginxBlurb => $"Rápido y ligero. PHP NTS a través de los pools de {OsTexts.PhpWorker}";
+    public string ApacheBlurb => "Lee los .htaccess (WordPress, Laravel...). Los mismos PHP, y cada sitio con el suyo" + (DistroApache ? ". Solo puertos desde el 1024" : "");
+    public string NginxSource => OsTexts.Windows ? "nginx.org" : "get-roost/roost-builds";
+    public string NginxVerified => OsTexts.Windows ? "SHA-256 y firma PGP verificados" : "SHA-256 fijado y attestation";
+    public string NginxSourceNote => OsTexts.Windows
+        ? "nginx.org no publica checksums: Roost solo instala versiones cuya firma PGP se ha verificado, y cada versión nueva llega con una actualización de Roost."
+        : "El tar.gz estático de get-roost/roost-builds, con su SHA-256 fijado en Roost y su attestation; cada versión nueva llega con una actualización de Roost.";
+    public string ApacheOrigin => DistroApache ? "de la distro" : "Apache Lounge · Win64";
+    public string ApacheVerified => DistroApache ? "paquete del sistema" : "SHA-256 y firma PGP verificados";
+    public string ApachePhp => $"Por mod_proxy_fcgi a los mismos pools de {OsTexts.PhpWorker} que nginx: el PHP NTS de siempre, y cada sitio con su versión (sin mod_php ni builds TS).";
+    public string ApacheSource => DistroApache ? "la distro" : "Apache Lounge";
+    public string ApacheAvailableHint => DistroApache ? "el apache2 de la distro" : "Win64 · la recomendada";
+    public string ApacheNotInstalled => DistroApache
+        ? $"Apache no está en el sistema, y Roost usa el de la distro (no instala paquetes del sistema). Instálalo con: {LinuxApache.InstallHint}."
+        : "Apache aún no está instalado: se instala al elegirlo arriba como servidor activo, o desde Disponibles.";
+    public string ApacheSourceNote => DistroApache
+        ? "Roost no descarga Apache: usa el apache2 de la distro, lanzado con tus permisos y su propia configuración (no la de /etc/apache2). Como usuario, solo puertos de 1024 en adelante."
+        : $"Apache no publica binarios para Windows; los de Apache Lounge son el estándar de hecho. Roost solo instala versiones cuya firma PGP se ha verificado. Necesitan el {ApacheCatalog.Current.Redistributable}.";
+    public string ApacheTestLabel => $"Validar configuración ({(_apache?.IsDistro == true ? Path.GetFileName(_apache.Executable) : "httpd")} -t)";
+    public string NginxConfPath => Path.Combine("etc", "nginx", "nginx.conf");
+    public string NginxSitesPath => Path.Combine("etc", "nginx", "sites", "*.conf");
+    public string NginxErrorLogPath => Path.Combine("logs", "nginx-error.log");
+    public string ApacheConfPath => Path.Combine("etc", "apache", "httpd.conf");
+    public string ApacheSitesPath => Path.Combine("etc", "apache", "sites", "*.conf");
+    public string ApacheErrorLogPath => Path.Combine("logs", "apache-error.log");
     public string ApacheModules => string.Join(", ", ApacheConf.Modules.Where(m => m is "rewrite" or "ssl" or "http2" or "proxy_fcgi" or "headers" or "expires" or "deflate"))
                                    + $" y {ApacheConf.Modules.Count - 7} más";
     public bool HasApacheTestOutput => ApacheTestOutput is not null;
@@ -126,6 +153,7 @@ public sealed partial class WebServerViewModel : PageViewModel
             : !ApacheInstalled ? (ApacheCatalog.Current.IsDistro ? ("no está en el sistema", Tone.Neutral) : ("se instala al elegirlo", Tone.Neutral))
             : _config.UsesApache ? ("parado", Tone.Neutral) : ("instalado", Tone.Neutral);
         OnPropertyChanged(nameof(ApacheVersion));
+        OnPropertyChanged(nameof(ApacheTestLabel));
         ApacheFolder = _apache?.Directory ?? Path.Combine(paths.ApacheBin, ApacheCatalog.Current.Version);
         if (!_tabChosen && ShowNginx == _config.UsesApache)
         {
@@ -314,7 +342,7 @@ public sealed partial class WebServerViewModel : PageViewModel
         if (!File.Exists(planner.ApacheConfPath))
             throw new RoostException("Aún no hay configuración de Apache: se genera al iniciar con Apache como servidor activo.");
         var output = await Task.Run(() => planner.TestApache(apache));
-        ApacheTestOutput = output?.Trim() ?? "httpd -t no respondió.";
+        ApacheTestOutput = output?.Trim() ?? $"{(_apache?.IsDistro == true ? Path.GetFileName(_apache.Executable) : "httpd")} -t no respondió.";
         ApacheTestTone = output?.Contains("Syntax OK", StringComparison.OrdinalIgnoreCase) == true ? Tone.Ok : Tone.Bad;
     });
 

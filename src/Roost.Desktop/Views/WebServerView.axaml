@@ -30,7 +30,7 @@
                       <TextBlock Classes="strong" Text="{Binding NginxVersion, StringFormat='nginx {0}'}" />
                       <ctl:Chip Text="{Binding NginxState}" Tone="{Binding NginxStateTone}" />
                     </StackPanel>
-                    <TextBlock Classes="faint" Text="Rápido y ligero. PHP NTS a través de los pools de php-cgi" />
+                    <TextBlock Classes="faint" Text="{Binding NginxBlurb}" />
                   </StackPanel>
                 </RadioButton>
                 <RadioButton GroupName="servidor" IsChecked="{Binding UseApache}">
@@ -39,7 +39,7 @@
                       <TextBlock Classes="strong" Text="{Binding ApacheVersion, StringFormat='Apache {0}'}" />
                       <ctl:Chip Text="{Binding ApacheState}" Tone="{Binding ApacheStateTone}" />
                     </StackPanel>
-                    <TextBlock Classes="faint" Text="Lee los .htaccess (WordPress, Laravel...). Los mismos PHP, y cada sitio con el suyo" />
+                    <TextBlock Classes="faint" Text="{Binding ApacheBlurb}" />
                   </StackPanel>
                 </RadioButton>
               </StackPanel>
@@ -78,7 +78,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="12">
                   <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="22" FontWeight="Medium" Text="{Binding NginxVersion}" VerticalAlignment="Center" />
                   <ctl:Chip Text="rama estable" Tone="Ok" />
-                  <ctl:Chip Text="SHA-256 y firma PGP verificados" />
+                  <ctl:Chip Text="{Binding NginxVerified}" />
                 </StackPanel>
                 <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
                   <TextBlock Classes="muted" Text="Carpeta" VerticalAlignment="Center" />
@@ -100,21 +100,21 @@
                     <StackPanel>
                       <Border Classes="tr" MinHeight="42" Padding="14,6">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                          <TextBlock Classes="mono" Text="etc\nginx\nginx.conf" VerticalAlignment="Center" />
+                          <TextBlock Classes="mono" Text="{Binding NginxConfPath}" VerticalAlignment="Center" />
                           <TextBlock Grid.Column="1" Classes="faint" Text="generado: no se edita" VerticalAlignment="Center" />
                           <Button Grid.Column="2" Classes="sm ghost" Content="Ver" Command="{Binding OpenConfCommand}" AutomationProperties.Name="Ver nginx.conf" />
                         </Grid>
                       </Border>
                       <Border Classes="tr" MinHeight="42" Padding="14,6">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                          <TextBlock Classes="mono" Text="etc\nginx\sites\*.conf" VerticalAlignment="Center" />
+                          <TextBlock Classes="mono" Text="{Binding NginxSitesPath}" VerticalAlignment="Center" />
                           <TextBlock Grid.Column="1" Classes="faint" Text="uno por sitio: editable fuera de las marcas" VerticalAlignment="Center" />
                           <Button Grid.Column="2" Classes="sm ghost" Content="Sitios" Command="{Binding GoSitesCommand}" />
                         </Grid>
                       </Border>
                       <Border Classes="tr" MinHeight="42" Padding="14,6" BorderThickness="0">
                         <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                          <TextBlock Classes="mono" Text="logs\nginx-error.log" VerticalAlignment="Center" />
+                          <TextBlock Classes="mono" Text="{Binding NginxErrorLogPath}" VerticalAlignment="Center" />
                           <TextBlock Grid.Column="1" Classes="faint" Text="errores y avisos" VerticalAlignment="Center" />
                           <Button Grid.Column="2" Classes="sm ghost" Content="Abrir" Command="{Binding GoErrorLogCommand}" AutomationProperties.Name="Abrir el log de errores de nginx" />
                         </Grid>
@@ -139,7 +139,7 @@
               <Border Classes="card-h">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                   <TextBlock Classes="h2" Text="Disponibles" />
-                  <TextBlock Classes="hint" Text="nginx.org" />
+                  <TextBlock Classes="hint" Text="{Binding NginxSource}" />
                 </StackPanel>
               </Border>
               <Border Classes="tr" MinHeight="50" Padding="16,8">
@@ -155,7 +155,7 @@
                 </Grid>
               </Border>
               <ctl:Note Tone="Accent" Margin="16,12"
-                        Content="nginx.org no publica checksums: Roost solo instala versiones cuya firma PGP se ha verificado, y cada versión nueva llega con una actualización de Roost." />
+                        Content="{Binding NginxSourceNote}" />
             </StackPanel>
           </Border>
         </Grid>
@@ -167,13 +167,13 @@
               <Border Classes="card-h"><TextBlock Classes="h2" Text="Instalado" /></Border>
               <StackPanel Margin="16,14" Spacing="14">
                 <ctl:Note Tone="Accent" IsVisible="{Binding !ApacheInstalled}"
-                          Content="Apache aún no está instalado: se instala al elegirlo arriba como servidor activo, o desde Disponibles." />
+                          Content="{Binding ApacheNotInstalled}" />
                 <!-- El detalle, solo con Apache instalado: antes no hay carpeta, ni config, ni nada que validar. -->
                 <StackPanel Spacing="14" IsVisible="{Binding ApacheInstalled}">
                   <StackPanel Orientation="Horizontal" Spacing="12">
                     <TextBlock FontFamily="{StaticResource MonoFont}" FontSize="22" FontWeight="Medium" Text="{Binding ApacheVersion}" VerticalAlignment="Center" />
-                    <ctl:Chip Text="Apache Lounge · Win64" Tone="Ok" />
-                    <ctl:Chip Text="SHA-256 y firma PGP verificados" />
+                    <ctl:Chip Text="{Binding ApacheOrigin}" Tone="Ok" />
+                    <ctl:Chip Text="{Binding ApacheVerified}" />
                   </StackPanel>
                   <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="8">
                     <TextBlock Classes="muted" Text="Carpeta" VerticalAlignment="Center" />
@@ -188,7 +188,7 @@
                     <TextBlock Grid.Row="1" Grid.Column="1" Classes="mono" Text="{Binding Listen}" TextWrapping="Wrap" />
                     <TextBlock Grid.Row="2" Classes="muted" Text="PHP" />
                     <TextBlock Grid.Row="2" Grid.Column="1" Classes="small" TextWrapping="Wrap"
-                               Text="Por mod_proxy_fcgi a los mismos pools de php-cgi que nginx: el PHP NTS de siempre, y cada sitio con su versión (sin mod_php ni builds TS)." />
+                               Text="{Binding ApachePhp}" />
                     <TextBlock Grid.Row="3" Classes="muted" Text="Módulos" />
                     <TextBlock Grid.Row="3" Grid.Column="1" Classes="small" Text="{Binding ApacheModules}" TextWrapping="Wrap" />
                   </Grid>
@@ -198,21 +198,21 @@
                       <StackPanel>
                         <Border Classes="tr" MinHeight="42" Padding="14,6">
                           <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                            <TextBlock Classes="mono" Text="etc\apache\httpd.conf" VerticalAlignment="Center" />
+                            <TextBlock Classes="mono" Text="{Binding ApacheConfPath}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Classes="faint" Text="generado: no se edita" VerticalAlignment="Center" />
                             <Button Grid.Column="2" Classes="sm ghost" Content="Ver" Command="{Binding OpenApacheConfCommand}" AutomationProperties.Name="Ver httpd.conf" />
                           </Grid>
                         </Border>
                         <Border Classes="tr" MinHeight="42" Padding="14,6">
                           <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                            <TextBlock Classes="mono" Text="etc\apache\sites\*.conf" VerticalAlignment="Center" />
+                            <TextBlock Classes="mono" Text="{Binding ApacheSitesPath}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Classes="faint" Text="uno por sitio; lo del proyecto, mejor en su .htaccess" VerticalAlignment="Center" />
                             <Button Grid.Column="2" Classes="sm ghost" Content="Sitios" Command="{Binding GoSitesCommand}" />
                           </Grid>
                         </Border>
                         <Border Classes="tr" MinHeight="42" Padding="14,6" BorderThickness="0">
                           <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
-                            <TextBlock Classes="mono" Text="logs\apache-error.log" VerticalAlignment="Center" />
+                            <TextBlock Classes="mono" Text="{Binding ApacheErrorLogPath}" VerticalAlignment="Center" />
                             <TextBlock Grid.Column="1" Classes="faint" Text="errores y avisos" VerticalAlignment="Center" />
                             <Button Grid.Column="2" Classes="sm ghost" Content="Abrir" Command="{Binding GoApacheErrorLogCommand}" AutomationProperties.Name="Abrir el log de errores de Apache" />
                           </Grid>
@@ -221,7 +221,7 @@
                     </Border>
                   </StackPanel>
                   <StackPanel Orientation="Horizontal" Spacing="8">
-                    <Button Classes="sm" Content="Validar configuración (httpd -t)" Command="{Binding TestApacheConfigCommand}" IsEnabled="{Binding ApacheInstalled}" />
+                    <Button Classes="sm" Content="{Binding ApacheTestLabel}" Command="{Binding TestApacheConfigCommand}" IsEnabled="{Binding ApacheInstalled}" />
                     <Button Classes="sm" Content="Recargar" Command="{Binding ReloadApacheCommand}" IsEnabled="{Binding ApacheRunning}"
                             ToolTip.Tip="Valida la configuración y Apache la lee otra vez sin cortar las conexiones" />
                   </StackPanel>
@@ -237,7 +237,7 @@
               <Border Classes="card-h">
                 <StackPanel Orientation="Horizontal" Spacing="10">
                   <TextBlock Classes="h2" Text="Disponibles" />
-                  <TextBlock Classes="hint" Text="Apache Lounge" />
+                  <TextBlock Classes="hint" Text="{Binding ApacheSource}" />
                 </StackPanel>
               </Border>
               <Border Classes="tr" MinHeight="50" Padding="16,8">
@@ -245,7 +245,7 @@
                   <ctl:Dot Tone="Ok" VerticalAlignment="Center" />
                   <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Classes="mono strong" Text="{Binding ApacheVersion}" />
-                    <TextBlock Classes="faint" Text="Win64 · la recomendada" />
+                    <TextBlock Classes="faint" Text="{Binding ApacheAvailableHint}" />
                   </StackPanel>
                   <ctl:Chip Grid.Column="2" Text="instalada" IsVisible="{Binding ApacheInstalled}" />
                   <Button Grid.Column="2" Classes="sm" Content="Instalar" Command="{Binding InstallApacheCommand}" IsVisible="{Binding !ApacheInstalled}"
@@ -254,7 +254,7 @@
               </Border>
               <ctl:Note Tone="Accent" Margin="16,12">
                 <TextBlock TextWrapping="Wrap"
-                           Text="{Binding ApacheRedistributable, StringFormat='Apache no publica binarios para Windows; los de Apache Lounge son el estándar de hecho. Roost solo instala versiones cuya firma PGP se ha verificado. Necesitan el {0}.'}" />
+                           Text="{Binding ApacheSourceNote}" />
               </ctl:Note>
             </StackPanel>
           </Border>
