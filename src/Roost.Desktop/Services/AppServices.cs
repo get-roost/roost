@@ -26,10 +26,15 @@ public sealed class AppServices : IDisposable
         // E4: la tarea al iniciar sesión. Con unas rutas dadas (los tests) nunca se pregunta al
         // Programador de tareas de verdad: «no está», salvo que el test ponga la suya.
         LogonTask = new LogonTask(paths is null ? Roost.Core.Scanning.CommandRunner.Default : NoTasks.Instance);
+        // Lo mismo en Linux: con rutas dadas, ni systemctl ni la HOME de verdad (la unidad iría a la raíz de pruebas).
+        UserUnit = paths is null ? new UserUnit(Roost.Core.Scanning.CommandRunner.Default) : new UserUnit(NoTasks.Instance, home: paths.Root);
     }
 
     /// <summary>E4: la tarea que arranca el stack al iniciar sesión, sin la app (Ajustes › General).</summary>
     public LogonTask LogonTask { get; internal set; }
+
+    /// <summary>E4 en Linux: la unidad de <c>systemd --user</c> (o el .desktop) que hace lo mismo que <see cref="LogonTask"/>.</summary>
+    public UserUnit UserUnit { get; internal set; }
 
     /// <summary>Un schtasks que no está: todo sale con 1 («no existe») sin ejecutar nada.</summary>
     private sealed class NoTasks : Roost.Core.Scanning.ICommandRunner

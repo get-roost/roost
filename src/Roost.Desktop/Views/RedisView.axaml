@@ -36,7 +36,7 @@
                 <ctl:Note Tone="Accent" IsVisible="{Binding NotInstalled}">
                   <StackPanel Spacing="8">
                     <TextBlock TextWrapping="Wrap"
-                               Text="Redis aún no está instalado. Roost baja la build de redis-windows (Redis de verdad, compilado del código oficial), comprueba su SHA-256 y lo deja en bin\redis, solo en 127.0.0.1." />
+                               Text="{Binding NotInstalledText}" />
                     <Button Classes="primary" HorizontalAlignment="Left" Content="Instalar Redis" Command="{Binding InstallCommand}" />
                   </StackPanel>
                 </ctl:Note>
@@ -77,7 +77,7 @@
                     </Button>
                   </Grid>
                   <TextBlock Classes="faint" TextWrapping="Wrap"
-                             Text="Con predis (composer require predis/predis) no hace falta ninguna extensión de PHP. phpredis no viene en los PHP de windows.php.net." />
+                             Text="{Binding ClientNote}" />
                 </StackPanel>
 
                 <Grid ColumnDefinitions="Auto,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="14" RowSpacing="6">
@@ -103,7 +103,7 @@
                   <Button Grid.Row="2" Grid.Column="2" Classes="sm ghost" Content="Editar mis ajustes" Command="{Binding EditUserConfCommand}" />
 
                   <TextBlock Grid.Row="3" Classes="muted" Text="Registro" VerticalAlignment="Center" />
-                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="mono" FontSize="12" Text="logs\redis.log" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="3" Grid.Column="1" Classes="mono" FontSize="12" Text="{Binding LogPath}" VerticalAlignment="Center" />
                   <Button Grid.Row="3" Grid.Column="2" Classes="sm ghost" Content="Abrir" Command="{Binding GoLogCommand}" AutomationProperties.Name="Abrir el registro de Redis" />
                 </Grid>
               </StackPanel>
@@ -117,7 +117,7 @@
                 <Border Classes="card-h">
                   <StackPanel Orientation="Horizontal" Spacing="10">
                     <TextBlock Classes="h2" Text="Disponibles" />
-                    <TextBlock Classes="hint" Text="redis-windows" />
+                    <TextBlock Classes="hint" Text="{Binding Source}" />
                   </StackPanel>
                 </Border>
                 <Border Classes="tr" MinHeight="50" Padding="16,8">
@@ -125,7 +125,7 @@
                     <ctl:Dot Tone="Ok" VerticalAlignment="Center" />
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                       <TextBlock Classes="mono strong" Text="{Binding CatalogVersion}" />
-                      <TextBlock Classes="faint" Text="build MSYS2 · SHA-256 fijado" ToolTip.Tip="{Binding CatalogSha}" />
+                      <TextBlock Classes="faint" Text="{Binding BuildHint}" ToolTip.Tip="{Binding CatalogSha}" />
                     </StackPanel>
                     <ctl:Chip Grid.Column="2" Text="instalada" IsVisible="{Binding Installed}" />
                     <Button Grid.Column="2" Classes="sm" Content="Instalar" Command="{Binding InstallCommand}" IsVisible="{Binding NotInstalled}"
@@ -133,7 +133,7 @@
                   </Grid>
                 </Border>
                 <ctl:Note Tone="Accent" Margin="16,12"
-                          Content="Redis no publica binarios para Windows. Este es Redis de verdad, compilado del código oficial en GitHub Actions públicas; Roost fija su versión y su SHA-256, y cada versión nueva llega con una actualización de Roost." />
+                          Content="{Binding SourceNote}" />
               </StackPanel>
             </Border>
 

@@ -102,10 +102,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     public bool HasShimsWarning => ShimsWarning is not null;
     public string ShimsText => OperatingSystem.IsWindows()
         ? $"php en la terminal según la carpeta del proyecto (pone {Paths.Shims} en tu PATH)"
-        : "php en la terminal según la carpeta del proyecto: en Linux, de momento, desde la CLI (roost shims install)";
-
-    /// <summary>La casilla de los shims toca el PATH del usuario, que en Linux lleva la CLI (Terminal, L2): aquí se enseña sin tocarla.</summary>
-    public bool CanToggleShims => OperatingSystem.IsWindows();
+        : $"php en la terminal según la carpeta del proyecto (enlaces en {new ShimInstaller(Paths).PathDirectory})";
     public bool CaNotTrusted => !CaTrusted;
 
     partial void OnPortsErrorChanged(string? value) => OnPropertyChanged(nameof(HasPortsError));
@@ -132,7 +129,8 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     partial void OnShimsWarningChanged(string? value) => OnPropertyChanged(nameof(HasShimsWarning));
 
-    // Lo mismo que roost shims install / remove: el shim de php y su carpeta en el PATH del usuario.
+    // Lo mismo que roost shims install / remove: los shims y que lleguen a la terminal (en Windows, su carpeta
+    // en el PATH del usuario; en Linux, los enlaces de ~/.local/bin).
     partial void OnShimsEnabledChanged(bool value)
     {
         if (_loading) return;
@@ -141,22 +139,21 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             if (value)
             {
-                shims.Install(AppServices.AppDirectory);
+                shims.Enable(AppServices.AppDirectory);
                 var planner = new StackPlanner(Paths, ProcessRunner.Default);
                 planner.EnsureUserIni();
                 foreach (var php in new PhpInstaller(Paths).ListInstalled()) planner.WritePhpIni(php);
-                UserPath.AddFirst(shims.Directory);
             }
             else
             {
-                UserPath.Remove(shims.Directory);
-                shims.Remove();
+                shims.Disable();
             }
         }, () =>
         {
-            ShimsEnabled = shims.IsInstalled && UserPath.Contains(UserPath.Read(), shims.Directory);
+            ShimsEnabled = shims.IsEnabled;
             ShimsWarning = ShimsEnabled ? Shadowing() : null;
-            if (value && ShimsEnabled) Main.Flash("php ya sigue la carpeta en las terminales nuevas");
+            if (value && ShimsEnabled)
+                Main.Flash(OperatingSystem.IsWindows() ? "php ya sigue la carpeta en las terminales nuevas" : $"php ya sigue la carpeta en las sesiones nuevas (si tu shell no pone {shims.PathDirectory} en el PATH: roost shims install --profile)");
         });
     }
 
@@ -229,8 +226,7 @@ public sealed partial class SettingsViewModel : PageViewModel
             StartWithWindows = Autostart.Supported && Autostart.IsEnabled();
             TrayUnavailable = !TrayHost.Status.Available;
             TrayHint = TrayHost.Status.Reason is { } reason ? $"No hay bandeja en este escritorio, así que la X cierra Roost (el stack sigue en marcha). {reason}" : "";
-            var shims = new ShimInstaller(Paths);
-            ShimsEnabled = shims.IsInstalled && UserPath.Contains(UserPath.Read(), shims.Directory);
+            ShimsEnabled = new ShimInstaller(Paths).IsEnabled;
             ShimsWarning = ShimsEnabled ? Shadowing() : null;
             StartStackOnLaunch = prefs.StartStackOnLaunch;
             CloseToTray = prefs.CloseToTray;

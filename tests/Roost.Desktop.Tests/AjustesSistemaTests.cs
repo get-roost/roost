@@ -427,6 +427,50 @@ public class AjustesSistemaTests
         Snapshot(window, "ajustes-sistema-tarea");
     }
 
+    /// <summary>Un systemctl --user de pega: la sesión contesta, y enable/disable ponen y quitan el enlace de default.target.wants.</summary>
+    private sealed class FakeSystemctl(string home) : Roost.Core.Scanning.ICommandRunner
+    {
+        public List<string> Calls { get; } = [];
+
+        private string Wants => Path.Combine(home, ".config", "systemd", "user", "default.target.wants", UserUnit.UnitName);
+
+        public Task<Roost.Core.Scanning.CommandResult> RunAsync(Roost.Core.Scanning.CommandSpec spec, IProgress<string>? lines, CancellationToken cancellation)
+        {
+            Calls.Add(spec.Arguments[1]);
+            if (spec.Arguments[1] == "enable") { Directory.CreateDirectory(Path.GetDirectoryName(Wants)!); File.WriteAllText(Wants, ""); }
+            if (spec.Arguments[1] == "disable" && File.Exists(Wants)) File.Delete(Wants);
+            return Task.FromResult(new Roost.Core.Scanning.CommandResult(0, spec.Arguments[1] == "is-system-running" ? "running\n" : "", "", false));
+        }
+    }
+
+    [AvaloniaFact(Skip = "Solo en Linux: la unidad de systemd --user (en Windows es la tarea programada).", SkipUnless = nameof(Os.IsLinux), SkipType = typeof(Os))]
+    public async Task Ajustes_IniciarTodoAlIniciarSesion_EnLinux_ConLaUnidadDeUsuario()
+    {
+        var (main, _, fake) = await OpenAsync();
+        using var _ = fake;
+        var home = Path.Combine(fake.Paths.Root, "home");
+        var systemctl = new FakeSystemctl(home);
+        main.App.UserUnit = new UserUnit(systemctl, home, _ => null);
+        var unit = Path.Combine(home, ".config", "systemd", "user", UserUnit.UnitName);
+
+        await main.NavigateToAsync(main.Settings);
+        var settings = main.Settings;
+        Assert.True(settings.CanStackAtLogon);
+        Assert.False(settings.StackAtLogon);
+        Assert.StartsWith("Una unidad de usuario de systemd", settings.StackAtLogonHint);
+
+        settings.StackAtLogon = true;
+        await WaitAsync(() => settings.StackAtLogon && File.Exists(unit) && !settings.StackAtLogonHint.StartsWith("Una unidad", StringComparison.Ordinal));
+        Assert.Equal(["is-system-running", "daemon-reload", "enable"], systemctl.Calls);
+        Assert.Contains("ExecStart=", File.ReadAllText(unit));
+        Assert.DoesNotContain("Windows", settings.StackAtLogonHint);
+
+        settings.StackAtLogon = false;
+        await WaitAsync(() => !File.Exists(unit) && settings.StackAtLogonHint.StartsWith("Una unidad", StringComparison.Ordinal));
+        Assert.Contains("disable", systemctl.Calls);
+        Assert.False(settings.StackAtLogon);
+    }
+
     // J2: cambiar la raíz
 
     [WindowsFact("Solo en Windows: las reglas de las rutas de Windows pasan por Path.GetFullPath; las de Linux están en LinuxAppTests.")]

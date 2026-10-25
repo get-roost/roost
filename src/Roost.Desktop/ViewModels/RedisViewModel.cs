@@ -66,6 +66,19 @@ public sealed partial class RedisViewModel : PageViewModel
     public bool NotInstalled => !Installed;
     public string CatalogVersion => RedisCatalog.Current.Version;
     public string CatalogSha => $"SHA-256 {RedisCatalog.Current.Sha256}";
+
+    // Lo que cambia con el sistema: en Windows, la build MSYS2 de redis-windows (y phpredis no viene en los PHP de
+    // windows.php.net); en Linux, la build estática de get-roost/roost-builds (y phpredis viene en los PHP de Roost).
+    public string Source => OsTexts.Windows ? "redis-windows" : "get-roost/roost-builds";
+    public string BuildHint => OsTexts.Windows ? "build MSYS2 · SHA-256 fijado" : "build estática · SHA-256 fijado";
+    public string SourceNote => OsTexts.Windows
+        ? "Redis no publica binarios para Windows. Este es Redis de verdad, compilado del código oficial en GitHub Actions públicas; Roost fija su versión y su SHA-256, y cada versión nueva llega con una actualización de Roost."
+        : "Redis no publica binarios. Este es Redis de verdad, compilado estático del código oficial en las GitHub Actions públicas de get-roost/roost-builds; Roost fija su versión y su SHA-256, y cada versión nueva llega con una actualización de Roost.";
+    public string NotInstalledText => $"Redis aún no está instalado. Roost baja la build de {Source} (Redis de verdad, compilado del código oficial), comprueba su SHA-256 y lo deja en {Path.Combine("bin", "redis")}, solo en 127.0.0.1.";
+    public string ClientNote => OsTexts.Windows
+        ? "Con predis (composer require predis/predis) no hace falta ninguna extensión de PHP. phpredis no viene en los PHP de windows.php.net."
+        : "Con predis (composer require predis/predis) no hace falta ninguna extensión de PHP. phpredis también vale: viene dentro de los PHP de Roost (REDIS_CLIENT=phpredis).";
+    public string LogPath => Path.Combine("logs", "redis.log");
     public string ConfPath => RedisConf.ConfPath(Main.App.Paths);
     public string UserConfPath => RedisConf.UserFragmentPath(Main.App.Paths);
     public string DataPath => Main.App.Paths.RedisData;

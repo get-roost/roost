@@ -58,6 +58,8 @@ public sealed partial class MailViewModel : PageViewModel
     public bool NotInstalled => !Installed;
     public string CatalogVersion => MailpitCatalog.Current.Version;
     public string CatalogSha => $"SHA-256 {MailpitCatalog.Current.Sha256}";
+    public string BuildHint => $"{(OsTexts.Windows ? "Windows" : "Linux")} amd64 · SHA-256 fijado";
+    public string LogPath => Path.Combine("logs", "mailpit.log");
     public string DataPath => Main.App.Paths.MailpitData;
     public string PhpIniPath => Path.Combine(Main.App.Paths.Etc, "php", "conf.d", MailConf.PhpIniName);
 

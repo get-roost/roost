@@ -70,7 +70,6 @@ public sealed partial class WebServerViewModel : PageViewModel
     // en Linux, nginx de get-roost/roost-builds, el apache2 de la distro (no se descarga) y PHP por php-fpm.
     private static bool DistroApache => ApacheCatalog.Current.IsDistro;
     public string NginxBlurb => $"Rápido y ligero. PHP NTS a través de los pools de {OsTexts.PhpWorker}";
-    public string ApacheBlurb => "Lee los .htaccess (WordPress, Laravel...). Los mismos PHP, y cada sitio con el suyo" + (DistroApache ? ". Solo puertos desde el 1024" : "");
     public string NginxSource => OsTexts.Windows ? "nginx.org" : "get-roost/roost-builds";
     public string NginxVerified => OsTexts.Windows ? "SHA-256 y firma PGP verificados" : "SHA-256 fijado y attestation";
     public string NginxSourceNote => OsTexts.Windows

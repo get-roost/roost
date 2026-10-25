@@ -39,7 +39,7 @@
                       <TextBlock Classes="strong" Text="{Binding ApacheVersion, StringFormat='Apache {0}'}" />
                       <ctl:Chip Text="{Binding ApacheState}" Tone="{Binding ApacheStateTone}" />
                     </StackPanel>
-                    <TextBlock Classes="faint" Text="{Binding ApacheBlurb}" />
+                    <TextBlock Classes="faint" Text="Lee los .htaccess (WordPress, Laravel...). Los mismos PHP, y cada sitio con el suyo" />
                   </StackPanel>
                 </RadioButton>
               </StackPanel>

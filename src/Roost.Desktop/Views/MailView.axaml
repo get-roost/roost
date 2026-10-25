@@ -94,7 +94,7 @@
                   <Button Grid.Row="1" Grid.Column="2" Classes="sm ghost" Content="Ver" Command="{Binding OpenPhpIniCommand}" AutomationProperties.Name="Ver el fragmento de PHP del correo" />
 
                   <TextBlock Grid.Row="2" Classes="muted" Text="Registro" VerticalAlignment="Center" />
-                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="mono" FontSize="12" Text="logs\mailpit.log" VerticalAlignment="Center" />
+                  <TextBlock Grid.Row="2" Grid.Column="1" Classes="mono" FontSize="12" Text="{Binding LogPath}" VerticalAlignment="Center" />
                   <Button Grid.Row="2" Grid.Column="2" Classes="sm ghost" Content="Abrir" Command="{Binding GoLogCommand}" AutomationProperties.Name="Abrir el registro de Mailpit" />
                 </Grid>
               </StackPanel>
@@ -115,7 +115,7 @@
                   <ctl:Dot Tone="Ok" VerticalAlignment="Center" />
                   <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Classes="mono strong" Text="{Binding CatalogVersion}" />
-                    <TextBlock Classes="faint" Text="Windows amd64 · SHA-256 fijado" ToolTip.Tip="{Binding CatalogSha}" />
+                    <TextBlock Classes="faint" Text="{Binding BuildHint}" ToolTip.Tip="{Binding CatalogSha}" />
                   </StackPanel>
                   <ctl:Chip Grid.Column="2" Text="instalada" IsVisible="{Binding Installed}" />
                   <Button Grid.Column="2" Classes="sm" Content="Instalar" Command="{Binding InstallCommand}" IsVisible="{Binding NotInstalled}"
