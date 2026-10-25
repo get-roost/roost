@@ -46,6 +46,8 @@ public sealed partial class StackPlanner
 
         var ini = DbIni.Write(paths, db, port, new DbPasswords(paths).For(db));
         var datadir = DbIni.DataDir(paths, db);
+        // Linux: el libaio que pide MySQL, enlazado antes de que arranque nada (también en una instalación de antes).
+        DbInstaller.EnsureLibAio(db);
         EnsureDataDir(db, ini, datadir);
 
         var name = $"{db.Engine.Key()}-{branch}";
@@ -54,8 +56,9 @@ public sealed partial class StackPlanner
         {
             Name = name,
             Executable = db.Server,
-            // --console: el log del servidor va a stderr, que el supervisor guarda en el log.
-            Arguments = $"--defaults-file=\"{ini}\" --console",
+            // --console (solo Windows): el log del servidor va a stderr, que el supervisor guarda en el log. En
+            // Linux va a stderr de serie mientras no se ponga log-error.
+            Arguments = $"--defaults-file=\"{ini}\"" + (OperatingSystem.IsWindows() ? " --console" : ""),
             WorkingDirectory = db.Directory,
             LogFile = log,
             Port = port,
@@ -69,6 +72,25 @@ public sealed partial class StackPlanner
             },
             StopTimeout = TimeSpan.FromSeconds(30),
         };
+    }
+
+    /// <summary>
+    /// PURO: la orden con la que se crea el datadir. MariaDB en Windows: su <c>mariadb-install-db.exe</c>
+    /// con el datadir. MariaDB en Linux: el script del bintar, con el fichero de opciones de Roost el
+    /// primero (si no leería el <c>/etc/my.cnf</c> de la distro), <c>--basedir</c> (sin él, el script no
+    /// encuentra sus ficheros fuera de la carpeta de instalación), root con contraseña normal (sin
+    /// <c>normal</c>, root nace con <c>unix_socket</c> y solo entra el usuario de Linux que lo creó) y sin
+    /// la base de datos <c>test</c>. MySQL, igual en los dos: <c>--initialize-insecure</c>.
+    /// </summary>
+    public static (string Executable, string Arguments) InitCommand(InstalledDb db, string ini, string datadir)
+    {
+        if (db.Engine == DbEngine.MySql)
+            return (db.Server, $"--defaults-file=\"{ini}\" --initialize-insecure --datadir=\"{DbIni.Slashes(datadir)}\"");   // --defaults-file tiene que ir el primero; --datadir manda sobre el del fichero
+        if (OperatingSystem.IsWindows())
+            return (Path.Combine(db.Directory, "bin", OsNames.Exe("mariadb-install-db")), $"--datadir=\"{DbIni.Slashes(datadir)}\"");
+        var script = new[] { Path.Combine(db.Directory, "scripts", "mariadb-install-db"), Path.Combine(db.Directory, "bin", "mariadb-install-db"), Path.Combine(db.Directory, "scripts", "mysql_install_db") }
+            .FirstOrDefault(File.Exists) ?? Path.Combine(db.Directory, "scripts", "mariadb-install-db");
+        return (script, $"--defaults-file=\"{ini}\" --basedir=\"{DbIni.Slashes(db.Directory)}\" --datadir=\"{DbIni.Slashes(datadir)}\" --auth-root-authentication-method=normal --skip-test-db");
     }
 
     /// <summary>
@@ -91,17 +113,15 @@ public sealed partial class StackPlanner
         var temp = Path.Combine(parent, InstallFiles.TempPrefix + Guid.NewGuid().ToString("N"));
         try
         {
-            var output = db.Engine == DbEngine.MariaDb
-                ? runner.Run(Path.Combine(db.Directory, "bin", OsNames.Exe("mariadb-install-db")),
-                    $"--datadir=\"{DbIni.Slashes(temp)}\"", TimeSpan.FromMinutes(2))
-                // --defaults-file tiene que ir el primero; --datadir manda sobre el del fichero.
-                : runner.Run(db.Server,
-                    $"--defaults-file=\"{ini}\" --initialize-insecure --datadir=\"{DbIni.Slashes(temp)}\"", TimeSpan.FromMinutes(2));
+            var (executable, arguments) = InitCommand(db, ini, temp);
+            var output = runner.Run(executable, arguments, TimeSpan.FromMinutes(2));
 
             if (!Directory.Exists(Path.Combine(temp, "mysql")))
             {
                 var tail = string.Join("\n  ", (output ?? "no respondio").Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.Length > 0).TakeLast(8));
-                throw new RoostException($"No se pudo crear el datadir de {db.Label} en {datadir}:\n  {tail}");
+                // Linux: si es una libreria que falta (libaio, libnuma), decir el paquete y no solo el error.
+                var hint = LinuxDeps.MissingLibraryHint(output, LinuxDeps.OsRelease()) is { } missing ? $"\n  {missing}" : "";
+                throw new RoostException($"No se pudo crear el datadir de {db.Label} en {datadir}:\n  {tail}{hint}");
             }
 
             if (Directory.Exists(datadir)) Directory.Delete(datadir); // estaba vacío

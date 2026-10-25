@@ -70,9 +70,15 @@ public static class LinuxDeps
     public static LinuxDepsStatus Detect()
     {
         if (!OperatingSystem.IsLinux()) return new LinuxDepsStatus(false, null, []);
-        string? osRelease = null;
-        try { osRelease = File.ReadAllText("/etc/os-release"); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
-        return Evaluate(Posix.GlibcVersion(), FindTool, FindLibrary, osRelease);
+        return Evaluate(Posix.GlibcVersion(), FindTool, FindLibrary, OsRelease());
+    }
+
+    /// <summary>El <c>/etc/os-release</c> de esta distro, o null (fuera de Linux, o si no se puede leer).</summary>
+    public static string? OsRelease()
+    {
+        if (!OperatingSystem.IsLinux()) return null;
+        try { return File.ReadAllText("/etc/os-release"); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>

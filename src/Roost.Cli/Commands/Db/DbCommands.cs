@@ -73,10 +73,7 @@ public sealed class DbListCommand : AsyncCommand<DbListCommand.Settings>
         var paths = RoostPaths.Default();
         var installed = new DbInstaller(paths).ListInstalled();
         var global = DbCatalogs.Global(paths, installed);
-        // Los catalogos son zips de Windows: fuera de Windows no se ofrecen como «disponibles».
-        var (catalog, error) = OperatingSystem.IsWindows()
-            ? await DbCatalogs.LoadAsync(cancellation)
-            : ([], "Instalar bases de datos solo funciona en Windows por ahora.");
+        var (catalog, error) = await DbCatalogs.LoadAsync(cancellation);
 
         if (settings.Json)
         {
@@ -100,7 +97,7 @@ public sealed class DbListCommand : AsyncCommand<DbListCommand.Settings>
         AnsiConsole.MarkupLineInterpolated($"[bold]Bases de datos instaladas por Roost[/]  [grey](* = la global, la que arranca roost up)[/]");
         if (installed.Count == 0)
         {
-            AnsiConsole.MarkupLine("[grey]Ninguna todavia." + PlatformGate.WindowsHint(" Prueba: roost db install mariadb@11.4  o  roost db install mysql@8.4") + "[/]");
+            AnsiConsole.MarkupLine("[grey]Ninguna todavia. Prueba: roost db install mariadb@11.4  o  roost db install mysql@8.4[/]");
         }
         else
         {
@@ -117,7 +114,6 @@ public sealed class DbListCommand : AsyncCommand<DbListCommand.Settings>
         AnsiConsole.WriteLine();
         AnsiConsole.MarkupLine("[bold]Disponibles[/]  [grey](MariaDB: la ultima de cada rama estable; MySQL: las fijadas por Roost)[/]");
         if (error is not null) AnsiConsole.MarkupLineInterpolated($"[yellow]{error}[/]");
-        if (!OperatingSystem.IsWindows()) return 0;
 
         var available = new Table().Border(TableBorder.Rounded);
         available.AddColumn(""); available.AddColumn("Motor@rama"); available.AddColumn("Version"); available.AddColumn("Soporte"); available.AddColumn("Veredicto"); available.AddColumn("Instalada");
@@ -139,8 +135,6 @@ public sealed class DbInstallCommand : AsyncCommand<DbSpecSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, DbSpecSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("db install")) return 1;
-
         var paths = RoostPaths.Default();
         var installer = new DbInstaller(paths, RoostHttp.Client);
         try
@@ -160,6 +154,9 @@ public sealed class DbInstallCommand : AsyncCommand<DbSpecSettings>
             var finding = DbCatalogs.Audit(build.Engine, build.Version, build.FileName, "catalogo");
             if (finding.Color != AuditColor.Green)
                 AnsiConsole.MarkupLineInterpolated($"[yellow]Ojo:[/] {finding.Headline}");
+            // Linux: lo que pide de la distro (glibc, tar y xz; MySQL ademas libaio y libnuma), antes de bajar nada.
+            if (LinuxDeps.Warning(LinuxDeps.Detect(), build.Engine == DbEngine.MySql ? LinuxNeed.MySql : LinuxNeed.MariaDb) is { } deps)
+                AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {deps}");
 
             AnsiConsole.MarkupLineInterpolated($"Descargando [bold]{build.FileName}[/] de {build.Urls[0].Host}");
             InstalledDb? installed = null;
@@ -183,12 +180,14 @@ public sealed class DbInstallCommand : AsyncCommand<DbSpecSettings>
         }
     }
 
-    /// <summary>Si el servidor no responde a --version, casi siempre falta un Visual C++ Redistributable (lo decide DbAdmin.SmokeTest).</summary>
+    /// <summary>Si el servidor no responde a --version, en Windows casi siempre falta un Visual C++ Redistributable y en Linux una libreria de la distro (lo decide DbAdmin.SmokeTest).</summary>
     private static void SmokeTest(InstalledDb db)
     {
         var smoke = DbAdmin.SmokeTest(db, ProcessRunner.Default);
         if (smoke.Ok)
             AnsiConsole.MarkupLineInterpolated($"[grey]{smoke.VersionLine}[/]");
+        else if (smoke.Hint is { } hint)
+            AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {db.Server} no responde a --version. {hint}");
         else
             AnsiConsole.MarkupLineInterpolated($"[yellow]Aviso:[/] {db.Server} no responde a --version. Suele faltar el Visual C++ Redistributable {smoke.MissingRedistributable}: {smoke.RedistributableUrl}");
     }
@@ -298,7 +297,7 @@ public sealed class DbCreateCommand : AsyncCommand<DbCreateCommand.Settings>
         var status = await client.TryStatusAsync(cancellation);
         if (status is not { Running: true, Db: not null })
         {
-            AnsiConsole.MarkupLine("[red]La base de datos no esta en marcha.[/]" + PlatformGate.WindowsHint(" Arranca el stack con: roost up"));
+            AnsiConsole.MarkupLine("[red]La base de datos no esta en marcha.[/]" + " Arranca el stack con: roost up");
             return 1;
         }
 

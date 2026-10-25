@@ -3,7 +3,7 @@ using Roost.Core.Platform;
 
 namespace Roost.Core.Install;
 
-/// <summary>Un zip de Redis para Windows con el SHA-256 que tiene que dar.</summary>
+/// <summary>Un paquete de Redis con el SHA-256 que tiene que dar: el zip de redis-windows en Windows, el tar.gz estático de roost-builds en Linux.</summary>
 public sealed record RedisBuild(string Version, Uri Url, string Sha256)
 {
     public string FileName => Path.GetFileName(Url.AbsolutePath);
@@ -16,7 +16,12 @@ public sealed record RedisBuild(string Version, Uri Url, string Sha256)
 /// de Roost es la build MSYS2 de <c>redis-windows/redis-windows</c>, que compila el tarball
 /// oficial de cada versión en GitHub Actions públicas (el informe de Redis del plan explica por
 /// qué esta y no Memurai, Garnet ni la 5.0 de tporadowski). redis-windows no firma con PGP: el
-/// SHA-256 se comprueba por tres vías.
+/// SHA-256 se comprueba por tres vías. El de Linux lo compila <c>get-roost/roost-builds</c>
+/// (<c>redis.yml</c>: Alpine, estático con jemalloc y OpenSSL, de la fuente de download.redis.io
+/// verificada en el workflow con el SHA-256 de github.com/redis/redis-hashes; sin los módulos de Redis 8)
+/// y su SHA-256 es el del artefacto publicado en la release <c>redis-&lt;versión&gt;</c>, con su
+/// <c>SHA256SUMS.txt</c> y su attestation. Redis 8 es RSALv2, SSPLv1 o AGPLv3 a elegir: roost-builds
+/// lo redistribuye bajo la AGPLv3 y enlaza en la release la fuente y el workflow.
 /// </summary>
 /// <remarks>
 /// Para cambiar de versión: en <c>https://api.github.com/repos/redis-windows/redis-windows/releases/tags/&lt;versión&gt;</c>,
@@ -29,8 +34,8 @@ public sealed record RedisBuild(string Version, Uri Url, string Sha256)
 /// </remarks>
 public static class RedisCatalog
 {
-    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
-    public static RedisBuild Current => Windows;
+    /// <summary>El de este sistema: el zip de redis-windows en Windows, el tar.gz de roost-builds en el resto.</summary>
+    public static RedisBuild Current => OperatingSystem.IsWindows() ? Windows : Linux;
 
     // Redis-8.10.2-Windows-x64-msys2.zip (13.938.657 bytes), release 8.10.2 del 18-sep-2026, verificado
     // el 24-oct-2026: el digest de la API de GitHub, el hash del cuerpo de la release (run de Actions
@@ -39,6 +44,16 @@ public static class RedisCatalog
         "8.10.2",
         new Uri("https://github.com/redis-windows/redis-windows/releases/download/8.10.2/Redis-8.10.2-Windows-x64-msys2.zip"),
         "7c8cebd50347eaa1d9e784da842ed47a4f33394637835531d6614777b950ee85");
+
+    // redis-8.10.2-linux-x86_64.tar.gz (8.594.196 bytes): el artefacto del run 40208084641 de redis.yml, 25-oct-2026, de
+    // roost-builds (con su SHA256SUMS.txt; fuente redis-8.10.2.tar.gz de download.redis.io verificada en el workflow con
+    // redis-hashes; OpenSSL 3.5.9 y jemalloc estaticos, musl), bajado y probado en Ubuntu 24.04. La release redis-8.10.2,
+    // con su attestation, se publica con publish: true y from_run: ese run (los mismos bytes). Para cambiar de version:
+    // lanzar redis.yml con la nueva, probar el artefacto, publicarlo con from_run y fijar aqui su SHA-256 (fijar-en-roost.py lo hace).
+    public static readonly RedisBuild Linux = new(
+        "8.10.2",
+        new Uri("https://github.com/get-roost/roost-builds/releases/download/redis-8.10.2/redis-8.10.2-linux-x86_64.tar.gz"),
+        "d285fc669aaa732aabf2d82a2811bf65e441a81b060ee2ef805b76dd4b7206d9");
 }
 
 /// <summary>Un Redis instalado por Roost, en <c>bin/redis/&lt;versión&gt;</c>.</summary>
@@ -116,13 +131,16 @@ public sealed class RedisInstaller
         var zip = await InstallFiles.DownloadVerifiedAsync(
             http, [build.Url], build.FileName, build.Sha256, _paths.Downloads, downloaded, cancellation);
 
-        // El zip lo mete todo en Redis-<versión>-Windows-x64-msys2/: se instala su contenido.
+        // El zip lo mete todo en Redis-<versión>-Windows-x64-msys2/: se instala su contenido. El tar.gz de
+        // roost-builds trae redis-server, redis-cli y redis-benchmark en la raíz (con su bit de ejecución).
         InstallFiles.ExtractAtomic(zip, target, ServerName, stripSingleRoot: true, build.FileName);
         if (!File.Exists(Path.Combine(target, CliName)))
         {
             InstallFiles.RemoveAtomic(target, _paths.RedisBin, build.Label);
-            throw new RoostException($"El zip {build.FileName} no trae redis-cli.exe (lo necesita la parada limpia); no se instala.");
+            throw new RoostException($"El paquete {build.FileName} no trae {CliName} (lo necesita la parada limpia); no se instala.");
         }
+        InstallFiles.MarkExecutable(Path.Combine(target, ServerName));
+        InstallFiles.MarkExecutable(Path.Combine(target, CliName));
         return new InstalledRedis(build.Version, target);
     }
 

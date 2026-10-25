@@ -1,4 +1,5 @@
 using Roost.Core.Config;
+using Roost.Core.Platform;
 using Roost.Core.Scanning;
 using Roost.Core.Services;
 
@@ -19,6 +20,10 @@ namespace Roost.Daemon;
 /// <c>ap&lt;pid&gt;_restart</c> del proceso padre. Relee la configuración y arranca otro hijo, que hereda
 /// los sockets del padre; el viejo deja de aceptar cuando el nuevo está listo y acaba lo que estaba
 /// sirviendo. Sin un solo fallo, también con varios clientes.</item>
+/// <item>Apache en Linux (el de la distro, probado en Ubuntu 24.04): SIGUSR1 al padre es el «graceful
+/// restart» de Apache (lo mismo que <c>apachectl graceful</c>): relee la configuración, los hijos nuevos
+/// la usan y los viejos acaban lo que estaban sirviendo. Se espera a que el log de errores diga que
+/// vuelve a atender (AH00489, «resuming normal operations»).</item>
 /// </list>
 /// La recarga es asíncrona: se espera a que el servidor web tenga su hijo nuevo listo, así quien la
 /// pide (un <c>site add</c>, un script que pide la página justo después) ya ve lo nuevo. Antes hay
@@ -26,13 +31,73 @@ namespace Roost.Daemon;
 /// </summary>
 internal static class WebReload
 {
+    /// <summary>SIGUSR1, el «graceful restart» de Apache: 10 en Linux (x86_64 y arm64), 30 en macOS.</summary>
+    public static int SigUsr1 => OperatingSystem.IsMacOS() ? 30 : 10;
+
+    /// <summary>Cómo se manda una señal (<c>kill(2)</c>); los tests lo cambian por uno de pega.</summary>
+    internal static Func<int, int, bool> KillSignal { get; set; } = Posix.Kill;
+
     /// <summary>Recarga <paramref name="web"/> (<c>nginx</c> o <c>apache</c>), cuyo proceso es <paramref name="pid"/>; null si ha ido bien o por qué no.</summary>
     public static async Task<string?> RunAsync(IProcessRunner runner, ServiceDefinition web, int? pid)
     {
         if (pid is not { } parent) return $"{web.Name} no esta en marcha";
         var before = ChildProcesses.Of(parent);
+        // En Linux, lo que dice Apache es su log de errores: se mira solo lo que escriba a partir de ahora.
+        var errorLog = ApacheErrorLog(web);
+        var offset = errorLog is not null && web.Name == RoostConfig.WebApache && !OperatingSystem.IsWindows() ? LengthOf(errorLog) : (long?)null;
         if (Signal(runner, web, parent) is { } error) return error;
+        if (offset is { } from) return await WaitForApacheResumedAsync(errorLog!, from, parent, before);
         return await WaitForNewChildAsync(web, parent, before);
+    }
+
+    /// <summary>El <c>apache-error.log</c> de al lado del log de stdout del servicio, o null.</summary>
+    private static string? ApacheErrorLog(ServiceDefinition web) =>
+        web.LogFile is { } stdout ? Path.Combine(Path.GetDirectoryName(stdout)!, "apache-error.log") : null;
+
+    private static long LengthOf(string file)
+    {
+        try { return new FileInfo(file).Length; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return 0; }
+    }
+
+    /// <summary>
+    /// Linux: espera (como mucho 10 s) a que Apache apunte en su log que vuelve a atender tras la
+    /// recarga (AH00489); si no lo escribe (LogLevel más alto, log que no se puede leer), vale con que
+    /// haya un hijo nuevo. Si no hay ni lo uno ni lo otro, se dice.
+    /// </summary>
+    private static async Task<string?> WaitForApacheResumedAsync(string errorLog, long offset, int pid, IReadOnlyList<int> before)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (DateTime.UtcNow < deadline)
+        {
+            if (ApacheResumed(errorLog, offset))
+            {
+                await Task.Delay(100);   // los hijos nuevos ya aceptan; los viejos acaban lo suyo
+                return null;
+            }
+            if (before.Count > 0 && ChildProcesses.Of(pid).Except(before).Any() && !ChildProcesses.Of(pid).Intersect(before).Any())
+                return null;   // ya solo quedan hijos nuevos
+            await Task.Delay(50);
+        }
+        return ChildProcesses.Of(pid).Except(before).Any() ? null : "Apache no ha confirmado la recarga en 10 s (mira apache-error.log)";
+    }
+
+    /// <summary>true si, a partir de <paramref name="offset"/>, el log de errores de Apache dice que vuelve a atender (AH00489, «resuming normal operations»).</summary>
+    internal static bool ApacheResumed(string errorLog, long offset)
+    {
+        try
+        {
+            using var stream = new FileStream(errorLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            if (stream.Length <= offset) return false;
+            stream.Seek(offset, SeekOrigin.Begin);
+            using var reader = new StreamReader(stream);
+            var text = reader.ReadToEnd();
+            return text.Contains("AH00489", StringComparison.Ordinal) || text.Contains("resuming normal operations", StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary>Le pide la recarga (sin esperar a que acabe); null si se la ha podido pedir o por qué no.</summary>
@@ -55,7 +120,8 @@ internal static class WebReload
 
     private static string? SignalApache(int pid)
     {
-        if (!OperatingSystem.IsWindows()) return "la recarga en caliente de Apache solo esta hecha para Windows";
+        if (!OperatingSystem.IsWindows())
+            return KillSignal(pid, SigUsr1) ? null : $"no se pudo mandar SIGUSR1 al proceso {pid} de Apache (no existe o no es tuyo)";
         try
         {
             using var restart = EventWaitHandle.OpenExisting(ApacheRestartEvent(pid));

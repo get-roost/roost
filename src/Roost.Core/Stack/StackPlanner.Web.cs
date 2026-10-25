@@ -92,7 +92,10 @@ public sealed partial class StackPlanner
 
     /// <summary>
     /// httpd.conf, un .conf por sitio, <c>httpd -t</c> y su servicio. El PHP va por los mismos
-    /// pools de php-cgi que nginx (<see cref="ApacheConf"/>).
+    /// pools de php-cgi que nginx (<see cref="ApacheConf"/>). En Linux es el Apache de la distro, lanzado
+    /// con el usuario (<c>-DFOREGROUND</c>, parada con SIGTERM) y con sus módulos; como usuario no puede
+    /// abrir puertos bajos y a un binario del sistema no se le da el permiso con setcap: se dice antes de
+    /// arrancar nada (<c>apache2 -t</c>, al contrario que <c>nginx -t</c>, no abre los puertos).
     /// </summary>
     private ServiceDefinition PrepareApache(RoostConfig config, InstalledApache apache, List<NginxUpstream> pools, List<SitePlan> sitePlans, LocalCa? ca)
     {
@@ -100,18 +103,40 @@ public sealed partial class StackPlanner
             Directory.CreateDirectory(dir);
         RetireOrphanConfs(paths.ApacheSites, sitePlans);
 
+        IReadOnlyList<string>? modulesToLoad = null;
+        if (apache.IsDistro)
+        {
+            var present = ApacheConf.ModulesPresent(apache.Modules, File.Exists);
+            if (ApacheConf.MissingRequired(present) is { Count: > 0 } missing)
+            {
+                throw new RoostException(
+                    $"Al Apache de la distro le falta{(missing.Count == 1 ? "" : "n")} {string.Join(", ", missing.Select(m => $"mod_{m}.so"))} en {apache.Modules}: "
+                    + "sin eso no sirve PHP, los .htaccess o HTTPS. Instala el paquete completo de Apache (apache2 en Debian y Ubuntu, httpd y mod_ssl en Fedora y RHEL).");
+            }
+            modulesToLoad = present;
+
+            foreach (var port in (sitePlans.Count > 0 ? new[] { config.HttpPort, config.HttpsPort } : [config.HttpPort]).Distinct())
+            {
+                if (port < 1024 && Probe(port) == PortState.Denied)
+                {
+                    var (key, suggested) = SuggestionFor(port, config);
+                    throw new RoostException(LinuxApache.DeniedPortMessage(port, key, suggested, paths.ConfigFile));
+                }
+            }
+        }
+
         foreach (var plan in sitePlans)
         {
             var (certFile, keyFile) = ca!.EnsureSiteCert(plan.Site);
-            var input = new ApacheSiteConf.Input(
-                plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort, certFile, keyFile, Loopback.HasIpv6)
-            { LogsDirectory = SiteLogs.Directory(paths) };
+            var pool = PhpPool.UpstreamName(plan.Php.Version!.Value);
+            var input = new ApacheSiteConf.Input(plan.Site, pool, config.HttpPort, config.HttpsPort, certFile, keyFile, Loopback.HasIpv6)
+            { LogsDirectory = SiteLogs.Directory(paths), FcgiPort = ApacheConf.FcgiPortOf(pools, pool, apache.IsDistro) };
             var file = Path.Combine(paths.ApacheSites, plan.Site.Name + ".conf");
             File.WriteAllText(file, File.Exists(file) ? ApacheSiteConf.Merge(File.ReadAllText(file), input, file) : ApacheSiteConf.RenderNew(input));
         }
 
         // Compartir (oleada 6): las escuchas de lo que se está compartiendo, con su propio Listen.
-        WriteShareConfs(paths.ApacheShares, sitePlans, ca, null, ShareConf.RenderApache);
+        WriteShareConfs(paths.ApacheShares, sitePlans, ca, null, ShareConf.RenderApache, apache.IsDistro ? pools : null);
 
         var conf = ApacheConfPath;
         File.WriteAllText(conf, ApacheConf.Render(new ApacheConfInput(
@@ -124,16 +149,24 @@ public sealed partial class StackPlanner
             pools,
             pools[0].Name,
             paths.ApacheSites,
-            Loopback.HasIpv6) { AdminerDirectory = AdminerAlias(), SharesDirectory = paths.ApacheShares }));
+            Loopback.HasIpv6)
+        {
+            AdminerDirectory = AdminerAlias(),
+            SharesDirectory = paths.ApacheShares,
+            ModulesDirectory = apache.IsDistro ? apache.Modules : null,
+            MimeTypesFile = apache.IsDistro ? apache.MimeTypes : null,
+            ModulesToLoad = modulesToLoad,
+        }));
 
         var test = TestApache(apache);
         if (test is null || !test.Contains("Syntax OK", StringComparison.OrdinalIgnoreCase))
             throw new RoostException($"Apache no acepta la configuracion generada ({conf}):\n{test?.Trim() ?? "httpd -t no respondio"}");
 
         // Apache se para matando su árbol de procesos y el pidfile se queda: sin borrarlo, cada
-        // arranque avisaría en el log de un «Unclean shutdown» que no es tal.
+        // arranque avisaría en el log de un «Unclean shutdown» que no es tal. En Linux se para con
+        // SIGTERM y lo borra él; el de un Apache que sigue en marcha (un up con el stack arrancado) no se toca.
         var pidFile = Path.Combine(paths.Run, "apache.pid");
-        if (File.Exists(pidFile)) File.Delete(pidFile);
+        if (File.Exists(pidFile) && !ApachePidAlive(pidFile)) File.Delete(pidFile);
 
         return new ServiceDefinition
         {
@@ -143,6 +176,8 @@ public sealed partial class StackPlanner
             WorkingDirectory = apache.Directory,
             LogFile = Path.Combine(paths.Logs, "apache-stdout.log"),
             Port = config.HttpPort,
+            // En Linux, SIGTERM: el padre para a sus hijos, borra el pidfile y sale; en Windows se mata, como siempre.
+            StopSignal = OperatingSystem.IsWindows() ? StopSignal.Kill : StopSignal.Term,
         };
     }
 
@@ -157,7 +192,8 @@ public sealed partial class StackPlanner
     /// local, con el certificado del sitio que lleva su IP) y borra lo demás de esa carpeta: lo que se
     /// dejó de compartir no vuelve a escucharse. La carpeta existe siempre (el <c>include</c> la pide).
     /// </summary>
-    private void WriteShareConfs(string directory, List<SitePlan> sitePlans, LocalCa? ca, string? fastCgiParams, Func<ShareConf.Input, string> render)
+    /// <param name="unixPools">Solo con el Apache de la distro: los pools, para el puerto del php-fpm de cada escucha; null = nginx o Windows.</param>
+    private void WriteShareConfs(string directory, List<SitePlan> sitePlans, LocalCa? ca, string? fastCgiParams, Func<ShareConf.Input, string> render, IReadOnlyList<NginxUpstream>? unixPools = null)
     {
         Directory.CreateDirectory(directory);
         var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -173,8 +209,9 @@ public sealed partial class StackPlanner
                 caFile = ca.CaCertFile;
             }
             var file = Path.Combine(directory, listener.FileName);
+            var pool = PhpPool.UpstreamName(plan.Php.Version!.Value);
             File.WriteAllText(file, render(new ShareConf.Input(
-                listener, plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), fastCgiParams, cert, key, caFile)));
+                listener, plan.Site, pool, fastCgiParams, cert, key, caFile, unixPools is null ? null : ApacheConf.FcgiPortOf(unixPools, pool, true))));
             wanted.Add(file);
         }
         foreach (var file in Directory.EnumerateFiles(directory))
@@ -183,11 +220,28 @@ public sealed partial class StackPlanner
         }
     }
 
+    /// <summary>Linux: true si el proceso del pidfile de Apache sigue vivo (en Windows nunca: ahí se mata y se vuelve a arrancar).</summary>
+    private static bool ApachePidAlive(string pidFile)
+    {
+        if (OperatingSystem.IsWindows()) return false;
+        try
+        {
+            return int.TryParse(File.ReadAllText(pidFile).Trim(), out var pid) && Posix.IsAlive(pid);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
+
     /// <summary>El httpd.conf que genera cada <c>up</c> con Apache.</summary>
     public string ApacheConfPath => Path.Combine(paths.Etc, "apache", "httpd.conf");
 
-    /// <summary>Los argumentos con los que se arranca (y se valida) Apache.</summary>
-    public string ApacheArguments => $"-f \"{ApacheConf.Path(ApacheConfPath)}\"";
+    /// <summary>
+    /// Los argumentos con los que se arranca (y se valida) Apache. Fuera de Windows, <c>-DFOREGROUND</c>:
+    /// si no, el padre se desliga (fork) y el supervisor lo tomaría por una caída.
+    /// </summary>
+    public string ApacheArguments => $"-f \"{ApacheConf.Path(ApacheConfPath)}\"" + (OperatingSystem.IsWindows() ? "" : " -DFOREGROUND");
 
     /// <summary><c>httpd -t</c> sobre la configuración generada: su salida, o null si no responde.</summary>
     public string? TestApache(InstalledApache apache) => runner.Run(apache.Executable, "-t " + ApacheArguments, TimeSpan.FromSeconds(15));

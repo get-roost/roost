@@ -3,33 +3,33 @@ using Roost.Core.Platform;
 
 namespace Roost.Core.Install;
 
-/// <summary>El cloudflared de Windows (un solo ejecutable, sin zip) con el SHA-256 que tiene que dar.</summary>
+/// <summary>El cloudflared (un solo ejecutable, sin zip: el de Windows o el de Linux) con el SHA-256 que tiene que dar.</summary>
 public sealed record CloudflaredBuild(string Version, Uri Url, string Sha256)
 {
-    /// <summary>En la caché, con la versión: el asset se llama igual en todas las releases.</summary>
-    public string FileName => $"cloudflared-{Version}-windows-amd64.exe";
+    /// <summary>En la caché, con la versión (el asset se llama igual en todas las releases): <c>cloudflared-2026.10.3-windows-amd64.exe</c>, <c>cloudflared-2026.10.3-linux-amd64</c>.</summary>
+    public string FileName => $"cloudflared-{Version}-{Path.GetFileName(Url.AbsolutePath)["cloudflared-".Length..]}";
 
     public string Label => $"cloudflared {Version}";
 }
 
 /// <summary>
-/// cloudflared fijado a mano, como <c>MailpitCatalog</c>: el ejecutable de Windows amd64 de la release
-/// de <c>cloudflare/cloudflared</c> en GitHub, con su SHA-256. Es el cliente de Cloudflare Tunnel
-/// (Apache-2.0, un solo ejecutable de Go); Roost lo usa solo para los túneles rápidos de
-/// <c>trycloudflare.com</c>, que no piden cuenta (<c>roost share</c>).
+/// cloudflared fijado a mano, como <c>MailpitCatalog</c>: el ejecutable de Windows amd64 (o el de
+/// Linux amd64) de la release de <c>cloudflare/cloudflared</c> en GitHub, con su SHA-256. Es el cliente
+/// de Cloudflare Tunnel (Apache-2.0, un solo ejecutable de Go); Roost lo usa solo para los túneles
+/// rápidos de <c>trycloudflare.com</c>, que no piden cuenta (<c>roost share</c>).
 /// </summary>
 /// <remarks>
-/// Para cambiar de versión: en <c>https://api.github.com/repos/cloudflare/cloudflared/releases/latest</c>, el
-/// asset <c>cloudflared-windows-amd64.exe</c> y su <c>digest</c>, y el mismo SHA-256 en la lista
-/// «SHA256 Checksums» del cuerpo de la release; bajarlo a una carpeta vacía y comprobar que su
-/// SHA-256 da lo mismo (son las tres vías), y que lleva la firma Authenticode válida de
-/// «Cloudflare, Inc.» (<c>Get-AuthenticodeSignature</c>). Después, <c>cloudflared --version</c>.
+/// Para cambiar de versión: en <c>https://api.github.com/repos/cloudflare/cloudflared/releases/latest</c>, los
+/// assets <c>cloudflared-windows-amd64.exe</c> y <c>cloudflared-linux-amd64</c> y su <c>digest</c>, y el mismo
+/// SHA-256 en la lista «SHA256 Checksums» del cuerpo de la release; bajarlos a una carpeta vacía y
+/// comprobar que su SHA-256 da lo mismo (son las tres vías), y en Windows que lleva la firma Authenticode
+/// válida de «Cloudflare, Inc.» (<c>Get-AuthenticodeSignature</c>). Después, <c>cloudflared --version</c>.
 /// Roost lo lanza con <c>--no-autoupdate</c>: nunca se reemplaza solo.
 /// </remarks>
 public static class CloudflaredCatalog
 {
-    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
-    public static CloudflaredBuild Current => Windows;
+    /// <summary>El de este sistema: el exe de Windows o el binario de Linux.</summary>
+    public static CloudflaredBuild Current => OperatingSystem.IsWindows() ? Windows : Linux;
 
     // cloudflared-windows-amd64.exe (55.329.336 bytes) de la release 2026.10.3 del 21-oct-2026, verificado
     // el 24-oct-2026: el digest de la API de GitHub, la lista del cuerpo de la release y el SHA-256 del
@@ -38,6 +38,13 @@ public static class CloudflaredCatalog
         "2026.10.3",
         new Uri("https://github.com/cloudflare/cloudflared/releases/download/2026.10.3/cloudflared-windows-amd64.exe"),
         "76b2805253d0d6ffacb092a7acfbee99e7af6917835c0c5410e23f3ef5052da2");
+
+    // cloudflared-linux-amd64 (40.227.721 bytes) de la misma release, verificado el 25-oct-2026: el digest de la
+    // API de GitHub, la lista «SHA256 Checksums» del cuerpo de la release y el SHA-256 del binario descargado coinciden.
+    public static readonly CloudflaredBuild Linux = new(
+        "2026.10.3",
+        new Uri("https://github.com/cloudflare/cloudflared/releases/download/2026.10.3/cloudflared-linux-amd64"),
+        "053b80b0a23031a038fdbf3c073f59f82b8f1f152aa67971d7383ffafc0dbab0");
 }
 
 /// <summary>Un cloudflared instalado por Roost, en <c>bin/cloudflared/&lt;versión&gt;</c>.</summary>
@@ -115,6 +122,7 @@ public sealed class CloudflaredInstaller
 
             System.IO.Directory.CreateDirectory(temp);
             File.Copy(exe, Path.Combine(temp, ExecutableName));
+            InstallFiles.MarkExecutable(Path.Combine(temp, ExecutableName));   // un binario suelto no trae sus permisos
             // Renombrar es atómico dentro del mismo volumen: o queda instalado entero o no queda.
             InstallFiles.MoveDirectory(temp, target);
             return new InstalledCloudflared(build.Version, target);

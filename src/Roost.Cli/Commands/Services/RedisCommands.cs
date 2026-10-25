@@ -71,7 +71,6 @@ public sealed class RedisInstallCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("redis install")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -102,7 +101,6 @@ public sealed class RedisRemoveCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("redis remove")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -144,7 +142,6 @@ public sealed class RedisEnableCommand : AsyncCommand<EmptyCommandSettings>
 {
     public override async Task<int> ExecuteAsync(CommandContext context, EmptyCommandSettings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("redis " + context.Name)) return 1;
         var paths = RoostPaths.Default();
         var enable = context.Name == "enable";
         try
@@ -175,7 +172,6 @@ public sealed class RedisPortCommand : AsyncCommand<RedisPortCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("redis port")) return 1;
         var paths = RoostPaths.Default();
         try
         {
@@ -220,7 +216,7 @@ public sealed class RedisStatusCommand : AsyncCommand<RedisStatusCommand.Setting
         var build = RedisCatalog.Current;
         var installer = new RedisInstaller(paths);
         var redis = installer.Locate();
-        var service = OperatingSystem.IsWindows() ? await ServiceSetup.ServiceAsync(paths, "redis", cancellation) : null;
+        var service = await ServiceSetup.ServiceAsync(paths, "redis", cancellation);
         var reply = await RedisProbe.PingAsync(config.RedisPort, cancellation);
         // Otro Redis como servicio de Windows (Memurai, el de un MSI): Roost no lo usa, pero si se queda el puerto, hay que saberlo.
         var others = WindowsServices.Find(ProcessRunner.Default).Where(s => s.Kind == "Redis").ToList();
@@ -248,7 +244,7 @@ public sealed class RedisStatusCommand : AsyncCommand<RedisStatusCommand.Setting
 
         if (redis is null)
         {
-            AnsiConsole.MarkupLine("[yellow]Redis no esta instalado.[/]" + PlatformGate.WindowsHint(" Instalalo (y ponlo en el stack) con: roost redis install"));
+            AnsiConsole.MarkupLine("[yellow]Redis no esta instalado.[/]" + " Instalalo (y ponlo en el stack) con: roost redis install");
             AnsiConsole.MarkupLineInterpolated($"[grey]Sera {build.Label} (build MSYS2 de redis-windows, SHA-256 {build.Sha256[..12]}...), en {paths.RedisBin}.[/]");
         }
         else

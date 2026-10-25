@@ -74,6 +74,7 @@ public static class ShareConf
     /// <param name="FastCgiParams">Solo con nginx: su <c>fastcgi_params</c>.</param>
     /// <param name="CertFile">Solo en la red local: el certificado del sitio con la IP.</param>
     /// <param name="CaCertFile">Solo en la red local: la CA, que se sirve en <see cref="CaPath"/>.</param>
+    /// <param name="FcgiPort">Solo con Apache en Linux: el puerto del php-fpm del pool (<see cref="ApacheConf.PhpHandler"/>).</param>
     public sealed record Input(
         ShareListener Listener,
         Site Site,
@@ -81,7 +82,8 @@ public static class ShareConf
         string? FastCgiParams = null,
         string? CertFile = null,
         string? KeyFile = null,
-        string? CaCertFile = null);
+        string? CaCertFile = null,
+        int? FcgiPort = null);
 
     /// <summary>PURO: el <c>share/&lt;sitio&gt;-&lt;tipo&gt;.conf</c> de nginx.</summary>
     public static string RenderNginx(Input input)
@@ -191,7 +193,7 @@ public static class ShareConf
                     AllowOverride All
                     Require all granted
                 </Directory>
-            {{ApacheConf.PhpHandler(input.Upstream)}}
+            {{ApacheConf.PhpHandler(input.Upstream, input.FcgiPort)}}
             {{extra}}
             </VirtualHost>
 

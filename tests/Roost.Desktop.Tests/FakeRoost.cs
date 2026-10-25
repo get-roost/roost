@@ -248,7 +248,9 @@ internal sealed class FakeUpstream : HttpMessageHandler
         return $$"""
             {"releases": {"{{latest}}": {"release_id": "{{latest}}", "files": [
               {"file_name": "mariadb-{{latest}}-winx64.zip", "package_type": "ZIP file", "checksum": {"sha256sum": "{{new string('d', 64)}}"},
-               "file_download_url": "https://downloads.mariadb.org/rest-api/mariadb/{{latest}}/mariadb-{{latest}}-winx64.zip"}
+               "file_download_url": "https://downloads.mariadb.org/rest-api/mariadb/{{latest}}/mariadb-{{latest}}-winx64.zip"},
+              {"file_name": "mariadb-{{latest}}-linux-systemd-x86_64.tar.gz", "package_type": "gzipped tar file", "os": "Linux", "cpu": "x86_64", "checksum": {"sha256sum": "{{new string('e', 64)}}"},
+               "file_download_url": "https://downloads.mariadb.org/rest-api/mariadb/{{latest}}/mariadb-{{latest}}-linux-systemd-x86_64.tar.gz"}
             ] } } }
             """;
     }

@@ -3,31 +3,32 @@ using Roost.Core.Platform;
 
 namespace Roost.Core.Install;
 
-/// <summary>Un zip de Mailpit para Windows con el SHA-256 que tiene que dar.</summary>
+/// <summary>Un paquete de Mailpit (el zip de Windows o el tar.gz de Linux) con el SHA-256 que tiene que dar.</summary>
 public sealed record MailpitBuild(string Version, Uri Url, string Sha256)
 {
-    /// <summary>En la caché, con la versión: el asset se llama igual en todas las releases.</summary>
-    public string FileName => $"mailpit-{Version}-windows-amd64.zip";
+    /// <summary>En la caché, con la versión (el asset se llama igual en todas las releases) y la extensión de la URL.</summary>
+    public string FileName => $"mailpit-{Version}-{Path.GetFileName(Url.AbsolutePath)["mailpit-".Length..]}";
 
     public string Label => $"Mailpit {Version}";
 }
 
 /// <summary>
-/// Mailpit fijado a mano, como <c>GitCatalog</c> con MinGit: el zip de Windows amd64 de la release
-/// de <c>axllent/mailpit</c> en GitHub, con su SHA-256. Mailpit es un servidor SMTP de pruebas con
-/// bandeja web (MIT, un solo ejecutable de Go): lo que llega a su SMTP no sale del equipo.
+/// Mailpit fijado a mano, como <c>GitCatalog</c> con MinGit: el zip de Windows amd64 (o el tar.gz de
+/// Linux amd64) de la release de <c>axllent/mailpit</c> en GitHub, con su SHA-256. Mailpit es un
+/// servidor SMTP de pruebas con bandeja web (MIT, un solo ejecutable de Go): lo que llega a su SMTP
+/// no sale del equipo. En Linux hace además de <c>sendmail</c> para el <c>mail()</c> de PHP (<c>MailConf</c>).
 /// </summary>
 /// <remarks>
-/// Para cambiar de versión: en <c>https://api.github.com/repos/axllent/mailpit/releases/latest</c>, el
-/// asset <c>mailpit-windows-amd64.zip</c> y su <c>digest</c>; bajarlo a una carpeta vacía y comprobar
-/// que su SHA-256 da lo mismo. Las releases de Mailpit no traen <c>checksums.txt</c> ni firma (a
-/// 24-oct-2026): esas dos vías son las que hay. Si trae arreglos de seguridad (la 1.32.0 los trae),
-/// conviene subirlo con Roost.
+/// Para cambiar de versión: en <c>https://api.github.com/repos/axllent/mailpit/releases/latest</c>, los
+/// assets <c>mailpit-windows-amd64.zip</c> y <c>mailpit-linux-amd64.tar.gz</c> y su <c>digest</c>; bajarlos a
+/// una carpeta vacía y comprobar que su SHA-256 da lo mismo. Las releases de Mailpit no traen
+/// <c>checksums.txt</c> ni firma (a 24-oct-2026): esas dos vías son las que hay. Si trae arreglos de
+/// seguridad (la 1.32.0 los trae), conviene subirlo con Roost.
 /// </remarks>
 public static class MailpitCatalog
 {
-    /// <summary>El de este sistema (hoy, el de Windows; el de Linux llega con el plan de Linux).</summary>
-    public static MailpitBuild Current => Windows;
+    /// <summary>El de este sistema: el zip de Windows o el tar.gz de Linux.</summary>
+    public static MailpitBuild Current => OperatingSystem.IsWindows() ? Windows : Linux;
 
     // mailpit-windows-amd64.zip (10.632.291 bytes) de la release v1.32.0 del 22-oct-2026, verificado el
     // 24-oct-2026: el digest de la API de GitHub y el SHA-256 del zip descargado coinciden.
@@ -35,6 +36,13 @@ public static class MailpitCatalog
         "1.32.0",
         new Uri("https://github.com/axllent/mailpit/releases/download/v1.32.0/mailpit-windows-amd64.zip"),
         "16915767a6c95dca569336e8f561f91cf355e9a33c57b91deedcc10a4bba7fd4");
+
+    // mailpit-linux-amd64.tar.gz (10.583.464 bytes; mailpit, LICENSE y README.md) de la misma release, verificado
+    // el 25-oct-2026: el digest de la API de GitHub y el SHA-256 del tar.gz descargado coinciden.
+    public static readonly MailpitBuild Linux = new(
+        "1.32.0",
+        new Uri("https://github.com/axllent/mailpit/releases/download/v1.32.0/mailpit-linux-amd64.tar.gz"),
+        "4b5993c978e8604c70d43927e2ad103b311bba3b1822fa0cf1d4ee4ec890a93c");
 }
 
 /// <summary>Un Mailpit instalado por Roost, en <c>bin/mailpit/&lt;versión&gt;</c>.</summary>
@@ -103,8 +111,9 @@ public sealed class MailpitInstaller
         var zip = await InstallFiles.DownloadVerifiedAsync(
             http, [build.Url], build.FileName, build.Sha256, _paths.Downloads, downloaded, cancellation);
 
-        // El zip trae mailpit.exe, el LICENSE y el README en la raíz.
+        // El zip (y el tar.gz de Linux) trae el ejecutable, el LICENSE y el README en la raíz.
         InstallFiles.ExtractAtomic(zip, target, ExecutableName, stripSingleRoot: true, build.FileName);
+        InstallFiles.MarkExecutable(Path.Combine(target, ExecutableName));
         return new InstalledMailpit(build.Version, target);
     }
 
