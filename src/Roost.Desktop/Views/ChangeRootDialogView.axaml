@@ -40,7 +40,7 @@
           <StackPanel Spacing="6">
             <TextBlock Classes="lbl" Text="La nueva" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-              <TextBox Classes="mono" Text="{Binding Target}" PlaceholderText="D:\roost" AutomationProperties.Name="La raíz nueva" />
+              <TextBox Classes="mono" Text="{Binding Target}" PlaceholderText="{x:Static svc:OsTexts.RootExample}" AutomationProperties.Name="La raíz nueva" />
               <Button Grid.Column="1" Content="Elegir carpeta…" Command="{Binding PickCommand}" />
             </Grid>
             <TextBlock Classes="small" TextWrapping="Wrap" Foreground="{DynamicResource BadBrush}" Text="{Binding Problem}" IsVisible="{Binding HasProblem}" />
