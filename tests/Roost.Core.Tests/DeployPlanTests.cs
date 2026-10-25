@@ -410,16 +410,18 @@ public class DeployPlanTests
         Assert.Null(DeployProbe.Parse(null));
     }
 
-    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
+    [Fact]
     public void DeployProbe_PreguntaConElClienteYSuMyIni_YNoLanza()
     {
-        var db = new DeployDatabase(new InstalledDb(DbEngine.MariaDb, "11.4.13", @"C:\roost\bin\mariadb\11.4.13"), @"C:\roost\etc\mariadb\11.4\my.ini", 3409, null, "tienda");
+        var root = OperatingSystem.IsWindows() ? @"C:\roost" : "/home/ana/.local/share/roost";
+        var ini = Path.Combine(root, "etc", "mariadb", "11.4", "my.ini");
+        var db = new DeployDatabase(new InstalledDb(DbEngine.MariaDb, "11.4.13", Path.Combine(root, "bin", "mariadb", "11.4.13")), ini, 3409, null, "tienda");
         var client = new Client("1\n0\nroost-ok\n");
         var probed = DeployProbe.Probe(db, client);
 
         Assert.Equal(DbState.Empty, probed.State);
         var call = Assert.Single(client.Calls);
-        Assert.StartsWith(@"mariadb.exe --defaults-file=""C:\roost\etc\mariadb\11.4\my.ini"" -N -e", call);
+        Assert.StartsWith($"{Roost.Core.Platform.OsNames.Exe("mariadb")} --defaults-file=\"{ini}\" -N -e", call);
         Assert.Contains("table_schema = 'tienda'", call);
 
         Assert.Equal(DbState.Missing, DeployProbe.Probe(db, new Client("0\n0\nroost-ok")).State);

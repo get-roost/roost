@@ -184,15 +184,20 @@ public class GitUrlTests
         Assert.True(Site.IsValidName(name));
     }
 
-    [WindowsTheory("Pendiente en Linux: Terminal y herramientas (L2).")]
+    [Theory]
     [InlineData("git@github.com:acme/tienda.git", "https://github.com/acme/tienda/settings/keys")]
     [InlineData("https://gitlab.com/acme/web/tienda", "https://gitlab.com/acme/web/tienda/-/settings/repository#js-deploy-keys-settings")]
     [InlineData("git@bitbucket.org:acme/tienda.git", "https://bitbucket.org/acme/tienda/admin/access-keys/")]
     [InlineData("git@git.acme.es:web/tienda.git", null)]
-    [InlineData(@"C:\repos\tienda.git", null)]
     public void DeployKeysUrl_LaPaginaDeEseRepositorio(string text, string? expected)
     {
         Assert.Equal(expected, GitUrl.Parse(text).DeployKeysUrl);
+    }
+
+    [Fact]
+    public void DeployKeysUrl_UnaCarpetaLocalNoTiene()
+    {
+        Assert.Null(GitUrl.Parse(OperatingSystem.IsWindows() ? @"C:\repos\tienda.git" : "/srv/repos/tienda.git").DeployKeysUrl);
     }
 
     [Fact]

@@ -16,7 +16,8 @@ public sealed record OpenSshTools(string Directory)
 /// El OpenSSH de Windows (<c>%SystemRoot%\System32\OpenSSH</c>, de serie en Windows 10 1809 y en
 /// Windows 11) y los <c>GIT_SSH_COMMAND</c> de cada acceso. Siempre ese, con su ruta: el
 /// <c>ssh</c> que trae MinGit (MSYS2, en <c>usr/bin</c>) es el que encontraría git sin ruta, y no
-/// habla con el ssh-agent de Windows.
+/// habla con el ssh-agent de Windows. En Linux y macOS, el <c>ssh</c> del PATH (el paquete
+/// <c>openssh-client</c> de la distro).
 /// </summary>
 public static class OpenSsh
 {
@@ -26,10 +27,11 @@ public static class OpenSsh
     /// </summary>
     public const int ConnectTimeoutSeconds = 20;
 
-    /// <summary>Donde está el OpenSSH del sistema: <c>System32\OpenSSH</c> en Windows (desde un proceso de 32 bits, por Sysnative), <c>/usr/bin</c> en el resto.</summary>
+    /// <summary>Donde está el OpenSSH del sistema: <c>System32\OpenSSH</c> en Windows (desde un proceso de 32 bits, por Sysnative); en el resto, la carpeta del <c>ssh</c> del PATH (o <c>/usr/bin</c> si no hay).</summary>
     public static string DefaultDirectory()
     {
-        if (!OperatingSystem.IsWindows()) return "/usr/bin";
+        if (!OperatingSystem.IsWindows())
+            return Roost.Core.Platform.PathProbe.ResolveActive(["ssh"]) is { } ssh ? Path.GetDirectoryName(ssh) ?? "/usr/bin" : "/usr/bin";
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         var system = Environment.Is64BitOperatingSystem && !Environment.Is64BitProcess ? "Sysnative" : "System32";
         return Path.Combine(windows, system, "OpenSSH");
@@ -41,7 +43,7 @@ public static class OpenSsh
             ? $"Falta el cliente OpenSSH de Windows (no estan {string.Join(", ", missing)} en {directory}). Es una caracteristica opcional de Windows: "
               + "Configuracion > Sistema > Caracteristicas opcionales > Agregar una caracteristica > Cliente OpenSSH, o en PowerShell como administrador: "
               + "Add-WindowsCapability -Online -Name OpenSSH.Client~~~~0.0.1.0. Sin el, entra con un token HTTPS."
-            : $"Falta el cliente OpenSSH (no estan {string.Join(", ", missing)} en {directory}). Instala el paquete openssh-client de tu sistema.";
+            : $"Falta el cliente OpenSSH (no estan {string.Join(", ", missing)} en {directory}). Instala el paquete openssh-client de tu sistema (sudo apt install openssh-client). Sin el, entra con un token HTTPS.";
 
     /// <summary>El OpenSSH de <paramref name="directory"/> (por defecto, el del sistema), o null si le falta algo.</summary>
     public static OpenSshTools? TryLocate(string? directory = null)

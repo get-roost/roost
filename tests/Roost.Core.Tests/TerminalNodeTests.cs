@@ -19,15 +19,10 @@ public class TerminalNodeTests : IDisposable
 
     private static readonly DateOnly Hoy = new(2026, 10, 24);
 
+    // Con el layout de este sistema: node.exe y node_modules/ en Windows; bin/node y lib/node_modules/ en Linux.
     private void Node(params string[] versions)
     {
-        foreach (var version in versions)
-        {
-            var dir = Path.Combine(Paths.NodeBin, version);
-            Directory.CreateDirectory(Path.Combine(dir, "node_modules", "npm", "bin"));
-            File.WriteAllText(Path.Combine(dir, OsNames.Exe("node")), "");
-            File.WriteAllText(Path.Combine(dir, "node_modules", "npm", "bin", "npm-cli.js"), "");
-        }
+        foreach (var version in versions) new InstalledNodeFixture(Paths, version).Create();
     }
 
     private string Folder(params string[] parts)
@@ -172,16 +167,19 @@ public class TerminalNodeTests : IDisposable
         Assert.Equal(NodeChoiceSource.VersionFile, Resolve(src).Source);
     }
 
-    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
+    [Fact]
     public void Entorno_SuCarpetaPrimeroEnElPath_LaCaDeRoost_YSinColoresNiPreguntasEnLaApp()
     {
         Node("24.22.1");
         var node = new NodeInstaller(Paths).ListInstalled().Single();
         var ca = new Roost.Core.Sites.LocalCa(Paths).CaCertFile;
-        var env = new Dictionary<string, string?> { ["PATH"] = @"C:\Windows\system32;C:\Program Files\nodejs" };
+        var path = OperatingSystem.IsWindows() ? @"C:\Windows\system32;C:\Program Files\nodejs" : "/usr/local/bin:/usr/bin";
+        var env = new Dictionary<string, string?> { ["PATH"] = path };
 
         var terminal = TerminalNode.Environment(Paths, node, interactive: true, name => env.GetValueOrDefault(name));
-        Assert.Equal(node.Directory + @";C:\Windows\system32;C:\Program Files\nodejs", terminal["PATH"]);
+        // En Linux, la carpeta de binarios es bin/ (y node.Directory, la del paquete).
+        Assert.Equal(node.BinDirectory + Path.PathSeparator + path, terminal["PATH"]);
+        Assert.Equal(OperatingSystem.IsWindows() ? node.Directory : Path.Combine(node.Directory, "bin"), node.BinDirectory);
         Assert.False(terminal.ContainsKey("NODE_EXTRA_CA_CERTS"));   // aún no hay CA
         Assert.False(terminal.ContainsKey("NO_COLOR"));
 
@@ -199,7 +197,7 @@ public class TerminalNodeTests : IDisposable
         Assert.False(TerminalNode.Environment(Paths, node, true, name => env.GetValueOrDefault(name)).ContainsKey("NODE_EXTRA_CA_CERTS"));
     }
 
-    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
+    [Fact]
     public void Ordenes_NpmConSuNpmCli_PnpmYYarnConCorepack_YBunNo()
     {
         Node("24.22.1");
@@ -212,7 +210,7 @@ public class TerminalNodeTests : IDisposable
         Assert.Equal(node.Executable, spec.Exe);
         Assert.Equal([node.NpmCli, "ci"], spec.Arguments);
         Assert.Equal(folder, spec.WorkingDirectory);
-        Assert.StartsWith(node.Directory + ";", spec.Environment!["PATH"]);
+        Assert.StartsWith(node.BinDirectory + Path.PathSeparator, spec.Environment!["PATH"]);
         Assert.Equal("1", spec.Environment["NO_COLOR"]);
         Assert.Equal(["install"], NodeTool.InstallArguments(npm, clean: false));
         Assert.Equal(["install"], NodeTool.InstallArguments(npm with { LockFile = null }, clean: true));
@@ -296,13 +294,14 @@ public class TerminalNodeTests : IDisposable
     public void ScriptsQueSeQuedanEnMarcha(string name, string command, bool expected) =>
         Assert.Equal(expected, NodeProject.IsLongRunning(name, command));
 
-    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
+    [Fact]
     public void Shims_DeNodeSoloConUnNodeDeRoost_YAlQuitarElUltimoSeQuitan()
     {
         var source = Path.Combine(_root, "app");
         Directory.CreateDirectory(source);
-        File.WriteAllText(Path.Combine(source, "roost-shim.exe"), "shim");
-        var shims = new ShimInstaller(Paths);
+        File.WriteAllText(Path.Combine(source, OperatingSystem.IsWindows() ? "roost-shim.exe" : "roost-shim"), "shim");
+        // Los enlaces de ~/.local/bin, sobre una HOME temporal: nunca la del usuario.
+        var shims = new ShimInstaller(Paths) { Links = new UnixPath(Path.Combine(_root, "home"), _ => null) };
 
         shims.Install(source);
         Assert.Equal(["php"], shims.Wanted);
@@ -320,7 +319,7 @@ public class TerminalNodeTests : IDisposable
         Assert.True(shims.Has("php"));
     }
 
-    [WindowsFact("Pendiente en Linux: Terminal y herramientas (L2).")]
+    [Fact]
     public void QuienLeGanaAlShimDeNode_PorSuNombre()
     {
         var env = new Dictionary<string, string?> { ["NVM_SYMLINK"] = @"C:\Program Files\nodejs", ["NVM_HOME"] = @"C:\Users\yo\AppData\Local\nvm" };

@@ -78,7 +78,7 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
         public string? Php { get; init; }
 
         [CommandOption("--token")]
-        [Description("Entra con un token HTTPS: usa el guardado para el repositorio o lo pide (sin eco, o una linea por stdin). Se guarda en el Administrador de credenciales de Windows.")]
+        [Description("Entra con un token HTTPS: usa el guardado para el repositorio o lo pide (sin eco, o una linea por stdin). Se guarda en el Administrador de credenciales de Windows (en Linux, el llavero de la sesion o un fichero 0600).")]
         public bool Token { get; init; }
 
         [CommandOption("--user <USUARIO>")]
@@ -94,7 +94,7 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
         public string? SshKey { get; init; }
 
         [CommandOption("--own-ssh")]
-        [Description("Entra con tus claves (~/.ssh y el ssh-agent de Windows), como en tu terminal. Roost no guarda nada.")]
+        [Description("Entra con tus claves (~/.ssh y tu ssh-agent), como en tu terminal. Roost no guarda nada.")]
         public bool OwnSsh { get; init; }
 
         [CommandOption("-y|--yes")]
@@ -135,8 +135,6 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("site clone")) return 1;
-
         var paths = RoostPaths.Default();
         var undo = new Undo();
         SiteManager? sites = null;
@@ -347,7 +345,11 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
             var target = factory.Credentials.Save(location, token, settings.User);
             undo.Add("token", () => factory.Credentials.Remove(target));
             if (!settings.Json)
-                AnsiConsole.MarkupLineInterpolated($"[grey]Guardado en el Administrador de credenciales de Windows, cifrado para tu usuario; solo vale para {location.Key}.[/]");
+            {
+                AnsiConsole.MarkupLineInterpolated($"[grey]Guardado {CredentialStores.Describe(factory.Credentials.Store)}; solo vale para {location.Key}.[/]");
+                if (CredentialStores.IsUnencrypted(factory.Credentials.Store))
+                    AnsiConsole.MarkupLine("[yellow]Ojo:[/] sin un llavero en esta sesion (Secret Service), el token queda en un fichero solo legible por tu usuario, pero sin cifrar.");
+            }
             return SiteAccess.Token;
         }
 
@@ -400,7 +402,7 @@ public sealed class SiteCloneCommand : AsyncCommand<SiteCloneCommand.Settings>
                 var file = AnsiConsole.Prompt(new TextPrompt<string>("Ruta de la clave privada:"));
                 return (ssh, new Settings { SshKey = file.Trim().Trim('"') });
             }));
-            options.Add(("Mis claves SSH (~/.ssh y el ssh-agent de Windows)", () => (ssh, new Settings { OwnSsh = true })));
+            options.Add((OperatingSystem.IsWindows() ? "Mis claves SSH (~/.ssh y el ssh-agent de Windows)" : "Mis claves SSH (~/.ssh y mi ssh-agent)", () => (ssh, new Settings { OwnSsh = true })));
         }
         options.Add(("Cancelar", null));
 
@@ -473,8 +475,6 @@ public sealed class SitePullCommand : AsyncCommand<SitePullCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("site pull")) return 1;
-
         var paths = RoostPaths.Default();
         try
         {
@@ -547,8 +547,6 @@ public sealed class SiteBranchCommand : AsyncCommand<SiteBranchCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("site branch")) return 1;
-
         var paths = RoostPaths.Default();
         try
         {
@@ -618,8 +616,6 @@ public sealed class SiteGitCommand : AsyncCommand<SiteGitCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("site git")) return 1;
-
         var paths = RoostPaths.Default();
         try
         {

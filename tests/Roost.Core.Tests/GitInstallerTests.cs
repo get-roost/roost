@@ -58,6 +58,8 @@ public class GitInstallerTests : IDisposable
         Assert.Equal(installed, installer.Find(build));
         Assert.Empty(Directory.GetDirectories(Paths.GitBin, ".*")); // sin temporales
 
+        // En Linux, Locate da el git del sistema (el del PATH), no el de bin/git: esto es de Windows.
+        if (!OperatingSystem.IsWindows()) return;
         var located = GitTool.Locate(Paths, new RoostConfig());
         Assert.NotNull(located);
         Assert.Equal(GitSource.Roost, located.Source);
@@ -99,7 +101,7 @@ public class GitInstallerTests : IDisposable
         Assert.Contains("SHA-256", ex.Message);
         Assert.Contains("[git] exe", ex.Message);
         Assert.Null(installer.Find(build));
-        Assert.Null(GitTool.Locate(Paths, new RoostConfig()));
+        if (OperatingSystem.IsWindows()) Assert.Null(GitTool.Locate(Paths, new RoostConfig()));
     }
 
     [Fact]
@@ -119,10 +121,31 @@ public class GitInstallerTests : IDisposable
         Assert.Contains("[git] exe", ex.Message);
     }
 
-    [Fact]
+    [WindowsFact("Solo en Windows: en Linux, sin [git] exe, Locate da el git del sistema (el del PATH).")]
     public void Locate_SinNada_DaNull()
     {
         Assert.Null(GitTool.Locate(Paths, new RoostConfig()));
+    }
+
+    [Fact]
+    public void Locate_EnLinux_EsElGitDelPath_YSinGitLoDiceConSuDistro()
+    {
+        if (OperatingSystem.IsLinux())
+        {
+            // La 24.04 de pruebas y el runner tienen git: el del PATH, sin version (no es el de Roost).
+            var located = GitTool.Locate(Paths, new RoostConfig());
+            Assert.NotNull(located);
+            Assert.Equal(GitSource.System, located.Source);
+            Assert.Equal(GitTool.FindSystemGit(), located.Executable);
+            Assert.Null(located.Version);
+        }
+        Assert.Equal("sudo apt install git", GitTool.SystemInstallHint("ID=ubuntu\nID_LIKE=debian\n"));
+        Assert.Equal("sudo apt install git", GitTool.SystemInstallHint(null));
+        Assert.Equal("sudo dnf install git", GitTool.SystemInstallHint("NAME=\"Fedora Linux\"\nID=fedora\n"));
+        Assert.Equal("sudo dnf install git", GitTool.SystemInstallHint("ID=rocky\nID_LIKE=\"rhel centos fedora\"\n"));
+        Assert.Equal("sudo pacman -S git", GitTool.SystemInstallHint("ID=arch\n"));
+        Assert.Equal("sudo zypper install git", GitTool.SystemInstallHint("ID=\"opensuse-leap\"\nID_LIKE=\"suse opensuse\"\n"));
+        Assert.Equal("sudo apk add git", GitTool.SystemInstallHint("ID=alpine\n"));
     }
 
     public void Dispose()

@@ -7,12 +7,16 @@ using Roost.Core.Platform;
 namespace Roost.Core.Install;
 
 /// <summary>
-/// Un Node instalado por Roost, en <c>bin/node/&lt;versión&gt;</c>: el zip de nodejs.org tal cual, con
-/// su <c>node.exe</c> y el npm que trae en <c>node_modules/npm</c>.
+/// Un Node instalado por Roost, en <c>bin/node/&lt;versión&gt;</c>: el paquete de nodejs.org tal cual. En
+/// Windows, el zip: <c>node.exe</c> en la raíz y el npm que trae en <c>node_modules/npm</c>. En Linux, el
+/// tar.gz: <c>bin/node</c> (y <c>bin/npm</c>, <c>bin/npx</c>, enlaces a los scripts) y <c>lib/node_modules/npm</c>.
 /// </summary>
 public sealed record InstalledNode(string Version, string Directory)
 {
     public static string ExecutableName => OsNames.Exe("node");
+
+    /// <summary>Dónde está el ejecutable dentro de la carpeta: <c>node.exe</c> en Windows, <c>bin/node</c> en Linux.</summary>
+    public static string ExecutableRelative => OperatingSystem.IsWindows() ? ExecutableName : Path.Combine("bin", "node");
 
     public ComponentVersion ParsedVersion => ComponentVersion.TryParse(Version, out var v) ? v : default;
 
@@ -20,15 +24,28 @@ public sealed record InstalledNode(string Version, string Directory)
 
     public string Label => $"Node {Version}";
 
-    public string Executable => Path.Combine(Directory, ExecutableName);
+    /// <summary>
+    /// En Linux, true si el Node está «plano» como el zip de Windows (<c>node</c> y <c>node_modules/</c> en la
+    /// raíz de la carpeta) en vez de con <c>bin/</c> y <c>lib/</c> como el tar.gz: una copia a mano. Se
+    /// acepta igual; lee el disco.
+    /// </summary>
+    public bool Flat => !OperatingSystem.IsWindows() && !File.Exists(Path.Combine(Directory, "bin", "node")) && File.Exists(Path.Combine(Directory, "node"));
 
-    /// <summary>El npm que trae (lo que ejecuta su <c>npm.cmd</c>).</summary>
-    public string NpmCli => Path.Combine(Directory, "node_modules", "npm", "bin", "npm-cli.js");
+    public string Executable => OperatingSystem.IsWindows() || Flat ? Path.Combine(Directory, ExecutableName) : Path.Combine(Directory, "bin", "node");
 
-    public string NpxCli => Path.Combine(Directory, "node_modules", "npm", "bin", "npx-cli.js");
+    /// <summary>La carpeta con <c>node</c> (y <c>npm</c>, <c>npx</c>): la que va la primera en el PATH de lo que lanza Roost. En Windows es la propia carpeta; en Linux, <c>bin/</c>.</summary>
+    public string BinDirectory => OperatingSystem.IsWindows() || Flat ? Directory : Path.Combine(Directory, "bin");
+
+    /// <summary>Los módulos globales que trae (npm y corepack): <c>node_modules</c> en Windows, <c>lib/node_modules</c> en Linux.</summary>
+    public string Modules => OperatingSystem.IsWindows() || Flat ? Path.Combine(Directory, "node_modules") : Path.Combine(Directory, "lib", "node_modules");
+
+    /// <summary>El npm que trae (lo que ejecuta su <c>npm.cmd</c>, o su <c>bin/npm</c>).</summary>
+    public string NpmCli => Path.Combine(Modules, "npm", "bin", "npm-cli.js");
+
+    public string NpxCli => Path.Combine(Modules, "npm", "bin", "npx-cli.js");
 
     /// <summary>Corepack, para pnpm y yarn. Lo traen la 22 y la 24; desde la 25, Node ya no lo incluye.</summary>
-    public string CorepackJs => Path.Combine(Directory, "node_modules", "corepack", "dist", "corepack.js");
+    public string CorepackJs => Path.Combine(Modules, "corepack", "dist", "corepack.js");
 
     public bool HasCorepack => File.Exists(CorepackJs);
 
@@ -39,7 +56,7 @@ public sealed record InstalledNode(string Version, string Directory)
         {
             try
             {
-                var file = Path.Combine(Directory, "node_modules", "npm", "package.json");
+                var file = Path.Combine(Modules, "npm", "package.json");
                 if (!File.Exists(file)) return null;
                 using var doc = JsonDocument.Parse(File.ReadAllText(file));
                 return doc.RootElement.ValueKind == JsonValueKind.Object && doc.RootElement.TryGetProperty("version", out var v)
@@ -54,10 +71,11 @@ public sealed record InstalledNode(string Version, string Directory)
 }
 
 /// <summary>
-/// Instala y quita Node con las reglas de siempre (ver <c>InstallFiles</c>): el zip se descarga a la
-/// caché y se verifica su SHA-256 antes de nada, se extrae a una carpeta <c>.tmp-…</c> que se renombra
-/// al final (o queda entero o no queda nada) y cada versión va en su carpeta. Quitar primero renombra:
-/// con un <c>node.exe</c> en marcha (un <c>npm run dev</c>), falla sin tocar nada.
+/// Instala y quita Node con las reglas de siempre (ver <c>InstallFiles</c>): el paquete (zip en Windows,
+/// tar.gz en Linux, que conserva los permisos y los enlaces de <c>bin/</c>) se descarga a la caché y se
+/// verifica su SHA-256 antes de nada, se extrae a una carpeta <c>.tmp-…</c> que se renombra al final (o
+/// queda entero o no queda nada) y cada versión va en su carpeta. Quitar primero renombra: con un
+/// <c>node</c> en marcha (un <c>npm run dev</c>), falla sin tocar nada.
 /// </summary>
 public sealed class NodeInstaller
 {
@@ -77,8 +95,8 @@ public sealed class NodeInstaller
 
     public InstalledNode? Find(string version)
     {
-        var dir = Path.Combine(_paths.NodeBin, version);
-        return File.Exists(Path.Combine(dir, InstalledNode.ExecutableName)) ? new InstalledNode(version, dir) : null;
+        var node = new InstalledNode(version, Path.Combine(_paths.NodeBin, version));
+        return File.Exists(node.Executable) ? node : null;
     }
 
     /// <summary>Los Node instalados, el más nuevo primero. Las carpetas de trabajo (con punto) y lo que no es una versión no cuentan.</summary>
@@ -116,18 +134,15 @@ public sealed class NodeInstaller
             if (System.IO.Directory.Exists(target))
                 InstallFiles.RemoveAtomic(target, _paths.NodeBin, $"la carpeta incompleta de Node {build.Version}");
 
-            var zip = await InstallFiles.DownloadVerifiedAsync(
+            var archive = await InstallFiles.DownloadVerifiedAsync(
                 http, [build.Url], build.FileName, build.Sha256, _paths.Downloads, downloaded, cancellation);
 
             // Antes de extraer: que sea un Node completo, con su npm.
-            using (var archive = ZipFile.OpenRead(zip))
-            {
-                if (!archive.Entries.Any(e => e.FullName.EndsWith("/node_modules/npm/bin/npm-cli.js", StringComparison.OrdinalIgnoreCase)))
-                    throw new RoostException($"El zip {build.FileName} no trae npm (node_modules/npm/bin/npm-cli.js); no se instala.");
-            }
+            if (!ArchiveHasNpm(archive))
+                throw new RoostException($"{(InstallFiles.IsTarGz(archive) ? "El tar.gz" : "El zip")} {build.FileName} no trae npm (node_modules/npm/bin/npm-cli.js); no se instala.");
 
-            // El zip lo mete todo en node-v<versión>-win-x64/.
-            InstallFiles.ExtractAtomic(zip, target, InstalledNode.ExecutableName, stripSingleRoot: true, build.FileName);
+            // El paquete lo mete todo en node-v<versión>-win-x64/ (o -linux-x64/).
+            InstallFiles.ExtractAtomic(archive, target, InstalledNode.ExecutableRelative, stripSingleRoot: true, build.FileName);
             return new InstalledNode(build.Version, target);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -138,6 +153,23 @@ public sealed class NodeInstaller
         {
             throw new RoostException($"No se pudo preparar Node {build.Version}: {ex.Message} Prueba de nuevo (roost node install {build.Version}).", ex);
         }
+    }
+
+    /// <summary>true si el zip o el tar.gz trae <c>node_modules/npm/bin/npm-cli.js</c> (en el tar.gz, bajo <c>lib/</c>).</summary>
+    public static bool ArchiveHasNpm(string archive)
+    {
+        const string marker = "/node_modules/npm/bin/npm-cli.js";
+        if (!InstallFiles.IsTarGz(archive))
+        {
+            using var zip = ZipFile.OpenRead(archive);
+            return zip.Entries.Any(e => e.FullName.EndsWith(marker, StringComparison.OrdinalIgnoreCase));
+        }
+        using var file = File.OpenRead(archive);
+        using var gzip = new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionMode.Decompress);
+        using var tar = new System.Formats.Tar.TarReader(gzip);
+        while (tar.GetNextEntry(copyData: false) is { } entry)
+            if (entry.Name.EndsWith(marker, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
     }
 
     /// <summary>Quita un Node de Roost. Si algo lo está usando (un <c>npm run dev</c>, una terminal), falla sin tocar nada.</summary>

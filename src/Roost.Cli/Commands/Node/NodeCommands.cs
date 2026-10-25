@@ -68,7 +68,9 @@ internal static class NodeSetup
         var shims = new ShimInstaller(paths);
         if (!shims.IsInstalled)
         {
-            AnsiConsole.MarkupLine("[grey]Para usar node, npm y npx en la terminal con el Node de cada carpeta (.nvmrc, .node-version): roost shims install (los pone delante en el PATH de tu usuario).[/]");
+            AnsiConsole.MarkupLine(OperatingSystem.IsWindows()
+                ? "[grey]Para usar node, npm y npx en la terminal con el Node de cada carpeta (.nvmrc, .node-version): roost shims install (los pone delante en el PATH de tu usuario).[/]"
+                : "[grey]Para usar node, npm y npx en la terminal con el Node de cada carpeta (.nvmrc, .node-version): roost shims install (enlaces en ~/.local/bin).[/]");
             return;
         }
         try
@@ -81,7 +83,7 @@ internal static class NodeSetup
         {
             AnsiConsole.MarkupLineInterpolated($"[yellow]{ex.Message}[/]");
         }
-        ShimSupport.WarnAboutNodeShadowing(shims.Directory);
+        ShimSupport.WarnAboutNodeShadowing(shims.PathDirectory);
     }
 
     /// <summary>Lo que se pide, leido; si no se entiende, lo dice y devuelve null.</summary>
@@ -196,7 +198,6 @@ public sealed class NodeInstallCommand : AsyncCommand<NodeInstallCommand.Setting
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("node install")) return 1;
         var paths = RoostPaths.Default();
         if (NodeSetup.Parse(settings.Version ?? "lts") is not { } spec) return 1;
         try
@@ -316,7 +317,7 @@ public sealed class NodeUseCommand : Command<NodeUseCommand.Settings>
         var matches = NodeInstaller.Match(new NodeInstaller(paths).ListInstalled(), spec);
         if (matches.Count == 0)
         {
-            AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun Node de Roost que case con '{text}'.[/]{PlatformGate.WindowsHint($" Instalalo: roost node install {text}")}");
+            AnsiConsole.MarkupLineInterpolated($"[red]No hay ningun Node de Roost que case con '{text}'.[/] Instalalo: roost node install {text}");
             return 1;
         }
 
@@ -408,7 +409,7 @@ public sealed class NodeStatusCommand : AsyncCommand<NodeStatusCommand.Settings>
         var shims = new ShimInstaller(paths);
         var tools = ShimInstaller.NodeTools.Where(shims.Has).ToList();
         var shadows = ShimInstaller.NodeTools
-            .Select(tool => (Tool: tool, Registry: ShimShadowing.Find(tool, shims.Directory), Session: OperatingSystem.IsWindows()
+            .Select(tool => (Tool: tool, Registry: ShimShadowing.Find(tool, shims.PathDirectory), Session: OperatingSystem.IsWindows()
                 ? ShimShadowing.FindInSession(tool, shims.Directory, Environment.GetEnvironmentVariable("PATH"), File.Exists)
                 : null))
             .ToList();
@@ -452,7 +453,7 @@ public sealed class NodeStatusCommand : AsyncCommand<NodeStatusCommand.Settings>
 
         if (installed.Count == 0)
         {
-            AnsiConsole.MarkupLineInterpolated($"[yellow]No hay ningun Node de Roost.[/]{PlatformGate.WindowsHint($" Instala la LTS: roost node install {NodeCatalog.Default.Major}")}");
+            AnsiConsole.MarkupLineInterpolated($"[yellow]No hay ningun Node de Roost.[/] Instala la LTS: roost node install {NodeCatalog.Default.Major}");
         }
         else
         {
@@ -479,7 +480,7 @@ public sealed class NodeStatusCommand : AsyncCommand<NodeStatusCommand.Settings>
         }
 
         AnsiConsole.MarkupLine($"Shims de Node: {(tools.Count == 3 ? "[green]puestos[/]" : tools.Count == 0 ? "[yellow]no puestos[/]" : "[yellow]a medias[/]")} [grey]({Markup.Escape(shims.Directory)}{(tools.Count > 0 ? ": " + string.Join(", ", tools) : "")})[/]");
-        if (tools.Count > 0) ShimSupport.WarnAboutNodeShadowing(shims.Directory);
+        if (tools.Count > 0) ShimSupport.WarnAboutNodeShadowing(shims.PathDirectory);
         else if (shims.IsInstalled && installed.Count > 0) AnsiConsole.MarkupLine("[grey]Los shims son de antes de tener Node: roost shims install (o roost node install) los anade.[/]");
         else if (!shims.IsInstalled) AnsiConsole.MarkupLine("[grey]Para usarlos en la terminal: roost shims install[/]");
         return here is null && installed.Count > 0 ? 1 : 0;

@@ -1,3 +1,4 @@
+using System.Formats.Tar;
 using System.IO.Compression;
 using System.Net;
 using System.Security.Cryptography;
@@ -10,8 +11,9 @@ namespace Roost.Core.Tests;
 
 /// <summary>
 /// Node SIN red ni binarios de verdad: el catálogo (lo fijado, el SHASUMS256.txt y el index.json de
-/// nodejs.org servidos en memoria) y el instalador con un zip hecho aquí (el SHA-256, la caché, la
-/// carpeta envolvente del zip, que no quede nada a medias).
+/// nodejs.org servidos en memoria) y el instalador con un paquete hecho aquí con el layout de este
+/// sistema (el zip de Windows con <c>node.exe</c>; el tar.gz de Linux con <c>bin/node</c> y
+/// <c>lib/node_modules</c>): el SHA-256, la caché, la carpeta envolvente, que no quede nada a medias.
 /// </summary>
 public class NodeInstallerTests : IDisposable
 {
@@ -20,32 +22,82 @@ public class NodeInstallerTests : IDisposable
 
     private static readonly DateOnly Hoy = new(2026, 10, 24);
 
-    /// <summary>Un zip como el de nodejs.org: todo dentro de node-v&lt;versión&gt;-win-x64/.</summary>
-    internal static byte[] Zip(string version, bool npm = true)
+    private static bool Linux => OperatingSystem.IsLinux();
+
+    /// <summary>Un paquete como el de nodejs.org para este sistema: todo dentro de node-v&lt;versión&gt;-win-x64/ (zip) o -linux-x64/ (tar.gz).</summary>
+    internal static byte[] Archive(string version, bool npm = true)
+    {
+        var files = new List<(string Name, string Text)>();
+        if (Linux)
+        {
+            files.Add(("bin/node", "ELF node de pega"));
+            files.Add(("bin/npm", "#!/usr/bin/env node"));
+            if (npm)
+            {
+                files.Add(("lib/node_modules/npm/bin/npm-cli.js", "// npm de pega"));
+                files.Add(("lib/node_modules/npm/bin/npx-cli.js", "// npx de pega"));
+                files.Add(("lib/node_modules/npm/package.json", """{ "name": "npm", "version": "11.19.1" }"""));
+                files.Add(("lib/node_modules/corepack/dist/corepack.js", "// corepack de pega"));
+            }
+            return TarGz($"node-v{version}-linux-x64/", files);
+        }
+        files.Add(("node.exe", "MZ node de pega"));
+        files.Add(("npm.cmd", "@ECHO OFF"));
+        if (npm)
+        {
+            files.Add(("node_modules/npm/bin/npm-cli.js", "// npm de pega"));
+            files.Add(("node_modules/npm/bin/npx-cli.js", "// npx de pega"));
+            files.Add(("node_modules/npm/package.json", """{ "name": "npm", "version": "11.19.1" }"""));
+            files.Add(("node_modules/corepack/dist/corepack.js", "// corepack de pega"));
+        }
+        return Zip($"node-v{version}-win-x64/", files);
+    }
+
+    private static byte[] Zip(string root, IEnumerable<(string Name, string Text)> files)
     {
         using var buffer = new MemoryStream();
         using (var zip = new ZipArchive(buffer, ZipArchiveMode.Create, leaveOpen: true))
         {
-            var root = $"node-v{version}-win-x64/";
-            void Add(string name, string text)
+            foreach (var (name, text) in files)
             {
                 using var writer = new StreamWriter(zip.CreateEntry(root + name).Open());
                 writer.Write(text);
             }
-            Add("node.exe", "MZ node de pega");
-            Add("npm.cmd", "@ECHO OFF");
-            if (npm)
+        }
+        return buffer.ToArray();
+    }
+
+    private static byte[] TarGz(string root, IEnumerable<(string Name, string Text)> files)
+    {
+        using var buffer = new MemoryStream();
+        using (var gzip = new GZipStream(buffer, CompressionLevel.Fastest, leaveOpen: true))
+        using (var tar = new TarWriter(gzip, TarEntryFormat.Pax))
+        {
+            foreach (var (name, text) in files)
             {
-                Add("node_modules/npm/bin/npm-cli.js", "// npm de pega");
-                Add("node_modules/npm/bin/npx-cli.js", "// npx de pega");
-                Add("node_modules/npm/package.json", """{ "name": "npm", "version": "11.19.1" }""");
-                Add("node_modules/corepack/dist/corepack.js", "// corepack de pega");
+                var entry = new PaxTarEntry(TarEntryType.RegularFile, root + name)
+                {
+                    DataStream = new MemoryStream(Encoding.UTF8.GetBytes(text)),
+                    Mode = name.StartsWith("bin/", StringComparison.Ordinal)
+                        ? UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute
+                        : UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.GroupRead | UnixFileMode.OtherRead,
+                };
+                tar.WriteEntry(entry);
             }
         }
         return buffer.ToArray();
     }
 
     private static string Sha(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
+
+    /// <summary>El nombre del paquete de este sistema (node-v…-win-x64.zip o node-v…-linux-x64.tar.gz).</summary>
+    private static string Name(string version) => NodeCatalog.ArchiveName(version);
+
+    /// <summary>Una línea de SHASUMS256.txt por sistema: el de este lleva <paramref name="sha"/>; el otro, otra cosa.</summary>
+    private static string Sums(string version, char sha) =>
+        $"{new string('1', 64)}  node-v{version}-darwin-arm64.tar.gz\n"
+        + $"{new string(Linux ? '9' : sha, 64)}  node-v{version}-win-x64.zip\n"
+        + $"{new string(Linux ? sha : '9', 64)}  node-v{version}-linux-x64.tar.gz\n";
 
     /// <summary>nodejs.org en memoria: lo que se registre por URL; lo demás, 404.</summary>
     private sealed class FakeDist : HttpMessageHandler
@@ -74,11 +126,11 @@ public class NodeInstallerTests : IDisposable
 
     private const string Index = """
         [
-          {"version":"v26.12.1","date":"2026-10-21","files":["win-x64-zip","win-x64-msi"],"npm":"11.20.0","lts":false,"security":true},
-          {"version":"v24.22.1","date":"2026-10-20","files":["win-x64-zip"],"npm":"11.19.1","lts":"Krypton","security":true},
-          {"version":"v22.23.4","date":"2026-10-20","files":["win-x64-zip"],"npm":"10.9.9","lts":"Jod","security":true},
-          {"version":"v20.20.2","date":"2026-03-24","files":["win-x64-zip","win-x86-zip"],"npm":"10.8.2","lts":"Iron","security":true},
-          {"version":"v20.20.1","date":"2026-02-24","files":["win-x64-zip"],"npm":"10.8.2","lts":"Iron","security":false},
+          {"version":"v26.12.1","date":"2026-10-21","files":["linux-x64","win-x64-zip","win-x64-msi"],"npm":"11.20.0","lts":false,"security":true},
+          {"version":"v24.22.1","date":"2026-10-20","files":["linux-x64","win-x64-zip"],"npm":"11.19.1","lts":"Krypton","security":true},
+          {"version":"v22.23.4","date":"2026-10-20","files":["linux-x64","win-x64-zip"],"npm":"10.9.9","lts":"Jod","security":true},
+          {"version":"v20.20.2","date":"2026-03-24","files":["linux-x64","win-x64-zip","win-x86-zip"],"npm":"10.8.2","lts":"Iron","security":true},
+          {"version":"v20.20.1","date":"2026-02-24","files":["linux-x64","win-x64-zip"],"npm":"10.8.2","lts":"Iron","security":false},
           {"version":"v0.12.18","date":"2017-02-22","files":["win-x86-exe"],"npm":"2.15.11","lts":false,"security":false},
           {"version":"rara"},
           42
@@ -94,10 +146,19 @@ public class NodeInstallerTests : IDisposable
         {
             Assert.True(build.Pinned);
             Assert.Matches("^[0-9a-f]{64}$", build.Sha256);
-            Assert.Equal($"https://nodejs.org/dist/v{build.Version}/node-v{build.Version}-win-x64.zip", build.Url.ToString());
-            Assert.Equal($"node-v{build.Version}-win-x64.zip", build.FileName);
+            Assert.Equal($"https://nodejs.org/dist/v{build.Version}/{Name(build.Version)}", build.Url.ToString());
+            Assert.Equal(Name(build.Version), build.FileName);
             Assert.True(NodeCatalog.IsLts(build.Major, Hoy), build.Version);
             Assert.NotEqual(NodeBranchStatus.Eol, NodeCatalog.Status(build.Major, Hoy));
+        }
+        // Las dos listas fijadas, la misma version y npm en cada sistema, con paquetes distintos.
+        foreach (var (windows, linux) in NodeCatalog.WindowsLts.Zip(NodeCatalog.LinuxLts))
+        {
+            Assert.Equal(windows.Version, linux.Version);
+            Assert.Equal(windows.Npm, linux.Npm);
+            Assert.NotEqual(windows.Sha256, linux.Sha256);
+            Assert.EndsWith("-win-x64.zip", windows.FileName);
+            Assert.EndsWith("-linux-x64.tar.gz", linux.FileName);
         }
     }
 
@@ -126,25 +187,24 @@ public class NodeInstallerTests : IDisposable
     [Fact]
     public async Task ResolveAsync_UnaExactaNoFijada_ConElShasumsDeEsaVersion()
     {
-        var dist = new FakeDist().Add("https://nodejs.org/dist/v22.11.0/SHASUMS256.txt",
-            $"{new string('1', 64)}  node-v22.11.0-darwin-arm64.tar.gz\n{new string('A', 64)}  node-v22.11.0-win-x64.zip\n");
+        var dist = new FakeDist().Add("https://nodejs.org/dist/v22.11.0/SHASUMS256.txt", Sums("22.11.0", 'A'));
 
         var build = await NodeCatalog.ResolveAsync(new HttpClient(dist), NodeSpec.Parse("v22.11.0"), today: Hoy);
 
         Assert.Equal("22.11.0", build.Version);
         Assert.False(build.Pinned);
-        Assert.Equal(new string('a', 64), build.Sha256);   // en minúsculas, como lo calcula Roost
-        Assert.Equal("https://nodejs.org/dist/v22.11.0/node-v22.11.0-win-x64.zip", build.Url.ToString());
+        Assert.Equal(new string('a', 64), build.Sha256);   // en minúsculas, como lo calcula Roost, y el de este sistema
+        Assert.Equal($"https://nodejs.org/dist/v22.11.0/{Name("22.11.0")}", build.Url.ToString());
         Assert.Equal(["https://nodejs.org/dist/v22.11.0/SHASUMS256.txt"], dist.Requests);   // sin index.json
     }
 
     [Fact]
-    public async Task ResolveAsync_UnaRamaNoFijada_LaUltimaDelIndexConZip_YLuegoSuShasums()
+    public async Task ResolveAsync_UnaRamaNoFijada_LaUltimaDelIndexConPaquete_YLuegoSuShasums()
     {
         var dist = new FakeDist()
             .Add("https://nodejs.org/dist/index.json", Index)
-            .Add("https://nodejs.org/dist/v20.20.2/SHASUMS256.txt", $"{new string('b', 64)}  node-v20.20.2-win-x64.zip\n")
-            .Add("https://nodejs.org/dist/v26.12.1/SHASUMS256.txt", $"{new string('c', 64)} *node-v26.12.1-win-x64.zip\n");
+            .Add("https://nodejs.org/dist/v20.20.2/SHASUMS256.txt", Sums("20.20.2", 'b'))
+            .Add("https://nodejs.org/dist/v26.12.1/SHASUMS256.txt", Sums("26.12.1", 'c').Replace("  node-v26.12.1", " *node-v26.12.1"));
         var http = new HttpClient(dist);
 
         var iron = await NodeCatalog.ResolveAsync(http, NodeSpec.Parse("lts/iron"), today: Hoy);
@@ -160,84 +220,120 @@ public class NodeInstallerTests : IDisposable
         Assert.Empty(dist.Requests);
 
         var none = await Assert.ThrowsAsync<RoostException>(() => NodeCatalog.ResolveAsync(http, NodeSpec.Parse("19"), today: Hoy));
-        Assert.Contains("no tiene ninguna version de Node para Windows x64 que case con '19'", none.Message);
+        Assert.Contains($"no tiene ninguna version de Node para {NodeCatalog.PlatformLabel} que case con '19'", none.Message);
         var missing = await Assert.ThrowsAsync<RoostException>(() => NodeCatalog.ResolveAsync(http, NodeSpec.Parse("22.99.0"), today: Hoy));
         Assert.Contains("No existe Node 22.99.0", missing.Message);
         await Assert.ThrowsAsync<RoostException>(() => NodeCatalog.ResolveAsync(http, NodeSpec.Parse("system"), today: Hoy));
     }
 
     [Fact]
-    public void ParseIndex_SeSaltaLoQueNoEntiende()
+    public async Task ResolveAsync_UnaVersionSinPaqueteParaEsteSistema_LoDice()
+    {
+        // Solo el otro sistema: el SHASUMS no trae el paquete de este.
+        var other = Linux ? "node-v21.0.0-win-x64.zip" : "node-v21.0.0-linux-x64.tar.gz";
+        var dist = new FakeDist().Add("https://nodejs.org/dist/v21.0.0/SHASUMS256.txt", $"{new string('a', 64)}  {other}\n");
+
+        var ex = await Assert.ThrowsAsync<RoostException>(() => NodeCatalog.ResolveAsync(new HttpClient(dist), NodeSpec.Parse("21.0.0"), today: Hoy));
+
+        Assert.Contains(Name("21.0.0"), ex.Message);
+        Assert.Contains(NodeCatalog.PlatformLabel, ex.Message);
+    }
+
+    [Fact]
+    public void ParseIndex_SeSaltaLoQueNoEntiende_YSabeDeLosDosSistemas()
     {
         var releases = NodeCatalog.ParseIndex(Index);
 
         Assert.Equal(["26.12.1", "24.22.1", "22.23.4", "20.20.2", "20.20.1", "0.12.18"], releases.Select(r => r.Version));
         Assert.Equal("Krypton", releases[1].Lts);
         Assert.Null(releases[0].Lts);
+        Assert.True(releases[0].HasWindowsZip);
+        Assert.True(releases[0].HasLinuxX64);
         Assert.False(releases[^1].HasWindowsZip);
+        Assert.False(releases[^1].HasLinuxX64);
+        Assert.False(releases[^1].HasArchiveForThisOs);
         Assert.True(releases[0].Security);
         Assert.Throws<RoostException>(() => NodeCatalog.ParseIndex("<html>no</html>"));
         Assert.Null(NodeCatalog.ParseShasums("hola\n", "node-v1.0.0-win-x64.zip"));
+        Assert.Equal(new string('a', 64), NodeCatalog.ParseShasums($"{new string('A', 64)}  node-v1.0.0-linux-x64.tar.gz\n", "node-v1.0.0-linux-x64.tar.gz"));
     }
 
-    [WindowsFact("Solo en Windows: zips de Windows.")]
-    public async Task Install_ExtraeLaCarpetaDelZip_YNoDejaTemporales()
+    [Fact]
+    public async Task Install_ExtraeLaCarpetaDelPaquete_YNoDejaTemporales()
     {
-        var zip = Zip("24.22.1");
-        var dist = new FakeDist().Add("https://example.test/node-v24.22.1-win-x64.zip", zip);
-        var build = new NodeBuild("24.22.1", new Uri("https://example.test/node-v24.22.1-win-x64.zip"), Sha(zip)) { Pinned = true };
+        var archive = Archive("24.22.1");
+        var url = $"https://example.test/{Name("24.22.1")}";
+        var dist = new FakeDist().Add(url, archive);
+        var build = new NodeBuild("24.22.1", new Uri(url), Sha(archive)) { Pinned = true };
         var installer = new NodeInstaller(Paths, new HttpClient(dist));
 
         var node = await installer.InstallAsync(build);
 
         Assert.Equal(Path.Combine(Paths.NodeBin, "24.22.1"), node.Directory);
         Assert.True(File.Exists(node.Executable));
+        Assert.Equal(Path.Combine(node.Directory, InstalledNode.ExecutableRelative), node.Executable);
         Assert.True(File.Exists(node.NpmCli));
         Assert.True(File.Exists(node.NpxCli));
         Assert.True(node.HasCorepack);
         Assert.Equal("11.19.1", node.NpmVersion);
         Assert.Equal(24, node.Major);
+        Assert.True(Directory.Exists(node.BinDirectory));
         Assert.Empty(Directory.GetDirectories(Paths.NodeBin, ".*"));
-        Assert.True(File.Exists(Path.Combine(Paths.Downloads, "node-v24.22.1-win-x64.zip")));
+        Assert.True(File.Exists(Path.Combine(Paths.Downloads, Name("24.22.1"))));
         Assert.Equal(node, installer.Find(build));
         await Assert.ThrowsAsync<RoostException>(() => installer.InstallAsync(build));   // ya está
 
-        // Otra vez, sin la carpeta: el zip de la caché vale y no se va a la red.
+        // Otra vez, sin la carpeta: el paquete de la caché vale y no se va a la red.
         Directory.Delete(node.Directory, recursive: true);
         await installer.InstallAsync(build);
         Assert.Single(dist.Requests);
     }
 
+    [LinuxFact]
+    public async Task Install_EnLinux_ConservaElPermisoDeEjecucionDeBinNode()
+    {
+        var archive = Archive("22.23.4");
+        var url = $"https://example.test/{Name("22.23.4")}";
+        var installer = new NodeInstaller(Paths, new HttpClient(new FakeDist().Add(url, archive)));
+
+        var node = await installer.InstallAsync(new NodeBuild("22.23.4", new Uri(url), Sha(archive)));
+
+        Assert.True(File.GetUnixFileMode(node.Executable).HasFlag(UnixFileMode.UserExecute));
+        Assert.Equal(Path.Combine(node.Directory, "lib", "node_modules"), node.Modules);
+    }
+
     [Fact]
     public async Task Install_ConElShaMal_OSinNpm_NoInstalaNada()
     {
-        var zip = Zip("22.23.4");
-        var dist = new FakeDist().Add("https://example.test/a.zip", zip).Add("https://example.test/b.zip", Zip("22.23.4", npm: false));
+        var ext = Linux ? ".tar.gz" : ".zip";
+        var archive = Archive("22.23.4");
+        var noNpm = Archive("22.23.4", npm: false);   // una sola vez: el gzip lleva fecha y dos iguales no dan el mismo SHA
+        var dist = new FakeDist().Add($"https://example.test/a{ext}", archive).Add($"https://example.test/b{ext}", noNpm);
         var installer = new NodeInstaller(Paths, new HttpClient(dist));
 
         var bad = await Assert.ThrowsAsync<RoostException>(() =>
-            installer.InstallAsync(new NodeBuild("22.23.4", new Uri("https://example.test/a.zip"), new string('0', 64))));
+            installer.InstallAsync(new NodeBuild("22.23.4", new Uri($"https://example.test/a{ext}"), new string('0', 64))));
         Assert.Contains("SHA-256", bad.Message);
         Assert.Contains("roost node install 22.23.4", bad.Message);
         Assert.Empty(installer.ListInstalled());
 
-        var noNpm = Zip("22.23.4", npm: false);
         var broken = await Assert.ThrowsAsync<RoostException>(() =>
-            installer.InstallAsync(new NodeBuild("22.23.4", new Uri("https://example.test/b.zip"), Sha(noNpm))));
+            installer.InstallAsync(new NodeBuild("22.23.4", new Uri($"https://example.test/b{ext}"), Sha(noNpm))));
         Assert.Contains("no trae npm", broken.Message);
         Assert.False(Directory.Exists(Path.Combine(Paths.NodeBin, "22.23.4")));
     }
 
-    [WindowsFact("Solo en Windows: zips de Windows.")]
+    [Fact]
     public void ListInstalled_LaMasNuevaPrimero_YMatchPorRamaOVersion()
     {
         foreach (var v in new[] { "22.23.4", "24.22.1", "22.11.0" })
         {
-            Directory.CreateDirectory(Path.Combine(Paths.NodeBin, v));
-            File.WriteAllText(Path.Combine(Paths.NodeBin, v, "node.exe"), "");
+            var exe = new InstalledNode(v, Path.Combine(Paths.NodeBin, v)).Executable;
+            Directory.CreateDirectory(Path.GetDirectoryName(exe)!);
+            File.WriteAllText(exe, "");
         }
         Directory.CreateDirectory(Path.Combine(Paths.NodeBin, ".tmp-x"));
-        Directory.CreateDirectory(Path.Combine(Paths.NodeBin, "26.0.0"));   // sin node.exe: no cuenta
+        Directory.CreateDirectory(Path.Combine(Paths.NodeBin, "26.0.0"));   // sin ejecutable: no cuenta
         Directory.CreateDirectory(Path.Combine(Paths.NodeBin, "otra"));
 
         var installer = new NodeInstaller(Paths);

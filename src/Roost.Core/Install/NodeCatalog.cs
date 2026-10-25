@@ -7,8 +7,8 @@ using Roost.Core.Node;
 namespace Roost.Core.Install;
 
 /// <summary>
-/// Un zip de Node para Windows x64 (<c>node-v&lt;versión&gt;-win-x64.zip</c> de nodejs.org) con el
-/// SHA-256 que tiene que dar.
+/// Un paquete de Node de nodejs.org con el SHA-256 que tiene que dar: el zip de Windows x64
+/// (<c>node-v&lt;versión&gt;-win-x64.zip</c>) o el tar.gz de Linux x64 (<c>node-v&lt;versión&gt;-linux-x64.tar.gz</c>).
 /// </summary>
 /// <param name="Size">Lo que ocupa, en bytes (para el progreso de la descarga); null si no se sabe.</param>
 public sealed record NodeBuild(string Version, Uri Url, string Sha256, long? Size = null)
@@ -23,7 +23,8 @@ public sealed record NodeBuild(string Version, Uri Url, string Sha256, long? Siz
     /// <summary>La versión de npm que trae (la de <c>index.json</c>), si se sabe.</summary>
     public string? Npm { get; init; }
 
-    public string FileName => NodeCatalog.ZipName(Version);
+    /// <summary>El nombre del fichero, el de la URL (<c>node-v24.22.1-win-x64.zip</c>, <c>node-v24.22.1-linux-x64.tar.gz</c>).</summary>
+    public string FileName => System.IO.Path.GetFileName(Url.AbsolutePath);
 
     public string Label => $"Node {Version}";
 
@@ -60,18 +61,26 @@ public sealed record NodeBranch(int Major, string? Codename, DateOnly Start, Dat
         : NodeBranchStatus.Current;
 }
 
-/// <summary>Una versión de <c>index.json</c> de nodejs.org: si es LTS (su nombre) y si hay zip para Windows x64.</summary>
+/// <summary>Una versión de <c>index.json</c> de nodejs.org: si es LTS (su nombre) y si hay paquete para Windows x64 (<c>win-x64-zip</c>) y para Linux x64 (<c>linux-x64</c>).</summary>
 public sealed record NodeRelease(string Version, string? Lts, bool HasWindowsZip, bool Security, string? Npm)
 {
     public ComponentVersion ParsedVersion => ComponentVersion.TryParse(Version, out var v) ? v : default;
+
+    /// <summary>true si trae <c>node-v…-linux-x64.tar.gz</c> (en <c>files</c>, <c>linux-x64</c>).</summary>
+    public bool HasLinuxX64 { get; init; }
+
+    /// <summary>El paquete de este sistema: el tar.gz de Linux o el zip de Windows.</summary>
+    public bool HasArchiveForThisOs => OperatingSystem.IsLinux() ? HasLinuxX64 : HasWindowsZip;
 }
 
 /// <summary>
-/// Node para Windows, de nodejs.org (ROOST.md: N1, Node gratis). Las LTS que ofrece Roost van fijadas
-/// a mano con su SHA-256, como <c>GitCatalog</c> con MinGit: así lo que se instala no depende de lo
-/// que diga nodejs.org ese día. Cualquier otra versión (la que pida un <c>.nvmrc</c> exacto, o una
-/// rama que Roost no fija) se puede instalar igual, verificada con el <c>SHASUMS256.txt</c> de esa
-/// misma versión (que se baja de nodejs.org, como el <c>releases.json</c> de windows.php.net).
+/// Node de nodejs.org (ROOST.md: N1, Node gratis), para Windows x64 (el zip) y Linux x64 (el tar.gz;
+/// el tar.xz no, porque .NET no trae xz). Las LTS que ofrece Roost van fijadas a mano con su SHA-256,
+/// como <c>GitCatalog</c> con MinGit: así lo que se instala no depende de lo que diga nodejs.org ese
+/// día. Cualquier otra versión (la que pida un <c>.nvmrc</c> exacto, o una rama que Roost no fija) se
+/// puede instalar igual, verificada con el <c>SHASUMS256.txt</c> de esa misma versión (que se baja de
+/// nodejs.org, como el <c>releases.json</c> de windows.php.net). <see cref="Lts"/> y <see cref="Default"/>
+/// son los de este sistema.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -85,7 +94,7 @@ public sealed record NodeRelease(string Version, string? Lts, bool HasWindowsZip
 /// </para>
 /// <para>
 /// <b>Para cambiar de versión</b> (Node saca parches de seguridad casi cada mes; hay que subirlas con
-/// Roost): en <c>https://nodejs.org/dist/index.json</c>, la última de cada rama LTS con
+/// Roost): en <c>https://nodejs.org/dist/index.json</c>, la última de cada rama LTS con <c>linux-x64</c> y
 /// <c>win-x64-zip</c> (y su <c>npm</c>); el calendario, en
 /// <c>https://raw.githubusercontent.com/nodejs/Release/main/schedule.json</c>. En una carpeta vacía:
 /// <c>SHASUMS256.txt</c>, <c>SHASUMS256.txt.sig</c> y el zip de
@@ -93,9 +102,9 @@ public sealed record NodeRelease(string Version, string? Lts, bool HasWindowsZip
 /// <c>https://github.com/nodejs/release-keys/raw/main/gpg-only-active-keys/pubring.kbx</c>;
 /// <c>gpgv --keyring ./pubring.kbx SHASUMS256.txt.sig SHASUMS256.txt</c> tiene que dar «Good
 /// signature» de una clave que esté también en la lista «Release keys» del README de nodejs/node;
-/// <c>sha256sum -c --ignore-missing SHASUMS256.txt</c> con el zip bajado; y fijar aquí la versión, el
-/// SHA-256, el tamaño y el npm. Cuando una rama pasa a LTS (la 26, el 28-oct-2026), se añade y la más
-/// nueva va la primera; la que llega a EOL se quita (se puede seguir instalando sin fijar).
+/// <c>sha256sum -c --ignore-missing SHASUMS256.txt</c> con el zip y el tar.gz bajados; y fijar aquí la
+/// versión, los dos SHA-256, los tamaños y el npm. Cuando una rama pasa a LTS (la 26, el 28-oct-2026),
+/// se añade y la más nueva va la primera; la que llega a EOL se quita (se puede seguir instalando sin fijar).
 /// </para>
 /// </remarks>
 public static partial class NodeCatalog
@@ -107,28 +116,57 @@ public static partial class NodeCatalog
     // 5BE8A3F6C8A5C01D106C0AD820B1A390B168D356 (Antoine du Hamel), que está en el llavero de
     // nodejs/release-keys y en la lista del README de nodejs/node; y el SHA-256 del zip bajado
     // coincide con el de ese SHASUMS256.txt. Trae npm 11.19.1.
-    public static readonly NodeBuild V24 = new(
+    public static readonly NodeBuild WindowsV24 = new(
         "24.22.1",
         new Uri($"{DistUrl}v24.22.1/node-v24.22.1-win-x64.zip"),
         "d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5",
         Size: 37_748_064)
     { Pinned = true, Npm = "11.19.1" };
 
+    // node-v24.22.1-linux-x64.tar.gz (58.290.700 bytes), del mismo SHASUMS256.txt firmado (comprobado
+    // el 25-oct-2026 con gpgv en una Ubuntu 24.04; el tar.gz bajado da ese SHA-256).
+    public static readonly NodeBuild LinuxV24 = new(
+        "24.22.1",
+        new Uri($"{DistUrl}v24.22.1/node-v24.22.1-linux-x64.tar.gz"),
+        "eb6728e77c576a35162c122c45ccadf224d89ff00abc8dae46cc2897c6002d7c",
+        Size: 58_290_700)
+    { Pinned = true, Npm = "11.19.1" };
+
     // node-v22.23.4-win-x64.zip (35.604.229 bytes), LTS «Jod», verificado el 24-oct-2026 igual que la
     // 24 (misma clave de firma, la del SHASUMS256.txt de v22.23.4). Trae npm 10.9.9.
-    public static readonly NodeBuild V22 = new(
+    public static readonly NodeBuild WindowsV22 = new(
         "22.23.4",
         new Uri($"{DistUrl}v22.23.4/node-v22.23.4-win-x64.zip"),
         "cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20",
         Size: 35_604_229)
     { Pinned = true, Npm = "10.9.9" };
 
+    // node-v22.23.4-linux-x64.tar.gz (56.807.066 bytes), del mismo SHASUMS256.txt firmado (25-oct-2026).
+    public static readonly NodeBuild LinuxV22 = new(
+        "22.23.4",
+        new Uri($"{DistUrl}v22.23.4/node-v22.23.4-linux-x64.tar.gz"),
+        "b8492284c76a54baf58d61668dd0e41ee0fc98adabf9503d30f05d08f55b4406",
+        Size: 56_807_066)
+    { Pinned = true, Npm = "10.9.9" };
+
+    /// <summary>Las fijadas de Windows, la más nueva primero.</summary>
+    public static readonly IReadOnlyList<NodeBuild> WindowsLts = [WindowsV24, WindowsV22];
+
+    /// <summary>Las fijadas de Linux, la más nueva primero.</summary>
+    public static readonly IReadOnlyList<NodeBuild> LinuxLts = [LinuxV24, LinuxV22];
+
+    /// <summary>La LTS 24 de este sistema.</summary>
+    public static NodeBuild V24 => OperatingSystem.IsLinux() ? LinuxV24 : WindowsV24;
+
+    /// <summary>La LTS 22 de este sistema.</summary>
+    public static NodeBuild V22 => OperatingSystem.IsLinux() ? LinuxV22 : WindowsV22;
+
     /// <summary>
-    /// Las LTS que ofrece Roost, la más nueva primero (es la de <c>roost node install lts</c> y la de la
-    /// app). El 24-oct-2026: la 24 (en mantenimiento desde el 20-oct) y la 22 (mantenimiento hasta el
-    /// 30-abr-2027). La 26 es LTS el 28-oct-2026.
+    /// Las LTS que ofrece Roost en este sistema, la más nueva primero (es la de <c>roost node install
+    /// lts</c> y la de la app). El 24-oct-2026: la 24 (en mantenimiento desde el 20-oct) y la 22
+    /// (mantenimiento hasta el 30-abr-2027). La 26 es LTS el 28-oct-2026.
     /// </summary>
-    public static readonly IReadOnlyList<NodeBuild> Lts = [V24, V22];
+    public static IReadOnlyList<NodeBuild> Lts => OperatingSystem.IsLinux() ? LinuxLts : WindowsLts;
 
     /// <summary>La que se instala si no se dice otra.</summary>
     public static NodeBuild Default => Lts[0];
@@ -194,9 +232,13 @@ public static partial class NodeCatalog
         };
     }
 
-    public static string ZipName(string version) => $"node-v{version}-win-x64.zip";
+    /// <summary>El nombre del paquete de este sistema: <c>node-v…-win-x64.zip</c> en Windows, <c>node-v…-linux-x64.tar.gz</c> en Linux.</summary>
+    public static string ArchiveName(string version) => OperatingSystem.IsLinux() ? $"node-v{version}-linux-x64.tar.gz" : $"node-v{version}-win-x64.zip";
 
-    public static Uri ZipUrl(string version) => new($"{DistUrl}v{version}/{ZipName(version)}");
+    public static Uri ArchiveUrl(string version) => new($"{DistUrl}v{version}/{ArchiveName(version)}");
+
+    /// <summary>Cómo se llama este sistema en los textos («Windows x64», «Linux x64»).</summary>
+    public static string PlatformLabel => OperatingSystem.IsLinux() ? "Linux x64" : "Windows x64";
 
     public static Uri ShasumsUrl(string version) => new($"{DistUrl}v{version}/SHASUMS256.txt");
 
@@ -237,19 +279,19 @@ public static partial class NodeCatalog
         {
             var releases = ParseIndex(await GetTextAsync(http, IndexUrl, cancellation));
             var match = releases
-                .Where(r => r.HasWindowsZip && ComponentVersion.TryParse(r.Version, out _))
+                .Where(r => r.HasArchiveForThisOs && ComponentVersion.TryParse(r.Version, out _))
                 .Where(r => spec.Kind == NodeSpecKind.LtsLatest ? r.Lts is not null : spec.Matches(r.ParsedVersion, day))
                 .OrderByDescending(r => r.ParsedVersion)
                 .FirstOrDefault()
-                ?? throw new RoostException($"nodejs.org no tiene ninguna version de Node para Windows x64 que case con '{spec.Text}'.");
+                ?? throw new RoostException($"nodejs.org no tiene ninguna version de Node para {PlatformLabel} que case con '{spec.Text}'.");
             version = match.Version;
             npm = match.Npm;
         }
 
         var sums = await GetTextAsync(http, ShasumsUrl(version), cancellation, notFound: $"No existe Node {version} en nodejs.org (mira las versiones en {DistUrl}).");
-        var sha = ParseShasums(sums, ZipName(version))
-            ?? throw new RoostException($"El SHASUMS256.txt de Node {version} no trae {ZipName(version)}: esa version no tiene zip para Windows x64.");
-        return new NodeBuild(version, ZipUrl(version), sha) { Pinned = false, Npm = npm };
+        var sha = ParseShasums(sums, ArchiveName(version))
+            ?? throw new RoostException($"El SHASUMS256.txt de Node {version} no trae {ArchiveName(version)}: esa version no tiene paquete para {PlatformLabel}.");
+        return new NodeBuild(version, ArchiveUrl(version), sha) { Pinned = false, Npm = npm };
     }
 
     private static async Task<string> GetTextAsync(HttpClient http, Uri url, CancellationToken cancellation, string? notFound = null)
@@ -300,11 +342,11 @@ public static partial class NodeCatalog
                 var version = v.GetString()!.TrimStart('v', 'V');
                 if (!ComponentVersion.TryParse(version, out _)) continue;
                 var lts = item.TryGetProperty("lts", out var l) && l.ValueKind == JsonValueKind.String ? l.GetString() : null;
-                var zip = item.TryGetProperty("files", out var f) && f.ValueKind == JsonValueKind.Array
-                          && f.EnumerateArray().Any(x => x.ValueKind == JsonValueKind.String && x.GetString() == "win-x64-zip");
+                var files = item.TryGetProperty("files", out var f) && f.ValueKind == JsonValueKind.Array
+                    ? f.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()).ToList() : [];
                 var security = item.TryGetProperty("security", out var s) && s.ValueKind == JsonValueKind.True;
                 var npm = item.TryGetProperty("npm", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null;
-                releases.Add(new NodeRelease(version, lts, zip, security, npm));
+                releases.Add(new NodeRelease(version, lts, files.Contains("win-x64-zip"), security, npm) { HasLinuxX64 = files.Contains("linux-x64") });
             }
         }
         catch (JsonException)

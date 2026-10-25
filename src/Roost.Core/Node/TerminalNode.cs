@@ -150,9 +150,10 @@ public static class TerminalNode
         NodeSpec.TryParse(spec, out var parsed, out _) && parsed.Kind != NodeSpecKind.System ? spec.Trim() : null;
 
     /// <summary>
-    /// Lo que necesita un Node lanzado por Roost: su carpeta la primera en el PATH (así los scripts de
-    /// npm que llaman a <c>node</c>, o a <c>npm</c>, usan este mismo, y no otro del sistema ni el shim
-    /// otra vez) y, si el usuario no lo ha puesto ya, <see cref="ExtraCaVariable"/> con la CA de Roost.
+    /// Lo que necesita un Node lanzado por Roost: su carpeta de binarios la primera en el PATH (así los
+    /// scripts de npm que llaman a <c>node</c>, o a <c>npm</c>, usan este mismo, y no otro del sistema ni
+    /// el shim otra vez; en Linux es su <c>bin/</c>) y, si el usuario no lo ha puesto ya,
+    /// <see cref="ExtraCaVariable"/> con la CA de Roost.
     /// Con <paramref name="interactive"/> false (la app, los pasos), además sin colores ni preguntas: la
     /// salida se pinta tal cual y nadie puede contestar. Nunca toca la caché ni el <c>.npmrc</c> del usuario.
     /// </summary>
@@ -162,7 +163,7 @@ public static class TerminalNode
         var path = env("PATH") ?? env("Path") ?? "";
         var result = new Dictionary<string, string>
         {
-            ["PATH"] = path.Length == 0 ? node.Directory : node.Directory + Path.PathSeparator + path,
+            ["PATH"] = path.Length == 0 ? node.BinDirectory : node.BinDirectory + Path.PathSeparator + path,
         };
         var ca = new LocalCa(paths).CaCertFile;
         if (string.IsNullOrEmpty(env(ExtraCaVariable)) && File.Exists(ca)) result[ExtraCaVariable] = ca;

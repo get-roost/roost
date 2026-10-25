@@ -78,7 +78,6 @@ public sealed class GitKeyNewCommand : AsyncCommand<GitKeyNewCommand.Settings>
 
     public override async Task<int> ExecuteAsync(CommandContext context, Settings settings, CancellationToken cancellation)
     {
-        if (!PlatformGate.Require("git key")) return 1;
         var paths = RoostPaths.Default();
         try
         {

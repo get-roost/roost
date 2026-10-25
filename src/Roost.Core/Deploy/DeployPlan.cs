@@ -432,7 +432,9 @@ public static partial class DeployPlan
                 Kind = DeployStepKind.StorageLink,
                 Label = "php artisan storage:link",
                 Command = "php artisan storage:link",
-                Hint = "Enlaza public/storage con storage/app/public (una union de Windows: no pide permisos).",
+                Hint = OperatingSystem.IsWindows()
+                    ? "Enlaza public/storage con storage/app/public (una union de Windows: no pide permisos)."
+                    : "Enlaza public/storage con storage/app/public (un enlace simbolico).",
                 Checked = true,
                 RunsProjectCode = true,
             });

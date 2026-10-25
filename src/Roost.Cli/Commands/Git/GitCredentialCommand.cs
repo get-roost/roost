@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text;
 using Roost.Core.Git;
+using Roost.Core.Platform;
 using Spectre.Console.Cli;
 
 namespace Roost.Cli.Commands.Git;
@@ -30,7 +31,7 @@ public sealed class GitCredentialCommand : Command<GitCredentialCommand.Settings
         using var output = new StreamWriter(Console.OpenStandardOutput(), utf8) { NewLine = "\n", AutoFlush = false };
         try
         {
-            ICredentialStore store = OperatingSystem.IsWindows() ? new WindowsCredentialStore() : NoCredentialStore.Instance;
+            var store = CredentialStores.Default(RoostPaths.Default());
             var code = GitCredentialProtocol.Run(action, input, output, new GitCredentials(store));
             output.Flush();
             return code;
