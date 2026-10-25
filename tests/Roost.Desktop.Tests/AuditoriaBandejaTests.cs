@@ -128,7 +128,7 @@ public class AuditoriaBandejaTests
         Assert.NotEqual(AuditHistory.IgnoreIdOf(F(Laragon)), AuditHistory.IgnoreIdOf(F(LaragonFixed)));
     }
 
-    [WindowsFact("Pendiente en Linux: la app (L2).")]
+    [Fact]
     public void Historial_AlMoverLaRaiz_LoDeRoostSigueSiendoLoMismo()
     {
         var root = Path.Combine(Path.GetTempPath(), "roost-historial-" + Guid.NewGuid().ToString("N"));

@@ -139,16 +139,16 @@ public static class ShellApps
         var candidates = new List<string>();
         foreach (var jetbrains in new[] { @"%ProgramFiles%\JetBrains", @"%ProgramFiles(x86)%\JetBrains" })
             candidates.AddRange(p.Directories(Expand(p, jetbrains))
-                .Where(d => Path.GetFileName(d).StartsWith("PhpStorm", StringComparison.OrdinalIgnoreCase))
+                .Where(d => WindowsFileName(d).StartsWith("PhpStorm", StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase)
-                .Select(d => Path.Combine(d, "bin", exe)));
-        candidates.Add(Path.Combine(Expand(p, @"%LocalAppData%\Programs\PhpStorm"), "bin", exe));
+                .Select(d => Join(d, "bin", exe)));
+        candidates.Add(Join(Expand(p, @"%LocalAppData%\Programs\PhpStorm"), "bin", exe));
         foreach (var channel in p.Directories(Expand(p, @"%LocalAppData%\JetBrains\Toolbox\apps\PhpStorm")))
-            candidates.AddRange(p.Directories(channel).OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase).Select(d => Path.Combine(d, "bin", exe)));
+            candidates.AddRange(p.Directories(channel).OrderByDescending(d => d, StringComparer.OrdinalIgnoreCase).Select(d => Join(d, "bin", exe)));
         foreach (var key in new[] { @"SOFTWARE\JetBrains\PhpStorm", @"SOFTWARE\WOW6432Node\JetBrains\PhpStorm" })
             foreach (var build in p.RegistrySubKeys(RegHive.LocalMachine, key).OrderByDescending(b => b, StringComparer.OrdinalIgnoreCase))
                 if (p.ReadRegistry(RegHive.LocalMachine, $@"{key}\{build}", null) is { Length: > 0 } dir)
-                    candidates.Add(Path.Combine(dir.Trim('"'), "bin", exe));
+                    candidates.Add(Join(dir.Trim('"'), "bin", exe));
         return candidates.FirstOrDefault(p.FileExists) ?? FromUninstall(p, "PhpStorm", exe, "bin");
     }
 
@@ -166,7 +166,7 @@ public static class ShellApps
         var gitRoot = p.ReadRegistry(RegHive.LocalMachine, @"SOFTWARE\GitForWindows", "InstallPath")
                       ?? p.ReadRegistry(RegHive.CurrentUser, @"SOFTWARE\GitForWindows", "InstallPath");
         Add(found, "gitbash", "Git Bash", First(p,
-            [.. gitRoot is null ? Array.Empty<string>() : [Path.Combine(gitRoot, "git-bash.exe")], @"%ProgramFiles%\Git\git-bash.exe", @"%LocalAppData%\Programs\Git\git-bash.exe"]));
+            [.. gitRoot is null ? Array.Empty<string>() : [Join(gitRoot, "git-bash.exe")], @"%ProgramFiles%\Git\git-bash.exe", @"%LocalAppData%\Programs\Git\git-bash.exe"]));
         Add(found, "cmd", "Símbolo del sistema (cmd)", p.Env("ComSpec") is { Length: > 0 } comspec && p.FileExists(comspec) ? comspec : First(p, [@"%SystemRoot%\System32\cmd.exe"]));
         return found;
     }
@@ -222,7 +222,7 @@ public static class ShellApps
                 {
                     var command = p.ReadRegistry(hive, $@"{root}\{name}\shell\open\command", null);
                     if (ExeOf(command) is not { } exe || !p.FileExists(exe)) continue;
-                    var id = Path.GetFileName(exe).ToLowerInvariant();
+                    var id = WindowsFileName(exe).ToLowerInvariant();
                     if (found.Any(b => b.Id == id)) continue;
                     var display = p.ReadRegistry(hive, $@"{root}\{name}", null) is { Length: > 0 } d ? d : name;
                     found.Add(new ShellApp(id, display, exe));
@@ -291,12 +291,23 @@ public static class ShellApps
 
     private static string? First(AppProbe p, IEnumerable<string> candidates) =>
         // Una variable que no está (en los tests, o un equipo raro) deja la ruta a medias: se salta.
-        candidates.Select(c => Expand(p, c)).FirstOrDefault(c => Path.IsPathFullyQualified(c) && p.FileExists(c));
+        candidates.Select(c => Expand(p, c)).FirstOrDefault(c => IsWindowsFullPath(c) && p.FileExists(c));
 
     private static string? OnPath(AppProbe p, string exe) =>
-        (p.Env("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(dir => Path.Combine(dir, exe))
+        (p.Env("PATH") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(dir => Join(dir, exe))
             .FirstOrDefault(p.FileExists);
+
+    // Las rutas de Windows se montan a mano (no con Path.Combine): así el equipo de pega de Windows de los
+    // tests vale también en el runner de Linux, donde Path.Combine junta con / y «C:\» no es una ruta completa.
+
+    private static bool IsWindowsFullPath(string path) =>
+        path.Length > 2 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/';
+
+    private static string Join(params string[] parts) => string.Join('\\', parts.Select(p => p.TrimEnd('\\')));
+
+    /// <summary>El nombre de fichero de una ruta de Windows (<c>C:\a\b.exe</c> → <c>b.exe</c>), valga el test donde valga.</summary>
+    private static string WindowsFileName(string path) => path[(path.LastIndexOf('\\') + 1)..];
 
     /// <summary>Linux: el primero de los candidatos que existe (rutas con <c>/</c>, escritas enteras).</summary>
     private static string? FirstPosix(AppProbe p, IEnumerable<string> candidates) =>
@@ -323,13 +334,13 @@ public static class ShellApps
                     if (p.ReadRegistry(hive, $@"{root}\{key}", "InstallLocation") is { Length: > 0 } location)
                     {
                         var dir = location.Trim('"');
-                        var candidate = subfolder is null ? Path.Combine(dir, exe) : Path.Combine(dir, subfolder, exe);
+                        var candidate = subfolder is null ? Join(dir, exe) : Join(dir, subfolder, exe);
                         if (p.FileExists(candidate)) return candidate;
                     }
                     if (p.ReadRegistry(hive, $@"{root}\{key}", "DisplayIcon") is { Length: > 0 } icon)
                     {
                         var path = icon.Split(',')[0].Trim('"');
-                        if (Path.GetFileName(path).Equals(exe, StringComparison.OrdinalIgnoreCase) && p.FileExists(path)) return path;
+                        if (WindowsFileName(path).Equals(exe, StringComparison.OrdinalIgnoreCase) && p.FileExists(path)) return path;
                     }
                 }
             }

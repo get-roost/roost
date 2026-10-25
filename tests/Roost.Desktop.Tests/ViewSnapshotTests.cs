@@ -71,7 +71,7 @@ public class ViewSnapshotTests
         Snapshot(window, "inicio-parado");
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact]
     public async Task Php_ConCatalogoYExtensiones()
     {
         var (main, window, fake) = await OpenAsync(running: true);
@@ -86,7 +86,9 @@ public class ViewSnapshotTests
         Assert.Equal(php.Installed[0], php.Selected);
         Assert.Contains(php.Extensions, e => e.Name == "curl" && e.IsOn);
         Assert.Contains(php.Extensions, e => e.Name == "soap" && !e.IsOn);
-        Assert.Equal(["8.5.12", "8.4.27", "8.3.36", "8.2.35", "8.1.34", "7.4.33"], php.Catalog.Select(r => r.Version));
+        Assert.All(php.Extensions, e => Assert.False(e.BuiltIn));   // en la raíz de pega no hay BUILD.json: ninguna va integrada
+        // En Linux el catálogo es el de roost-builds (de la 8.1 a la 8.5: la 7.4 y la 8.0 son solo de Windows).
+        Assert.Equal(OperatingSystem.IsWindows() ? ["8.5.12", "8.4.27", "8.3.36", "8.2.35", "8.1.34", "7.4.33"] : ["8.5.12", "8.4.27", "8.3.36", "8.2.35", "8.1.34"], php.Catalog.Select(r => r.Version));
         Assert.False(php.Catalog[0].Installed);
         Assert.True(php.Catalog[1].Installed);
         Snapshot(window, "php");
@@ -1431,7 +1433,7 @@ public class ViewSnapshotTests
         return dll;
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact]
     public async Task Php_DetalleConXdebugConfDDeLaRamaYAjustesRapidos()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -1445,8 +1447,9 @@ public class ViewSnapshotTests
         Assert.DoesNotContain(php.Extensions, e => e.Name == "xdebug");
         Assert.True(php.XdebugAvailable);
         Assert.False(php.XdebugOn);
-        Assert.StartsWith("Apagado. La primera vez se baja Xdebug 3.5.3 de xdebug.org", php.XdebugText);
-        Assert.Equal(@"conf.d\8.4\99-usuario.ini", php.BranchIniText);
+        // En Windows se baja la DLL la primera vez; en Linux el xdebug.so viene dentro de cada PHP (la raíz de pega lo trae).
+        Assert.StartsWith(OperatingSystem.IsWindows() ? "Apagado. La primera vez se baja Xdebug 3.5.3 de xdebug.org" : "Apagado (Xdebug viene dentro de este PHP, en ext/)", php.XdebugText);
+        Assert.Equal(Path.Combine("conf.d", "8.4", "99-usuario.ini"), php.BranchIniText);
         Assert.Equal(["512M", "128M", "128M", "120"], new[] { php.MemoryLimit, php.UploadMaxFilesize, php.PostMaxSize, php.MaxExecutionTime });
         Assert.False(php.CanSaveSettings);
         ScrollPhpTo(window, 250);
@@ -1519,7 +1522,7 @@ public class ViewSnapshotTests
         Assert.Null(main.Dialog);
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact(Skip = "Solo en Windows: en Linux no se baja nada, el xdebug.so viene dentro de cada PHP de roost-builds.", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
     public async Task Php_XdebugLaPrimeraVez_LoBajaConElDialogoInstalando()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -1576,7 +1579,7 @@ public class ViewSnapshotTests
         Assert.Null(main.Dialog);
     }
 
-    [AvaloniaFact(Skip = "Pendiente en Linux: la app (L2).", SkipUnless = nameof(Os.IsWindows), SkipType = typeof(Os))]
+    [AvaloniaFact]
     public async Task Php_PhpinfoYModulos_ConElPhpIniDeRoost_YBusqueda()
     {
         var (main, window, fake) = await OpenAsync(running: false);
@@ -1602,7 +1605,7 @@ public class ViewSnapshotTests
         Assert.Equal(Path.Combine(fake.Paths.PhpBin, "8.4.27-nts-x64", OsNames.Exe("php")), spec.Exe);
         Assert.Equal(["-i"], spec.Arguments);
         Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "8.4.27-nts-x64"), spec.Environment!["PHPRC"]);
-        Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "conf.d") + ";" + Path.Combine(fake.Paths.Etc, "php", "conf.d", "8.4"), spec.Environment["PHP_INI_SCAN_DIR"]);
+        Assert.Equal(Path.Combine(fake.Paths.Etc, "php", "conf.d") + Path.PathSeparator + Path.Combine(fake.Paths.Etc, "php", "conf.d", "8.4"), spec.Environment["PHP_INI_SCAN_DIR"]);
         Snapshot(window, "php-phpinfo");
         dialog.FinishCommand.Execute(null);
         await info;

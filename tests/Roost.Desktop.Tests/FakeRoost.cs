@@ -21,6 +21,13 @@ public sealed class FakeRoost : IDisposable
             Touch(Path.Combine(Paths.PhpBin, php, OsNames.Exe("php-cgi")));
             foreach (var ext in new[] { "bz2", "curl", "exif", "fileinfo", "gd", "gettext", "intl", "ldap", "mbstring", "mysqli", "opcache", "openssl", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "pgsql", "soap", "sodium", "sqlite3", "xsl", "zip" })
                 Touch(Path.Combine(Paths.PhpBin, php, "ext", $"php_{ext}.dll"));
+            // La app en Linux (L2): fuera de Windows las extensiones de ext/ son .so, y Xdebug viene dentro de cada PHP (ext/xdebug.so).
+            if (!OperatingSystem.IsWindows())
+            {
+                foreach (var ext in new[] { "bz2", "curl", "exif", "fileinfo", "gd", "gettext", "intl", "ldap", "mbstring", "mysqli", "opcache", "openssl", "pdo_mysql", "pdo_pgsql", "pdo_sqlite", "pgsql", "soap", "sodium", "sqlite3", "xsl", "zip" })
+                    Touch(Path.Combine(Paths.PhpBin, php, "ext", $"{ext}.so"));
+                Touch(Path.Combine(Paths.PhpBin, php, "ext", "xdebug.so"));
+            }
         }
         Touch(Path.Combine(Paths.DbBin("mariadb"), "11.4.13", "bin", OsNames.Exe("mariadbd")));
         Touch(Path.Combine(Paths.NginxBin, "1.30.6", OsNames.Exe("nginx")));

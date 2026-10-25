@@ -563,7 +563,7 @@ public sealed partial class AuditViewModel : PageViewModel
         var branch = $"{f.Component.Version.Major}.{f.Component.Version.Minor}";
         MitigationNote = Mitigations.Count == 0 ? null
             : f.MitigationStates.Count == 0 ? "Sin comprobar todavía: se comprueban con php -i al escanear el equipo."
-            : roost is not null ? $"«Aplicar» las escribe en conf.d\\{branch}\\{PhpMitigations.FileName} (nunca en tus 99-usuario.ini) y reinicia solo el pool de la {branch}. Son un tapón: el arreglo es actualizar."
+            : roost is not null ? $"«Aplicar» las escribe en {Path.Combine("conf.d", branch, PhpMitigations.FileName)} (nunca en tus 99-usuario.ini) y reinicia solo el pool de la {branch}. Son un tapón: el arreglo es actualizar."
             : $"Este PHP es de {f.Component.Source}: Roost solo lo lee. Cambia su php.ini ({Path.GetDirectoryName(f.Component.ExecutablePath)}); y su servidor web puede leer otro.";
     }
 

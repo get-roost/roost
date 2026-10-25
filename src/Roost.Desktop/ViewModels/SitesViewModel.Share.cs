@@ -489,7 +489,7 @@ public sealed partial class ShareDialogViewModel : DialogViewModel
             warnings.Add(new("Windows no dice si esta red es privada o pública: si la tiene como pública, el móvil no llegará (la regla de Roost es solo para redes privadas).", Tone.Warn));
         warnings.Add(new(ruleExists
             ? $"La regla «{LanFirewall.RuleName(port)}» del cortafuegos ya está puesta: solo TCP {port}, solo en redes privadas y solo desde tu subred."
-            : $"{OsTexts.WillAskAdmin} para poner la regla «{LanFirewall.RuleName(port)}» del cortafuegos: solo TCP {port}, solo en redes privadas y solo desde tu subred. Roost la quita al dejar de compartir.", Tone.Neutral));
+            : $"{OsTexts.WillAskPermission} para poner la regla «{LanFirewall.RuleName(port)}» del cortafuegos: solo TCP {port}, solo en redes privadas y solo desde tu subred. Roost la quita al dejar de compartir.", Tone.Neutral));
         warnings.Add(new($"El móvil no conoce la CA de Roost: el navegador avisará de que la conexión no es privada («Avanzado» › «Continuar»). Para que no avise, instala la CA desde {url.TrimEnd('/')}{ShareConf.CaPath} y quítala al acabar.", Tone.Neutral));
         warnings.Add(new(ShareTexts.Urls(site, check), Tone.Warn));
         return new ShareDialogViewModel

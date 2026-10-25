@@ -203,7 +203,7 @@ public class CompartirViewTests
         Assert.True(dialog.IsLan);
         Assert.Equal("https://192.168.1.20/   ·   Wi-Fi (192.168.1.20), puerto 443", dialog.Detail);
         Assert.Contains(dialog.Warnings, w => w.Text.StartsWith("Cualquier equipo de tu red local (la misma wifi) podrá ver tienda.test", StringComparison.Ordinal));
-        Assert.Contains(dialog.Warnings, w => w.Text.StartsWith("Windows pedirá permiso para poner la regla «Roost LAN 443»", StringComparison.Ordinal));
+        Assert.Contains(dialog.Warnings, w => w.Text.StartsWith($"{OsTexts.WillAskPermission} para poner la regla «Roost LAN 443»", StringComparison.Ordinal));
         Assert.Contains(dialog.Warnings, w => w.Text.Contains("https://192.168.1.20/__roost/roost-ca.crt", StringComparison.Ordinal));
         Assert.Empty(sharing.FirewallAllowed);
         Snapshot(window, "compartir-avisos-red-local");

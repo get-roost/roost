@@ -15,6 +15,9 @@ public static class OsTexts
     /// <summary>«Windows pedirá permiso de administrador» / «Se pedirá permiso de administrador (polkit o sudo)».</summary>
     public static string WillAskAdmin => Windows ? "Windows pedirá permiso de administrador" : "Se pedirá permiso de administrador (polkit, o sudo)";
 
+    /// <summary>«Windows pedirá permiso» / «Se pedirá permiso de administrador» (al principio de una frase).</summary>
+    public static string WillAskPermission => Windows ? "Windows pedirá permiso" : "Se pedirá permiso de administrador";
+
     /// <summary>«Windows volverá a pedir permiso» / «se volverá a pedir permiso».</summary>
     public static string WillAskAgain => Windows ? "Windows volverá a pedir permiso" : "se volverá a pedir permiso";
 
