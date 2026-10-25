@@ -11,7 +11,9 @@ namespace Roost.Daemon.Tests;
 /// </summary>
 public class DaemonSocketTests : IDisposable
 {
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "roost-sock-" + Guid.NewGuid().ToString("N"));
+    // Corta a propósito: con la carpeta temporal de un runner de Windows (C:\Users\runneradmin\AppData\…),
+    // un nombre largo hacía que el socket pasara de los 107 bytes de sun_path y se fuera a /tmp.
+    private readonly string _dir = Path.Combine(Path.GetTempPath(), "rs-" + Guid.NewGuid().ToString("N")[..8]);
 
     private RoostPaths Paths(string? root = null) => new(root ?? Path.Combine(_dir, "raiz"), Path.Combine(_dir, "cache"));
 
