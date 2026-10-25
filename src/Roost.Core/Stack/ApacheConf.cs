@@ -153,6 +153,17 @@ public static class ApacheConf
         }
 
         var https = input.HttpsPort is { } port443 ? Listen(port443, input.Ipv6) : "";
+        var defaultPort = FcgiPortOf(input.Pools, input.DefaultPool, input.IsUnix);
+        // En Windows, a php-cgi le llega la ruta real del script, como con nginx ($document_root$fastcgi_script_name):
+        // la que arma mod_proxy_fcgi en Windows lleva una '/' delante (/C:/...) y los espacios en %20. En Linux, con
+        // fcgi:// directo, la arma bien el propio modulo (y con esta regla SCRIPT_NAME llega vacio: no vale).
+        var scriptFilename = input.IsUnix ? "" : """
+
+            # A php-cgi le llega la ruta real del script, como con nginx ($document_root$fastcgi_script_name):
+            # la que arma mod_proxy_fcgi en Windows lleva una '/' delante (/C:/...) y los espacios en %20.
+            ProxyFCGISetEnvIf "true" SCRIPT_FILENAME "%{DOCUMENT_ROOT}%{reqenv:SCRIPT_NAME}"
+
+            """;
 
         return $$"""
             # Generado por Roost: NO lo edites, se regenera en cada `roost up`.
@@ -186,11 +197,7 @@ public static class ApacheConf
             </Files>
 
             # Un balanceador por pool de php-cgi (los mismos puertos que usaría nginx).
-            {{pools}}
-            # A php-cgi le llega la ruta real del script, como con nginx ($document_root$fastcgi_script_name):
-            # la que arma mod_proxy_fcgi en Windows lleva una '/' delante (/C:/...) y los espacios en %20.
-            ProxyFCGISetEnvIf "true" SCRIPT_FILENAME "%{DOCUMENT_ROOT}%{reqenv:SCRIPT_NAME}"
-
+            {{pools}}{{scriptFilename}}
             # http://localhost/: la carpeta www, con el PHP global. Es el primer VirtualHost de
             # su puerto, así que también atiende lo que no sea de ningún sitio.
             <VirtualHost {{VirtualHost(input.HttpPort, input.Ipv6)}}>
@@ -201,7 +208,7 @@ public static class ApacheConf
                     AllowOverride All
                     Require all granted
                 </Directory>
-            {{PhpHandler(input.DefaultPool)}}{{Adminer(input)}}
+            {{PhpHandler(input.DefaultPool, defaultPort)}}{{Adminer(input)}}
             </VirtualHost>
 
             # Un fichero por sitio *.test, editable fuera de las marcas de Roost.
@@ -221,13 +228,21 @@ public static class ApacheConf
     /// <summary>
     /// Los .php, al pool de php-cgi. La barra final del balancer hace falta: Apache pega detrás
     /// la ruta del fichero, y en Windows empieza por la unidad (<c>C:/...</c>); sin la barra, el
-    /// nombre del balancer quedaría <c>php-8.4C:</c> y no se encontraría.
+    /// nombre del balancer quedaría <c>php-8.4C:</c> y no se encontraría. En Linux
+    /// (<paramref name="fcgiPort"/>), directo al php-fpm del pool (<c>proxy:fcgi://127.0.0.1:9840</c>):
+    /// con el balancer, mod_proxy_fcgi deja <c>SCRIPT_NAME</c> vacío y <c>PATH_INFO</c> con la ruta del
+    /// fichero (probado en Ubuntu 24.04), y con <c>fcgi://</c> arma bien <c>SCRIPT_FILENAME</c> y <c>SCRIPT_NAME</c>;
+    /// en Linux cada pool es un solo php-fpm, así que no se pierde nada.
     /// </summary>
-    public static string PhpHandler(string pool) => $$"""
+    public static string PhpHandler(string pool, int? fcgiPort = null) => $$"""
             <FilesMatch "\.php$">
-                SetHandler "proxy:balancer://{{pool}}/"
+                SetHandler "{{(fcgiPort is { } port ? $"proxy:fcgi://127.0.0.1:{port}" : $"proxy:balancer://{pool}/")}}"
             </FilesMatch>
         """;
+
+    /// <summary>Linux: el puerto del php-fpm de un pool (el primero: el único); null en Windows (el balancer).</summary>
+    public static int? FcgiPortOf(IEnumerable<NginxUpstream> pools, string pool, bool unix) =>
+        unix ? pools.FirstOrDefault(p => p.Name == pool)?.Ports.FirstOrDefault() : null;
 
     /// <summary>
     /// PURO: <c>/adminer</c> en el VirtualHost de localhost: un alias a la carpeta de Adminer, que solo
@@ -278,6 +293,9 @@ public static class ApacheSiteConf
         /// del servidor (<c>apache-access.log</c>), como antes.
         /// </summary>
         public string? LogsDirectory { get; init; }
+
+        /// <summary>Linux: el puerto del php-fpm del pool (<see cref="ApacheConf.PhpHandler"/>); null = el balancer de Windows.</summary>
+        public int? FcgiPort { get; init; }
     }
 
     /// <summary>Los registros del sitio (C5), en los dos VirtualHost; nada sin carpeta. El formato es el <c>combined</c> de httpd.conf.</summary>
@@ -301,7 +319,7 @@ public static class ApacheSiteConf
                     AllowOverride All
                     Require all granted
                 </Directory>
-            {{ApacheConf.PhpHandler(input.Pool)}}
+            {{ApacheConf.PhpHandler(input.Pool, input.FcgiPort)}}
             """;
         return $$"""
             {{SiteConf.Begin}}  (lo regenera Roost en cada roost up; edita fuera de las marcas)

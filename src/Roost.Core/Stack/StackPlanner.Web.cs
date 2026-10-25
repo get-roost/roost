@@ -128,15 +128,15 @@ public sealed partial class StackPlanner
         foreach (var plan in sitePlans)
         {
             var (certFile, keyFile) = ca!.EnsureSiteCert(plan.Site);
-            var input = new ApacheSiteConf.Input(
-                plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), config.HttpPort, config.HttpsPort, certFile, keyFile, Loopback.HasIpv6)
-            { LogsDirectory = SiteLogs.Directory(paths) };
+            var pool = PhpPool.UpstreamName(plan.Php.Version!.Value);
+            var input = new ApacheSiteConf.Input(plan.Site, pool, config.HttpPort, config.HttpsPort, certFile, keyFile, Loopback.HasIpv6)
+            { LogsDirectory = SiteLogs.Directory(paths), FcgiPort = ApacheConf.FcgiPortOf(pools, pool, apache.IsDistro) };
             var file = Path.Combine(paths.ApacheSites, plan.Site.Name + ".conf");
             File.WriteAllText(file, File.Exists(file) ? ApacheSiteConf.Merge(File.ReadAllText(file), input, file) : ApacheSiteConf.RenderNew(input));
         }
 
         // Compartir (oleada 6): las escuchas de lo que se está compartiendo, con su propio Listen.
-        WriteShareConfs(paths.ApacheShares, sitePlans, ca, null, ShareConf.RenderApache);
+        WriteShareConfs(paths.ApacheShares, sitePlans, ca, null, ShareConf.RenderApache, apache.IsDistro ? pools : null);
 
         var conf = ApacheConfPath;
         File.WriteAllText(conf, ApacheConf.Render(new ApacheConfInput(
@@ -163,9 +163,10 @@ public sealed partial class StackPlanner
             throw new RoostException($"Apache no acepta la configuracion generada ({conf}):\n{test?.Trim() ?? "httpd -t no respondio"}");
 
         // Apache se para matando su árbol de procesos y el pidfile se queda: sin borrarlo, cada
-        // arranque avisaría en el log de un «Unclean shutdown» que no es tal.
+        // arranque avisaría en el log de un «Unclean shutdown» que no es tal. En Linux se para con
+        // SIGTERM y lo borra él; el de un Apache que sigue en marcha (un up con el stack arrancado) no se toca.
         var pidFile = Path.Combine(paths.Run, "apache.pid");
-        if (File.Exists(pidFile)) File.Delete(pidFile);
+        if (File.Exists(pidFile) && !ApachePidAlive(pidFile)) File.Delete(pidFile);
 
         return new ServiceDefinition
         {
@@ -191,7 +192,8 @@ public sealed partial class StackPlanner
     /// local, con el certificado del sitio que lleva su IP) y borra lo demás de esa carpeta: lo que se
     /// dejó de compartir no vuelve a escucharse. La carpeta existe siempre (el <c>include</c> la pide).
     /// </summary>
-    private void WriteShareConfs(string directory, List<SitePlan> sitePlans, LocalCa? ca, string? fastCgiParams, Func<ShareConf.Input, string> render)
+    /// <param name="unixPools">Solo con el Apache de la distro: los pools, para el puerto del php-fpm de cada escucha; null = nginx o Windows.</param>
+    private void WriteShareConfs(string directory, List<SitePlan> sitePlans, LocalCa? ca, string? fastCgiParams, Func<ShareConf.Input, string> render, IReadOnlyList<NginxUpstream>? unixPools = null)
     {
         Directory.CreateDirectory(directory);
         var wanted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -207,13 +209,28 @@ public sealed partial class StackPlanner
                 caFile = ca.CaCertFile;
             }
             var file = Path.Combine(directory, listener.FileName);
+            var pool = PhpPool.UpstreamName(plan.Php.Version!.Value);
             File.WriteAllText(file, render(new ShareConf.Input(
-                listener, plan.Site, PhpPool.UpstreamName(plan.Php.Version!.Value), fastCgiParams, cert, key, caFile)));
+                listener, plan.Site, pool, fastCgiParams, cert, key, caFile, unixPools is null ? null : ApacheConf.FcgiPortOf(unixPools, pool, true))));
             wanted.Add(file);
         }
         foreach (var file in Directory.EnumerateFiles(directory))
         {
             if (!wanted.Contains(file)) File.Delete(file);
+        }
+    }
+
+    /// <summary>Linux: true si el proceso del pidfile de Apache sigue vivo (en Windows nunca: ahí se mata y se vuelve a arrancar).</summary>
+    private static bool ApachePidAlive(string pidFile)
+    {
+        if (OperatingSystem.IsWindows()) return false;
+        try
+        {
+            return int.TryParse(File.ReadAllText(pidFile).Trim(), out var pid) && Posix.IsAlive(pid);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 

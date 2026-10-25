@@ -9,6 +9,7 @@ using Roost.Core.Platform;
 using Roost.Core.Scanning;
 using Roost.Core.Services;
 using Roost.Core.Share;
+using Roost.Core.Sites;
 using Roost.Core.Stack;
 
 namespace Roost.Core.Tests;
@@ -158,13 +159,24 @@ public class LinuxStackTests : IDisposable
         Assert.DoesNotContain("\nGroup ", conf);
         Assert.Contains("PidFile \"/home/u/casa/run/apache.pid\"", conf);
         Assert.Contains("Listen 127.0.0.1:8453", conf);
-        Assert.Contains("SetHandler \"proxy:balancer://php-8.4/\"", conf);
-        // Lo de Windows sigue igual: relativo al ServerRoot y con mpm_winnt dentro.
+        // PHP directo al php-fpm del pool (con el balancer, mod_proxy_fcgi deja SCRIPT_NAME vacio en Linux) y sin
+        // la regla de SCRIPT_FILENAME de Windows (con fcgi:// lo arma bien el modulo).
+        Assert.Contains("SetHandler \"proxy:fcgi://127.0.0.1:9840\"", conf);
+        Assert.DoesNotContain("proxy:balancer://", conf);
+        Assert.DoesNotContain("SCRIPT_FILENAME \"%{DOCUMENT_ROOT}", conf);
+        // Lo de Windows sigue igual: relativo al ServerRoot, con mpm_winnt dentro y el balancer.
         var windows = ApacheConf.Render(input with { ModulesDirectory = null, MimeTypesFile = null, ModulesToLoad = null });
         Assert.Contains("LoadModule proxy_fcgi_module modules/mod_proxy_fcgi.so", windows);
         Assert.DoesNotContain("mpm_event", windows);
         Assert.Contains("TypesConfig conf/mime.types", windows);
         Assert.Contains("AcceptFilter http none", windows);
+        Assert.Contains("SetHandler \"proxy:balancer://php-8.4/\"", windows);
+        Assert.Contains("ProxyFCGISetEnvIf \"true\" SCRIPT_FILENAME \"%{DOCUMENT_ROOT}%{reqenv:SCRIPT_NAME}\"", windows);
+        // Los sitios y las escuchas de compartir, igual.
+        Assert.Contains("proxy:fcgi://127.0.0.1:9740", ApacheConf.PhpHandler("php-7.4", 9740));
+        Assert.Contains("proxy:balancer://php-7.4/", ApacheConf.PhpHandler("php-7.4"));
+        Assert.Equal(9840, ApacheConf.FcgiPortOf(input.Pools, "php-8.4", unix: true));
+        Assert.Null(ApacheConf.FcgiPortOf(input.Pools, "php-8.4", unix: false));
     }
 
     [Fact]
@@ -218,8 +230,11 @@ public class LinuxStackTests : IDisposable
         var apache = FakeDistroApache([.. ApacheConf.RequiredModules, "dir", "mime"]);
         var config = new RoostConfig { HttpPort = 8765, HttpsPort = 8453, PhpPool = 1, WebServer = RoostConfig.WebApache };
         var runner = new ApacheTestOk();
+        var site = new Site { Name = "tienda", Folder = Path.Combine(_root, "www", "tienda") };
+        Directory.CreateDirectory(site.Folder);
 
-        var plan = new StackPlanner(Paths, runner).Prepare(config, php84, nginx: null, apache: apache);
+        var plan = new StackPlanner(Paths, runner) { Shares = [new ShareListener("tienda", ShareKind.Tunnel, "127.0.0.1", 18765)] }
+            .Prepare(config, php84, nginx: null, null, [site], [php84], new LocalCa(Paths), apache: apache);
 
         var web = plan.Services.Last();
         Assert.Equal("apache", web.Name);
@@ -231,6 +246,11 @@ public class LinuxStackTests : IDisposable
         Assert.DoesNotContain("mod_unixd.so", httpd);              // sin .so: compilado dentro
         Assert.DoesNotContain("LoadModule headers_module", httpd);  // no está en esta distro de pega
         Assert.Contains("TypesConfig \"/etc/mime.types\"", httpd);
+        // PHP directo al php-fpm del pool, en localhost, en el sitio y en la escucha de compartir.
+        Assert.Contains("SetHandler \"proxy:fcgi://127.0.0.1:9840\"", httpd);
+        Assert.Contains("SetHandler \"proxy:fcgi://127.0.0.1:9840\"", File.ReadAllText(Path.Combine(Paths.ApacheSites, "tienda.conf")));
+        Assert.Contains("SetHandler \"proxy:fcgi://127.0.0.1:9840\"", File.ReadAllText(Path.Combine(Paths.ApacheShares, "tienda-tunnel.conf")));
+        Assert.DoesNotContain("proxy:balancer://", httpd);
         Assert.StartsWith("apache2 -t -f ", Assert.Single(runner.Calls));
         if (!OperatingSystem.IsWindows())
         {
