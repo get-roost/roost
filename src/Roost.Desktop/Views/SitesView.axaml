@@ -212,7 +212,7 @@
               <StackPanel Spacing="6">
                 <TextBlock Classes="lbl" Text="PHP del sitio" />
                 <ComboBox ItemsSource="{Binding PhpOptions}" SelectedItem="{Binding SelectedPhp}" HorizontalAlignment="Stretch" AutomationProperties.Name="PHP del sitio" />
-                <TextBlock Classes="faint" TextWrapping="Wrap" Text="Se aplica sin cortar: Roost arranca el PHP de esa rama antes de mandarle nada. Cada rama en uso tiene su propio pool de php-cgi." />
+                <TextBlock Classes="faint" TextWrapping="Wrap" Text="{x:Static svc:OsTexts.SitePhpHint}" />
               </StackPanel>
 
               <!-- Sitios avanzados (C11): el .roost.toml del proyecto -->

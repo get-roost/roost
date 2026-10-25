@@ -158,4 +158,10 @@ public static class OsTexts
 
     /// <summary>true si hay un panel de servicios que abrir (services.msc); en Linux no lo hay.</summary>
     public static bool HasServicesPanel => Windows;
+
+    /// <summary>Lo que sirve PHP en el pool: php-cgi en Windows, php-fpm en Linux.</summary>
+    public static string PhpWorker => Windows ? "php-cgi" : "php-fpm";
+
+    /// <summary>El panel del sitio: cómo se aplica el PHP del sitio.</summary>
+    public static string SitePhpHint => $"Se aplica sin cortar: Roost arranca el PHP de esa rama antes de mandarle nada. Cada rama en uso tiene su propio pool de {PhpWorker}.";
 }

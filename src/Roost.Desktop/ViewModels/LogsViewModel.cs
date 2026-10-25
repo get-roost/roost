@@ -176,6 +176,9 @@ public sealed partial class LogsViewModel : PageViewModel
     /// </summary>
     public static string HelperLogKey => OperatingSystem.IsWindows() ? @"%ProgramData%\Roost\roost-helper.log" : HostsUpdater.HelperLog;
 
+    /// <summary>Los de cada sitio se ven como <c>sites\tienda-error.log</c> (con el separador del sistema).</summary>
+    internal static readonly string SitesPrefix = "sites" + System.IO.Path.DirectorySeparatorChar;
+
     private void BuildFiles()
     {
         _filesSignature = FilesSignature();
@@ -202,7 +205,7 @@ public sealed partial class LogsViewModel : PageViewModel
                 var name = System.IO.Path.GetFileName(path);
                 if (SiteLogs.SiteOf(name) is not { } site) continue;
                 var what = name.EndsWith("-access.log", StringComparison.OrdinalIgnoreCase) ? "accesos" : "errores";
-                siteFiles.Add((site, new LogFile($"{site}.test: {what}", @"sites\" + name, path)));
+                siteFiles.Add((site, new LogFile($"{site}.test: {what}", SitesPrefix + name, path)));
             }
         }
         BuildSiteFilters(siteFiles.Select(f => f.Site));
@@ -264,7 +267,7 @@ public sealed partial class LogsViewModel : PageViewModel
         if (stem == "apache-access") return "Apache: accesos";
         if (stem == "apache-stdout") return "Apache: salida";
         if (Regex.Match(stem, @"^php-(\d+\.\d+)-error$") is { Success: true } e) return $"PHP {e.Groups[1].Value}: errores";
-        if (Regex.Match(stem, @"^php-(\d+\.\d+)-(\d+)$") is { Success: true } p) return $"PHP {p.Groups[1].Value}: php-cgi {p.Groups[2].Value}";
+        if (Regex.Match(stem, @"^php-(\d+\.\d+)-(\d+)$") is { Success: true } p) return $"PHP {p.Groups[1].Value}: {OsTexts.PhpWorker} {p.Groups[2].Value}";
         if (Regex.Match(stem, @"^mariadb-(.+)$") is { Success: true } m) return $"MariaDB {m.Groups[1].Value}";
         if (Regex.Match(stem, @"^mysql-(.+)$") is { Success: true } y) return $"MySQL {y.Groups[1].Value}";
         return stem;
@@ -280,7 +283,7 @@ public sealed partial class LogsViewModel : PageViewModel
         _ when name.StartsWith('%') => 5,
         _ when name.StartsWith("php-", StringComparison.Ordinal) => 7,
         // C5: los de cada sitio, al final y, de cada uno, primero los errores.
-        _ when name.StartsWith(@"sites\", StringComparison.Ordinal) => name.EndsWith("-error.log", StringComparison.OrdinalIgnoreCase) ? 8 : 9,
+        _ when name.StartsWith(SitesPrefix, StringComparison.Ordinal) => name.EndsWith("-error.log", StringComparison.OrdinalIgnoreCase) ? 8 : 9,
         _ => 6,
     };
 
