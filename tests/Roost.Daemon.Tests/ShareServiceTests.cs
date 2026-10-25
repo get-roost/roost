@@ -363,7 +363,8 @@ public class ShareServiceTests : IDisposable
         Assert.Contains("Listen 127.0.0.1:49731", conf);
         Assert.Contains("<VirtualHost 127.0.0.1:49731>", conf);
         Assert.Contains("ProxyFCGISetEnvIf \"true\" HTTPS \"on\"", conf);
-        Assert.Contains("SetHandler \"proxy:balancer://php-8.4/\"", conf);
+        // En Windows, el balancer del pool; en Linux (el Apache de la distro, FakeDistroApache), directo al php-fpm del pool.
+        Assert.Contains(OperatingSystem.IsWindows() ? "SetHandler \"proxy:balancer://php-8.4/\"" : "SetHandler \"proxy:fcgi://127.0.0.1:9840\"", conf);
         Assert.Contains("IncludeOptional", File.ReadAllText(Path.Combine(_paths.Etc, "apache", "httpd.conf")));
         Assert.Equal(1, _runner.ApacheReloads);
         Assert.Equal(1, _launcher.StartsOf("apache"));
