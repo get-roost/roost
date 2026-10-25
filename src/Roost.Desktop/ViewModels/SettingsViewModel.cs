@@ -67,6 +67,13 @@ public sealed partial class SettingsViewModel : PageViewModel
     [ObservableProperty] public partial bool StartStackOnLaunch { get; set; }
     [ObservableProperty] public partial bool CloseToTray { get; set; } = true;
     [ObservableProperty] public partial bool ThemeSystem { get; set; } = true;
+
+    // La app en Linux (L2): sin anfitrión StatusNotifier no hay bandeja, y la X cierra la app aunque la casilla esté puesta.
+    [ObservableProperty] public partial bool TrayUnavailable { get; private set; }
+    [ObservableProperty] public partial string TrayHint { get; private set; } = "";
+
+    /// <summary>«Abrir Roost al iniciar sesión»: en Windows, HKCU\Run; en Linux, ~/.config/autostart. En otros sistemas, nada.</summary>
+    public bool CanAutostart => Autostart.Supported;
     [ObservableProperty] public partial bool ThemeLight { get; set; }
     [ObservableProperty] public partial bool ThemeDark { get; set; }
 
@@ -148,9 +155,10 @@ public sealed partial class SettingsViewModel : PageViewModel
         });
     }
 
-    /// <summary>Un php.exe en el PATH del sistema gana al shim (Windows mira ese PATH antes que el del usuario).</summary>
+    /// <summary>Un php.exe en el PATH del sistema gana al shim (Windows mira ese PATH antes que el del usuario). En Linux lo dice <c>roost shims status</c>.</summary>
     private static string? Shadowing()
     {
+        if (!OperatingSystem.IsWindows()) return null;
         var machine = Environment.GetEnvironmentVariable("Path", EnvironmentVariableTarget.Machine) ?? "";
         var dir = machine.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(Environment.ExpandEnvironmentVariables)
@@ -169,10 +177,10 @@ public sealed partial class SettingsViewModel : PageViewModel
     {
         var ask = dns
             ? Main.ConfirmAsync("Usar el DNS local para los .test",
-                $"Windows pedirá permiso de administrador una sola vez, para una regla que manda las preguntas de .test a {Roost.Core.Dns.LocalDns.Address}. "
+                $"{OsTexts.WillAskAdmin} una sola vez, para {(OperatingSystem.IsWindows() ? "una regla" : "un drop-in de systemd-resolved")} que manda las preguntas de .test a {Roost.Core.Dns.LocalDns.EndPoint}. "
                 + "Desde entonces, crear o quitar un sitio ya no lo pide. Los nombres los responde Roost mientras el stack está en marcha.", "Continuar")
             : Main.ConfirmAsync("Volver al fichero hosts",
-                "Windows pedirá permiso para quitar la regla de DNS y, después, para escribir los sitios en el hosts.", "Continuar");
+                $"{OsTexts.WillAskAdmin} para quitar {(OperatingSystem.IsWindows() ? "la regla de DNS" : "el drop-in de systemd-resolved")} y, después, para escribir los sitios en el hosts.", "Continuar");
         var ok = await ask;
         if (ok)
             await Main.RunAsync("No se pudo cambiar cómo se resuelven los .test", () => Main.SetResolverAsync(dns));
@@ -213,7 +221,9 @@ public sealed partial class SettingsViewModel : PageViewModel
         try
         {
             var prefs = Main.App.Prefs;
-            StartWithWindows = Autostart.IsEnabled();
+            StartWithWindows = Autostart.Supported && Autostart.IsEnabled();
+            TrayUnavailable = !TrayHost.Status.Available;
+            TrayHint = TrayHost.Status.Reason is { } reason ? $"No hay bandeja en este escritorio, así que la X cierra Roost (el stack sigue en marcha). {reason}" : "";
             var shims = new ShimInstaller(Paths);
             ShimsEnabled = shims.IsInstalled && UserPath.Contains(UserPath.Read(), shims.Directory);
             ShimsWarning = ShimsEnabled ? Shadowing() : null;
@@ -234,9 +244,10 @@ public sealed partial class SettingsViewModel : PageViewModel
             ResolverDns = config.UsesLocalDns;
             ResolverHosts = !config.UsesLocalDns;
             var rule = Roost.Core.Dns.LocalDns.IsRuleInstalled();
+            var ruleName = OperatingSystem.IsWindows() ? "la regla de Windows" : "el drop-in de systemd-resolved";
             DnsStateText = config.UsesLocalDns
-                ? rule ? $"En uso: regla .test → {Roost.Core.Dns.LocalDns.Address} puesta." : "En uso, pero falta la regla de Windows: los .test no resolverán (vuelve a elegirlo)."
-                : rule ? "La regla de Windows sigue puesta, pero Roost usa el hosts." : "";
+                ? rule ? $"En uso: {(OperatingSystem.IsWindows() ? "regla" : "drop-in")} .test → {Roost.Core.Dns.LocalDns.EndPoint} puesto." : $"En uso, pero falta {ruleName}: los .test no resolverán (vuelve a elegirlo)."
+                : rule ? $"{char.ToUpperInvariant(ruleName[0])}{ruleName[1..]} sigue puesto, pero Roost usa el hosts." : "";
             PortsError = null;
         }
         finally
@@ -276,7 +287,7 @@ public sealed partial class SettingsViewModel : PageViewModel
         {
             if (!Directory.Exists(folder)) return "vacía";
             var bytes = new DirectoryInfo(folder).EnumerateFiles("*", SearchOption.AllDirectories).Sum(f => f.Length);
-            return bytes == 0 ? "vacía" : string.Format(CultureInfo.GetCultureInfo("es-ES"), "{0:0.0} MB", bytes / 1048576.0);
+            return bytes == 0 ? "vacía" : string.Format(Roost.Desktop.Services.Es.Culture, "{0:0.0} MB", bytes / 1048576.0);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -427,6 +438,13 @@ public sealed partial class SettingsViewModel : PageViewModel
 
     private void BuildFirefox()
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            // En Linux la CA entra en cada perfil de Firefox con certutil al confiar (NssTrust): no hay user.js que tocar.
+            HasFirefox = false;
+            FirefoxTip = "En Linux, al confiar en la CA entra también en cada perfil de Firefox (con certutil): no hay nada que configurar.";
+            return;
+        }
         var profiles = FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot());
         HasFirefox = profiles.Count > 0;
         var done = profiles.Count(FirefoxTrust.IsEnabled);
@@ -446,7 +464,9 @@ public sealed partial class SettingsViewModel : PageViewModel
     private async Task UntrustAsync()
     {
         if (!await Main.ConfirmAsync("Dejar de confiar en la CA de Roost",
-                "Se quita de los certificados de confianza de tu usuario (Windows pedirá confirmarlo). El navegador volverá a avisar en tus sitios .test.",
+                OperatingSystem.IsWindows()
+                    ? "Se quita de los certificados de confianza de tu usuario (Windows pedirá confirmarlo). El navegador volverá a avisar en tus sitios .test."
+                    : $"Se quita de {OsTexts.TrustStore}. El navegador volverá a avisar en tus sitios .test.",
                 "Dejar de confiar", danger: true))
             return;
         await Main.RunAsync("No se pudo quitar la CA", async () =>
@@ -454,8 +474,9 @@ public sealed partial class SettingsViewModel : PageViewModel
             await Task.Run(() =>
             {
                 new LocalCa(Paths).Untrust();
-                // Lo de Firefox lo puso Roost para esta CA: se quita también.
-                foreach (var profile in FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot())) FirefoxTrust.Disable(profile);
+                // Lo de Firefox (el user.js) lo puso Roost para esta CA en Windows: se quita también.
+                if (OperatingSystem.IsWindows())
+                    foreach (var profile in FirefoxTrust.Profiles(FirefoxTrust.DefaultRoot())) FirefoxTrust.Disable(profile);
             });
             Main.RefreshMachineState();
         });
@@ -474,7 +495,7 @@ public sealed partial class SettingsViewModel : PageViewModel
     });
 
     [RelayCommand]
-    private Task OpenHelperLogAsync() => Main.OpenLogAsync(@"%ProgramData%\Roost\roost-helper.log");
+    private Task OpenHelperLogAsync() => Main.OpenLogAsync(LogsViewModel.HelperLogKey);
 
     /// <summary>«Comprobar ahora»: pide el feed sin mirar la caché, vuelve a evaluar y dice qué ha pasado.</summary>
     [RelayCommand]

@@ -161,7 +161,7 @@ public sealed partial class InstallDialogViewModel : DialogViewModel
     /// <summary>Bytes descargados hasta ahora (lo llama el <c>IProgress</c> del instalador).</summary>
     public void Downloaded(long bytes)
     {
-        var es = CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
         if (TotalBytes is > 0 and var total)
         {
             Indeterminate = false;

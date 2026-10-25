@@ -6,10 +6,11 @@ using Roost.Core.Scanning;
 namespace Roost.Desktop.Services;
 
 /// <summary>
-/// Los servicios de Windows que pueden quitarle un puerto a Roost (E7): un MySQL o una MariaDB de
-/// su MSI, Apache, IIS, otro Redis. Se leen en segundo plano y solo leyendo (el registro y
-/// <c>sc query</c>), la primera vez que una pantalla los pide. Roost nunca los cambia: como mucho,
-/// abre «Servicios» de Windows para que lo haga el usuario.
+/// Los servicios del sistema que pueden quitarle un puerto a Roost (E7): en Windows, un MySQL o una
+/// MariaDB de su MSI, Apache, IIS, otro Redis (el registro y <c>sc query</c>); en Linux, las unidades
+/// de systemd de la distro (mariadb, mysql, apache2, nginx, redis). Se leen en segundo plano y solo
+/// leyendo (<see cref="SystemServices.Current"/>), la primera vez que una pantalla los pide. Roost
+/// nunca los cambia: como mucho, abre «Servicios» de Windows para que lo haga el usuario.
 /// </summary>
 public sealed partial class MachineServices : ObservableObject
 {
@@ -33,7 +34,7 @@ public sealed partial class MachineServices : ObservableObject
     {
         try
         {
-            Found = await Task.Run(() => WindowsServices.Find(ProcessRunner.Default));
+            Found = await Task.Run(() => SystemServices.Current.Find(ProcessRunner.Default));
         }
         catch (Exception)
         {
@@ -54,14 +55,24 @@ public sealed partial class MachineServices : ObservableObject
     public IReadOnlyList<ServiceConflict> ConflictsWith(RoostConfig config, bool withSites, bool withDb) =>
         WindowsServices.Conflicts(Found, config.PlannedPorts(withSites, withDb));
 
-    /// <summary>«Servicios» de Windows (services.msc), donde el usuario los deja en Manual.</summary>
-    public static void OpenServicesPanel() => Shell.OpenUrl("services.msc");
+    /// <summary>En Windows hay un panel («Servicios», services.msc) donde el usuario los deja en Manual; en Linux es <c>systemctl</c>.</summary>
+    public static bool HasServicesPanel => OperatingSystem.IsWindows();
+
+    /// <summary>«Servicios» de Windows (services.msc), donde el usuario los deja en Manual. En Linux no hay panel: no hace nada.</summary>
+    public static void OpenServicesPanel()
+    {
+        if (HasServicesPanel) Shell.OpenUrl("services.msc");
+    }
+
+    /// <summary>Lo que hay que ejecutar para que un servicio no se quede el puerto (para «Copiar»).</summary>
+    public static string ManualCommand(WindowsService service) =>
+        OperatingSystem.IsWindows() ? WindowsServices.ManualCommand(service) : $"sudo systemctl disable --now {service.Name}";
 
     /// <summary>«Arranca con Windows y está en marcha»: el estado, con tildes, para la app.</summary>
     public static string StateText(WindowsService service) => (service.StartsWithWindows, service.Running) switch
     {
-        (true, true) => "Arranca con Windows y está en marcha",
-        (true, false) => "Arranca con Windows (ahora está parado)",
+        (true, true) => $"{OsTexts.StartsWithSystem} y está en marcha",
+        (true, false) => $"{OsTexts.StartsWithSystem} (ahora está parado)",
         (false, true) => "Está en marcha",
         _ => service.Start == ServiceStartMode.Disabled ? "Deshabilitado" : "Manual y parado",
     };

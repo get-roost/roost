@@ -137,8 +137,8 @@ public sealed partial class PhpTextDialogViewModel : DialogViewModel
         var shown = q.Length == 0 ? _all : _all.Where(l => l.Contains(q, StringComparison.OrdinalIgnoreCase)).ToList();
         Lines = shown.Select(l => new LogLine(l, LevelOf(l))).ToList();
         CountText = Loading ? "Cargando…"
-            : q.Length == 0 ? $"{_all.Count:N0} líneas"
-            : $"{shown.Count:N0} de {_all.Count:N0} líneas con «{q}»";
+            : q.Length == 0 ? $"{_all.Count.ToString("N0", Roost.Desktop.Services.Es.Culture)} líneas"
+            : $"{shown.Count.ToString("N0", Roost.Desktop.Services.Es.Culture)} de {_all.Count.ToString("N0", Roost.Desktop.Services.Es.Culture)} líneas con «{q}»";
     }
 
     // Los avisos de arranque en ámbar; los comentarios del php.ini, apagados.

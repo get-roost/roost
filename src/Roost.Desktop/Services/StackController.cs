@@ -155,7 +155,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
             var build = ApacheCatalog.Current;
             if (installer.Find(build) is not null) return;
             progress?.Report($"Instalando Apache {build.Version} (la primera vez)...");
-            await installer.InstallAsync(build, new Progress<long>(b => progress?.Report($"Instalando Apache {build.Version}... {b / 1048576.0:0.0} MB")));
+            await installer.InstallAsync(build, new Progress<long>(b => progress?.Report(string.Format(Es.Culture, "Instalando Apache {0}... {1:0.0} MB", build.Version, b / 1048576.0))));
         }
         else
         {
@@ -163,7 +163,7 @@ public sealed partial class StackController(AppServices app) : ObservableObject
             var build = NginxCatalog.Current;
             if (installer.Find(build) is not null) return;
             progress?.Report($"Instalando nginx {build.Version} (la primera vez)...");
-            await installer.InstallAsync(build, new Progress<long>(b => progress?.Report($"Instalando nginx {build.Version}... {b / 1048576.0:0.0} MB")));
+            await installer.InstallAsync(build, new Progress<long>(b => progress?.Report(string.Format(Es.Culture, "Instalando nginx {0}... {1:0.0} MB", build.Version, b / 1048576.0))));
         }
     }
 

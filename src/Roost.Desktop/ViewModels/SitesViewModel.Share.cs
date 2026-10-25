@@ -62,9 +62,9 @@ public class ShareSystem
     public virtual bool CanBind(IPAddress address, int port) => LanNetwork.CanBind(address, port);
 
     /// <summary>Pone la regla del cortafuegos con <c>roost-helper</c> elevado (Windows pide permiso).</summary>
-    public virtual void AllowFirewall(int port) => LanFirewall.Allow(AppServices.HelperExe, port);
+    public virtual void AllowFirewall(int port) => LanFirewall.Allow(AppServices.HelperExe, port, elevation: AppServices.Elevation);
 
-    public virtual void RemoveFirewall(int port) => LanFirewall.Remove(AppServices.HelperExe, port);
+    public virtual void RemoveFirewall(int port) => LanFirewall.Remove(AppServices.HelperExe, port, elevation: AppServices.Elevation);
 
     public virtual InstalledCloudflared? Cloudflared(Roost.Core.Platform.RoostPaths paths) => new CloudflaredInstaller(paths).Locate();
 }
@@ -280,7 +280,7 @@ public sealed partial class SitesViewModel
             if (!ruleExists)
             {
                 // Antes de escuchar: sin la regla, Windows no deja entrar (y avisaría del servidor web).
-                ShareBusyText = $"Poniendo la regla «{LanFirewall.RuleName(port)}» del cortafuegos (Windows pide permiso)…";
+                ShareBusyText = $"Poniendo la regla «{LanFirewall.RuleName(port)}» del cortafuegos ({OsTexts.AsksPermission})…";
                 await Task.Run(() => Sharing.AllowFirewall(port));
                 addedRule = true;
             }
@@ -489,7 +489,7 @@ public sealed partial class ShareDialogViewModel : DialogViewModel
             warnings.Add(new("Windows no dice si esta red es privada o pública: si la tiene como pública, el móvil no llegará (la regla de Roost es solo para redes privadas).", Tone.Warn));
         warnings.Add(new(ruleExists
             ? $"La regla «{LanFirewall.RuleName(port)}» del cortafuegos ya está puesta: solo TCP {port}, solo en redes privadas y solo desde tu subred."
-            : $"Windows pedirá permiso para poner la regla «{LanFirewall.RuleName(port)}» del cortafuegos: solo TCP {port}, solo en redes privadas y solo desde tu subred. Roost la quita al dejar de compartir.", Tone.Neutral));
+            : $"{OsTexts.WillAskAdmin} para poner la regla «{LanFirewall.RuleName(port)}» del cortafuegos: solo TCP {port}, solo en redes privadas y solo desde tu subred. Roost la quita al dejar de compartir.", Tone.Neutral));
         warnings.Add(new($"El móvil no conoce la CA de Roost: el navegador avisará de que la conexión no es privada («Avanzado» › «Continuar»). Para que no avise, instala la CA desde {url.TrimEnd('/')}{ShareConf.CaPath} y quítala al acabar.", Tone.Neutral));
         warnings.Add(new(ShareTexts.Urls(site, check), Tone.Warn));
         return new ShareDialogViewModel

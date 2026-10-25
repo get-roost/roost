@@ -76,7 +76,7 @@
             <StackPanel>
               <Border Classes="card-h"><TextBlock Classes="h2" Text="General" /></Border>
               <StackPanel Margin="16,14" Spacing="10">
-                <CheckBox IsChecked="{Binding StartWithWindows}" Content="Abrir Roost al iniciar sesión (en la bandeja)" />
+                <CheckBox IsChecked="{Binding StartWithWindows}" Content="Abrir Roost al iniciar sesión (en la bandeja)" IsVisible="{Binding CanAutostart}" />
                 <!-- Ajustes y sistema (E4): la tarea programada que arranca el stack sin la app -->
                 <CheckBox IsChecked="{Binding StackAtLogon}" IsEnabled="{Binding CanStackAtLogon}">
                   <StackPanel>
@@ -85,7 +85,9 @@
                   </StackPanel>
                 </CheckBox>
                 <CheckBox IsChecked="{Binding StartStackOnLaunch}" Content="Iniciar todo al abrir Roost" />
-                <CheckBox IsChecked="{Binding CloseToTray}" Content="Cerrar la ventana deja Roost en la bandeja" />
+                <CheckBox IsChecked="{Binding CloseToTray}" Content="Cerrar la ventana deja Roost en la bandeja" IsEnabled="{Binding !TrayUnavailable}" />
+                <!-- La app en Linux (L2): sin anfitrión StatusNotifier (GNOME sin AppIndicator, WSLg) no hay bandeja -->
+                <ctl:Note Tone="Warn" IsVisible="{Binding TrayUnavailable}" Content="{Binding TrayHint}" />
                 <CheckBox IsChecked="{Binding ShimsEnabled}">
                   <StackPanel>
                     <TextBlock Text="{Binding ShimsText}" TextWrapping="Wrap" />

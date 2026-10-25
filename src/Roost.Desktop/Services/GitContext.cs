@@ -37,7 +37,11 @@ public sealed class GitContext
         Paths = paths;
         Runner = runner;
         _ssh = ssh;
-        Access = new GitAccessFactory(paths, store ?? DefaultStore(), runner, GitAccessFactory.DefaultHelperExe(), ssh);
+        // Sin dobles (la app de verdad), el mismo acceso que la CLI (CreateDefault elige el almacén de tokens de
+        // cada sistema); con dobles (los tests), lo que se pase.
+        Access = store is null && ssh is null
+            ? GitAccessFactory.CreateDefault(paths, runner)
+            : new GitAccessFactory(paths, store ?? DefaultStore(), runner, GitAccessFactory.DefaultHelperExe(), ssh);
         _userSsh = userSshFolder ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".ssh");
         _agentState = agentState ?? ReadAgentState;
     }
@@ -109,13 +113,20 @@ public sealed class GitContext
     /// <summary>La carpeta <c>.ssh</c> del usuario (solo para nombrarla).</summary>
     public string UserSshFolder => _userSsh;
 
-    /// <summary>El servicio ssh-agent de Windows: «en marcha», «parado», «deshabilitado» o «no está». Solo lee (registro y <c>sc query</c>).</summary>
+    /// <summary>
+    /// El ssh-agent: en Windows, el servicio («en marcha», «parado», «deshabilitado» o «no está»; solo lee el
+    /// registro y <c>sc query</c>); en Linux y macOS, si <c>SSH_AUTH_SOCK</c> apunta a un socket que existe.
+    /// </summary>
     private static string ReadAgentState()
     {
-        if (!OperatingSystem.IsWindows()) return "desconocido";
+        if (!OperatingSystem.IsWindows()) return AgentStateFromSocket(Environment.GetEnvironmentVariable("SSH_AUTH_SOCK"), File.Exists);
         using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\ssh-agent");
         if (key is null) return "no está";
         if (WindowsServices.StartModeOf(key.GetValue("Start")) == ServiceStartMode.Disabled) return "deshabilitado";
         return WindowsServices.IsRunning(ProcessRunner.Default.Run("sc.exe", "query ssh-agent", TimeSpan.FromSeconds(5))) ? "en marcha" : "parado";
     }
+
+    /// <summary>PURO: lo que dice <c>SSH_AUTH_SOCK</c> del ssh-agent en Linux y macOS: «en marcha» si apunta a un socket que existe, «parado» si apunta a uno que ya no está, «no está» si no hay variable.</summary>
+    public static string AgentStateFromSocket(string? socket, Func<string, bool> exists) =>
+        string.IsNullOrWhiteSpace(socket) ? "no está" : exists(socket) ? "en marcha" : "parado";
 }

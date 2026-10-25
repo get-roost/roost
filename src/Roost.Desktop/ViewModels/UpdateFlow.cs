@@ -19,7 +19,7 @@ namespace Roost.Desktop.ViewModels;
 /// </summary>
 public sealed class UpdateFlow(MainViewModel main)
 {
-    private static readonly CultureInfo Es = CultureInfo.GetCultureInfo("es-ES");
+    private static readonly CultureInfo Es = Roost.Desktop.Services.Es.Culture;
 
     private UpdateState Updates => main.Updates;
 

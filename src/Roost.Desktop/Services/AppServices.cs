@@ -61,7 +61,16 @@ public sealed class AppServices : IDisposable
     /// <summary>La carpeta de la app: a su lado van roost.exe (el daemon) y roost-helper.exe.</summary>
     public static string AppDirectory => AppContext.BaseDirectory;
 
-    public static string HelperExe => Path.Combine(AppDirectory, OperatingSystem.IsWindows() ? "roost-helper.exe" : "roost-helper");
+    /// <summary>El helper que pide permiso: el de al lado de la app o, en Linux, el del paquete (<c>/usr/libexec/roost</c>, con política de polkit).</summary>
+    public static string HelperExe => HelperLocator.Find(AppDirectory);
+
+    /// <summary>
+    /// Cómo pide permiso la app: en Windows el UAC; en Linux pkexec sin su agente de texto y <c>sudo -n</c>. La
+    /// app nunca tiene terminal en la que pkexec o sudo puedan preguntar (lanzada desde una consola, pkexec
+    /// preguntaría en ella y se quedaría esperando): si no hay agente de polkit ni sudo sin contraseña,
+    /// Core lanza <see cref="ElevationNeededException"/> con la orden exacta y la app ofrece «Copiar».
+    /// </summary>
+    public static Elevation Elevation { get; } = new(hasTerminal: () => false);
 
     public void SavePrefs(DesktopPrefs prefs)
     {

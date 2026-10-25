@@ -50,9 +50,12 @@ public sealed partial class StartErrorDialogViewModel : DialogViewModel
 
     private BusyPortView Describe(BusyPort port)
     {
-        var owner = port.Owner is { } o
+        // En Linux, sin root, solo se ven los procesos propios: un «PID 0» no es nadie, es «otro usuario».
+        var owner = port.Owner is { IsForeign: true }
+            ? "Lo tiene un proceso de otro usuario (sin root solo se ven los tuyos): míralo con sudo ss -ltnp."
+            : port.Owner is { } o
             ? $"Lo tiene {o.ProcessName ?? "otro proceso"} (PID {o.Pid}){Hint(o.ProcessName)}."
-            : "Lo tiene otro proceso, que Windows no deja identificar.";
+            : OperatingSystem.IsWindows() ? "Lo tiene otro proceso, que Windows no deja identificar." : "Lo tiene otro proceso, que no se ha podido identificar.";
         string? useLabel = null, useHint = null;
         if (port.Suggestion is { } free)
         {

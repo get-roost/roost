@@ -169,6 +169,13 @@ public sealed partial class LogsViewModel : PageViewModel
         string.Join("|", Directory.EnumerateFiles(directory, "*.log").Order(StringComparer.Ordinal)
             .Select(path => $"{prefix}{System.IO.Path.GetFileName(path)}:{new FileInfo(path).Length}"));
 
+    /// <summary>
+    /// Cómo se ve en la lista el registro del helper (ruta fija, fuera de <c>logs/</c>): en Windows
+    /// <c>%ProgramData%\Roost\roost-helper.log</c>; en Linux, <c>/var/log/roost/roost-helper.log</c>.
+    /// Es lo que pide Ajustes › «Registro del helper» (<see cref="MainViewModel.OpenLogAsync"/>).
+    /// </summary>
+    public static string HelperLogKey => OperatingSystem.IsWindows() ? @"%ProgramData%\Roost\roost-helper.log" : HostsUpdater.HelperLog;
+
     private void BuildFiles()
     {
         _filesSignature = FilesSignature();
@@ -183,7 +190,7 @@ public sealed partial class LogsViewModel : PageViewModel
             }
         }
         var helper = HostsUpdater.HelperLog;
-        if (File.Exists(helper)) files.Add(new LogFile("roost-helper (hosts)", @"%ProgramData%\Roost\roost-helper.log", helper));
+        if (File.Exists(helper)) files.Add(new LogFile("roost-helper (hosts)", HelperLogKey, helper));
 
         // Sitios avanzados (C5): los de cada vhost, en logs/sites, y el filtro por sitio.
         var siteFiles = new List<(string Site, LogFile File)>();

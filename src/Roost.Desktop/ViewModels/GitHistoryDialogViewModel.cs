@@ -63,7 +63,7 @@ public sealed partial class GitHistoryDialogViewModel : DialogViewModel
         if (entry.Branch is { } branch && entry.Kind != GitHistory.Checkout)
             range = range.Length == 0 ? $"({branch})" : $"{range} ({branch})";
         if (entry.Kind == GitHistory.Pull && entry.Ok && entry.From is not null && entry.From == entry.To) range = $"ya al día ({entry.Branch})";
-        var es = System.Globalization.CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
         var took = entry.Seconds switch
         {
             < 0.05 => "",

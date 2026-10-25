@@ -56,17 +56,17 @@ public sealed partial class SettingsViewModel
             EditorChoices =
             [
                 new(ShellApps.Auto, auto is null ? "Automático (el programa asociado: no hay ningún editor)" : $"Automático ({auto.Name})"),
-                new(ShellApps.AssociatedEditor, "El programa asociado de Windows"),
+                new(ShellApps.AssociatedEditor, OsTexts.AssociatedProgram),
                 .. editors.Select(e => new ProgramChoice(e.Id, e.Name)),
             ];
             TerminalChoices =
             [
-                new(ShellApps.Auto, autoTerminal is null ? "Automática (PowerShell)" : $"Automática ({autoTerminal.Name})"),
+                new(ShellApps.Auto, autoTerminal is null ? OperatingSystem.IsWindows() ? "Automática (PowerShell)" : "Automática (no se ha encontrado ninguna terminal)" : $"Automática ({autoTerminal.Name})"),
                 .. terminals.Select(t => new ProgramChoice(t.Id, t.Id == "wt" ? $"{t.Name} (con {autoTerminal?.Name ?? "PowerShell"})" : t.Name)),
             ];
             BrowserChoices =
             [
-                new(ShellApps.Auto, "El predeterminado de Windows"),
+                new(ShellApps.Auto, OsTexts.DefaultBrowser),
                 .. browsers.Select(b => new ProgramChoice(b.Id, b.Name)),
             ];
             // Lo guardado, si sigue en el equipo; si no, automático (y así lo usa Shell).
@@ -80,7 +80,9 @@ public sealed partial class SettingsViewModel
         }
 
         ProgramsHint = editors.Count == 0
-            ? "No se ha encontrado VS Code, Cursor, PhpStorm ni Sublime Text: los ficheros se abren con su programa asociado y las carpetas, en el explorador."
+            ? (OperatingSystem.IsWindows()
+                ? "No se ha encontrado VS Code, Cursor, PhpStorm ni Sublime Text: los ficheros se abren con su programa asociado y las carpetas, en el explorador."
+                : "No se ha encontrado VS Code, VSCodium, Cursor, PhpStorm ni Sublime Text en el PATH: los ficheros y las carpetas se abren con xdg-open.")
             : $"Se abren con él las carpetas de los sitios, el php.ini, los vhost, los registros y el usuario.cnf. En el equipo: {string.Join(", ", editors.Select(e => e.Name))}.";
     }
 

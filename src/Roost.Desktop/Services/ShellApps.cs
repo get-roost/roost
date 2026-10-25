@@ -10,12 +10,14 @@ public enum RegHive
 }
 
 /// <summary>Un programa que Roost sabe abrir: un editor, una terminal o un navegador.</summary>
-/// <param name="Id">Lo que se guarda en las preferencias (<c>vscode</c>, <c>wt</c>, <c>chrome.exe</c>).</param>
+/// <param name="Id">Lo que se guarda en las preferencias (<c>vscode</c>, <c>wt</c>, <c>chrome.exe</c>; en Linux, <c>gnome-terminal</c>, <c>firefox</c>).</param>
 public sealed record ShellApp(string Id, string Name, string Exe);
 
 /// <summary>
 /// Lo que se mira para encontrar los programas: ficheros, variables de entorno, el registro (solo
-/// lectura) y las subcarpetas de una carpeta. Los tests ponen uno de pega.
+/// lectura) y las subcarpetas de una carpeta. Los tests ponen uno de pega. <see cref="Posix"/> dice si
+/// las rutas son de Linux (<c>/usr/bin</c>, el <c>PATH</c> con <c>:</c>) o de Windows (<c>%ProgramFiles%</c>, el registro):
+/// así los tests prueban las dos listas en cualquier sistema.
 /// </summary>
 public sealed record AppProbe(
     Func<string, bool> FileExists,
@@ -24,6 +26,9 @@ public sealed record AppProbe(
     Func<RegHive, string, IReadOnlyList<string>> RegistrySubKeys,
     Func<string, IReadOnlyList<string>> Directories)
 {
+    /// <summary>true si el equipo es Linux o macOS (rutas con <c>/</c>, sin registro).</summary>
+    public bool Posix { get; init; } = !OperatingSystem.IsWindows();
+
     /// <summary>El equipo de verdad.</summary>
     public static readonly AppProbe Machine = new(
         File.Exists,
@@ -68,19 +73,22 @@ public sealed record AppProbe(
 }
 
 /// <summary>
-/// J3 + C4: los editores (VS Code, Cursor, PhpStorm, Sublime Text), las terminales (Windows
-/// Terminal, PowerShell 7, Windows PowerShell, Git Bash, cmd) y los navegadores que hay en el
-/// equipo, por sus rutas típicas y el registro de Windows (solo lectura, como
-/// <see cref="DbClients"/>). Las preferencias guardan el <see cref="ShellApp.Id"/>; vacío es
-/// «automático» (el primer editor que haya, o el programa asociado; PowerShell; el navegador
-/// predeterminado).
+/// J3 + C4: los editores (VS Code, Cursor, PhpStorm, Sublime Text), las terminales y los navegadores
+/// que hay en el equipo. En Windows, por sus rutas típicas y el registro (solo lectura, como
+/// <see cref="DbClients"/>): Windows Terminal, PowerShell 7, Windows PowerShell, Git Bash, cmd y los
+/// navegadores registrados. En Linux, por el <c>PATH</c> y las carpetas de siempre (<c>/opt</c>, snap,
+/// Toolbox): VS Code, VSCodium, Cursor, PhpStorm, Sublime Text; gnome-terminal, konsole, xfce4-terminal,
+/// kitty, alacritty, wezterm, tilix, mate-terminal, x-terminal-emulator y xterm; Chrome, Chromium,
+/// Firefox, Brave, Edge, Vivaldi y Opera. Las preferencias guardan el <see cref="ShellApp.Id"/>; vacío
+/// es «automático» (el primer editor que haya, o el programa asociado; PowerShell o la primera terminal;
+/// el navegador predeterminado, que en Linux es <c>xdg-open</c>).
 /// </summary>
 public static class ShellApps
 {
     /// <summary>La preferencia «automático».</summary>
     public const string Auto = "";
 
-    /// <summary>Editor: el programa asociado de Windows siempre, aunque haya un editor.</summary>
+    /// <summary>Editor: el programa asociado del sistema siempre, aunque haya un editor.</summary>
     public const string AssociatedEditor = "asociado";
 
     private const string Uninstall = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall";
@@ -92,6 +100,7 @@ public static class ShellApps
     public static IReadOnlyList<ShellApp> Editors(AppProbe? probe = null)
     {
         var p = probe ?? AppProbe.Machine;
+        if (p.Posix) return LinuxEditors(p);
         var found = new List<ShellApp>();
         Add(found, "vscode", "Visual Studio Code", First(p,
             [@"%LocalAppData%\Programs\Microsoft VS Code\Code.exe", @"%ProgramFiles%\Microsoft VS Code\Code.exe", @"%ProgramFiles(x86)%\Microsoft VS Code\Code.exe"])
@@ -102,6 +111,21 @@ public static class ShellApps
         Add(found, "sublime", "Sublime Text", First(p,
             [@"%ProgramFiles%\Sublime Text\sublime_text.exe", @"%ProgramFiles%\Sublime Text 4\sublime_text.exe", @"%ProgramFiles%\Sublime Text 3\sublime_text.exe", @"%LocalAppData%\Programs\Sublime Text\sublime_text.exe"])
             ?? FromUninstall(p, "Sublime Text", "sublime_text.exe"));
+        return found;
+    }
+
+    /// <summary>Linux: por el PATH (el <c>code</c> de un .deb o de snap, <c>phpstorm</c> de Toolbox…) y las carpetas de siempre.</summary>
+    private static IReadOnlyList<ShellApp> LinuxEditors(AppProbe p)
+    {
+        var found = new List<ShellApp>();
+        var home = p.Env("HOME") ?? "";
+        Add(found, "vscode", "Visual Studio Code", OnPosixPath(p, "code") ?? FirstPosix(p, ["/usr/share/code/bin/code", "/snap/bin/code", "/opt/visual-studio-code/bin/code"]));
+        Add(found, "codium", "VSCodium", OnPosixPath(p, "codium") ?? FirstPosix(p, ["/usr/share/codium/bin/codium", "/snap/bin/codium"]));
+        Add(found, "cursor", "Cursor", OnPosixPath(p, "cursor") ?? FirstPosix(p, ["/opt/cursor/cursor", $"{home}/.local/bin/cursor"]));
+        Add(found, "phpstorm", "PhpStorm", OnPosixPath(p, "phpstorm") ?? OnPosixPath(p, "phpstorm.sh")
+            ?? FirstPosix(p, [$"{home}/.local/share/JetBrains/Toolbox/apps/phpstorm/bin/phpstorm.sh", $"{home}/.local/share/JetBrains/Toolbox/apps/phpstorm/bin/phpstorm",
+                "/opt/phpstorm/bin/phpstorm.sh", "/opt/PhpStorm/bin/phpstorm.sh", "/snap/bin/phpstorm", "/usr/local/bin/phpstorm"]));
+        Add(found, "sublime", "Sublime Text", OnPosixPath(p, "subl") ?? FirstPosix(p, ["/opt/sublime_text/sublime_text", "/snap/bin/subl"]));
         return found;
     }
 
@@ -134,6 +158,7 @@ public static class ShellApps
     public static IReadOnlyList<ShellApp> Terminals(AppProbe? probe = null)
     {
         var p = probe ?? AppProbe.Machine;
+        if (p.Posix) return LinuxTerminals(p);
         var found = new List<ShellApp>();
         Add(found, "wt", "Windows Terminal", First(p, [@"%LocalAppData%\Microsoft\WindowsApps\wt.exe"]));
         Add(found, "pwsh", "PowerShell 7", OnPath(p, "pwsh.exe") ?? First(p, [@"%ProgramFiles%\PowerShell\7\pwsh.exe"]));
@@ -146,19 +171,48 @@ public static class ShellApps
         return found;
     }
 
-    /// <summary>La de «automático»: PowerShell 7 si está, y si no Windows PowerShell (lo de siempre).</summary>
+    /// <summary>
+    /// Las terminales de Linux que Roost sabe abrir en una carpeta y con una orden dentro, en el orden de
+    /// preferencia para «automática». <c>x-terminal-emulator</c> es la elegida por la distro (Debian y
+    /// derivadas), que puede ser cualquiera de las otras.
+    /// </summary>
+    public static readonly IReadOnlyList<(string Id, string Name)> LinuxTerminalKinds =
+    [
+        ("gnome-terminal", "Terminal de GNOME"),
+        ("konsole", "Konsole"),
+        ("xfce4-terminal", "Terminal de XFCE"),
+        ("kitty", "kitty"),
+        ("alacritty", "Alacritty"),
+        ("wezterm", "WezTerm"),
+        ("tilix", "Tilix"),
+        ("mate-terminal", "Terminal de MATE"),
+        ("x-terminal-emulator", "La terminal de la distro (x-terminal-emulator)"),
+        ("xterm", "xterm"),
+    ];
+
+    private static IReadOnlyList<ShellApp> LinuxTerminals(AppProbe p)
+    {
+        var found = new List<ShellApp>();
+        foreach (var (id, name) in LinuxTerminalKinds) Add(found, id, name, OnPosixPath(p, id));
+        return found;
+    }
+
+    /// <summary>La de «automático»: en Windows, PowerShell 7 si está, y si no Windows PowerShell; en Linux, la primera de <see cref="LinuxTerminalKinds"/> que haya.</summary>
     public static ShellApp? AutoTerminal(IReadOnlyList<ShellApp> terminals) =>
-        terminals.FirstOrDefault(t => t.Id == "pwsh") ?? terminals.FirstOrDefault(t => t.Id == "powershell");
+        terminals.FirstOrDefault(t => t.Id == "pwsh") ?? terminals.FirstOrDefault(t => t.Id == "powershell")
+        ?? terminals.FirstOrDefault(t => LinuxTerminalKinds.Any(k => k.Id == t.Id));
 
     // Navegadores
 
     /// <summary>
-    /// Los navegadores registrados (<c>Clients\StartMenuInternet</c>, de la máquina y del usuario),
-    /// por el nombre de su ejecutable: <c>chrome.exe</c>, <c>msedge.exe</c>, <c>firefox.exe</c>.
+    /// Los navegadores: en Windows, los registrados (<c>Clients\StartMenuInternet</c>, de la máquina y del
+    /// usuario), por el nombre de su ejecutable (<c>chrome.exe</c>, <c>msedge.exe</c>, <c>firefox.exe</c>);
+    /// en Linux, los del PATH por su orden (<c>google-chrome</c>, <c>chromium</c>, <c>firefox</c>…).
     /// </summary>
     public static IReadOnlyList<ShellApp> Browsers(AppProbe? probe = null)
     {
         var p = probe ?? AppProbe.Machine;
+        if (p.Posix) return LinuxBrowsers(p);
         var found = new List<ShellApp>();
         foreach (var hive in new[] { RegHive.CurrentUser, RegHive.LocalMachine })
         {
@@ -175,7 +229,33 @@ public static class ShellApps
                 }
             }
         }
-        return found.OrderBy(b => b.Name, StringComparer.CurrentCultureIgnoreCase).ToList();
+        return found.OrderBy(b => b.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    /// <summary>Los navegadores de Linux que se buscan en el PATH, con su nombre.</summary>
+    public static readonly IReadOnlyList<(string Command, string Name)> LinuxBrowserKinds =
+    [
+        ("google-chrome-stable", "Google Chrome"),
+        ("google-chrome", "Google Chrome"),
+        ("chromium", "Chromium"),
+        ("chromium-browser", "Chromium"),
+        ("firefox", "Firefox"),
+        ("brave-browser", "Brave"),
+        ("microsoft-edge-stable", "Microsoft Edge"),
+        ("microsoft-edge", "Microsoft Edge"),
+        ("vivaldi", "Vivaldi"),
+        ("opera", "Opera"),
+    ];
+
+    private static IReadOnlyList<ShellApp> LinuxBrowsers(AppProbe p)
+    {
+        var found = new List<ShellApp>();
+        foreach (var (command, name) in LinuxBrowserKinds)
+        {
+            if (found.Any(b => b.Name == name)) continue;   // google-chrome-stable y google-chrome son el mismo
+            Add(found, command, name, OnPosixPath(p, command));
+        }
+        return found;
     }
 
     /// <summary>PURO: el ejecutable de una orden del registro (<c>"C:\…\chrome.exe" --flag</c> o sin comillas).</summary>
@@ -216,6 +296,17 @@ public static class ShellApps
     private static string? OnPath(AppProbe p, string exe) =>
         (p.Env("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(dir => Path.Combine(dir, exe))
+            .FirstOrDefault(p.FileExists);
+
+    /// <summary>Linux: el primero de los candidatos que existe (rutas con <c>/</c>, escritas enteras).</summary>
+    private static string? FirstPosix(AppProbe p, IEnumerable<string> candidates) =>
+        candidates.FirstOrDefault(c => c.StartsWith('/') && p.FileExists(c));
+
+    /// <summary>Linux: <paramref name="command"/> en alguna carpeta del PATH (separado por <c>:</c>; las rutas se juntan con <c>/</c>, valga el test donde valga).</summary>
+    private static string? OnPosixPath(AppProbe p, string command) =>
+        (p.Env("PATH") ?? "").Split(':', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(dir => dir.StartsWith('/'))
+            .Select(dir => dir.TrimEnd('/') + "/" + command)
             .FirstOrDefault(p.FileExists);
 
     /// <summary>Por el <c>DisplayName</c> de las claves de desinstalación: su carpeta (o la del icono) y el exe.</summary>

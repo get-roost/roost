@@ -132,7 +132,7 @@ public sealed partial class RedisViewModel : PageViewModel
     private void BuildOthers() =>
         Others = Main.MachineServices.Found
             .Where(s => s.Kind == "Redis")
-            .Select(s => $"{s.DisplayName} ({s.Name}): {MachineServices.StateInSentence(s)}. Roost no lo usa ni lo toca; si se queda el {_config.RedisPort}, cambia aquí el puerto o déjalo en Manual en Servicios de Windows.")
+            .Select(s => $"{s.DisplayName} ({s.Name}): {MachineServices.StateInSentence(s)}. Roost no lo usa ni lo toca; si se queda el {_config.RedisPort}, cambia aquí el puerto o {OsTexts.LeaveServiceManual(s.Name).TrimEnd('.').ToLowerInvariant()[0]}{OsTexts.LeaveServiceManual(s.Name).TrimEnd('.')[1..]}.")
             .ToList();
 
     private async Task PingAsync()

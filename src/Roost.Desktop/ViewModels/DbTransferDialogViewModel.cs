@@ -133,7 +133,7 @@ public sealed partial class DbTransferDialogViewModel : DialogViewModel
     {
         var elapsed = _watch.Elapsed;
         return elapsed.TotalSeconds < 60
-            ? string.Format(CultureInfo.GetCultureInfo("es-ES"), "{0:0.0} s", elapsed.TotalSeconds)
+            ? string.Format(Roost.Desktop.Services.Es.Culture, "{0:0.0} s", elapsed.TotalSeconds)
             : $"{(int)elapsed.TotalMinutes} min {elapsed.Seconds} s";
     }
 
@@ -156,7 +156,7 @@ public sealed partial class DbTransferDialogViewModel : DialogViewModel
     public void Progress(DbTransferProgress progress, string? verb = null)
     {
         if (Done) return;   // un aviso que llega tarde, de otro hilo
-        var es = CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
         if (progress.Percent is { } percent)
         {
             Indeterminate = false;

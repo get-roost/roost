@@ -181,7 +181,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
         if (_clients is null)
         {
             // Rutas típicas y el registro, solo lectura; una vez por sesión.
-            _clients = await Task.Run(DbClients.Detect);
+            _clients = await Task.Run(() => DbClients.Detect());
             Clients = _clients;
         }
         if (_mariaDb is null)
@@ -347,7 +347,7 @@ public sealed partial class DatabasesViewModel : PageViewModel
 
     private (string Text, Tone Tone) Support(DbEngine engine, string? branch, bool? lts)
     {
-        var es = CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
         if (branch is null || !Main.Audit.Dataset.Products.TryGetValue(engine.Key(), out var product)
                            || !product.Branches.TryGetValue(branch, out var info))
             return ("Sin datos de soporte", Tone.Warn);

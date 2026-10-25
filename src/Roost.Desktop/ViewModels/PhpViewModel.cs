@@ -32,13 +32,20 @@ public sealed partial class PhpCard(InstalledPhp php) : ObservableObject
     public partial bool IsSelected { get; set; }
 }
 
-/// <summary>Una extensión de la instalación elegida: se activa o se quita con un clic.</summary>
+/// <summary>Una extensión de la instalación elegida: se activa o se quita con un clic (salvo las integradas, que van fijas).</summary>
 public sealed partial class ExtensionToggle(string name, bool on) : ObservableObject
 {
     public string Name { get; } = name;
 
     [ObservableProperty]
     public partial bool IsOn { get; set; } = on;
+
+    /// <summary>Compilada dentro del binario (los PHP de roost-builds, en Linux): siempre activa y sin clic.</summary>
+    public bool BuiltIn { get; init; }
+
+    public bool CanToggle => !BuiltIn;
+
+    public string Tip => BuiltIn ? $"{Name} va integrada en este PHP (compilado estático): siempre activa, no se puede quitar" : IsOn ? $"Quitar {Name}" : $"Activar {Name}";
 }
 
 /// <summary>Una rama del catálogo de windows.php.net en la variante elegida (NTS/TS, x64/x86).</summary>
@@ -278,13 +285,15 @@ public sealed partial class PhpViewModel : PageViewModel
                 : "Se arranca con el stack";
 
         // Xdebug tiene su interruptor: no va entre las extensiones aunque haya un php_xdebug.dll en ext/.
-        var available = PhpIni.AvailableExtensions(card.Php.Directory);
-        var enabled = PhpIni.Enabled(available, PhpExtensionChoice.Load(planner.PhpExtensionChoicePath(card.Php)));
-        Extensions = available.Where(n => n != PhpIni.Xdebug).Order(StringComparer.Ordinal)
-            .Select(n => new ExtensionToggle(n, enabled.Contains(n))).ToList();
-        ExtensionSummary = $"{Extensions.Count(e => e.IsOn)} de {Extensions.Count} activas";
+        // Las integradas en el binario (los PHP de roost-builds, en Linux) salen fijas: siempre activas y sin clic.
+        Extensions = Configurator.Extensions(card.Php)
+            .Where(e => e.Name != PhpIni.Xdebug)
+            .Select(e => new ExtensionToggle(e.Name, e.On) { BuiltIn = e.BuiltIn }).ToList();
+        var builtIn = Extensions.Count(e => e.BuiltIn);
+        ExtensionSummary = $"{Extensions.Count(e => e.IsOn)} de {Extensions.Count} activas"
+            + (builtIn > 0 ? $" ({builtIn} integradas en el binario, que no se pueden quitar)" : "");
 
-        BranchIniText = $@"conf.d\{card.Branch}\{PhpIni.UserFragmentName}";
+        BranchIniText = Path.Combine("conf.d", card.Branch, PhpIni.UserFragmentName);
         BranchHint = $"solo la {card.Branch}: va después y manda";
         BuildXdebug(card);
         // Los campos solo se recargan al cambiar de versión: un aviso del stack no borra lo tecleado.
@@ -297,16 +306,20 @@ public sealed partial class PhpViewModel : PageViewModel
         var configurator = Configurator;
         XdebugOn = configurator.Choice(php).On.Contains(PhpIni.Xdebug);
         XdebugAvailable = XdebugCatalog.WhyNot(php) is null;
-        var build = XdebugCatalog.For(php);
+        var build = XdebugCatalog.For(php);   // null en Linux: el xdebug.so viene dentro de cada PHP
         var dll = new XdebugInstaller(Main.App.Paths).Locate(php);
-        var version = dll is null ? build?.Version : Path.GetFileName(Path.GetDirectoryName(dll));
+        var bundled = XdebugCatalog.IsBundled(php);
+        var version = bundled ? XdebugInstaller.BundledVersion(php) ?? "" : dll is null ? build?.Version : Path.GetFileName(Path.GetDirectoryName(dll));
+        var label = version is { Length: > 0 } ? $"Xdebug {version}" : "Xdebug";
         XdebugText = !XdebugAvailable
-            ? php.ThreadSafe ? "Solo en las NTS, que son las que sirve Roost."
+            ? bundled ? $"Este PHP no trae ext/{XdebugInstaller.SharedObjectName}: vuelve a instalarlo desde el catálogo (los PHP de roost-builds lo llevan dentro)."
+            : php.ThreadSafe ? "Solo en las NTS, que son las que sirve Roost."
             : !php.Name.EndsWith("-x64", StringComparison.OrdinalIgnoreCase) ? "Solo en las de 64 bits."
             : $"Roost no tiene Xdebug para PHP {card.Branch}."
             : XdebugOn && dll is null ? "Activado, pero falta su DLL: apágalo y vuelve a encenderlo para bajarla."
-            : XdebugOn ? $"Xdebug {version} · depura la petición que trae XDEBUG_TRIGGER · el editor escucha en 127.0.0.1:9003"
-            : dll is not null ? $"Apagado (Xdebug {version} ya está en bin\\xdebug). Encenderlo reinicia solo el pool de la {card.Branch}."
+            : XdebugOn ? $"{label} · depura la petición que trae XDEBUG_TRIGGER · el editor escucha en 127.0.0.1:9003"
+            : bundled ? $"Apagado ({label} viene dentro de este PHP, en ext/). Encenderlo reinicia solo el pool de la {card.Branch}."
+            : dll is not null ? $"Apagado ({label} ya está en {Path.Combine("bin", "xdebug")}). Encenderlo reinicia solo el pool de la {card.Branch}."
             : $"Apagado. La primera vez se baja Xdebug {build!.Version} de xdebug.org ({build.Size / 1024} KB, con su SHA-256 comprobado).";
     }
 
@@ -389,7 +402,7 @@ public sealed partial class PhpViewModel : PageViewModel
 
     private (string Text, Tone Tone) Support(string branch)
     {
-        var es = CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
         if (!Main.Audit.Dataset.Products.TryGetValue("php", out var product) || !product.Branches.TryGetValue(branch, out var info))
             return ("Sin datos de soporte", Tone.Warn);
         var today = DateOnly.FromDateTime(DateTime.Today);
@@ -560,7 +573,8 @@ public sealed partial class PhpViewModel : PageViewModel
             await Main.InfoAsync("Xdebug no está disponible para esta versión", why, Tone.Warn);
             return false;
         }
-        var build = XdebugCatalog.For(card.Php)!;
+        // En Linux no hay nada que bajar (For es null): el xdebug.so va dentro de cada PHP y WhyNot ya ha dicho que está.
+        if (XdebugCatalog.For(card.Php) is not { } build) return true;
         var installer = new XdebugInstaller(Main.App.Paths, Main.App.Http);
         if (installer.Find(build) is not null) return true;
         if (Installing is not null)

@@ -492,7 +492,7 @@ public sealed partial class SitesViewModel
         string? dbError = null;
         var keyName = request.Access?.Kind == SiteGit.AccessKey ? request.Access.KeyName : null;
         var own = request.Access?.Kind == SiteGit.AccessOwn;
-        var es = CultureInfo.GetCultureInfo("es-ES");
+        var es = Roost.Desktop.Services.Es.Culture;
 
         var dialog = new GitTaskDialogViewModel($"Clonando {url.Label}", $"{branch} → {folder}", steps, async (d, cancel) =>
         {
