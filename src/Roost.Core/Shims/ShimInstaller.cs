@@ -245,8 +245,8 @@ public sealed class ShimInstaller(RoostPaths paths)
     {
         try
         {
-            // En Linux, php es un enlace: se compara la copia a la que apunta.
-            var installed = OperatingSystem.IsWindows() ? Path.Combine(Directory, "php.exe") : UnixShim;
+            // En Linux, php es un enlace: se compara la copia a la que apunta (o el php de una version anterior, que era una copia).
+            var installed = OperatingSystem.IsWindows() ? Path.Combine(Directory, "php.exe") : File.Exists(UnixShim) ? UnixShim : Path.Combine(Directory, "php");
             var source = Path.Combine(sourceDirectory, OperatingSystem.IsWindows() ? ShimName + ".exe" : ShimName);
             if (!File.Exists(installed) || !File.Exists(source)) return false;
             if (new FileInfo(installed).Length != new FileInfo(source).Length) return true;

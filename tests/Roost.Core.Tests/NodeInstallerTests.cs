@@ -307,7 +307,8 @@ public class NodeInstallerTests : IDisposable
     {
         var ext = Linux ? ".tar.gz" : ".zip";
         var archive = Archive("22.23.4");
-        var dist = new FakeDist().Add($"https://example.test/a{ext}", archive).Add($"https://example.test/b{ext}", Archive("22.23.4", npm: false));
+        var noNpm = Archive("22.23.4", npm: false);   // una sola vez: el gzip lleva fecha y dos iguales no dan el mismo SHA
+        var dist = new FakeDist().Add($"https://example.test/a{ext}", archive).Add($"https://example.test/b{ext}", noNpm);
         var installer = new NodeInstaller(Paths, new HttpClient(dist));
 
         var bad = await Assert.ThrowsAsync<RoostException>(() =>
@@ -316,7 +317,6 @@ public class NodeInstallerTests : IDisposable
         Assert.Contains("roost node install 22.23.4", bad.Message);
         Assert.Empty(installer.ListInstalled());
 
-        var noNpm = Archive("22.23.4", npm: false);
         var broken = await Assert.ThrowsAsync<RoostException>(() =>
             installer.InstallAsync(new NodeBuild("22.23.4", new Uri($"https://example.test/b{ext}"), Sha(noNpm))));
         Assert.Contains("no trae npm", broken.Message);

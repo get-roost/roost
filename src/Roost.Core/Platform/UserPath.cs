@@ -39,7 +39,7 @@ public static class UserPath
     private static bool Update(Func<string, string> change)
     {
         if (!OperatingSystem.IsWindows())
-            throw new RoostException("Cambiar el PATH del usuario solo esta hecho para Windows por ahora.");
+            throw new RoostException("El PATH del usuario del registro es de Windows. En Linux los shims llegan a la terminal por los enlaces de ~/.local/bin (roost shims install; ShimInstaller.Enable).");
 
         using var key = Registry.CurrentUser.CreateSubKey("Environment");
         var current = key.GetValue("Path", "", RegistryValueOptions.DoNotExpandEnvironmentNames) as string ?? "";

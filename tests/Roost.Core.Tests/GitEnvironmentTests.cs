@@ -28,12 +28,47 @@ public class GitEnvironmentTests : IDisposable
         Assert.Null(variables["GIT_DIR"]);
         Assert.Equal(GitEnvironment.DefaultSshCommand, variables["GIT_SSH_COMMAND"]);   // nunca una pregunta sin contestar
 
+        Assert.Equal("never", variables["SSH_ASKPASS_REQUIRE"]);
+
         var config = File.ReadAllText(env.ConfigFile);
-        Assert.Contains("longpaths = true", config);
         Assert.Contains("autocrlf = false", config);
-        Assert.Contains("sslBackend = schannel", config);
         Assert.Contains("useHttpPath = true", config);
         Assert.Contains("ff = only", config);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Contains("longpaths = true", config);
+            Assert.Contains("sslBackend = schannel", config);
+        }
+        else
+        {
+            // Nada de Schannel ni de Windows: libcurl con la CA del sistema, y los enlaces como enlaces.
+            Assert.DoesNotContain("schannel", config);
+            Assert.DoesNotContain("longpaths", config);
+            Assert.DoesNotContain("symlinks", config);
+            if (GitEnvironment.SystemCaBundle() is { } bundle) Assert.Contains($"sslCAInfo = {bundle}", config);
+        }
+    }
+
+    [Fact]
+    public void Template_PorSistema_YElBundleDeCaDeLaDistro()
+    {
+        var windows = GitEnvironment.Template(windows: true, caBundle: null);
+        Assert.Contains("sslBackend = schannel", windows);
+        Assert.Contains("fscache = true", windows);
+        Assert.DoesNotContain("sslCAInfo", windows);
+
+        var linux = GitEnvironment.Template(windows: false, caBundle: "/etc/ssl/certs/ca-certificates.crt");
+        Assert.DoesNotContain("schannel", linux);
+        Assert.Contains("[http]\n\tsslCAInfo = /etc/ssl/certs/ca-certificates.crt\n", linux);
+        Assert.Contains("[credential]\n\tuseHttpPath = true\n\thelper =\n", linux);
+        Assert.DoesNotContain("\r", linux);
+
+        var bare = GitEnvironment.Template(windows: false, caBundle: null);
+        Assert.DoesNotContain("[http]", bare);
+
+        // El bundle: el primero que exista de los de cada distro; sin ninguno, null.
+        Assert.Equal("/etc/pki/tls/certs/ca-bundle.crt", GitEnvironment.SystemCaBundle(p => p == "/etc/pki/tls/certs/ca-bundle.crt"));
+        Assert.Null(GitEnvironment.SystemCaBundle(_ => false));
     }
 
     [Fact]

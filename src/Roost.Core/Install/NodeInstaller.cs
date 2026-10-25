@@ -24,13 +24,20 @@ public sealed record InstalledNode(string Version, string Directory)
 
     public string Label => $"Node {Version}";
 
-    public string Executable => Path.Combine(Directory, ExecutableRelative);
+    /// <summary>
+    /// En Linux, true si el Node está «plano» como el zip de Windows (<c>node</c> y <c>node_modules/</c> en la
+    /// raíz de la carpeta) en vez de con <c>bin/</c> y <c>lib/</c> como el tar.gz: una copia a mano. Se
+    /// acepta igual; lee el disco.
+    /// </summary>
+    public bool Flat => !OperatingSystem.IsWindows() && !File.Exists(Path.Combine(Directory, "bin", "node")) && File.Exists(Path.Combine(Directory, "node"));
+
+    public string Executable => OperatingSystem.IsWindows() || Flat ? Path.Combine(Directory, ExecutableName) : Path.Combine(Directory, "bin", "node");
 
     /// <summary>La carpeta con <c>node</c> (y <c>npm</c>, <c>npx</c>): la que va la primera en el PATH de lo que lanza Roost. En Windows es la propia carpeta; en Linux, <c>bin/</c>.</summary>
-    public string BinDirectory => OperatingSystem.IsWindows() ? Directory : Path.Combine(Directory, "bin");
+    public string BinDirectory => OperatingSystem.IsWindows() || Flat ? Directory : Path.Combine(Directory, "bin");
 
     /// <summary>Los módulos globales que trae (npm y corepack): <c>node_modules</c> en Windows, <c>lib/node_modules</c> en Linux.</summary>
-    public string Modules => OperatingSystem.IsWindows() ? Path.Combine(Directory, "node_modules") : Path.Combine(Directory, "lib", "node_modules");
+    public string Modules => OperatingSystem.IsWindows() || Flat ? Path.Combine(Directory, "node_modules") : Path.Combine(Directory, "lib", "node_modules");
 
     /// <summary>El npm que trae (lo que ejecuta su <c>npm.cmd</c>, o su <c>bin/npm</c>).</summary>
     public string NpmCli => Path.Combine(Modules, "npm", "bin", "npm-cli.js");
