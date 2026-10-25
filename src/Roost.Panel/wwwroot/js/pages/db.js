@@ -24,7 +24,6 @@ export async function render(root, ctx) {
     clear(page);
     page.appendChild(h('div.page-head', h('div.titles', h('h1.h1', 'Bases de datos'), h('div.sub', 'MariaDB o MySQL, una en marcha a la vez y solo en este equipo. Root con la contraseña que quieras, y usuarios y bases de datos por proyecto.')),
       h('div.actions', btn('Consola SQL', { onclick: () => toast(d.global ? `Desde la terminal: ${d.global.key === 'mysql' ? 'mysql' : 'mariadb'} --defaults-file="${d.ini}"` : 'No hay base de datos global.') }, icon('terminal', 15)))));
-    if (d.linuxNote) page.appendChild(note('info', d.linuxNote));
     if (d.globalProblem) page.appendChild(note('bad', d.globalProblem));
     for (const j of d.jobs || []) page.appendChild(note('info', `${j.title} en segundo plano: ${j.message || '…'}`));
 

@@ -59,7 +59,8 @@ public static class WebApi
         var status = await app.Daemon.TryStatusAsync(ct);
         var ours = status is { Running: true } ? status.Ports ?? status.Services.Where(s => s.Port is not null).Select(s => s.Port!.Value).ToList() : [];
         var nginx = new NginxInstaller(paths).Find(NginxCatalog.Current);
-        var apache = OperatingSystem.IsWindows() ? new ApacheInstaller(paths).Find(ApacheCatalog.Current) : null;
+        var apache = new ApacheInstaller(paths).Find(ApacheCatalog.Current);
+        var distro = ApacheCatalog.Current.IsDistro;
         var sites = StackApi.SafeSites(paths).Count;
         var webRunning = status is { Running: true } && status.Services.Any(s => s.Name is "nginx" or "apache" && s.State == "Running");
         return new
@@ -76,13 +77,28 @@ public static class WebApi
             },
             apache = new
             {
-                available = OperatingSystem.IsWindows(), installed = apache is not null, version = apache?.Version ?? ApacheCatalog.Current.Version, directory = apache?.Directory,
+                available = !distro || apache is not null, distro, installed = apache is not null, version = apache?.Version ?? ApacheCatalog.Current.Version, directory = apache?.Directory,
                 conf = Path.Combine(paths.Etc, "apache", "httpd.conf"), sitesDir = Path.Combine(paths.ApacheSites, "*.conf"), errorLog = Path.Combine(paths.Logs, "apache-error.log"),
-                why = OperatingSystem.IsWindows() ? null : "En Linux, Apache (el apache2 de la distro) llega en la próxima versión.",
-                redistributable = OperatingSystem.IsWindows() ? ApacheCatalog.Current.Redistributable : null,
+                why = distro && apache is null ? $"No está en el sistema: en Linux, Roost usa el apache2 de la distro y no instala paquetes del sistema. Instálalo con: {LinuxApache.InstallHint}." : null,
+                note = distro ? DistroNote(apache, config) : null,
+                redistributable = distro ? null : ApacheCatalog.Current.Redistributable,
             },
             jobs = app.Jobs.Running().Where(j => j.Title.Contains("nginx", StringComparison.Ordinal) || j.Title.Contains("Apache", StringComparison.Ordinal)).ToList(),
         };
+    }
+
+    /// <summary>
+    /// Linux: lo que hay que saber del Apache de la distro (lo mismo que avisa <c>roost web use apache</c>): cuál es,
+    /// que va con tus permisos y la configuración de Roost, el apache2.service del sistema si coge los mismos puertos,
+    /// y que como usuario solo valen puertos de 1024 en adelante (a un binario del sistema no se le hace setcap).
+    /// </summary>
+    private static string DistroNote(InstalledApache? apache, RoostConfig config)
+    {
+        var text = (apache is null ? "Roost no descarga Apache: usa el apache2 de la distro" : $"El Apache {apache.Version} de la distro ({apache.Executable})")
+            + ", lanzado por Roost con tus permisos y su propia configuración (no la de /etc/apache2). Como usuario, solo puertos de 1024 en adelante.";
+        if (apache is not null && LinuxApache.ServiceWarning(SystemServices.Current.Find(ProcessRunner.Default), config.HttpPort, config.HttpsPort) is { } service)
+            text += " " + service;
+        return text;
     }
 
     /// <summary>Un puerto, comprobado en vivo: libre, en uso por Roost, ocupado por otro (y quién) o denegado (Linux, &lt; 1024).</summary>
@@ -99,9 +115,12 @@ public static class WebApi
     private static Job Switch(PanelApp app, string server)
     {
         if (server is not (RoostConfig.WebNginx or RoostConfig.WebApache)) throw new RoostException("El servidor web es nginx o apache.");
-        if (server == RoostConfig.WebApache && !OperatingSystem.IsWindows()) throw new RoostException("En Linux, Apache llega en la proxima version.");
-        var label = server == RoostConfig.WebApache ? $"Apache {ApacheCatalog.Current.Version}" : $"nginx {NginxCatalog.Current.Version}";
-        var installed = server == RoostConfig.WebApache ? new ApacheInstaller(app.Paths).Find(ApacheCatalog.Current) is not null : new NginxInstaller(app.Paths).Find(NginxCatalog.Current) is not null;
+        var apache = server == RoostConfig.WebApache ? new ApacheInstaller(app.Paths).Find(ApacheCatalog.Current) : null;
+        // Linux: el de la distro no se descarga; si falta, se dice cómo ponerlo en vez de lanzar una tarea que no puede hacer nada.
+        if (server == RoostConfig.WebApache && apache is null && ApacheCatalog.Current.IsDistro)
+            throw new RoostException($"Apache no esta en el sistema, y en Linux Roost usa el de la distro (no instala paquetes del sistema): {LinuxApache.InstallHint}. Despues vuelve a elegirlo.");
+        var label = server == RoostConfig.WebApache ? $"Apache {apache?.Version ?? ApacheCatalog.Current.Version}" : $"nginx {NginxCatalog.Current.Version}";
+        var installed = server == RoostConfig.WebApache ? apache is not null : new NginxInstaller(app.Paths).Find(NginxCatalog.Current) is not null;
         var steps = new List<(string, string?)>();
         if (!installed) { steps.Add(($"Descargar {label}", null)); steps.Add(("Verificar el SHA-256", "fijado en Roost")); steps.Add(("Dejarlo en su carpeta", null)); }
         steps.Add(("Guardar [web] server en roost.toml", null));

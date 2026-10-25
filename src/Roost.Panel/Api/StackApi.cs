@@ -141,7 +141,7 @@ public static class StackApi
     {
         if (config.UsesApache)
         {
-            if (!OperatingSystem.IsWindows()) throw new RoostException("Apache en Linux llega en la proxima version: elige nginx en Servidor web.");
+            // En Linux es el de la distro: si no está, InstallAsync no descarga nada y dice cómo ponerlo.
             var installer = new ApacheInstaller(app.Paths, app.Http);
             if (installer.Find(ApacheCatalog.Current) is null) await installer.InstallAsync(ApacheCatalog.Current, null, ct);
         }

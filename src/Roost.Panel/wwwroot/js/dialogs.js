@@ -166,7 +166,7 @@ export async function welcome({ api, navigate, refresh }) {
     h('div.lbl', 'Encontrado en este equipo'), found,
     h('div.lbl', '¿Qué traemos?'),
     h('label.check', phpCheck, h('div', phpLabel, h('div.hint', w.proposedPhp.length ? `Y hacer global la ${w.proposedPhp[0]}. Lo de fuera sigue donde está.` : (w.catalogProblem || '')))),
-    h('label.check', dbCheck, h('div', w.db ? `Una MariaDB LTS para los proyectos${w.dbPortBusy ? ` (el ${w.dbPort} está cogido: cámbialo en Bases de datos antes de iniciar)` : ''}` : w.dbInstalled ? 'Ya hay una base de datos en Roost' : 'En Linux, la base de datos llega en la próxima versión')),
+    h('label.check', dbCheck, h('div', w.db ? `Una MariaDB LTS para los proyectos${w.dbPortBusy ? ` (el ${w.dbPort} está cogido: cámbialo en Bases de datos antes de iniciar)` : ''}` : 'Ya hay una base de datos en Roost')),
     h('div.form-grid', h('div.form-row', h('label', 'Carpeta de Roost'), h('div.field', shortPath(w.root, 44)), h('div.hint', 'Binarios, configuración y datos')), h('div.form-row', h('label', 'Proyectos nuevos'), h('div.field', shortPath(w.www, 44)), h('div.hint', 'Donde se crean los sitios nuevos'))),
     note('info', w.note),
   ];

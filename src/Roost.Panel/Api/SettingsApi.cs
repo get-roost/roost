@@ -98,7 +98,7 @@ public static class SettingsApi
             version = RoostVersion.Current, os = OperatingSystem.IsWindows() ? "windows" : "linux", machine = Environment.MachineName, user = Environment.UserName,
             panel = new { log = PanelHost.LogFile(paths), pid = Environment.ProcessId },
             updates = new { automatic = !UpdateChecker.AutomaticChecksOff, env = UpdateChecker.DisabledByEnvironment },
-            shims = new { directory = paths.Shims, note = OperatingSystem.IsWindows() ? "Desde la terminal: roost shims install (cambia el PATH de tu usuario)." : "En Linux, los shims llegan en la próxima versión." },
+            shims = new { directory = paths.Shims, note = OperatingSystem.IsWindows() ? "Desde la terminal: roost shims install (cambia el PATH de tu usuario)." : "Desde la terminal: roost shims install (enlaces en ~/.local/bin; con --profile, también el PATH de tu shell)." },
         };
     }
 
@@ -205,7 +205,7 @@ public static class SettingsApi
         return new
         {
             show = installed.Count == 0, found, catalogProblem, proposedPhp = proposed, phpVersions = proposed.Select(b => builds.First(x => x.Branch == b && !x.ThreadSafe).Version.ToString()).ToList(),
-            db = OperatingSystem.IsWindows() ? (dbInstalled.Count > 0 ? null : "mariadb") : null, dbInstalled = dbInstalled.Count > 0, dbPortBusy, dbPort = RoostConfig.Load(paths.ConfigFile).DbPort,
+            db = dbInstalled.Count > 0 ? null : "mariadb", dbInstalled = dbInstalled.Count > 0, dbPortBusy, dbPort = RoostConfig.Load(paths.ConfigFile).DbPort,
             root = paths.Root, www = paths.Www,
             note = OperatingSystem.IsWindows() ? "Windows pedirá dos permisos: uno para el fichero hosts (los nombres .test) y otro para confiar en la CA local (el candado de https)." : "Para el hosts y la CA del sistema hará falta permiso de administrador (pkexec o sudo).",
         };

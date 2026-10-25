@@ -139,7 +139,7 @@ public class GitAppViewTests
         Assert.Equal("github.com, público", cloning.Steps[1].Hint);
         // En Linux, con el git del sistema (GitSource.System, de Terminal L2), el paso dice «el de tu sistema: /usr/bin/git»; con el MinGit de pega, lo de Windows.
         if (OperatingSystem.IsWindows()) Assert.Equal($"{GitCatalog.Windows.Label}, SHA-256 verificado", cloning.Steps[0].Hint);
-        else Assert.True(cloning.Steps[0].Hint == $"{GitCatalog.Windows.Label}, SHA-256 verificado" || cloning.Steps[0].Hint.StartsWith("el de tu sistema: ", StringComparison.Ordinal), cloning.Steps[0].Hint);
+        else Assert.True(cloning.Steps[0].Hint == $"{GitCatalog.Windows.Label}, SHA-256 verificado" || cloning.Steps[0].Hint?.StartsWith("el de tu sistema: ", StringComparison.Ordinal) == true, cloning.Steps[0].Hint);
         Assert.True(cloning.Steps[2].IsActive);
         Assert.Equal("1.284 objetos", cloning.Steps[2].Hint);
         Assert.Equal("Recibiendo objetos", cloning.Phase);

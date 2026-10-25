@@ -6,7 +6,7 @@ namespace Roost.Core.Share;
 /// Copiar un texto (la URL de <c>roost share</c>) al portapapeles con lo que tenga el sistema: en
 /// Windows, <c>clip.exe</c>; en Linux, <c>wl-copy</c> (Wayland, paquete wl-clipboard) o <c>xclip</c> (X11).
 /// Sin escritorio (una terminal por SSH, WSL sin WSLg) o sin esas herramientas no se copia nada y se
-/// dice por qué: no es un error, la URL sale igual en pantalla. Lo puro es <see cref="Resolve"/>.
+/// dice por qué: no es un error, la URL sale igual en pantalla. Lo puro es <see cref="Resolve(bool, Func{string, string?}, Func{string, string?}, string?)"/>.
 /// </summary>
 public static class Clipboard
 {

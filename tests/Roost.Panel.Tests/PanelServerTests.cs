@@ -247,7 +247,12 @@ public sealed class PanelServerTests : IAsyncLifetime
         var web = await _session.GetFromJsonAsync<JsonElement>("/api/web");
         Assert.Equal("nginx", web.GetProperty("server").GetString());
         Assert.False(web.GetProperty("nginx").GetProperty("installed").GetBoolean());
-        Assert.Equal(OperatingSystem.IsWindows(), web.GetProperty("apache").GetProperty("available").GetBoolean());
+        // En Linux, Apache es el de la distro: se puede elegir si está, y si no, el motivo dice cómo ponerlo.
+        var apache = web.GetProperty("apache");
+        var distroApache = OperatingSystem.IsWindows() || Core.Install.LinuxApache.Locate(Core.Scanning.ProcessRunner.Default) is not null;
+        Assert.Equal(!OperatingSystem.IsWindows(), apache.GetProperty("distro").GetBoolean());
+        Assert.Equal(distroApache, apache.GetProperty("available").GetBoolean());
+        if (!distroApache) Assert.Contains("apt install apache2", apache.GetProperty("why").GetString());
 
         var db = await _session.GetFromJsonAsync<JsonElement>("/api/db");
         Assert.True(IsNullOrMissing(db, "global"));

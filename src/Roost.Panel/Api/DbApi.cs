@@ -123,7 +123,7 @@ public static class DbApi
 
         object? available = null;
         string? catalogProblem = app.DbCatalogProblem;
-        if (withCatalog && OperatingSystem.IsWindows())
+        if (withCatalog)
         {
             try
             {
@@ -143,7 +143,6 @@ public static class DbApi
         return new
         {
             platform = OperatingSystem.IsWindows() ? "windows" : "linux",
-            linuxNote = OperatingSystem.IsWindows() ? null : "En Linux, MariaDB y MySQL llegan en la próxima versión: de momento el stack va sin base de datos.",
             global = global is null ? null : new { engine = global.Engine.DisplayName(), key = global.Engine.Key(), name = global.Name, version = global.Version?.ToString(), branch = global.Branch, label = global.Label, spec = global.Spec },
             globalProblem, none = config.DbEngine == RoostConfig.NoDb,
             running, state = dbService?.State, pid = dbService?.Pid, service = dbService?.Name,
@@ -158,7 +157,6 @@ public static class DbApi
 
     private static Job Install(PanelApp app, string specText)
     {
-        if (!OperatingSystem.IsWindows()) throw new RoostException("En Linux, la base de datos llega en la proxima version.");
         var spec = DbSpec.Parse(specText);
         var engine = spec.Engine ?? throw new RoostException("Di el motor: mariadb@11.4 o mysql@8.4.");
         var label = $"{engine.DisplayName()} {spec}";
