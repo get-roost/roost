@@ -1,1 +1,41 @@
-<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Roost</title></head><body>Roost</body></html>
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Roost</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <div id="app">
+    <header class="titlebar">
+      <div class="brand" id="brand"></div>
+      <span class="name">Roost</span>
+      <span class="chip" id="run-chip"><span class="dot"></span><span>…</span></span>
+      <span class="right faint" id="panel-url"></span>
+    </header>
+    <div class="main">
+      <nav class="sidebar" id="sidebar">
+        <div class="nav-list" id="nav"></div>
+        <div class="foot">
+          <div class="state"><span class="dot" id="foot-dot"></span><span id="foot-text">…</span></div>
+          <button class="bigtoggle start" id="toggle" disabled><span class="ic"></span><span class="label">…</span></button>
+        </div>
+      </nav>
+      <main class="content" id="content"></main>
+    </div>
+    <footer class="statusbar">
+      <span class="row"><span class="dot" id="sb-dot"></span><span id="sb-run">…</span></span>
+      <span id="sb-daemon"></span>
+      <span id="sb-ca"></span>
+      <span id="sb-hosts" class="hostsText"></span>
+      <span class="root" id="sb-root"></span>
+      <span class="flash hidden" id="sb-flash"></span>
+    </footer>
+  </div>
+  <div id="dialogs"><div class="shade"></div></div>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -43,7 +43,7 @@ public sealed class PanelUpCommand : AsyncCommand<PanelUpCommand.Settings>
 
         if (PanelState.ReadAlive(paths) is { } running)
         {
-            if (settings.Json) { Console.WriteLine(JsonSerializer.Serialize(new { running = true, running.Pid, running.Port, running.Url }, JsonOutput.Options)); return 0; }
+            if (settings.Json) { Console.WriteLine(JsonSerializer.Serialize(new { running = true, pid = running.Pid, port = running.Port, url = running.Url }, JsonOutput.Options)); return 0; }
             AnsiConsole.MarkupLineInterpolated($"El panel ya esta en marcha (pid {running.Pid}{(running.Port == port ? "" : $", en el puerto {running.Port}")}).");
             AnsiConsole.MarkupLineInterpolated($"  [bold]{running.Url}[/]");
             AnsiConsole.MarkupLine("  [grey]Para cambiar de puerto: roost panel down y despues roost panel up <puerto>.[/]");
@@ -76,7 +76,7 @@ public sealed class PanelUpCommand : AsyncCommand<PanelUpCommand.Settings>
             return 1;
         }
 
-        if (settings.Json) { Console.WriteLine(JsonSerializer.Serialize(new { running = true, info.Pid, info.Port, info.Url }, JsonOutput.Options)); return 0; }
+        if (settings.Json) { Console.WriteLine(JsonSerializer.Serialize(new { running = true, pid = info.Pid, port = info.Port, url = info.Url }, JsonOutput.Options)); return 0; }
         AnsiConsole.MarkupLineInterpolated($"[green]Panel en marcha[/] [grey](pid {info.Pid}, solo en este equipo)[/]");
         AnsiConsole.MarkupLineInterpolated($"  [bold]{info.Url}[/]");
         AnsiConsole.MarkupLine("  [grey]La direccion lleva un codigo nuevo en cada arranque: abrela en el navegador de este equipo. Desde otro, un tunel ssh:[/]");
