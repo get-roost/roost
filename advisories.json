@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.1.0",
-  "generated": "2026-10-26T13:02:05+00:00",
-  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.10.23; 2 revisado(s) a mano",
+  "generated": "2026-10-27T12:11:35+00:00",
+  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.10.26; 2 revisado(s) a mano",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
     "realFix": "Actualiza a la ultima de tu rama: 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).",
@@ -189,7 +189,12 @@
           "status": "active"
         },
         "26.7": {
-          "latest": "26.7.0",
+          "latest": "26.7.1",
+          "eol": "2026-10-20",
+          "status": "eol"
+        },
+        "26.10": {
+          "latest": "26.10.0",
           "status": "active"
         }
       }
@@ -561,7 +566,7 @@
       },
       "cvss": 9.2,
       "severity": "critical",
-      "kev": false,
+      "kev": true,
       "mitigations": [
         {
           "ini": "memory_limit",
@@ -599,7 +604,7 @@
       },
       "cvss": 9.2,
       "severity": "critical",
-      "kev": false,
+      "kev": true,
       "mitigations": [
         {
           "ini": "session.upload_progress.enabled",
