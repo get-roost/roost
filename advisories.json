@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.1.0",
-  "generated": "2026-10-29T13:00:15+00:00",
-  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.10.28; 2 revisado(s) a mano",
+  "generated": "2026-10-30T12:55:13+00:00",
+  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.10.29; 2 revisado(s) a mano",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
     "realFix": "Actualiza a la ultima de tu rama: 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).",
