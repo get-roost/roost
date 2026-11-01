@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.1.0",
-  "generated": "2026-10-31T12:28:48+00:00",
+  "generated": "2026-11-01T13:24:04+00:00",
   "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.10.30; 2 revisado(s) a mano",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
@@ -11,6 +11,31 @@
     "php": {
       "displayName": "PHP",
       "branches": {
+        "4.0": {
+          "latest": "4.0.6",
+          "eol": "2001-06-23",
+          "status": "eol"
+        },
+        "4.1": {
+          "latest": "4.1.2",
+          "eol": "2002-03-12",
+          "status": "eol"
+        },
+        "4.2": {
+          "latest": "4.2.3",
+          "eol": "2002-09-06",
+          "status": "eol"
+        },
+        "4.3": {
+          "latest": "4.3.11",
+          "eol": "2005-03-31",
+          "status": "eol"
+        },
+        "4.4": {
+          "latest": "4.4.9",
+          "eol": "2008-08-07",
+          "status": "eol"
+        },
         "5.0": {
           "latest": "5.0.5",
           "eol": "2005-09-05",
@@ -108,6 +133,31 @@
     "mysql": {
       "displayName": "MySQL",
       "branches": {
+        "3.23": {
+          "latest": "3.23.58",
+          "eol": "2006-12-31",
+          "status": "eol"
+        },
+        "4.0": {
+          "latest": "4.0.30",
+          "eol": "2008-09-30",
+          "status": "eol"
+        },
+        "4.1": {
+          "latest": "4.1.24",
+          "eol": "2009-12-31",
+          "status": "eol"
+        },
+        "5.0": {
+          "latest": "5.0.96",
+          "eol": "2011-12-31",
+          "status": "eol"
+        },
+        "5.1": {
+          "latest": "5.1.73",
+          "eol": "2013-12-31",
+          "status": "eol"
+        },
         "5.5": {
           "latest": "5.5.63",
           "eol": "2018-12-31",
