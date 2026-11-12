@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.1.0",
-  "generated": "2026-11-11T14:22:40+00:00",
+  "generated": "2026-11-12T15:14:59+00:00",
   "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.11.10; 2 revisado(s) a mano",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
