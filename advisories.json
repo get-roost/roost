@@ -1,10 +1,10 @@
 {
   "schemaVersion": "1.1.0",
-  "generated": "2026-11-18T15:40:02+00:00",
-  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.11.17; 2 revisado(s) a mano",
+  "generated": "2026-11-19T15:44:11+00:00",
+  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.11.18; 2 revisado(s) a mano",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
-    "realFix": "Actualiza a la ultima de tu rama: 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 (o posterior).",
+    "realFix": "Actualiza a la ultima de tu rama: 8.2.36 / 8.3.37 / 8.4.28 / 8.5.13 (o posterior).",
     "note": "El que te expone en web es el php-fpm/apache (el que sirva tu sitio), no necesariamente el CLI. Revisa cual sirve tu web."
   },
   "products": {
@@ -107,24 +107,24 @@
           "status": "eol"
         },
         "8.2": {
-          "latest": "8.2.35",
+          "latest": "8.2.36",
           "eol": "2026-12-31",
           "securityUntil": "2026-12-31",
           "status": "security"
         },
         "8.3": {
-          "latest": "8.3.36",
+          "latest": "8.3.37",
           "eol": "2027-12-31",
           "securityUntil": "2027-12-31",
           "status": "security"
         },
         "8.4": {
-          "latest": "8.4.27",
+          "latest": "8.4.28",
           "eol": "2028-12-31",
           "status": "active"
         },
         "8.5": {
-          "latest": "8.5.12",
+          "latest": "8.5.13",
           "eol": "2029-12-31",
           "status": "active"
         }
@@ -593,6 +593,441 @@
     }
   },
   "advisories": [
+    {
+      "id": "CVE-2026-129289",
+      "aliases": [
+        "GHSA-qc49-hpvq-g2w6"
+      ],
+      "product": "php",
+      "title": "PHP-FPM request smuggling through an unread HTTP request body",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-qc49-hpvq-g2w6"
+      ]
+    },
+    {
+      "id": "CVE-2026-115560",
+      "aliases": [
+        "GHSA-658j-r8rw-q6mx"
+      ],
+      "product": "php",
+      "title": "Session serializer mismatch can lead to remote code execution",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-658j-r8rw-q6mx"
+      ]
+    },
+    {
+      "id": "CVE-2026-129506",
+      "aliases": [
+        "GHSA-4646-p932-gw34"
+      ],
+      "product": "php",
+      "title": "SOAP use-after-free when processing DTD entity references",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-4646-p932-gw34"
+      ]
+    },
+    {
+      "id": "CVE-2026-129501",
+      "aliases": [
+        "GHSA-x8r7-mg3g-74hg"
+      ],
+      "product": "php",
+      "title": "Double free during DOM XML serialization",
+      "affected": [
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-x8r7-mg3g-74hg"
+      ]
+    },
+    {
+      "id": "CVE-2026-15353",
+      "aliases": [
+        "GHSA-q23r-hr55-xmpg"
+      ],
+      "product": "php",
+      "title": "SOAP information disclosure through malformed array dimensions",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-q23r-hr55-xmpg"
+      ]
+    },
+    {
+      "id": "CVE-2026-128090",
+      "aliases": [
+        "GHSA-68fq-fh7h-f8gr"
+      ],
+      "product": "php",
+      "title": "PHAR OpenSSL signature bypass via algorithm downgrade",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 7.7,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-68fq-fh7h-f8gr"
+      ]
+    },
+    {
+      "id": "CVE-2026-129538",
+      "aliases": [
+        "GHSA-5j3f-64r7-f564"
+      ],
+      "product": "php",
+      "title": "PHP-CGI out-of-bounds read and write during PATH_INFO correction",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 6.9,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-5j3f-64r7-f564"
+      ]
+    },
+    {
+      "id": "CVE-2026-129292",
+      "aliases": [
+        "GHSA-3mg3-cr28-46gc"
+      ],
+      "product": "php",
+      "title": "PHP-FPM status endpoint XSS via unescaped user and script fields",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 5.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-3mg3-cr28-46gc"
+      ]
+    },
+    {
+      "id": "CVE-2026-129496",
+      "aliases": [
+        "GHSA-gr4f-wgx5-jpfv"
+      ],
+      "product": "php",
+      "title": "Timezone cache use-after-free can lead to remote code execution",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-gr4f-wgx5-jpfv"
+      ]
+    },
+    {
+      "id": "CVE-2026-126714",
+      "aliases": [
+        "GHSA-fm2m-fjf5-v3cp"
+      ],
+      "product": "php",
+      "title": "Partially overwritten session files can lead to remote code execution",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-fm2m-fjf5-v3cp"
+      ]
+    },
+    {
+      "id": "CVE-2026-129474",
+      "aliases": [
+        "GHSA-8mjj-2r7p-4hg2"
+      ],
+      "product": "php",
+      "title": "Use-after-free in magic method backtraces can lead to remote code execution",
+      "affected": [
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.5": "8.5.13"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-8mjj-2r7p-4hg2"
+      ]
+    },
+    {
+      "id": "CVE-2026-129438",
+      "aliases": [
+        "GHSA-mg3p-mxj9-g2mm"
+      ],
+      "product": "php",
+      "title": "Incorrect RFC 3986 URI serialization for oversized input",
+      "affected": [
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.5": "8.5.13"
+      },
+      "cvss": 6.3,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-mg3p-mxj9-g2mm"
+      ]
+    },
+    {
+      "id": "CVE-2026-128064",
+      "aliases": [
+        "GHSA-f6gg-rchx-xw8j"
+      ],
+      "product": "php",
+      "title": "Mixed-case HTTPS and FTPS URLs can expose data in plaintext",
+      "affected": [
+        ">=8.2.0 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 8.2,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-f6gg-rchx-xw8j"
+      ]
+    },
+    {
+      "id": "CVE-2026-127960",
+      "aliases": [
+        "GHSA-mmf9-xm3v-hg2x"
+      ],
+      "product": "php",
+      "title": "Denial of service through folded HTTP response headers",
+      "affected": [
+        ">=8.2.28 <8.2.36",
+        ">=8.3.18 <8.3.37",
+        ">=8.4.5 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 8.7,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-mmf9-xm3v-hg2x"
+      ]
+    },
+    {
+      "id": "CVE-2026-129182",
+      "aliases": [
+        "GHSA-2fjv-p558-g82m"
+      ],
+      "product": "php",
+      "title": "Use-after-free via repopulation of last_fatal_error_backtrace global after shutdown",
+      "affected": [
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.5": "8.5.13"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-2fjv-p558-g82m"
+      ]
+    },
+    {
+      "id": "CVE-2026-129481",
+      "aliases": [
+        "GHSA-g3vh-838c-65v7"
+      ],
+      "product": "php",
+      "title": "Use-after-free after interrupted session shutdown",
+      "affected": [
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 9.2,
+      "severity": "critical",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-g3vh-838c-65v7"
+      ]
+    },
+    {
+      "id": "CVE-2026-129291",
+      "aliases": [
+        "GHSA-jm4m-qfqx-967m"
+      ],
+      "product": "php",
+      "title": "PHP-FPM epoll use-after-free can lead to local privilege escalation",
+      "affected": [
+        ">=8.2.7 <8.2.36",
+        ">=8.3.0 <8.3.37",
+        ">=8.4.0 <8.4.28",
+        ">=8.5.0 <8.5.13"
+      ],
+      "fixedIn": {
+        "8.2": "8.2.36",
+        "8.3": "8.3.37",
+        "8.4": "8.4.28",
+        "8.5": "8.5.13"
+      },
+      "cvss": 8.8,
+      "severity": "high",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://github.com/php/php-src/security/advisories/GHSA-jm4m-qfqx-967m"
+      ]
+    },
     {
       "id": "CVE-2026-109618",
       "aliases": [
