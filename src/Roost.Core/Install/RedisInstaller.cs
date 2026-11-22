@@ -45,15 +45,15 @@ public static class RedisCatalog
         new Uri("https://github.com/redis-windows/redis-windows/releases/download/8.10.2/Redis-8.10.2-Windows-x64-msys2.zip"),
         "7c8cebd50347eaa1d9e784da842ed47a4f33394637835531d6614777b950ee85");
 
-    // redis-8.10.2-linux-x86_64.tar.gz (8.594.196 bytes): el artefacto del run 40208084641 de redis.yml, 25-oct-2026, de
-    // roost-builds (con su SHA256SUMS.txt; fuente redis-8.10.2.tar.gz de download.redis.io verificada en el workflow con
-    // redis-hashes; OpenSSL 3.5.9 y jemalloc estaticos, musl), bajado y probado en Ubuntu 24.04. La release redis-8.10.2,
+    // redis-8.12.0-linux-x86_64.tar.gz (9.013.801 bytes): el artefacto del run 45027662251 de redis.yml, 22-nov-2026, de
+    // roost-builds (con su SHA256SUMS.txt; fuente redis-8.12.0.tar.gz de download.redis.io verificada en el workflow con
+    // redis-hashes; OpenSSL 3.5.9 y jemalloc estaticos, musl), bajado y probado en Ubuntu 24.04. La release redis-8.12.0,
     // con su attestation, se publica con publish: true y from_run: ese run (los mismos bytes). Para cambiar de version:
     // lanzar redis.yml con la nueva, probar el artefacto, publicarlo con from_run y fijar aqui su SHA-256 (fijar-en-roost.py lo hace).
     public static readonly RedisBuild Linux = new(
-        "8.10.2",
-        new Uri("https://github.com/get-roost/roost-builds/releases/download/redis-8.10.2/redis-8.10.2-linux-x86_64.tar.gz"),
-        "d285fc669aaa732aabf2d82a2811bf65e441a81b060ee2ef805b76dd4b7206d9");
+        "8.12.0",
+        new Uri("https://github.com/get-roost/roost-builds/releases/download/redis-8.12.0/redis-8.12.0-linux-x86_64.tar.gz"),
+        "58995c90e803e6a2559c92aa6a5b31b5ebd20d8ed29c7e8940fd02a52ec91b93");
 }
 
 /// <summary>Un Redis instalado por Roost, en <c>bin/redis/&lt;versión&gt;</c>.</summary>
