@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.1.0",
-  "generated": "2026-11-22T14:34:07+00:00",
-  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.11.20; 2 revisado(s) a mano",
+  "generated": "2026-11-23T18:08:30+00:00",
+  "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.11.23; 2 revisado(s) a mano",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
     "realFix": "Actualiza a la ultima de tu rama: 8.2.36 / 8.3.37 / 8.4.28 / 8.5.13 / 8.6.0 (o posterior).",
@@ -2819,7 +2819,7 @@
       "mitigations": [],
       "refs": [
         "https://my.f5.com/manage/s/article/K000163927",
-        "https://www.cve.org/CVERecord?id=CVE-CVE-2026-121810"
+        "https://www.cve.org/CVERecord?id=CVE-2026-121810"
       ]
     },
     {
