@@ -32,16 +32,16 @@ public static class NginxCatalog
         new Uri("https://nginx.org/download/nginx-1.30.6.zip"),
         "c6ee35edb0a861063323f709192ae50d1eefaf2ea7d00678bd2b22d8542dc61e");
 
-    // nginx-1.30.6-linux-x86_64.tar.gz (2.892.542 bytes): el publicado en la release nginx-1.30.6 de roost-builds
-    // (run 40199286172 de nginx.yml, 25-oct-2026, con su SHA256SUMS.txt y su attestation; fuente
-    // nginx-1.30.6.tar.gz de nginx.org, firmada por la clave de Kandaurov y verificada en el workflow;
+    // nginx-1.30.8-linux-x86_64.tar.gz (2.894.190 bytes): el publicado en la release nginx-1.30.8 de roost-builds
+    // (run 45214207184 de nginx.yml, 23-nov-2026, con su SHA256SUMS.txt y su attestation; fuente
+    // nginx-1.30.8.tar.gz de nginx.org, firmada por la clave de Kandaurov y verificada en el workflow;
     // OpenSSL 3.5.9, PCRE2 10.46, zlib 1.3.2, musl 1.2.5), bajado de la release y probado en Ubuntu 24.04.
     // Para cambiar de versión: lanzar nginx.yml con la nueva, probar el artefacto, publicarlo con publish: true
     // y from_run: <ese run> (los mismos bytes; sin from_run recompila y sale otro SHA-256) y fijar aquí su SHA-256.
     public static readonly NginxBuild Linux = new(
-        "1.30.6",
-        new Uri("https://github.com/get-roost/roost-builds/releases/download/nginx-1.30.6/nginx-1.30.6-linux-x86_64.tar.gz"),
-        "a20525179acfcdf36f40eeb58ab1ab9bbae5dfb4ac0f6ec53cf5f8c8ce28c40a");
+        "1.30.8",
+        new Uri("https://github.com/get-roost/roost-builds/releases/download/nginx-1.30.8/nginx-1.30.8-linux-x86_64.tar.gz"),
+        "568dbdf349972aab517fa3a064af3e39970912083b47fad59d4854e4a9b9e9a7");
 }
 
 /// <summary>Un nginx instalado por Roost, en <c>bin/nginx/&lt;versión&gt;</c>.</summary>
