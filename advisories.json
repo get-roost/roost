@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.1.0",
-  "generated": "2026-11-23T18:08:30+00:00",
+  "generated": "2026-11-24T17:44:16+00:00",
   "source": "roost-catalog: endoflife.date, php.net, avisos de GitHub de php/php-src, nginx.org, httpd.apache.org y CISA KEV 2026.11.23; 2 revisado(s) a mano",
   "remediation": {
     "mitigationHeader": "MITIGACIONES OFICIALES (tapon temporal, NO sustituyen al parche):",
@@ -406,6 +406,11 @@
           "latest": "13.0.2",
           "eol": "2026-12-31",
           "status": "active"
+        },
+        "13.1": {
+          "latest": "13.1.2",
+          "eol": "2027-03-31",
+          "status": "active"
         }
       }
     },
@@ -563,11 +568,11 @@
           "status": "eol"
         },
         "1.30": {
-          "latest": "1.30.7",
+          "latest": "1.30.8",
           "status": "active"
         },
         "1.31": {
-          "latest": "1.31.9",
+          "latest": "1.31.10",
           "status": "active"
         }
       }
@@ -2754,6 +2759,28 @@
       "mitigations": [],
       "refs": [
         "https://github.com/php/php-src/security/advisories/GHSA-54hq-v5wp-fqgv"
+      ]
+    },
+    {
+      "id": "CVE-2026-132779",
+      "aliases": [],
+      "product": "nginx",
+      "title": "Excessive CPU usage in TLS 1.3 with ssl_early_data",
+      "affected": [
+        ">=1.21.4 <1.30.8",
+        ">=1.31.0 <=1.31.9"
+      ],
+      "fixedIn": {
+        "1.31": "1.31.10",
+        "1.30": "1.30.8"
+      },
+      "cvss": 0,
+      "severity": "medium",
+      "kev": false,
+      "mitigations": [],
+      "refs": [
+        "https://my.f5.com/manage/s/article/K000163947",
+        "https://www.cve.org/CVERecord?id=CVE-2026-132779"
       ]
     },
     {
